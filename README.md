@@ -5,8 +5,10 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 ## Features
 
 - 🚀 **Seamless CLI Integration** - Start and stop Copilot CLI sessions directly from VS Code
-- ⚙️ **Configurable Permissions** - Control tool and URL access with granular settings
-- 🔄 **Auto-apply Changes** - View diffs for awareness, no approval prompts to interrupt flow
+- ⚙️ **Full Flag Support** - All Copilot CLI flags configurable via VS Code settings
+- 🔧 **Tool Control** - Granular allow/deny for specific tools, URLs, and directories
+- 🤖 **Model Selection** - Choose from 14 AI models including GPT-5, Claude 4.5, and Gemini
+- 🔄 **Auto-apply Changes** - View diffs for awareness, no approval prompts to interrupt flow (coming soon)
 - 💬 **Chat Interface** - Coming soon: Interactive chat panel with history
 
 ## Quick Start
@@ -14,8 +16,9 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 ### Prerequisites
 
 - VS Code 1.108.1 or higher
-- GitHub CLI (`gh`) installed and authenticated
-- GitHub Copilot CLI extension installed (`gh extension install github/gh-copilot`)
+- **New Copilot CLI** installed (standalone `copilot` command)
+  - Install from: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli
+  - Note: This is NOT the old `gh extension install github/gh-copilot` (deprecated)
 
 ### Installation
 
@@ -35,18 +38,33 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## Configuration
 
-Configure the extension in VS Code settings:
+Configure the extension in VS Code settings (all Copilot CLI flags supported):
 
 ```json
 {
-  "copilotCLI.cliPath": "gh",  // Path to gh executable
-  "copilotCLI.allowAllTools": false,  // Allow all tools
-  "copilotCLI.allowAllUrls": false,   // Allow all URLs
-  "copilotCLI.yolo": false,           // YOLO mode (max permissions)
-  "copilotCLI.allowedTools": [],      // Specific allowed tools
-  "copilotCLI.allowedUrls": []        // Specific allowed URLs
+  "copilotCLI.cliPath": "copilot",        // Path to copilot executable
+  "copilotCLI.yolo": false,               // YOLO mode (all permissions)
+  "copilotCLI.allowAllTools": false,      // Auto-approve all tools
+  "copilotCLI.allowAllPaths": false,      // Allow access to any path
+  "copilotCLI.allowAllUrls": false,       // Allow all URLs
+  "copilotCLI.allowTools": [],            // Specific tools: ["shell(git)", "write"]
+  "copilotCLI.denyTools": [],             // Block tools: ["shell(rm)"]
+  "copilotCLI.allowUrls": [],             // Specific URLs/domains
+  "copilotCLI.denyUrls": [],              // Block URLs/domains
+  "copilotCLI.addDirs": [],               // Additional allowed directories
+  "copilotCLI.agent": "",                 // Custom agent name
+  "copilotCLI.model": "",                 // AI model (empty = default)
+  "copilotCLI.noAskUser": false           // Autonomous mode (no questions)
 }
 ```
+
+### Tool Specification Format
+- Shell commands: `"shell(COMMAND)"` - e.g., `"shell(git)"`, `"shell(git push)"`
+- File writes: `"write"`
+- MCP servers: `"MCP_SERVER_NAME(tool_name)"`
+
+### Model Options
+Choose from 14 models: Claude Sonnet 4.5 (default), Claude Haiku/Opus 4.5, GPT-5 variants, Gemini 3 Pro Preview
 
 ## Roadmap
 
