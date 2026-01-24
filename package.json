@@ -27,39 +27,100 @@
       "properties": {
         "copilotCLI.cliPath": {
           "type": "string",
-          "default": "gh",
-          "description": "Path to GitHub CLI executable (gh)"
-        },
-        "copilotCLI.allowAllTools": {
-          "type": "boolean",
-          "default": false,
-          "description": "Allow all tools without prompting"
-        },
-        "copilotCLI.allowAllUrls": {
-          "type": "boolean",
-          "default": false,
-          "description": "Allow all URLs without prompting"
+          "default": "copilot",
+          "description": "Path to Copilot CLI executable"
         },
         "copilotCLI.yolo": {
           "type": "boolean",
           "default": false,
-          "description": "Enable YOLO mode (maximum permissions)"
+          "description": "Enable YOLO mode (all permissions: --allow-all-tools --allow-all-paths --allow-all-urls)"
         },
-        "copilotCLI.allowedTools": {
+        "copilotCLI.allowAllTools": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow all tools to run automatically without confirmation"
+        },
+        "copilotCLI.allowAllPaths": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable file path verification and allow access to any path"
+        },
+        "copilotCLI.allowAllUrls": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow access to all URLs without confirmation"
+        },
+        "copilotCLI.allowTools": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "description": "List of allowed tools"
+          "description": "Specific tools to allow (e.g., 'shell(git)', 'write', 'MyMCP(tool_name)')"
         },
-        "copilotCLI.allowedUrls": {
+        "copilotCLI.denyTools": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "description": "List of allowed URLs"
+          "description": "Specific tools to deny (takes precedence over allow)"
+        },
+        "copilotCLI.allowUrls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Specific URLs or domains to allow"
+        },
+        "copilotCLI.denyUrls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Specific URLs or domains to deny (takes precedence over allow)"
+        },
+        "copilotCLI.addDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional directories to add to the allowed list for file access"
+        },
+        "copilotCLI.agent": {
+          "type": "string",
+          "default": "",
+          "description": "Custom agent to use"
+        },
+        "copilotCLI.model": {
+          "type": "string",
+          "enum": [
+            "",
+            "claude-sonnet-4.5",
+            "claude-haiku-4.5",
+            "claude-opus-4.5",
+            "claude-sonnet-4",
+            "gpt-5.2-codex",
+            "gpt-5.1-codex-max",
+            "gpt-5.1-codex",
+            "gpt-5.2",
+            "gpt-5.1",
+            "gpt-5",
+            "gpt-5.1-codex-mini",
+            "gpt-5-mini",
+            "gpt-4.1",
+            "gemini-3-pro-preview"
+          ],
+          "default": "",
+          "description": "AI model to use (empty = default: claude-sonnet-4.5)"
+        },
+        "copilotCLI.noAskUser": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disable ask_user tool (agent works autonomously without asking questions)"
         }
       }
     }

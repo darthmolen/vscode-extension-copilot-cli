@@ -2,11 +2,19 @@ import { ChildProcess, spawn } from 'child_process';
 import * as vscode from 'vscode';
 
 export interface CLIConfig {
-    allowAllTools?: boolean;
-    allowAllUrls?: boolean;
+    allowAll?: boolean;
     yolo?: boolean;
-    allowedTools?: string[];
-    allowedUrls?: string[];
+    allowAllTools?: boolean;
+    allowAllPaths?: boolean;
+    allowAllUrls?: boolean;
+    allowTools?: string[];
+    denyTools?: string[];
+    allowUrls?: string[];
+    denyUrls?: string[];
+    addDirs?: string[];
+    agent?: string;
+    model?: string;
+    noAskUser?: boolean;
 }
 
 export interface CLIMessage {
@@ -117,35 +125,80 @@ export class CLIProcessManager {
             return configPath;
         }
 
-        // Default to 'gh' in PATH (assuming gh copilot CLI is installed)
-        return 'gh';
+        // Default to 'copilot' in PATH (new standalone CLI)
+        return 'copilot';
     }
 
     private buildCLIArgs(): string[] {
-        const args: string[] = ['copilot', 'chat'];
+        const args: string[] = [];
 
-        if (this.config.yolo) {
+        // YOLO/Allow-all takes precedence
+        if (this.config.yolo || this.config.allowAll) {
             args.push('--yolo');
+            return args; // No need for other flags
         }
 
+        // Specific allow flags
         if (this.config.allowAllTools) {
             args.push('--allow-all-tools');
+        }
+
+        if (this.config.allowAllPaths) {
+            args.push('--allow-all-paths');
         }
 
         if (this.config.allowAllUrls) {
             args.push('--allow-all-urls');
         }
 
-        if (this.config.allowedTools) {
-            for (const tool of this.config.allowedTools) {
+        // Allow specific tools
+        if (this.config.allowTools && this.config.allowTools.length > 0) {
+            for (const tool of this.config.allowTools) {
                 args.push('--allow-tool', tool);
             }
         }
 
-        if (this.config.allowedUrls) {
-            for (const url of this.config.allowedUrls) {
+        // Deny specific tools
+        if (this.config.denyTools && this.config.denyTools.length > 0) {
+            for (const tool of this.config.denyTools) {
+                args.push('--deny-tool', tool);
+            }
+        }
+
+        // Allow specific URLs
+        if (this.config.allowUrls && this.config.allowUrls.length > 0) {
+            for (const url of this.config.allowUrls) {
                 args.push('--allow-url', url);
             }
+        }
+
+        // Deny specific URLs
+        if (this.config.denyUrls && this.config.denyUrls.length > 0) {
+            for (const url of this.config.denyUrls) {
+                args.push('--deny-url', url);
+            }
+        }
+
+        // Add directories
+        if (this.config.addDirs && this.config.addDirs.length > 0) {
+            for (const dir of this.config.addDirs) {
+                args.push('--add-dir', dir);
+            }
+        }
+
+        // Custom agent
+        if (this.config.agent) {
+            args.push('--agent', this.config.agent);
+        }
+
+        // Model selection
+        if (this.config.model) {
+            args.push('--model', this.config.model);
+        }
+
+        // Autonomous mode (no ask user)
+        if (this.config.noAskUser) {
+            args.push('--no-ask-user');
         }
 
         return args;

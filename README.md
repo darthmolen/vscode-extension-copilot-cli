@@ -1,71 +1,93 @@
-# copilot-cli-extension README
+# Copilot CLI Extension
 
-This is the README for your extension "copilot-cli-extension". After writing up a brief description, we recommend including the following sections.
+Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- 🚀 **Seamless CLI Integration** - Start and stop Copilot CLI sessions directly from VS Code
+- ⚙️ **Configurable Permissions** - Control tool and URL access with granular settings
+- 🔄 **Auto-apply Changes** - View diffs for awareness, no approval prompts to interrupt flow
+- 💬 **Chat Interface** - Coming soon: Interactive chat panel with history
 
-For example if there is an image subfolder under your extension project workspace:
+## Quick Start
 
-\!\[feature X\]\(images/feature-x.png\)
+### Prerequisites
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- VS Code 1.108.1 or higher
+- GitHub CLI (`gh`) installed and authenticated
+- GitHub Copilot CLI extension installed (`gh extension install github/gh-copilot`)
 
-## Requirements
+### Installation
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+1. Clone this repository
+2. Run `npm install`
+3. Press F5 to open Extension Development Host
 
-## Extension Settings
+### Usage
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+**Start a Chat Session:**
+- Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+- Run `Copilot CLI: Start Chat Session`
 
-For example:
+**Stop a Chat Session:**
+- Open Command Palette
+- Run `Copilot CLI: Stop Chat Session`
 
-This extension contributes the following settings:
+## Configuration
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+Configure the extension in VS Code settings:
 
-## Known Issues
+```json
+{
+  "copilotCLI.cliPath": "gh",  // Path to gh executable
+  "copilotCLI.allowAllTools": false,  // Allow all tools
+  "copilotCLI.allowAllUrls": false,   // Allow all URLs
+  "copilotCLI.yolo": false,           // YOLO mode (max permissions)
+  "copilotCLI.allowedTools": [],      // Specific allowed tools
+  "copilotCLI.allowedUrls": []        // Specific allowed URLs
+}
+```
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+## Roadmap
 
-## Release Notes
+- [x] Phase 1: Project setup and structure
+- [x] Phase 2: CLI process management
+- [ ] Phase 3: Interactive webview chat panel
+- [ ] Phase 4: Non-blocking file diff visualization
+- [ ] Phase 5: Session history and persistence
+- [ ] Phase 6: Enhanced features (inline context, file tree integration)
+- [ ] Phase 7: UX polish and theme integration
+- [ ] Phase 8: Testing and documentation
 
-Users appreciate release notes as you update your extension.
+## Development
 
-### 1.0.0
+```bash
+# Install dependencies
+npm install
 
-Initial release of ...
+# Compile TypeScript
+npm run compile
 
-### 1.0.1
+# Watch mode
+npm run watch
 
-Fixed issue #.
+# Run tests
+npm test
 
-### 1.1.0
+# Package extension
+npm run package
+```
 
-Added features X, Y, and Z.
+## Architecture
 
----
+- **CLIProcessManager**: Manages Copilot CLI process lifecycle
+- **Message Protocol**: Event-based communication between CLI and extension
+- **Configuration**: VS Code settings for CLI flags and permissions
 
-## Following extension guidelines
+## Contributing
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+This is an experimental project. Feedback and contributions welcome!
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+## License
 
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+MIT

@@ -67,11 +67,18 @@ function getCLIConfig(): CLIConfig {
 	const config = vscode.workspace.getConfiguration('copilotCLI');
 	
 	return {
-		allowAllTools: config.get<boolean>('allowAllTools', false),
-		allowAllUrls: config.get<boolean>('allowAllUrls', false),
 		yolo: config.get<boolean>('yolo', false),
-		allowedTools: config.get<string[]>('allowedTools', []),
-		allowedUrls: config.get<string[]>('allowedUrls', [])
+		allowAllTools: config.get<boolean>('allowAllTools', false),
+		allowAllPaths: config.get<boolean>('allowAllPaths', false),
+		allowAllUrls: config.get<boolean>('allowAllUrls', false),
+		allowTools: config.get<string[]>('allowTools', []),
+		denyTools: config.get<string[]>('denyTools', []),
+		allowUrls: config.get<string[]>('allowUrls', []),
+		denyUrls: config.get<string[]>('denyUrls', []),
+		addDirs: config.get<string[]>('addDirs', []),
+		agent: config.get<string>('agent', ''),
+		model: config.get<string>('model', ''),
+		noAskUser: config.get<boolean>('noAskUser', false)
 	};
 }
 
