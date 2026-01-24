@@ -1,15 +1,19 @@
-# Copilot CLI Extension
+# Copilot CLI Chat
 
 Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow.
 
-## Features
+## ✨ Features
 
-- 🚀 **Seamless CLI Integration** - Start and stop Copilot CLI sessions directly from VS Code
-- ⚙️ **Full Flag Support** - All Copilot CLI flags configurable via VS Code settings
-- 🔧 **Tool Control** - Granular allow/deny for specific tools, URLs, and directories
-- 🤖 **Model Selection** - Choose from 14 AI models including GPT-5, Claude 4.5, and Gemini
-- 🔄 **Auto-apply Changes** - View diffs for awareness, no approval prompts to interrupt flow (coming soon)
-- 💬 **Chat Interface** - Coming soon: Interactive chat panel with history
+- 💬 **Interactive Chat Panel** - Dockable chat interface with full markdown rendering (code blocks, lists, headers, links)
+- 📜 **Session Management** - Resume previous conversations, switch between sessions with dropdown selector
+- 🔄 **Auto-resume** - Automatically picks up where you left off (configurable)
+- 📚 **Full History** - Loads complete conversation history from Copilot CLI's events.jsonl
+- ⚙️ **Complete CLI Configuration** - All Copilot CLI flags configurable via VS Code settings
+- 🚀 **YOLO Mode** - Quick development mode with all permissions enabled (default, recommended)
+- 🤖 **14 AI Models** - Choose from GPT-5, Claude 4.5 Sonnet/Opus, Gemini 3 Pro, and more
+- 🔧 **Granular Permissions** - Control tool access, file paths, and URLs individually
+- ♿ **Accessibility** - Screen reader optimizations, ARIA labels, semantic HTML
+- 🌍 **Cross-Platform** - Works on Linux, macOS, and Windows
 
 ## Quick Start
 
@@ -17,8 +21,21 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 - VS Code 1.108.1 or higher
 - **New Copilot CLI** installed (standalone `copilot` command)
-  - Install from: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli
+  - **Linux/macOS**: `brew install copilot-cli`
+  - **Windows**: `winget install GitHub.Copilot`
+  - See: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli
   - Note: This is NOT the old `gh extension install github/gh-copilot` (deprecated)
+
+### Supported Platforms
+
+- ✅ **Linux** (tested)
+- ✅ **macOS** (should work, uses homebrew)
+- ✅ **Windows** (should work, requires PowerShell v6+)
+
+**Note**: Extension uses cross-platform Node.js APIs (`os.homedir()`, `path.join()`) so session state location works on all platforms:
+- Linux: `~/.copilot/session-state/`
+- macOS: `~/.copilot/session-state/`
+- Windows: `%USERPROFILE%\.copilot\session-state\`
 
 ### Installation
 
@@ -70,7 +87,7 @@ Choose from 14 models: Claude Sonnet 4.5 (default), Claude Haiku/Opus 4.5, GPT-5
 
 - [x] Phase 1: Project setup and structure
 - [x] Phase 2: CLI process management
-- [ ] Phase 3: Interactive webview chat panel
+- [🚧] Phase 3: Interactive webview chat panel (in-progress)
 - [ ] Phase 4: Non-blocking file diff visualization
 - [ ] Phase 5: Session history and persistence
 - [ ] Phase 6: Enhanced features (inline context, file tree integration)

@@ -1,27 +1,73 @@
 {
   "name": "copilot-cli-extension",
-  "displayName": "Copilot CLI Extension",
-  "description": "Interactive VS Code extension for GitHub Copilot CLI",
-  "version": "0.0.1",
+  "displayName": "Copilot CLI Chat",
+  "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
+  "version": "1.0.0",
+  "publisher": "darthmolen",
+  "author": {
+    "name": "darthmolen"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/darthmolen/vscode-extension-copilot-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/darthmolen/vscode-extension-copilot-cli/issues"
+  },
+  "homepage": "https://github.com/darthmolen/vscode-extension-copilot-cli#readme",
+  "keywords": [
+    "copilot",
+    "ai",
+    "chat",
+    "cli",
+    "assistant",
+    "github",
+    "coding",
+    "agent"
+  ],
+  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.108.1"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Chat"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
+        "command": "copilot-cli-extension.openChat",
+        "title": "Copilot CLI: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "copilot-cli-extension.startChat",
         "title": "Copilot CLI: Start Chat Session"
+      },
+      {
+        "command": "copilot-cli-extension.newSession",
+        "title": "Copilot CLI: New Session",
+        "icon": "$(add)"
       },
       {
         "command": "copilot-cli-extension.stopChat",
         "title": "Copilot CLI: Stop Chat Session"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "copilot-cli-extension.openChat",
+          "group": "navigation",
+          "when": "editorFocus"
+        }
+      ]
+    },
     "configuration": {
       "title": "Copilot CLI",
       "properties": {
@@ -32,13 +78,18 @@
         },
         "copilotCLI.yolo": {
           "type": "boolean",
-          "default": false,
-          "description": "Enable YOLO mode (all permissions: --allow-all-tools --allow-all-paths --allow-all-urls)"
+          "default": true,
+          "description": "Enable YOLO mode (all permissions: --allow-all-tools --allow-all-paths --allow-all-urls). Recommended for development."
+        },
+        "copilotCLI.resumeLastSession": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically resume the last session when opening the chat panel"
         },
         "copilotCLI.allowAllTools": {
           "type": "boolean",
           "default": false,
-          "description": "Allow all tools to run automatically without confirmation"
+          "description": "Allow all tools to run automatically without confirmation (overridden by yolo)"
         },
         "copilotCLI.allowAllPaths": {
           "type": "boolean",
@@ -140,15 +191,21 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.108.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.52.0",
-    "eslint": "^9.39.2",
+    "@types/vscode": "^1.108.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.2",
+    "eslint": "^9.39.2",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.52.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.1",
+    "marked": "^17.0.1",
+    "node-pty": "^1.1.0"
   }
 }
