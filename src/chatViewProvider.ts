@@ -362,46 +362,60 @@ export class ChatPanelProvider {
 		}
 
 		.tool-executions {
-			margin-top: 8px;
-			padding: 8px;
+			margin-top: 12px;
+			padding: 8px 12px;
 			background: var(--vscode-editorWidget-background);
 			border-radius: 4px;
 			font-size: 0.9em;
+			max-width: 600px;
+			border: 1px solid var(--vscode-editorWidget-border);
+		}
+
+		.tool-executions-header {
+			font-size: 0.85em;
+			color: var(--vscode-descriptionForeground);
+			margin-bottom: 6px;
+			font-weight: 500;
 		}
 
 		.tool-execution {
-			padding: 4px 0;
-			border-bottom: 1px solid var(--vscode-editorWidget-border);
+			padding: 6px 0;
+			border-bottom: 1px solid var(--vscode-widget-border);
 		}
 
 		.tool-execution:last-child {
 			border-bottom: none;
+			padding-bottom: 0;
 		}
 
 		.tool-header {
 			display: flex;
 			align-items: center;
-			gap: 8px;
+			gap: 6px;
+			font-size: 0.95em;
 		}
 
 		.tool-icon {
 			font-size: 14px;
+			flex-shrink: 0;
 		}
 
 		.tool-name {
 			font-weight: 500;
 			color: var(--vscode-foreground);
+			font-family: var(--vscode-editor-font-family);
 		}
 
 		.tool-duration {
 			margin-left: auto;
 			color: var(--vscode-descriptionForeground);
-			font-size: 0.85em;
+			font-size: 0.9em;
+			white-space: nowrap;
 		}
 
 		.tool-progress {
 			margin-top: 4px;
-			padding-left: 22px;
+			padding-left: 20px;
 			color: var(--vscode-descriptionForeground);
 			font-size: 0.85em;
 			font-style: italic;
@@ -639,14 +653,6 @@ export class ChatPanelProvider {
 				<div class="message-content">\${content}</div>
 			\`;
 			
-			// Add container for tool executions (for assistant messages)
-			if (role === 'assistant') {
-				const toolsDiv = document.createElement('div');
-				toolsDiv.className = 'tool-executions';
-				toolsDiv.id = \`tools-\${Date.now()}\`;
-				messageDiv.appendChild(toolsDiv);
-			}
-			
 			messagesContainer.appendChild(messageDiv);
 			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 			
@@ -657,9 +663,25 @@ export class ChatPanelProvider {
 		function addOrUpdateTool(toolState) {
 			// Find the last tool-executions container
 			const containers = messagesContainer.querySelectorAll('.tool-executions');
-			if (containers.length === 0) return;
+			let container = containers.length > 0 ? containers[containers.length - 1] : null;
 			
-			const container = containers[containers.length - 1];
+			// If no container exists, create one and add header
+			if (!container) {
+				const messages = messagesContainer.querySelectorAll('.message.assistant');
+				if (messages.length === 0) return;
+				
+				const lastMessage = messages[messages.length - 1];
+				container = document.createElement('div');
+				container.className = 'tool-executions';
+				
+				const header = document.createElement('div');
+				header.className = 'tool-executions-header';
+				header.textContent = '🔧 Tool Executions';
+				container.appendChild(header);
+				
+				lastMessage.appendChild(container);
+			}
+			
 			let toolDiv = container.querySelector(\`[data-tool-id="\${toolState.toolCallId}"]\`);
 			
 			if (!toolDiv) {
@@ -676,13 +698,13 @@ export class ChatPanelProvider {
 			                    toolState.status === 'running' ? '⏳' : '⏸️';
 			
 			const duration = toolState.endTime ? 
-				\` (\${((toolState.endTime - toolState.startTime) / 1000).toFixed(1)}s)\` : '';
+				\`\${((toolState.endTime - toolState.startTime) / 1000).toFixed(2)}s\` : '';
 			
 			toolDiv.innerHTML = \`
 				<div class="tool-header">
 					<span class="tool-icon">\${statusIcon}</span>
 					<span class="tool-name">\${escapeHtml(toolState.toolName)}</span>
-					<span class="tool-duration">\${duration}</span>
+					\${duration ? \`<span class="tool-duration">\${duration}</span>\` : ''}
 				</div>
 				\${toolState.progress ? \`<div class="tool-progress">\${escapeHtml(toolState.progress)}</div>\` : ''}
 			\`;

@@ -108,10 +108,12 @@ export class SDKSessionManager {
 
             // Create CopilotClient
             const cliPath = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+            const yoloMode = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yoloMode', false);
             
             this.client = new CopilotClient({
                 logLevel: 'info',
                 ...(cliPath ? { cliPath } : {}),
+                ...(yoloMode ? { cliArgs: ['--yolo'] } : {}),
                 autoStart: true,
             });
 
@@ -275,9 +277,17 @@ export class SDKSessionManager {
         
         try {
             await this.session.sendAndWait({ prompt: message });
-            this.logger.debug('Message sent and completed');
+            this.logger.info('Message sent and completed successfully');
         } catch (error) {
             this.logger.error('Failed to send message', error instanceof Error ? error : undefined);
+            
+            // Fire error event to UI
+            this.onMessageEmitter.fire({
+                type: 'error',
+                data: error instanceof Error ? error.message : String(error),
+                timestamp: Date.now()
+            });
+            
             throw error;
         }
     }
