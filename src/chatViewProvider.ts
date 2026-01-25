@@ -78,6 +78,15 @@ export class ChatPanelProvider {
 		ChatPanelProvider.postMessage({ type: 'assistantMessage', text });
 	}
 
+	public static addToolExecution(toolState: any) {
+		ChatPanelProvider.postMessage({ type: 'toolStart', tool: toolState });
+	}
+
+	public static updateToolExecution(toolState: any) {
+		ChatPanelProvider.postMessage({ type: 'toolUpdate', tool: toolState });
+	}
+
+
 	public static appendToLastMessage(text: string) {
 		ChatPanelProvider.postMessage({ type: 'appendMessage', text });
 	}
@@ -352,6 +361,53 @@ export class ChatPanelProvider {
 			border-left: 3px solid var(--vscode-terminal-ansiGreen);
 		}
 
+		.tool-executions {
+			margin-top: 8px;
+			padding: 8px;
+			background: var(--vscode-editorWidget-background);
+			border-radius: 4px;
+			font-size: 0.9em;
+		}
+
+		.tool-execution {
+			padding: 4px 0;
+			border-bottom: 1px solid var(--vscode-editorWidget-border);
+		}
+
+		.tool-execution:last-child {
+			border-bottom: none;
+		}
+
+		.tool-header {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.tool-icon {
+			font-size: 14px;
+		}
+
+		.tool-name {
+			font-weight: 500;
+			color: var(--vscode-foreground);
+		}
+
+		.tool-duration {
+			margin-left: auto;
+			color: var(--vscode-descriptionForeground);
+			font-size: 0.85em;
+		}
+
+		.tool-progress {
+			margin-top: 4px;
+			padding-left: 22px;
+			color: var(--vscode-descriptionForeground);
+			font-size: 0.85em;
+			font-style: italic;
+		}
+
+
 		.thinking {
 			display: none;
 			padding: 10px 12px;
@@ -583,11 +639,56 @@ export class ChatPanelProvider {
 				<div class="message-content">\${content}</div>
 			\`;
 			
+			// Add container for tool executions (for assistant messages)
+			if (role === 'assistant') {
+				const toolsDiv = document.createElement('div');
+				toolsDiv.className = 'tool-executions';
+				toolsDiv.id = \`tools-\${Date.now()}\`;
+				messageDiv.appendChild(toolsDiv);
+			}
+			
 			messagesContainer.appendChild(messageDiv);
 			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 			
-			// Announce new message to screen readers (messages container already has role="log" and aria-live)
+			// Announce new message to screen readers
 			messageInput.focus();
+		}
+
+		function addOrUpdateTool(toolState) {
+			// Find the last tool-executions container
+			const containers = messagesContainer.querySelectorAll('.tool-executions');
+			if (containers.length === 0) return;
+			
+			const container = containers[containers.length - 1];
+			let toolDiv = container.querySelector(\`[data-tool-id="\${toolState.toolCallId}"]\`);
+			
+			if (!toolDiv) {
+				// Create new tool div
+				toolDiv = document.createElement('div');
+				toolDiv.className = 'tool-execution';
+				toolDiv.setAttribute('data-tool-id', toolState.toolCallId);
+				container.appendChild(toolDiv);
+			}
+			
+			// Update tool content
+			const statusIcon = toolState.status === 'complete' ? '✅' : 
+			                    toolState.status === 'failed' ? '❌' : 
+			                    toolState.status === 'running' ? '⏳' : '⏸️';
+			
+			const duration = toolState.endTime ? 
+				\` (\${((toolState.endTime - toolState.startTime) / 1000).toFixed(1)}s)\` : '';
+			
+			toolDiv.innerHTML = \`
+				<div class="tool-header">
+					<span class="tool-icon">\${statusIcon}</span>
+					<span class="tool-name">\${escapeHtml(toolState.toolName)}</span>
+					<span class="tool-duration">\${duration}</span>
+				</div>
+				\${toolState.progress ? \`<div class="tool-progress">\${escapeHtml(toolState.progress)}</div>\` : ''}
+			\`;
+			
+			// Scroll to show new tool
+			messagesContainer.scrollTop = messagesContainer.scrollHeight;
 		}
 
 		function appendToLastMessage(text) {
@@ -682,6 +783,12 @@ export class ChatPanelProvider {
 							\${session.label}
 						</option>\`
 					).join('');
+					break;
+				case 'toolStart':
+					addOrUpdateTool(message.tool);
+					break;
+				case 'toolUpdate':
+					addOrUpdateTool(message.tool);
 					break;
 			}
 		});

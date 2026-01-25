@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { CLIProcessManager, CLIConfig } from './cliProcessManager';
+import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatPanelProvider } from './chatViewProvider';
 
-let cliManager: CLIProcessManager | null = null;
+let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 
@@ -149,7 +149,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 		
-		cliManager = new CLIProcessManager(context, config, resumeLastSession, specificSessionId);
+		cliManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
 
 		// Handle user messages from webview
 		ChatPanelProvider.onUserMessage(async (text: string) => {
@@ -181,12 +181,28 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					break;
 				case 'status':
 					logger.info(`[CLI Status] ${JSON.stringify(message.data)}`);
-					if (message.data.status === 'exited') {
+					if (message.data.status === 'exited' || message.data.status === 'stopped') {
 						statusBarItem.text = "$(comment-discussion) CLI Exited";
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
 						vscode.window.showWarningMessage('Copilot CLI session ended');
 					}
+					break;
+				case 'tool_start':
+					logger.info(`[Tool Start] ${message.data.toolName}`);
+					ChatPanelProvider.addToolExecution(message.data);
+					break;
+				case 'tool_progress':
+					logger.debug(`[Tool Progress] ${message.data.toolName}: ${message.data.progress}`);
+					ChatPanelProvider.updateToolExecution(message.data);
+					break;
+				case 'tool_complete':
+					logger.info(`[Tool Complete] ${message.data.toolName} - ${message.data.status}`);
+					ChatPanelProvider.updateToolExecution(message.data);
+					break;
+				case 'file_change':
+					logger.info(`[File Change] ${JSON.stringify(message.data)}`);
+					// Future: Add file diff link
 					break;
 			}
 		});
