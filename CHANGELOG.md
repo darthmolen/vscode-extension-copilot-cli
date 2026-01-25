@@ -2,6 +2,16 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [1.0.1] - 2026-01-24
+
+### Documentation
+- Updated README with marketplace installation instructions
+- Added marketplace badges (version, installs, rating)
+- Created comprehensive development guide (HOW-TO-DEV.md)
+- Removed roadmap (v1.0 is complete!)
+- Fixed outdated F5 debugging instructions (now uses VSIX workflow)
+- Improved Quick Start and configuration examples
+
 ## [1.0.0] - 2026-01-24
 
 ### 🎉 Initial Release
