@@ -1,0 +1,137 @@
+┌─────────────────────────────────────────────────────────────────┐
+│                 EVALUATION FRAMEWORK - QUICK REF                │
+└─────────────────────────────────────────────────────────────────┘
+
+📁 LOCATION
+  tests/evaluation/
+
+🚀 QUICK START
+  node tests/evaluation/quick-start.js
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 CORE FILES
+
+  evaluator.js       Main evaluation engine
+  criteria.js        Scoring thresholds & utilities
+  reporter.js        Report generation (JSON & MD)
+  index.js           Unified API entry point
+
+📚 DOCUMENTATION
+
+  README.md          Complete API reference
+  INTEGRATION.md     Step-by-step integration guide
+  sample-report.md   Example output format
+
+💡 EXAMPLES
+
+  examples.js        Working code examples
+  quick-start.js     Runnable quick start
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ HOW TO USE
+
+┌─ Single Evaluation ───────────────────────────────────────────┐
+│                                                                 │
+│  const { evaluateTestOutput } = require('./evaluation');       │
+│                                                                 │
+│  const result = await evaluateTestOutput({                     │
+│    name: "My Test",                                            │
+│    output: "Test output here...",                              │
+│    evaluationNotes: "Expected criteria"                        │
+│  });                                                            │
+│                                                                 │
+│  console.log(`Score: ${result.score}/10`);                     │
+│  console.log(`Status: ${result.status}`);                      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─ Batch Evaluation + Reports ──────────────────────────────────┐
+│                                                                 │
+│  const { evaluateTestOutputs } = require('./evaluation/       │
+│                                           evaluator');          │
+│  const { generateAndSaveReports,                               │
+│          displaySummary } = require('./evaluation/reporter');  │
+│                                                                 │
+│  const tests = [                                               │
+│    { name: "Test 1", output: "...", evaluationNotes: "..." }, │
+│    { name: "Test 2", output: "...", evaluationNotes: "..." }  │
+│  ];                                                             │
+│                                                                 │
+│  const results = await evaluateTestOutputs(tests);             │
+│  displaySummary(results);                                      │
+│                                                                 │
+│  const paths = await generateAndSaveReports(results);          │
+│  console.log('Markdown:', paths.markdown);                     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─ One-Line Pipeline ───────────────────────────────────────────┐
+│                                                                 │
+│  const { evaluatePipeline } = require('./evaluation');         │
+│                                                                 │
+│  const { results, summary, reportPaths } =                     │
+│    await evaluatePipeline(testData);                           │
+│                                                                 │
+│  console.log(`Pass rate: ${summary.passRate}%`);               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 SCORING
+
+  Threshold: 7.0/10 to pass
+  Scale:     0-10 (decimal)
+  
+  9.0-10.0   ✅  Excellent
+  7.0-8.9    ✔️  Good
+  5.0-6.9    ⚠️  Fair
+  0.0-4.9    ❌  Poor
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📤 OUTPUT FILES
+
+  Location: tests/output/
+  
+  test-results-YYYY-MM-DDTHH-MM-SS.json
+  test-report-YYYY-MM-DDTHH-MM-SS.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ REQUIREMENTS
+
+  ✓ Node.js (built-in modules only)
+  ✓ copilot CLI in PATH
+  ✓ judge-test-output skill available
+  
+  No npm install needed!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 TROUBLESHOOTING
+
+  Issue: Judge not found
+  → Verify: which copilot
+  → Test: copilot --skill judge-test-output "test"
+  
+  Issue: JSON parse error
+  → Normal - framework extracts JSON from mixed output
+  → Check judge output manually if persistent
+  
+  Issue: Evaluation errors
+  → Check test output is not empty
+  → Review error messages in generated reports
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📖 MORE INFO
+
+  API Docs:      tests/evaluation/README.md
+  Integration:   tests/evaluation/INTEGRATION.md
+  Examples:      tests/evaluation/examples.js
+  Sample Report: tests/evaluation/sample-report.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
