@@ -2,6 +2,25 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [1.0.2] - 2026-01-25
+
+### Added
+- **Folder-Specific Session Selection** - Sessions now filtered by workspace folder on startup
+  - Automatically resumes the most recent session from the current workspace folder
+  - Prevents sessions from other projects being selected when opening a workspace
+  - Falls back to global latest session if no folder-specific sessions exist
+  - New setting: `copilotCLI.filterSessionsByFolder` (default: `true`) to toggle this behavior
+  - Session metadata extracted from `events.jsonl` without requiring CLI schema changes
+
+### Changed
+- Session selection now workspace-aware by default
+- Improved logging for session selection debugging
+
+### Technical
+- Created `sessionUtils.ts` module for session metadata operations
+- Refactored `loadLastSessionId()` in `cliProcessManager.ts` to use new utility functions
+- Performance optimized: only reads first ~2KB of each session's `events.jsonl` file
+
 ## [1.0.1] - 2026-01-24
 
 ### Documentation

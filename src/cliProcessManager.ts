@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import * as vscode from 'vscode';
 import { Logger } from './logger';
+import { getMostRecentSession } from './sessionUtils';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -58,27 +59,15 @@ export class CLIProcessManager {
 
     private loadLastSessionId(): void {
         try {
-            const sessionDir = path.join(os.homedir(), '.copilot', 'session-state');
-            if (!fs.existsSync(sessionDir)) {
-                this.logger.info('No session directory found, will start new session');
-                return;
-            }
+            // Check if folder-based filtering is enabled
+            const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
             
-            const sessions = fs.readdirSync(sessionDir)
-                .filter(name => {
-                    // Only include directories (session IDs are UUIDs)
-                    const fullPath = path.join(sessionDir, name);
-                    return fs.statSync(fullPath).isDirectory();
-                })
-                .map(name => ({
-                    name,
-                    time: fs.statSync(path.join(sessionDir, name)).mtime.getTime()
-                }))
-                .sort((a, b) => b.time - a.time);
+            // Get the most recent session (filtered by folder if enabled)
+            const sessionId = getMostRecentSession(this.workingDirectory, filterByFolder);
             
-            if (sessions.length > 0) {
-                this.sessionId = sessions[0].name;
-                this.logger.info(`Resuming last session: ${this.sessionId}`);
+            if (sessionId) {
+                this.sessionId = sessionId;
+                this.logger.info(`Resuming session: ${this.sessionId} (folder filtering: ${filterByFolder})`);
             } else {
                 this.logger.info('No previous sessions found, will start new session');
             }

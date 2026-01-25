@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -85,6 +85,11 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically resume the last session when opening the chat panel"
+        },
+        "copilotCLI.filterSessionsByFolder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Filter sessions by workspace folder when resuming (only shows sessions created in the current folder)"
         },
         "copilotCLI.allowAllTools": {
           "type": "boolean",
