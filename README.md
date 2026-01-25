@@ -2,6 +2,10 @@
 
 Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow.
 
+[![Version](https://img.shields.io/visual-studio-marketplace/v/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
+[![Installs](https://img.shields.io/visual-studio-marketplace/i/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
+[![Rating](https://img.shields.io/visual-studio-marketplace/r/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
+
 ## ✨ Features
 
 - 💬 **Interactive Chat Panel** - Dockable chat interface with full markdown rendering (code blocks, lists, headers, links)
@@ -15,114 +19,135 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 - ♿ **Accessibility** - Screen reader optimizations, ARIA labels, semantic HTML
 - 🌍 **Cross-Platform** - Works on Linux, macOS, and Windows
 
-## Quick Start
+## 📦 Installation
+
+### From VS Code Marketplace
+
+1. Open VS Code
+2. Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac)
+3. Search for "Copilot CLI Chat"
+4. Click **Install**
+
+### From Command Line
+
+```bash
+code --install-extension darthmolen.copilot-cli-extension
+```
 
 ### Prerequisites
 
-- VS Code 1.108.1 or higher
-- **New Copilot CLI** installed (standalone `copilot` command)
+- **VS Code** 1.108.1 or higher
+- **GitHub Copilot CLI** (standalone `copilot` command)
   - **Linux/macOS**: `brew install copilot-cli`
   - **Windows**: `winget install GitHub.Copilot`
-  - See: https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli
-  - Note: This is NOT the old `gh extension install github/gh-copilot` (deprecated)
+  - **Note**: Requires PowerShell v6+ on Windows
+  - See: https://docs.github.com/copilot/concepts/agents/about-copilot-cli
+- **Active Copilot subscription**
 
-### Supported Platforms
+⚠️ **Important**: This extension requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
 
-- ✅ **Linux** (tested)
-- ✅ **macOS** (should work, uses homebrew)
-- ✅ **Windows** (should work, requires PowerShell v6+)
+## 🚀 Quick Start
 
-**Note**: Extension uses cross-platform Node.js APIs (`os.homedir()`, `path.join()`) so session state location works on all platforms:
-- Linux: `~/.copilot/session-state/`
-- macOS: `~/.copilot/session-state/`
-- Windows: `%USERPROFILE%\.copilot\session-state\`
+### Open the Chat Panel
 
-### Installation
+**Option 1: Command Palette**
+1. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
+2. Type "Copilot CLI: Open Chat"
+3. Press Enter
 
-1. Clone this repository
-2. Run `npm install`
-3. Press F5 to open Extension Development Host
+**Option 2: Status Bar**
+- Click the "💬 Copilot CLI" item in the status bar
 
-### Usage
+**Option 3: Editor Toolbar**
+- Click the chat icon in the editor toolbar
 
-**Start a Chat Session:**
-- Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-- Run `Copilot CLI: Start Chat Session`
+### Start Chatting
 
-**Stop a Chat Session:**
-- Open Command Palette
-- Run `Copilot CLI: Stop Chat Session`
+1. The chat panel opens on the right side (dockable anywhere)
+2. Your last session automatically resumes (if enabled)
+3. Type your message and press Enter or click Send
+4. View AI responses with full markdown formatting
 
-## Configuration
+### Manage Sessions
 
-Configure the extension in VS Code settings (all Copilot CLI flags supported):
+- **Session Dropdown**: Select from previous conversations
+- **New Session** (+): Start a fresh conversation
+- **Auto-resume**: Toggle in settings to auto-load last session
+
+## ⚙️ Configuration
+
+All Copilot CLI flags are configurable via VS Code settings:
 
 ```json
 {
+  "copilotCLI.yolo": true,                // YOLO mode (all permissions) - recommended
+  "copilotCLI.resumeLastSession": true,   // Auto-resume last session on open
   "copilotCLI.cliPath": "copilot",        // Path to copilot executable
-  "copilotCLI.yolo": false,               // YOLO mode (all permissions)
+  "copilotCLI.model": "",                 // AI model (empty = default claude-sonnet-4.5)
   "copilotCLI.allowAllTools": false,      // Auto-approve all tools
-  "copilotCLI.allowAllPaths": false,      // Allow access to any path
-  "copilotCLI.allowAllUrls": false,       // Allow all URLs
   "copilotCLI.allowTools": [],            // Specific tools: ["shell(git)", "write"]
   "copilotCLI.denyTools": [],             // Block tools: ["shell(rm)"]
   "copilotCLI.allowUrls": [],             // Specific URLs/domains
   "copilotCLI.denyUrls": [],              // Block URLs/domains
   "copilotCLI.addDirs": [],               // Additional allowed directories
-  "copilotCLI.agent": "",                 // Custom agent name
-  "copilotCLI.model": "",                 // AI model (empty = default)
   "copilotCLI.noAskUser": false           // Autonomous mode (no questions)
 }
 ```
 
 ### Tool Specification Format
-- Shell commands: `"shell(COMMAND)"` - e.g., `"shell(git)"`, `"shell(git push)"`
+
+- Shell commands: `"shell(COMMAND)"` - e.g., `"shell(git)"`, `"shell(npm)"`
 - File writes: `"write"`
 - MCP servers: `"MCP_SERVER_NAME(tool_name)"`
 
-### Model Options
-Choose from 14 models: Claude Sonnet 4.5 (default), Claude Haiku/Opus 4.5, GPT-5 variants, Gemini 3 Pro Preview
+### Available Models
 
-## Roadmap
+Choose from 14 AI models in settings:
+- Claude Sonnet 4.5 (default), Claude Haiku 4.5, Claude Opus 4.5
+- GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
+- GPT Codex variants (5.1, 5.2, mini)
+- Gemini 3 Pro Preview
 
-- [x] Phase 1: Project setup and structure
-- [x] Phase 2: CLI process management
-- [🚧] Phase 3: Interactive webview chat panel (in-progress)
-- [ ] Phase 4: Non-blocking file diff visualization
-- [ ] Phase 5: Session history and persistence
-- [ ] Phase 6: Enhanced features (inline context, file tree integration)
-- [ ] Phase 7: UX polish and theme integration
-- [ ] Phase 8: Testing and documentation
+## 🌍 Platform Support
 
-## Development
+- ✅ **Linux** - Fully tested
+- ✅ **macOS** - Fully supported
+- ✅ **Windows** - Fully supported (PowerShell v6+)
 
-```bash
-# Install dependencies
-npm install
+Session state location:
+- **Linux/macOS**: `~/.copilot/session-state/`
+- **Windows**: `%USERPROFILE%\.copilot\session-state\`
 
-# Compile TypeScript
-npm run compile
+## 📚 Documentation
 
-# Watch mode
-npm run watch
+- **[Development Guide](documentation/HOW-TO-DEV.md)** - Build and test the extension
+- **[Changelog](CHANGELOG.md)** - Version history and release notes
+- **[GitHub Repository](https://github.com/darthmolen/vscode-extension-copilot-cli)** - Source code
 
-# Run tests
-npm test
+## 🤝 Contributing
 
-# Package extension
-npm run package
-```
+Contributions welcome! Please see [HOW-TO-DEV.md](documentation/HOW-TO-DEV.md) for development setup.
 
-## Architecture
+**Note**: F5 debugging is broken in VS Code 1.100+. We use a VSIX-based development workflow instead.
 
-- **CLIProcessManager**: Manages Copilot CLI process lifecycle
-- **Message Protocol**: Event-based communication between CLI and extension
-- **Configuration**: VS Code settings for CLI flags and permissions
+## 📝 License
 
-## Contributing
+MIT - See [LICENSE](LICENSE) for details
 
-This is an experimental project. Feedback and contributions welcome!
+## 🐛 Issues & Feedback
 
-## License
+- **Report bugs**: https://github.com/darthmolen/vscode-extension-copilot-cli/issues
+- **Request features**: https://github.com/darthmolen/vscode-extension-copilot-cli/discussions
+- **Marketplace**: https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension
 
-MIT
+## ⭐ Support
+
+If you find this extension helpful, please:
+- ⭐ Star the [GitHub repository](https://github.com/darthmolen/vscode-extension-copilot-cli)
+- ✍️ Leave a review on the [marketplace](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
+- 🐦 Share with others!
+
+---
+
+Made with ❤️ by [darthmolen](https://github.com/darthmolen)
+
