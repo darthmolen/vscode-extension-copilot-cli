@@ -1,1 +1,0 @@
-A Python module that reads CSV files, calculates statistics (min/max/average) on numeric fields, and filters records by category.

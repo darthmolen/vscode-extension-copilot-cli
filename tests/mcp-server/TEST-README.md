@@ -13,16 +13,11 @@ This integration test verifies:
 
 ## Prerequisites
 
-The test uses a simple Python MCP server (`hello-mcp`) with two tools:
+The test uses a simple Node.js MCP server (`hello-mcp`) with two tools:
 - `get_test_data(key)` - Returns test data
 - `validate_format(content, format_type)` - Validates content format
 
-Setup:
-```bash
-cd tests/mcp-server/hello-mcp
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
-```
+The hello-mcp server is already set up in `tests/mcp-server/hello-mcp/` - no additional setup needed.
 
 ## Running the Test
 
@@ -50,8 +45,8 @@ MCP Configuration Integration Test
 ======================================================================
 
 📋 Pre-flight Checks:
-   Python: /path/to/hello-mcp/venv/bin/python
-   Server: /path/to/hello-mcp/server.py
+   Node: /usr/bin/node
+   Server: /path/to/hello-mcp/index.js
 ✅ MCP server files found
 
 ✅ SDKSessionManager loaded
@@ -107,8 +102,8 @@ The test configures two MCP servers via mocked VS Code settings:
 'mcpServers': {
     'hello-mcp': {
         'type': 'local',
-        'command': 'path/to/python',
-        'args': ['path/to/server.py'],
+        'command': 'node',
+        'args': ['path/to/index.js'],
         'tools': ['*'],
         'enabled': true  // This server WILL be configured
     },
@@ -148,13 +143,6 @@ The test verifies that:
 
 ## Troubleshooting
 
-**Error: Python virtual environment not found**
-```bash
-cd tests/mcp-server/hello-mcp
-python3 -m venv venv
-venv/bin/pip install -r requirements.txt
-```
-
 **Error: Cannot find module 'vscode'**
 - The test mocks the vscode module
 - Make sure the mock is set up before requiring extension.js
@@ -163,6 +151,10 @@ venv/bin/pip install -r requirements.txt
 - Check that Copilot CLI is installed and authenticated
 - Verify `copilot --version` works
 - Check logs for MCP server startup errors
+
+**Error: hello-mcp server not found**
+- Verify `tests/mcp-server/hello-mcp/index.js` exists
+- Check that Node.js is available on your system
 
 ## Implementation Details
 
