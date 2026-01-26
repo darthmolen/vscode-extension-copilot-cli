@@ -9,5 +9,16 @@
         "dist": true // set this to false to include "dist" folder in search results
     },
     // Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-    "typescript.tsc.autoDetect": "off"
+    "typescript.tsc.autoDetect": "off",
+    
+    // MCP Server Configuration
+    "copilotCLI.mcpServers": {
+        "hello-mcp": {
+            "type": "local",
+            "command": "${workspaceFolder}/tests/mcp-server/hello-mcp/venv/bin/python",
+            "args": ["${workspaceFolder}/tests/mcp-server/hello-mcp/server.py"],
+            "tools": ["*"],
+            "enabled": true
+        }
+    }
 }

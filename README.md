@@ -1,12 +1,21 @@
 # Copilot CLI Chat
 
-Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow.
+Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow. Powered by the **GitHub Copilot SDK 2.0** for a richer, more responsive experience.
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 
 ## ✨ Features
+
+### v2.0 - Now Powered by Copilot SDK
+
+- ⚡ **SDK 2.0 Integration** - Built on official [@github/copilot-sdk](https://github.com/github/copilot-sdk) for production-ready agent runtime
+- 🎯 **Real-time Streaming** - See AI responses as they're generated with `assistant.message_delta` events
+- 🧠 **Reasoning Visibility** - Watch Copilot think with `assistant.reasoning_delta` events (when available)
+- 📡 **Event-Driven Architecture** - JSON-RPC communication with Copilot CLI server mode
+
+### Core Features
 
 - 💬 **Interactive Chat Panel** - Dockable chat interface with full markdown rendering (code blocks, lists, headers, links)
 - 📜 **Session Management** - Resume previous conversations, switch between sessions with dropdown selector
@@ -108,6 +117,72 @@ Choose from 14 AI models in settings:
 - GPT Codex variants (5.1, 5.2, mini)
 - Gemini 3 Pro Preview
 
+### MCP Server Integration
+
+**Model Context Protocol (MCP)** servers provide pre-built tools for AI agents. The GitHub MCP Server is **built-in and enabled by default**, giving Copilot access to repositories, issues, and pull requests automatically.
+
+#### Configure Additional MCP Servers
+
+Add custom MCP servers via settings:
+
+```json
+{
+  "copilotCLI.mcpServers": {
+    "filesystem": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${workspaceFolder}"],
+      "tools": ["*"]
+    },
+    "memory": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+#### Popular MCP Servers
+
+**Official Reference Servers**:
+- `@modelcontextprotocol/server-filesystem` - Secure file operations with access controls
+- `@modelcontextprotocol/server-fetch` - Web content fetching and conversion
+- `@modelcontextprotocol/server-git` - Git repository operations and search
+- `@modelcontextprotocol/server-memory` - Knowledge graph-based persistent memory
+
+**MCP Server Types**:
+- **Local (stdio)**: Execute a command locally (e.g., npx, python, node)
+- **Remote (HTTP/SSE)**: Connect to a remote server via URL
+
+Browse more servers at the [MCP Registry](https://registry.modelcontextprotocol.io/).
+
+**Note**: Each server can be enabled/disabled via the `enabled: false` property.
+
+## 🔧 Architecture
+
+### v2.0 SDK Architecture
+
+```
+VS Code Extension (UI Layer)
+       ↓
+@github/copilot-sdk (v0.1.18)
+       ↓ JSON-RPC
+Copilot CLI (server mode)
+```
+
+The extension provides:
+- **UI/UX Layer**: Chat panel, markdown rendering, session selector
+- **Configuration Bridge**: VS Code settings → SDK/CLI options
+- **Event Handling**: Real-time streaming, reasoning display, inline tool execution visibility
+- **Session Persistence**: Auto-resume, history loading, workspace filtering
+
+The SDK provides:
+- **Agent Runtime**: Production-tested orchestration engine
+- **Tool Invocation**: File edits, shell commands, web searches, MCP servers
+- **Model Access**: All Copilot CLI models via unified API
+
 ## 🌍 Platform Support
 
 - ✅ **Linux** - Fully tested
@@ -123,6 +198,7 @@ Session state location:
 - **[Development Guide](documentation/HOW-TO-DEV.md)** - Build and test the extension
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 - **[GitHub Repository](https://github.com/darthmolen/vscode-extension-copilot-cli)** - Source code
+- **[Copilot SDK Docs](https://github.com/github/copilot-sdk)** - Official SDK documentation
 
 ## 🤝 Contributing
 
