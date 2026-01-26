@@ -57,11 +57,15 @@ Return your evaluation as JSON with this structure:
     let stdout = '';
     let stderr = '';
 
-    // Invoke copilot CLI with judge skill
-    const copilot = spawn('copilot', ['--skill', 'judge-test-output', judgePrompt], {
+    // Invoke copilot CLI with skill name as prompt (which invokes the skill)
+    const copilot = spawn('copilot', ['--prompt', 'judge-test-output'], {
       shell: true,
       env: { ...process.env }
     });
+    
+    // Write the test data to stdin
+    copilot.stdin.write(testOutput);
+    copilot.stdin.end();
 
     copilot.stdout.on('data', (data) => {
       stdout += data.toString();

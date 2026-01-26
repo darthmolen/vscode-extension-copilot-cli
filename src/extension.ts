@@ -379,3 +379,6 @@ export function deactivate() {
 	}
 	logger.info('Extension deactivated');
 }
+
+// Export for testing
+export { SDKSessionManager } from './sdkSessionManager';

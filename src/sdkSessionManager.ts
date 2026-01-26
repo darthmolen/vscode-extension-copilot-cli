@@ -173,15 +173,15 @@ export class SDKSessionManager {
                     break;
 
                 case 'tool.execution_start':
-                    this.handleToolStart(event.data);
+                    this.handleToolStart(event);
                     break;
 
                 case 'tool.execution_progress':
-                    this.handleToolProgress(event.data);
+                    this.handleToolProgress(event);
                     break;
 
                 case 'tool.execution_complete':
-                    this.handleToolComplete(event.data);
+                    this.handleToolComplete(event);
                     break;
 
                 case 'session.error':
@@ -204,13 +204,16 @@ export class SDKSessionManager {
         });
     }
 
-    private handleToolStart(data: any): void {
+    private handleToolStart(event: any): void {
+        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+        const data = event.data;
+        
         const state: ToolExecutionState = {
             toolCallId: data.toolCallId,
             toolName: data.toolName,
             arguments: data.arguments,
             status: 'running',
-            startTime: Date.now(),
+            startTime: eventTime,
         };
         
         this.toolExecutions.set(data.toolCallId, state);
@@ -218,11 +221,12 @@ export class SDKSessionManager {
         this.onMessageEmitter.fire({
             type: 'tool_start',
             data: state,
-            timestamp: Date.now()
+            timestamp: eventTime
         });
     }
 
-    private handleToolProgress(data: any): void {
+    private handleToolProgress(event: any): void {
+        const data = event.data;
         const state = this.toolExecutions.get(data.toolCallId);
         if (state) {
             state.progress = data.progressMessage;
@@ -235,17 +239,19 @@ export class SDKSessionManager {
         }
     }
 
-    private handleToolComplete(data: any): void {
+    private handleToolComplete(event: any): void {
+        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+        const data = event.data;
         const state = this.toolExecutions.get(data.toolCallId);
         if (state) {
             state.status = data.success ? 'complete' : 'failed';
-            state.endTime = Date.now();
+            state.endTime = eventTime;
             state.result = data.result?.content;
             
             this.onMessageEmitter.fire({
                 type: 'tool_complete',
                 data: state,
-                timestamp: Date.now()
+                timestamp: eventTime
             });
 
             // Check if this was a file operation

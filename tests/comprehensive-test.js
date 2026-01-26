@@ -30,7 +30,8 @@ Module.prototype.require = function(id) {
             };
             return config[key] !== undefined ? config[key] : defaultValue;
           }
-        })
+        }),
+        workspaceFolders: [{ uri: { fsPath: process.cwd() } }]
       },
       EventEmitter: class EventEmitter {
         constructor() {
@@ -39,14 +40,25 @@ Module.prototype.require = function(id) {
         fire(data) {
           this.listeners.forEach(listener => listener(data));
         }
-        event(listener) {
-          this.listeners.push(listener);
+        get event() {
+          return (listener) => {
+            this.listeners.push(listener);
+            return { dispose: () => {} };
+          };
         }
       },
       window: {
         showInformationMessage: () => {},
         showErrorMessage: () => {},
-        showWarningMessage: () => {}
+        showWarningMessage: () => {},
+        createOutputChannel: (name) => ({
+          appendLine: () => {},
+          append: () => {},
+          clear: () => {},
+          show: () => {},
+          hide: () => {},
+          dispose: () => {}
+        })
       },
       commands: {
         registerCommand: () => ({ dispose: () => {} })
@@ -236,7 +248,7 @@ async function main() {
     await fs.mkdir(outputDir, { recursive: true });
     console.log(`✅ Output directory: ${outputDir}`);
 
-    // Initialize SDKSessionManager
+    //Initialize SDKSessionManager
     console.log('\n🔧 Initializing SDK Session Manager...');
     const { SDKSessionManager } = require('../dist/extension.js');
     
@@ -246,8 +258,16 @@ async function main() {
       yoloMode: true,
       allowAllTools: true
     };
+    
+    // Mock extension context
+    const mockContext = {
+      subscriptions: [],
+      extensionUri: { fsPath: process.cwd() },
+      extensionPath: process.cwd()
+    };
 
-    manager = new SDKSessionManager(logger, config);
+    // Create manager with fresh session (resumeLastSession=false)
+    manager = new SDKSessionManager(mockContext, config, false);
     console.log('✅ SDKSessionManager created');
 
     // Set up event capture
