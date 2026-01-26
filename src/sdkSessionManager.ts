@@ -128,12 +128,12 @@ export class SDKSessionManager {
 
             // Create CopilotClient
             const cliPath = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
-            const yoloMode = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yoloMode', false);
+            const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
             
             this.client = new CopilotClient({
                 logLevel: 'info',
                 ...(cliPath ? { cliPath } : {}),
-                ...(yoloMode ? { cliArgs: ['--yolo'] } : {}),
+                ...(yolo ? { cliArgs: ['--yolo'] } : {}),
                 cwd: this.workingDirectory,
                 autoStart: true,
             });
