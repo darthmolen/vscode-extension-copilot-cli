@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { CLIProcessManager, CLIConfig } from './cliProcessManager';
+import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatPanelProvider } from './chatViewProvider';
 
-let cliManager: CLIProcessManager | null = null;
+let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 
@@ -47,6 +47,39 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(statusBarItem);
 	
 	logger.info('Status bar item created');
+
+	// Register message handler ONCE in activate, not in startCLISession
+	ChatPanelProvider.onUserMessage(async (text: string) => {
+		logger.info(`Sending user message to CLI: ${text}`);
+		ChatPanelProvider.addUserMessage(text);
+		ChatPanelProvider.setThinking(true);
+		
+		if (cliManager && cliManager.isRunning()) {
+			cliManager.sendMessage(text);
+		} else {
+			logger.error('Cannot send message: CLI not running');
+			ChatPanelProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
+			ChatPanelProvider.setThinking(false);
+		}
+	});
+
+	// Register view plan handler ONCE in activate
+	ChatPanelProvider.onViewPlan(() => {
+		const workspacePath = cliManager?.getWorkspacePath();
+		if (workspacePath) {
+			const planPath = vscode.Uri.file(`${workspacePath}/plan.md`);
+			vscode.workspace.openTextDocument(planPath).then(doc => {
+				vscode.window.showTextDocument(doc, { preview: false });
+			}, error => {
+				logger.error(`Failed to open plan.md: ${error.message}`);
+				vscode.window.showErrorMessage(`Could not open plan.md: ${error.message}`);
+			});
+		} else {
+			vscode.window.showWarningMessage('No plan.md available for this session');
+		}
+	});
+
+	logger.info('Message and view plan handlers registered');
 
 	// Register start chat command (for command palette)
 	const startChatCommand = vscode.commands.registerCommand('copilot-cli-extension.startChat', async () => {
@@ -132,7 +165,51 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand);
+	const refreshPanelCommand = vscode.commands.registerCommand('copilot-cli-extension.refreshPanel', () => {
+		logger.info('Refresh Panel command triggered - forcing recreation');
+		ChatPanelProvider.forceRecreate(context.extensionUri);
+		vscode.window.showInformationMessage('Chat panel refreshed');
+	});
+	
+	const viewDiffCommand = vscode.commands.registerCommand('copilot-cli-extension.viewDiff', async (message: any) => {
+		logger.info(`View diff command triggered: ${JSON.stringify(message)}`);
+		
+		try {
+			// Extract the actual diff data from the message wrapper
+			const diffData = message.value || message;
+			const beforeUri = vscode.Uri.file(diffData.beforeUri);
+			const afterUri = vscode.Uri.file(diffData.afterUri);
+			const title = diffData.title || 'File Diff';
+			
+			logger.info(`Opening diff: ${beforeUri.fsPath} vs ${afterUri.fsPath}`);
+			
+			// Check if files exist
+			const fs = require('fs');
+			if (!fs.existsSync(beforeUri.fsPath)) {
+				logger.error(`Before file does not exist: ${beforeUri.fsPath}`);
+				vscode.window.showErrorMessage(`Cannot open diff: Before file not found`);
+				return;
+			}
+			if (!fs.existsSync(afterUri.fsPath)) {
+				logger.error(`After file does not exist: ${afterUri.fsPath}`);
+				vscode.window.showErrorMessage(`Cannot open diff: After file not found at ${afterUri.fsPath}`);
+				return;
+			}
+			
+			logger.info(`Both files exist, executing vscode.diff command`);
+			await vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, title);
+			logger.info(`Diff command executed successfully`);
+			
+			// Note: We don't cleanup the snapshot immediately because VS Code's diff viewer
+			// loads files asynchronously. If we delete too soon, the diff will show as empty.
+			// Snapshots are cleaned up when the session ends.
+		} catch (error) {
+			logger.error(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
+			vscode.window.showErrorMessage(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	});
+
+	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand);
 	
 	logger.info('✅ Copilot CLI Extension activated successfully');
 	logger.info('='.repeat(60));
@@ -149,22 +226,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 		
-		cliManager = new CLIProcessManager(context, config, resumeLastSession, specificSessionId);
-
-		// Handle user messages from webview
-		ChatPanelProvider.onUserMessage(async (text: string) => {
-			logger.info(`Sending user message to CLI: ${text}`);
-			ChatPanelProvider.addUserMessage(text);
-			ChatPanelProvider.setThinking(true);
-			
-			if (cliManager && cliManager.isRunning()) {
-				cliManager.sendMessage(text);
-			} else {
-				logger.error('Cannot send message: CLI not running');
-				ChatPanelProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
-				ChatPanelProvider.setThinking(false);
-			}
-		});
+		cliManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
 
 		// Listen to CLI messages
 		cliManager.onMessage((message) => {
@@ -174,6 +236,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					ChatPanelProvider.addAssistantMessage(message.data);
 					ChatPanelProvider.setThinking(false);
 					break;
+				case 'reasoning':
+					logger.debug(`[Assistant Reasoning] ${message.data.substring(0, 100)}...`);
+					ChatPanelProvider.addReasoningMessage(message.data);
+					break;
 				case 'error':
 					logger.error(`[CLI Error] ${message.data}`);
 					ChatPanelProvider.addAssistantMessage(`Error: ${message.data}`);
@@ -181,12 +247,37 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					break;
 				case 'status':
 					logger.info(`[CLI Status] ${JSON.stringify(message.data)}`);
-					if (message.data.status === 'exited') {
+					if (message.data.status === 'exited' || message.data.status === 'stopped') {
 						statusBarItem.text = "$(comment-discussion) CLI Exited";
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
 						vscode.window.showWarningMessage('Copilot CLI session ended');
+					} else if (message.data.status === 'thinking') {
+						// Assistant is thinking/generating response
+						ChatPanelProvider.setThinking(true);
+					} else if (message.data.status === 'ready') {
+						// Assistant finished turn (might have more coming though)
+						// Don't turn off thinking here - wait for actual message
 					}
+					break;
+				case 'tool_start':
+					logger.info(`[Tool Start] ${message.data.toolName}`);
+					ChatPanelProvider.addToolExecution(message.data);
+					break;
+				case 'tool_progress':
+					logger.debug(`[Tool Progress] ${message.data.toolName}: ${message.data.progress}`);
+					ChatPanelProvider.updateToolExecution(message.data);
+					break;
+				case 'tool_complete':
+					logger.info(`[Tool Complete] ${message.data.toolName} - ${message.data.status}`);
+					ChatPanelProvider.updateToolExecution(message.data);
+					break;
+				case 'file_change':
+					logger.info(`[File Change] ${JSON.stringify(message.data)}`);
+					break;
+				case 'diff_available':
+					logger.info(`[Diff Available] ${JSON.stringify(message.data)}`);
+					ChatPanelProvider.notifyDiffAvailable(message.data);
 					break;
 			}
 		});
@@ -197,6 +288,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		statusBarItem.text = "$(debug-start) CLI Running";
 		statusBarItem.tooltip = "Copilot CLI is active";
 		ChatPanelProvider.setSessionActive(true);
+		
+		// Send workspace path to UI
+		const workspacePath = cliManager.getWorkspacePath();
+		ChatPanelProvider.setWorkspacePath(workspacePath);
 		
 		logger.info('✅ CLI process started successfully');
 		ChatPanelProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
@@ -363,3 +458,6 @@ export function deactivate() {
 	}
 	logger.info('Extension deactivated');
 }
+
+// Export for testing
+export { SDKSessionManager } from './sdkSessionManager';

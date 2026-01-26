@@ -5,3 +5,13 @@ dist/
 *.vsix
 .vscode-test/
 .env
+
+# Test outputs
+tests/output/
+tests/logs/
+
+# Python virtual environments
+venv/
+__pycache__/
+*.pyc
+*.pyo

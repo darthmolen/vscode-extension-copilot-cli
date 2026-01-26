@@ -139,6 +139,44 @@ npx vsce package
 
 ### Testing Different Scenarios
 
+#### Test MCP Server Integration
+
+The extension supports MCP (Model Context Protocol) servers. To test with the included hello-mcp server:
+
+1. **Configure MCP Server in VS Code Settings**:
+   - Open Settings: `Ctrl+,` → Search "MCP Servers"
+   - Or edit `.vscode/settings.json`:
+
+   ```json
+   {
+     "copilotCLI.mcpServers": {
+       "hello-mcp": {
+         "type": "local",
+         "command": "node",
+         "args": ["${workspaceFolder}/tests/mcp-server/hello-mcp/index.js"],
+         "enabled": true
+       }
+     }
+   }
+   ```
+
+2. **Start New Session**:
+   - MCP servers are initialized when session starts
+   - Click the `+` button to create a new session
+   - Check Output Channel for "MCP Servers configured: hello-mcp"
+
+3. **Test MCP Tools**:
+   - Ask: "Use the hello-mcp-get_test_data tool"
+   - Verify tool executes and returns test data
+   - Check logs for MCP tool execution events
+
+4. **Run MCP Integration Test**:
+   ```bash
+   npm run test:mcp
+   ```
+
+**Note**: The GitHub MCP server is built-in to Copilot CLI and doesn't need configuration.
+
 #### Test New Session
 1. Open chat panel: `Ctrl+Shift+P` → `Copilot CLI: Open Chat`
 2. Click the `+` button in header
@@ -200,7 +238,27 @@ If you have a `.env` file (for tokens, etc.), it's automatically excluded:
 
 ## Architecture Notes
 
-### CLI Integration Pattern
+### v2.0 SDK Architecture
+
+**v2.0 uses the official @github/copilot-sdk** instead of spawning CLI processes:
+
+1. **SDK Session Manager** (`src/sdkSessionManager.ts`)
+   - Creates/resumes sessions via SDK API
+   - Handles event streaming (tool execution, assistant messages, reasoning)
+   - Manages MCP server configuration passthrough
+
+2. **Event-Driven Communication**
+   - Session emits events: `tool.execution_start`, `assistant.message`, `session.idle`
+   - Extension listens and updates UI in real-time
+   - No parsing of CLI output needed
+
+3. **MCP Server Support**
+   - Reads `copilotCLI.mcpServers` from VS Code settings
+   - Passes configuration directly to SDK
+   - Supports local (stdio) and HTTP/SSE server types
+   - Built-in GitHub MCP server (no config needed)
+
+### v1.0 CLI Integration Pattern (Deprecated)
 
 We use **`--prompt` mode** with **session resumption**:
 

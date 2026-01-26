@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -57,6 +57,11 @@
       {
         "command": "copilot-cli-extension.stopChat",
         "title": "Copilot CLI: Stop Chat Session"
+      },
+      {
+        "command": "copilot-cli-extension.refreshPanel",
+        "title": "Copilot CLI: Refresh Chat Panel",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -177,6 +182,65 @@
           "type": "boolean",
           "default": false,
           "description": "Disable ask_user tool (agent works autonomously without asking questions)"
+        },
+        "copilotCLI.mcpServers": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "MCP (Model Context Protocol) server configurations. [Learn more about MCP servers](https://github.com/modelcontextprotocol/servers)\n\n**Note**: GitHub MCP Server is built-in and enabled by default.\n\nExample configuration:\n```json\n{\n  \"filesystem\": {\n    \"type\": \"local\",\n    \"command\": \"npx\",\n    \"args\": [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"${workspaceFolder}\"],\n    \"tools\": [\"*\"]\n  }\n}\n```",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "local",
+                  "stdio",
+                  "http",
+                  "sse"
+                ],
+                "default": "local",
+                "description": "Server type: local/stdio for subprocess, http/sse for remote"
+              },
+              "command": {
+                "type": "string",
+                "description": "Command to execute (for local servers)"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Command arguments (for local servers)"
+              },
+              "url": {
+                "type": "string",
+                "description": "Server URL (for remote servers)"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "*"
+                ],
+                "description": "Tools to enable: ['*'] for all, or specific tool names"
+              },
+              "env": {
+                "type": "object",
+                "description": "Environment variables (for local servers)"
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory (for local servers)"
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Whether this server is enabled"
+              }
+            }
+          }
         }
       }
     }
@@ -193,7 +257,12 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "npm run test:comprehensive",
+    "test:comprehensive": "node tests/comprehensive-test.js",
+    "test:mcp": "npm run compile && node tests/mcp-integration.test.js",
+    "test:integration": "npm run compile && node tests/sdk-integration.test.js",
+    "test:verify": "node tests/verify-setup.js",
+    "test:sdk": "node tests/sdk-integration.test.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -209,8 +278,9 @@
     "typescript-eslint": "^8.52.0"
   },
   "dependencies": {
+    "@github/copilot-sdk": "^0.1.18",
     "dompurify": "^3.3.1",
     "marked": "^17.0.1",
-    "node-pty": "^1.1.0"
+    "vscode-jsonrpc": "^8.2.1"
   }
 }

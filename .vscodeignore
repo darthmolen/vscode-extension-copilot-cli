@@ -14,3 +14,14 @@ vsc-extension-quickstart.md
 **/*.ts
 **/.vscode-test.*
 .env
+tests/**
+planning/**
+research/**
+hello.txt
+world.txt
+test.txt
+summary.txt
+fibonacci.py
+test-extension.sh
+.claude/**
+documentation/**
