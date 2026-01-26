@@ -687,17 +687,20 @@ export class ChatPanelProvider {
 			gap: 12px;
 			padding: 8px 12px;
 			align-items: center;
+			justify-content: flex-end;
 			border-top: 1px solid var(--vscode-panel-border);
 			background: var(--vscode-editor-background);
 		}
-
-		.plan-controls {
+		
+		.controls-group {
 			display: flex;
 			gap: 12px;
 			align-items: center;
-			padding: 6px 12px;
-			border: 1px solid var(--vscode-panel-border);
-			border-radius: 4px;
+		}
+		
+		.control-separator {
+			color: var(--vscode-panel-border);
+			font-size: 14px;
 		}
 
 		.plan-btn {
@@ -783,17 +786,16 @@ export class ChatPanelProvider {
 
 		<div class="input-container">
 			<div class="input-controls">
-				<div class="plan-controls">
-					<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋 View Plan</button>
-					<label class="plan-mode-toggle" title="When enabled, all messages are prefixed with [[PLAN]]">
-						<input type="checkbox" id="planModeCheckbox" />
-						<span>Plan Mode</span>
-					</label>
-				</div>
 				<label class="reasoning-toggle">
 					<input type="checkbox" id="showReasoningCheckbox" />
 					<span>Show Reasoning</span>
 				</label>
+				<span class="control-separator">|</span>
+				<label class="plan-mode-toggle" title="When enabled, all messages are prefixed with [[PLAN]]">
+					<input type="checkbox" id="planModeCheckbox" />
+					<span>Plan Mode</span>
+				</label>
+				<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋 View Plan</button>
 			</div>
 			<div class="input-wrapper">
 				<textarea 
