@@ -831,6 +831,12 @@ export class ChatPanelProvider {
 		let showReasoning = false;
 		let planMode = false;
 		let workspacePath = null;
+		
+		// Prompt history
+		const messageHistory = [];
+		const MAX_HISTORY = 20;
+		let historyIndex = -1; // -1 means current draft (not in history)
+		let currentDraft = ''; // Stores unsent message when navigating history
 
 		// Show reasoning checkbox handler
 		showReasoningCheckbox.addEventListener('change', (e) => {
@@ -881,10 +887,17 @@ export class ChatPanelProvider {
 		sendButton.addEventListener('click', sendMessage);
 
 		// Send message on Enter (Shift+Enter for newline)
+		// Arrow keys for history navigation
 		messageInput.addEventListener('keydown', (e) => {
 			if (e.key === 'Enter' && !e.shiftKey) {
 				e.preventDefault();
 				sendMessage();
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				navigateHistory('up');
+			} else if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				navigateHistory('down');
 			}
 		});
 
@@ -893,6 +906,16 @@ export class ChatPanelProvider {
 			if (!text || !sessionActive) return;
 
 			console.log('[SEND] sendMessage() called, text:', text.substring(0, 50));
+			
+			// Save to history (without [[PLAN]] prefix - save what user typed)
+			messageHistory.push(text);
+			if (messageHistory.length > MAX_HISTORY) {
+				messageHistory.shift(); // Remove oldest
+			}
+			
+			// Reset history navigation
+			historyIndex = -1;
+			currentDraft = '';
 
 			// Add [[PLAN]] prefix if plan mode is enabled
 			const messageToSend = planMode ? '[[PLAN]] ' + text : text;
@@ -905,6 +928,43 @@ export class ChatPanelProvider {
 
 			messageInput.value = '';
 			messageInput.style.height = 'auto';
+		}
+		
+		function navigateHistory(direction) {
+			if (messageHistory.length === 0) return;
+			
+			// Save current draft when first navigating away
+			if (historyIndex === -1 && direction === 'up') {
+				currentDraft = messageInput.value;
+			}
+			
+			if (direction === 'up') {
+				// Navigate to older messages
+				if (historyIndex < messageHistory.length - 1) {
+					historyIndex++;
+					const historyMessage = messageHistory[messageHistory.length - 1 - historyIndex];
+					messageInput.value = historyMessage;
+					messageInput.style.height = 'auto';
+					messageInput.style.height = messageInput.scrollHeight + 'px';
+				}
+				// If already at oldest, do nothing (stay at oldest)
+			} else if (direction === 'down') {
+				// Navigate to newer messages
+				if (historyIndex > 0) {
+					historyIndex--;
+					const historyMessage = messageHistory[messageHistory.length - 1 - historyIndex];
+					messageInput.value = historyMessage;
+					messageInput.style.height = 'auto';
+					messageInput.style.height = messageInput.scrollHeight + 'px';
+				} else if (historyIndex === 0) {
+					// Return to current draft
+					historyIndex = -1;
+					messageInput.value = currentDraft;
+					messageInput.style.height = 'auto';
+					messageInput.style.height = messageInput.scrollHeight + 'px';
+				}
+				// If already at current (historyIndex === -1), do nothing
+			}
 		}
 
 		function addMessage(role, text) {
