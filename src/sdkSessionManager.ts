@@ -134,6 +134,7 @@ export class SDKSessionManager {
                 logLevel: 'info',
                 ...(cliPath ? { cliPath } : {}),
                 ...(yoloMode ? { cliArgs: ['--yolo'] } : {}),
+                cwd: this.workingDirectory,
                 autoStart: true,
             });
 
@@ -382,8 +383,19 @@ export class SDKSessionManager {
             // For edit: file should exist, read it
             // For create: file won't exist, create empty snapshot
             let content = '';
-            if (toolName === 'edit' && fs.existsSync(filePath)) {
-                content = fs.readFileSync(filePath, 'utf8');
+            const fileExists = fs.existsSync(filePath);
+            
+            this.logger.info(`[Snapshot] ${toolName} for ${filePath}, file exists: ${fileExists}`);
+            
+            if (toolName === 'edit') {
+                if (fileExists) {
+                    content = fs.readFileSync(filePath, 'utf8');
+                    this.logger.info(`[Snapshot] Captured ${content.length} bytes: ${JSON.stringify(content.substring(0, 100))}`);
+                } else {
+                    this.logger.warn(`[Snapshot] File doesn't exist for edit operation: ${filePath}`);
+                }
+            } else {
+                this.logger.info(`[Snapshot] Create operation, using empty snapshot`);
             }
             
             // Write to temp file

@@ -171,18 +171,41 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage('Chat panel refreshed');
 	});
 	
-	const viewDiffCommand = vscode.commands.registerCommand('copilot-cli-extension.viewDiff', (diffData: any) => {
-		logger.info(`View diff command triggered: ${JSON.stringify(diffData)}`);
+	const viewDiffCommand = vscode.commands.registerCommand('copilot-cli-extension.viewDiff', async (message: any) => {
+		logger.info(`View diff command triggered: ${JSON.stringify(message)}`);
 		
-		const beforeUri = vscode.Uri.file(diffData.beforeUri);
-		const afterUri = vscode.Uri.file(diffData.afterUri);
-		const title = diffData.title || 'File Diff';
-		
-		vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, title);
-		
-		// Cleanup the snapshot after showing the diff
-		if (cliManager && diffData.toolCallId) {
-			cliManager.cleanupDiffSnapshot(diffData.toolCallId);
+		try {
+			// Extract the actual diff data from the message wrapper
+			const diffData = message.value || message;
+			const beforeUri = vscode.Uri.file(diffData.beforeUri);
+			const afterUri = vscode.Uri.file(diffData.afterUri);
+			const title = diffData.title || 'File Diff';
+			
+			logger.info(`Opening diff: ${beforeUri.fsPath} vs ${afterUri.fsPath}`);
+			
+			// Check if files exist
+			const fs = require('fs');
+			if (!fs.existsSync(beforeUri.fsPath)) {
+				logger.error(`Before file does not exist: ${beforeUri.fsPath}`);
+				vscode.window.showErrorMessage(`Cannot open diff: Before file not found`);
+				return;
+			}
+			if (!fs.existsSync(afterUri.fsPath)) {
+				logger.error(`After file does not exist: ${afterUri.fsPath}`);
+				vscode.window.showErrorMessage(`Cannot open diff: After file not found at ${afterUri.fsPath}`);
+				return;
+			}
+			
+			logger.info(`Both files exist, executing vscode.diff command`);
+			await vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, title);
+			logger.info(`Diff command executed successfully`);
+			
+			// Note: We don't cleanup the snapshot immediately because VS Code's diff viewer
+			// loads files asynchronously. If we delete too soon, the diff will show as empty.
+			// Snapshots are cleaned up when the session ends.
+		} catch (error) {
+			logger.error(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
+			vscode.window.showErrorMessage(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	});
 
