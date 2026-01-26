@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.0.0-dev",
+  "version": "2.0.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
