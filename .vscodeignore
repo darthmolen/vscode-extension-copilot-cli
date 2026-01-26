@@ -25,3 +25,5 @@ fibonacci.py
 test-extension.sh
 .claude/**
 documentation/**
+CHANGELOG-DRAFT.md
+pr-review-plan.md

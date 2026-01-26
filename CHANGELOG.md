@@ -2,6 +2,119 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.0.0] - 2026-01-26
+
+### 🚀 Major Release - SDK Integration & MCP Support
+
+Complete architectural rewrite using the official @github/copilot-sdk with extensive new features.
+
+#### ✨ New Features
+
+**SDK 2.0 Integration**
+- Migrated from CLI process spawning to official @github/copilot-sdk v0.1.18
+- Real-time event streaming (tool execution, assistant messages, reasoning)
+- Event-driven architecture with JSON-RPC communication
+- Better performance and reliability
+
+**Tool Execution Visibility**
+- Real-time tool execution display with status indicators (⏳ Running → ✅ Success / ❌ Failed)
+- Progress updates during tool execution
+- Duration tracking for each tool
+- Intent display showing what the assistant is trying to accomplish
+
+**File Diff Viewer**
+- "📄 View Diff" button on file edit/create operations
+- Side-by-side before/after comparison using VS Code's native diff viewer
+- Supports all edit types: create, add lines, remove lines, modify
+- Smart snapshot capture with automatic cleanup on session end
+
+**MCP Server Integration**
+- Built-in GitHub MCP server enabled by default (access to repos, issues, PRs)
+- Configure custom MCP servers via `copilotCLI.mcpServers` setting
+- Support for local (stdio) and remote (HTTP/SSE) servers
+- Variable expansion (`${workspaceFolder}`) in server configuration
+- Enable/disable servers individually
+- Integration test with hello-mcp test server
+
+**Reasoning Display**
+- Toggle to show/hide assistant's reasoning process
+- See how the assistant thinks through problems
+- Persistent visibility state during session
+
+**Prompt History Navigation**
+- Use Up/Down arrow keys to cycle through last 20 messages
+- Saves current draft when navigating history
+- Smart boundary behavior (no wrapping)
+- Auto-resizes textarea
+
+**Planning Mode Enhancements**
+- Toggle to auto-prefix messages with `[[PLAN]]`
+- "📋 View Plan" button for quick access to plan.md
+- Session-aware visibility
+
+**UI Improvements**
+- Right-aligned input controls with clean visual hierarchy
+- Reorganized layout: Show Reasoning | Plan Mode | View Plan
+- Improved thinking indicator with proper state management
+
+#### 🐛 Bug Fixes
+- Fixed duplicate message sends (handler registration issue)
+- Fixed session timeout errors (session.idle event handling)
+- Fixed thinking indicator disappearing after tools
+- Fixed file diff race condition (snapshot cleanup timing)
+- Fixed working directory (files now created in workspace folder)
+- Fixed yolo setting name (copilotCLI.yolo)
+
+#### 🔧 Technical Changes
+- Added working directory support (`cwd` parameter to SDK)
+- Enhanced error handling and logging
+- Session turn event tracking (assistant.turn_start/end)
+- Token usage monitoring (session.usage_info)
+- Improved event handler lifecycle management
+
+#### 📦 Dependencies
+- Added: @github/copilot-sdk ^0.1.18
+- Added: vscode-jsonrpc ^8.2.1
+- Removed: node-pty (unused from v1.0)
+- Updated: dompurify, marked (latest versions)
+
+#### 📚 Documentation
+- Updated README with SDK architecture and MCP configuration
+- Added MCP server testing guide to HOW-TO-DEV.md
+- Created 3 implementation checkpoints documenting the journey
+- Updated test documentation
+
+#### ✅ Backward Compatibility
+All v1.0 settings work unchanged in v2.0:
+- Session management preserved
+- Markdown rendering identical
+- All permission settings (yolo, allowTools, etc.)
+- Model and agent selection
+- Folder-based session filtering
+
+#### 🧪 Testing
+- New MCP integration test (tests/mcp-integration.test.js)
+- hello-mcp test server (Node.js)
+- End-to-end UAT validation
+- All v1.0 features verified working
+
+### Migration Notes
+No migration needed - v2.0 is fully backward compatible. Sessions in `~/.copilot/session-state/` work as-is.
+
+New optional setting:
+```json
+{
+  "copilotCLI.mcpServers": {
+    "my-server": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${workspaceFolder}"],
+      "enabled": true
+    }
+  }
+}
+```
+
 ## [1.0.2] - 2026-01-25
 
 ### Added
