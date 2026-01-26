@@ -192,7 +192,12 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["local", "stdio", "http", "sse"],
+                "enum": [
+                  "local",
+                  "stdio",
+                  "http",
+                  "sse"
+                ],
                 "default": "local",
                 "description": "Server type: local/stdio for subprocess, http/sse for remote"
               },
@@ -202,7 +207,9 @@
               },
               "args": {
                 "type": "array",
-                "items": { "type": "string" },
+                "items": {
+                  "type": "string"
+                },
                 "description": "Command arguments (for local servers)"
               },
               "url": {
@@ -211,8 +218,12 @@
               },
               "tools": {
                 "type": "array",
-                "items": { "type": "string" },
-                "default": ["*"],
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "*"
+                ],
                 "description": "Tools to enable: ['*'] for all, or specific tool names"
               },
               "env": {
@@ -270,7 +281,6 @@
     "@github/copilot-sdk": "^0.1.18",
     "dompurify": "^3.3.1",
     "marked": "^17.0.1",
-    "node-pty": "^1.1.0",
     "vscode-jsonrpc": "^8.2.1"
   }
 }
