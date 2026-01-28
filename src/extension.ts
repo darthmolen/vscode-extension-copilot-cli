@@ -252,6 +252,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
 						vscode.window.showWarningMessage('Copilot CLI session ended');
+					} else if (message.data.status === 'session_expired') {
+						// Old session expired, new one created
+						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
+						
+						// Add a clear visual separator showing the session boundary
+						ChatPanelProvider.addAssistantMessage('---\n\n⚠️ **Previous session expired after inactivity**\n\nThe conversation above is from an expired session and cannot be continued. A new session has been started below.\n\n---');
+						ChatPanelProvider.addAssistantMessage('New session started! How can I help you?');
+						updateSessionsList();
 					} else if (message.data.status === 'thinking') {
 						// Assistant is thinking/generating response
 						ChatPanelProvider.setThinking(true);
