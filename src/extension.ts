@@ -63,6 +63,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Register abort handler ONCE in activate
+	ChatPanelProvider.onAbort(async () => {
+		logger.info('Abort requested by user');
+		
+		if (cliManager && cliManager.isRunning()) {
+			try {
+				await cliManager.abortMessage();
+				logger.info('Message aborted successfully');
+			} catch (error) {
+				logger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);
+				vscode.window.showErrorMessage('Failed to abort message');
+			}
+		} else {
+			logger.warn('Cannot abort: CLI not running');
+		}
+	});
+
 	// Register view plan handler ONCE in activate
 	ChatPanelProvider.onViewPlan(() => {
 		const workspacePath = cliManager?.getWorkspacePath();
@@ -252,6 +269,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
 						vscode.window.showWarningMessage('Copilot CLI session ended');
+					} else if (message.data.status === 'aborted') {
+						// Message was aborted by user
+						ChatPanelProvider.addAssistantMessage('_Generation stopped by user._');
+						ChatPanelProvider.setThinking(false);
 					} else if (message.data.status === 'session_expired') {
 						// Old session expired, new one created
 						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);

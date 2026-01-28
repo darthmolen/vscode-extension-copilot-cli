@@ -570,6 +570,29 @@ export class SDKSessionManager {
         }
     }
 
+    public async abortMessage(): Promise<void> {
+        if (!this.session) {
+            throw new Error('Session not initialized. Call start() first.');
+        }
+
+        this.logger.info('Aborting current message...');
+        
+        try {
+            await this.session.abort();
+            this.logger.info('Message aborted successfully');
+            
+            // Fire status event to UI
+            this.onMessageEmitter.fire({
+                type: 'status',
+                data: { status: 'aborted' },
+                timestamp: Date.now()
+            });
+        } catch (error) {
+            this.logger.error('Failed to abort message', error instanceof Error ? error : undefined);
+            throw error;
+        }
+    }
+
     public isRunning(): boolean {
         return this.session !== null;
     }
