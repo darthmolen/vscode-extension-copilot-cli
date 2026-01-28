@@ -213,7 +213,7 @@ MIT - See [LICENSE](LICENSE) for details
 ## 🐛 Issues & Feedback
 
 - **Report bugs**: https://github.com/darthmolen/vscode-extension-copilot-cli/issues
-- **Request features**: https://github.com/darthmolen/vscode-extension-copilot-cli/discussions
+- **Ask questions**: https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension&ssr=false#qna
 - **Marketplace**: https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension
 
 ## ⭐ Support
