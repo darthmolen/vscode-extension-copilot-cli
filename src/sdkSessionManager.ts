@@ -33,7 +33,7 @@ export interface CLIConfig {
 }
 
 export interface CLIMessage {
-    type: 'output' | 'error' | 'status' | 'file_change' | 'tool_start' | 'tool_complete' | 'tool_progress' | 'reasoning' | 'diff_available';
+    type: 'output' | 'error' | 'status' | 'file_change' | 'tool_start' | 'tool_complete' | 'tool_progress' | 'reasoning' | 'diff_available' | 'usage_info';
     data: any;
     timestamp: number;
 }
@@ -150,11 +150,39 @@ export class SDKSessionManager {
             }
             
             if (this.sessionId) {
-                this.logger.info(`Resuming session: ${this.sessionId}`);
-                this.session = await this.client.resumeSession(this.sessionId, {
-                    tools: this.getCustomTools(),
-                    ...(hasMcpServers ? { mcpServers } : {}),
-                });
+                this.logger.info(`Attempting to resume session: ${this.sessionId}`);
+                try {
+                    this.session = await this.client.resumeSession(this.sessionId, {
+                        tools: this.getCustomTools(),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    this.logger.info('Successfully resumed session');
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    // If session not found (expired/invalid), create a new one
+                    if (errorMessage.toLowerCase().includes('session not found') || 
+                        errorMessage.toLowerCase().includes('not found') ||
+                        errorMessage.toLowerCase().includes('invalid session')) {
+                        this.logger.warn(`Session ${this.sessionId} not found (likely expired), creating new session`);
+                        this.sessionId = null;
+                        this.session = await this.client.createSession({
+                            model: this.config.model || undefined,
+                            tools: this.getCustomTools(),
+                            ...(hasMcpServers ? { mcpServers } : {}),
+                        });
+                        this.sessionId = this.session.sessionId;
+                        
+                        // Notify user that a new session was created
+                        this.onMessageEmitter.fire({
+                            type: 'status',
+                            data: { status: 'session_expired', newSessionId: this.sessionId },
+                            timestamp: Date.now()
+                        });
+                    } else {
+                        // Some other error, rethrow
+                        throw error;
+                    }
+                }
             } else {
                 this.logger.info('Creating new session');
                 this.session = await this.client.createSession({
@@ -271,6 +299,34 @@ export class SDKSessionManager {
                 case 'session.usage_info':
                     // Token usage information
                     this.logger.debug(`Token usage: ${event.data.currentTokens}/${event.data.tokenLimit}`);
+                    this.onMessageEmitter.fire({
+                        type: 'usage_info',
+                        data: {
+                            currentTokens: event.data.currentTokens,
+                            tokenLimit: event.data.tokenLimit,
+                            messagesLength: event.data.messagesLength
+                        },
+                        timestamp: Date.now()
+                    });
+                    break;
+                
+                case 'assistant.usage':
+                    // Request quota information
+                    if (event.data.quotaSnapshots) {
+                        // Get the first quota snapshot (typically there's only one)
+                        const quotaKeys = Object.keys(event.data.quotaSnapshots);
+                        if (quotaKeys.length > 0) {
+                            const quota = event.data.quotaSnapshots[quotaKeys[0]];
+                            this.logger.debug(`Quota: ${quota.remainingPercentage}% remaining`);
+                            this.onMessageEmitter.fire({
+                                type: 'usage_info',
+                                data: {
+                                    remainingPercentage: quota.remainingPercentage
+                                },
+                                timestamp: Date.now()
+                            });
+                        }
+                    }
                     break;
 
                 default:
@@ -491,15 +547,48 @@ export class SDKSessionManager {
             await this.session.sendAndWait({ prompt: message });
             this.logger.info('Message sent and completed successfully');
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            // Check if this is a session.idle timeout error
+            if (errorMessage.includes('Timeout') && errorMessage.includes('session.idle')) {
+                // This is expected for long-running commands - just log it
+                this.logger.info(`Session idle timeout (command likely completed): ${errorMessage}`);
+                return; // Don't throw or emit error
+            }
+            
+            // For other errors, log and emit
             this.logger.error('Failed to send message', error instanceof Error ? error : undefined);
             
             // Fire error event to UI
             this.onMessageEmitter.fire({
                 type: 'error',
-                data: error instanceof Error ? error.message : String(error),
+                data: errorMessage,
                 timestamp: Date.now()
             });
             
+            throw error;
+        }
+    }
+
+    public async abortMessage(): Promise<void> {
+        if (!this.session) {
+            throw new Error('Session not initialized. Call start() first.');
+        }
+
+        this.logger.info('Aborting current message...');
+        
+        try {
+            await this.session.abort();
+            this.logger.info('Message aborted successfully');
+            
+            // Fire status event to UI
+            this.onMessageEmitter.fire({
+                type: 'status',
+                data: { status: 'aborted' },
+                timestamp: Date.now()
+            });
+        } catch (error) {
+            this.logger.error('Failed to abort message', error instanceof Error ? error : undefined);
             throw error;
         }
     }

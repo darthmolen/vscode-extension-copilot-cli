@@ -2,6 +2,52 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.0.1] - 2026-01-28
+
+### ✨ New Features
+
+**Real-Time Usage Statistics**
+- Context window usage percentage (shows how much of 128k token limit is used)
+- Total tokens used in session (displayed in compact k/m/b format)
+- Remaining request quota percentage
+- All metrics update in real-time in the status bar
+- Tooltips show full numbers with details
+
+**Tool Grouping with Expand/Collapse**
+- All tool executions group into collapsible containers
+- Tools stay together until user or assistant message (prevents tool spam)
+- Fixed height shows 2-3 tools by default (200px max)
+- "Expand (X more)" link appears when tools overflow
+- Click to expand shows all tools, dynamically grows as new tools arrive
+- "Contract" link to collapse back
+- Smart grouping: user/assistant messages close groups, tools intersperse naturally
+
+**Stop Button**
+- Send button transforms to red Stop button while thinking
+- Click to abort current generation using `session.abort()`
+- Enter key still works to queue messages while thinking
+- Session remains active after stopping
+
+### 🐛 Bug Fixes
+
+**Session Expiration Handling**
+- Fixed "session not found" errors when window stays open for extended periods
+- Extension now automatically creates new session when old one expires
+- Shows clear visual separator between expired and new session
+- Preserves conversation history for reference
+- Seamless recovery without manual intervention
+
+**Session.idle Timeout Suppression**
+- Suppressed confusing timeout errors during long-running commands
+- Long operations (like `code --install-extension`) now complete silently
+- Only real errors are shown to users
+
+### 📚 Documentation
+
+**Updated Links**
+- Changed feedback link from GitHub Discussions to VS Code Marketplace Q&A
+- Updated README with current support channels
+
 ## [2.0.0] - 2026-01-26
 
 ### 🚀 Major Release - SDK Integration & MCP Support

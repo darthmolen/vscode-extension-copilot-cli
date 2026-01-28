@@ -5,6 +5,7 @@ export class ChatPanelProvider {
 	private static panel: vscode.WebviewPanel | undefined;
 	private static logger: Logger;
 	private static messageHandlers: Set<(message: string) => void> = new Set();
+	private static abortHandlers: Set<() => void> = new Set();
 	private static onViewOpenedHandlers: Set<() => void> = new Set();
 	private static isSessionActive: boolean = false;
 	private static currentWorkspacePath: string | undefined;
@@ -53,6 +54,10 @@ export class ChatPanelProvider {
 					
 					this.logger.info(`User sent message: ${data.value}`);
 					this.messageHandlers.forEach(handler => handler(data.value));
+					break;
+				case 'abortMessage':
+					this.logger.info('Abort requested from UI');
+					this.abortHandlers.forEach(handler => handler());
 					break;
 				case 'ready':
 					this.logger.info('Webview is ready');
@@ -155,6 +160,16 @@ export class ChatPanelProvider {
 		}
 		ChatPanelProvider.messageHandlers.add(handler);
 		this.logger?.info(`Message handler registered (total: ${ChatPanelProvider.messageHandlers.size})`);
+	}
+
+	public static onAbort(handler: () => void) {
+		// Clear any existing handlers to prevent duplicates if extension re-activates
+		if (ChatPanelProvider.abortHandlers.size > 0) {
+			this.logger?.warn(`Clearing ${ChatPanelProvider.abortHandlers.size} existing abort handlers`);
+			ChatPanelProvider.abortHandlers.clear();
+		}
+		ChatPanelProvider.abortHandlers.add(handler);
+		this.logger?.info(`Abort handler registered (total: ${ChatPanelProvider.abortHandlers.size})`);
 	}
 
 	public static onViewOpened(handler: () => void) {
@@ -442,6 +457,41 @@ export class ChatPanelProvider {
 			max-width: 600px;
 		}
 
+		.tool-group {
+			padding: 8px 12px;
+			margin: 8px 0;
+			background: var(--vscode-editorWidget-background);
+			border-radius: 4px;
+			border-left: 3px solid var(--vscode-charts-blue);
+			max-width: 600px;
+		}
+
+		.tool-group-container {
+			max-height: 200px;
+			overflow: hidden;
+			transition: max-height 0.3s ease;
+		}
+
+		.tool-group-container.expanded {
+			max-height: none;
+		}
+
+		.tool-group-toggle {
+			text-align: center;
+			padding: 8px;
+			margin-top: 8px;
+			cursor: pointer;
+			color: var(--vscode-textLink-foreground);
+			font-size: 0.9em;
+			border-top: 1px solid var(--vscode-widget-border);
+			user-select: none;
+		}
+
+		.tool-group-toggle:hover {
+			background: var(--vscode-list-hoverBackground);
+			text-decoration: underline;
+		}
+
 		.tool-execution {
 			padding: 6px 0;
 			border-bottom: 1px solid var(--vscode-widget-border);
@@ -450,6 +500,11 @@ export class ChatPanelProvider {
 		.tool-message .tool-execution {
 			padding: 0;
 			border-bottom: none;
+		}
+
+		.tool-group .tool-execution {
+			padding: 6px 0;
+			border-bottom: 1px solid var(--vscode-widget-border);
 		}
 
 		.tool-execution:last-child {
@@ -658,6 +713,16 @@ export class ChatPanelProvider {
 			cursor: not-allowed;
 		}
 
+		button.stop-button {
+			background-color: var(--vscode-errorForeground);
+			color: var(--vscode-button-foreground);
+		}
+
+		button.stop-button:hover {
+			background-color: var(--vscode-errorForeground);
+			opacity: 0.9;
+		}
+
 		.empty-state {
 			flex: 1;
 			display: flex;
@@ -739,6 +804,12 @@ export class ChatPanelProvider {
 			cursor: pointer;
 		}
 
+		.usage-info {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+		}
+
 		/* Scrollbar styling */
 		::-webkit-scrollbar {
 			width: 10px;
@@ -786,6 +857,14 @@ export class ChatPanelProvider {
 
 		<div class="input-container">
 			<div class="input-controls">
+				<span class="usage-info">
+					<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
+					<span> | </span>
+					<span id="usageUsed" title="tokens used this session">Used: 0</span>
+					<span> | </span>
+					<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
+				</span>
+				<span class="control-separator">|</span>
 				<label class="reasoning-toggle">
 					<input type="checkbox" id="showReasoningCheckbox" />
 					<span>Show Reasoning</span>
@@ -825,6 +904,9 @@ export class ChatPanelProvider {
 		const viewPlanBtn = document.getElementById('viewPlanBtn');
 		const showReasoningCheckbox = document.getElementById('showReasoningCheckbox');
 		const planModeCheckbox = document.getElementById('planModeCheckbox');
+		const usageWindow = document.getElementById('usageWindow');
+		const usageUsed = document.getElementById('usageUsed');
+		const usageRemaining = document.getElementById('usageRemaining');
 
 		let sessionActive = false;
 		let currentSessionId = null;
@@ -837,6 +919,10 @@ export class ChatPanelProvider {
 		const MAX_HISTORY = 20;
 		let historyIndex = -1; // -1 means current draft (not in history)
 		let currentDraft = ''; // Stores unsent message when navigating history
+		
+		// Tool grouping state
+		let currentToolGroup = null;
+		let toolGroupExpanded = false;
 
 		// Show reasoning checkbox handler
 		showReasoningCheckbox.addEventListener('change', (e) => {
@@ -883,8 +969,16 @@ export class ChatPanelProvider {
 			messageInput.style.height = messageInput.scrollHeight + 'px';
 		});
 
-		// Send message on button click
-		sendButton.addEventListener('click', sendMessage);
+		// Send message on button click (or abort if thinking)
+		sendButton.addEventListener('click', () => {
+			if (sendButton.classList.contains('stop-button')) {
+				// Abort current generation
+				vscode.postMessage({ type: 'abortMessage' });
+			} else {
+				// Send message
+				sendMessage();
+			}
+		});
 
 		// Send message on Enter (Shift+Enter for newline)
 		// Arrow keys for history navigation
@@ -970,6 +1064,11 @@ export class ChatPanelProvider {
 		function addMessage(role, text) {
 			emptyState.classList.add('hidden');
 			
+			// Close current tool group when user sends a message OR when assistant responds
+			if (role === 'user' || role === 'assistant') {
+				closeCurrentToolGroup();
+			}
+			
 			const messageDiv = document.createElement('div');
 			messageDiv.className = \`message \${role}\`;
 			messageDiv.setAttribute('role', 'article');
@@ -999,6 +1098,73 @@ export class ChatPanelProvider {
 			messageInput.focus();
 		}
 
+		function closeCurrentToolGroup() {
+			if (currentToolGroup) {
+				updateToolGroupToggle();
+				currentToolGroup = null;
+				toolGroupExpanded = false;
+			}
+		}
+
+		function getOrCreateToolGroup() {
+			if (!currentToolGroup) {
+				// Create new tool group
+				const toolGroup = document.createElement('div');
+				toolGroup.className = 'tool-group';
+				
+				const container = document.createElement('div');
+				container.className = 'tool-group-container';
+				
+				toolGroup.appendChild(container);
+				messagesContainer.appendChild(toolGroup);
+				
+				currentToolGroup = {
+					element: toolGroup,
+					container: container,
+					toolCount: 0
+				};
+			}
+			return currentToolGroup;
+		}
+
+		function updateToolGroupToggle() {
+			if (!currentToolGroup) return;
+			
+			const { element, container } = currentToolGroup;
+			
+			// Remove existing toggle if present
+			const existingToggle = element.querySelector('.tool-group-toggle');
+			if (existingToggle) {
+				existingToggle.remove();
+			}
+			
+			// Check if content overflows
+			const isOverflowing = container.scrollHeight > 200;
+			
+			if (isOverflowing) {
+				const toggle = document.createElement('div');
+				toggle.className = 'tool-group-toggle';
+				
+				const hiddenTools = element.querySelectorAll('.tool-execution').length - Math.floor(200 / 70); // Rough estimate
+				const displayCount = Math.max(1, hiddenTools);
+				
+				toggle.textContent = toolGroupExpanded ? 'Contract' : \`Expand (\${displayCount} more)\`;
+				toggle.addEventListener('click', () => {
+					toolGroupExpanded = !toolGroupExpanded;
+					if (toolGroupExpanded) {
+						container.classList.add('expanded');
+						toggle.textContent = 'Contract';
+					} else {
+						container.classList.remove('expanded');
+						const hiddenCount = element.querySelectorAll('.tool-execution').length - Math.floor(200 / 70);
+						toggle.textContent = \`Expand (\${Math.max(1, hiddenCount)} more)\`;
+					}
+				});
+				
+				element.appendChild(toggle);
+			}
+		}
+
 		function addOrUpdateTool(toolState) {
 			// Check if this tool already exists anywhere in the DOM
 			let toolDiv = messagesContainer.querySelector(\`[data-tool-id="\${toolState.toolCallId}"]\`);
@@ -1021,17 +1187,37 @@ export class ChatPanelProvider {
 						});
 					});
 				}
+				
+				// Update toggle if this tool group is current
+				if (currentToolGroup && currentToolGroup.container.contains(toolDiv)) {
+					updateToolGroupToggle();
+				}
 			} else {
-				// Create a new standalone tool execution message
-				const toolMessage = document.createElement('div');
-				toolMessage.className = 'message tool-message';
+				// Add to current tool group
+				const group = getOrCreateToolGroup();
+				
 				const toolExecution = document.createElement('div');
 				toolExecution.className = 'tool-execution';
 				toolExecution.setAttribute('data-tool-id', toolState.toolCallId);
 				toolExecution.innerHTML = toolHtml;
 				toolExecution._toolState = toolState;
-				toolMessage.appendChild(toolExecution);
-				messagesContainer.appendChild(toolMessage);
+				
+				// Attach diff button listener if present
+				const diffBtn = toolExecution.querySelector('.view-diff-btn');
+				if (diffBtn) {
+					diffBtn.addEventListener('click', () => {
+						vscode.postMessage({
+							type: 'viewDiff',
+							value: toolState.diffData || {}
+						});
+					});
+				}
+				
+				group.container.appendChild(toolExecution);
+				group.toolCount++;
+				
+				// Update toggle after adding tool
+				updateToolGroupToggle();
 			}
 			
 			// Scroll to show new tool
@@ -1175,8 +1361,16 @@ export class ChatPanelProvider {
 			if (isThinking) {
 				thinking.classList.add('active');
 				messagesContainer.scrollTop = messagesContainer.scrollHeight;
+				// Change Send button to Stop button
+				sendButton.textContent = 'Stop';
+				sendButton.setAttribute('aria-label', 'Stop generation');
+				sendButton.classList.add('stop-button');
 			} else {
 				thinking.classList.remove('active');
+				// Change Stop button back to Send button
+				sendButton.textContent = 'Send';
+				sendButton.setAttribute('aria-label', 'Send message');
+				sendButton.classList.remove('stop-button');
 			}
 		}
 
@@ -1184,6 +1378,19 @@ export class ChatPanelProvider {
 			const div = document.createElement('div');
 			div.textContent = text;
 			return div.innerHTML;
+		}
+
+		function formatCompactNumber(num) {
+			if (num >= 1000000000) {
+				return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'b';
+			}
+			if (num >= 1000000) {
+				return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+			}
+			if (num >= 1000) {
+				return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+			}
+			return num.toString();
 		}
 
 		// Handle messages from extension
@@ -1278,6 +1485,31 @@ export class ChatPanelProvider {
 								});
 							});
 						}
+					}
+					break;
+				case 'usage_info':
+					// Update usage info display
+					// This can come from session.usage_info (tokens) or assistant.usage (quota %)
+					if (message.data.currentTokens !== undefined && message.data.tokenLimit !== undefined) {
+						// Token usage from session.usage_info
+						const used = message.data.currentTokens;
+						const limit = message.data.tokenLimit;
+						const usedCompact = formatCompactNumber(used);
+						const windowPct = Math.round((used / limit) * 100);
+						
+						// Update Window percentage
+						usageWindow.textContent = \`Window: \${windowPct}%\`;
+						usageWindow.title = \`context window usage: \${used.toLocaleString()} / \${limit.toLocaleString()} tokens\`;
+						
+						// Update Used count
+						usageUsed.textContent = \`Used: \${usedCompact}\`;
+						usageUsed.title = \`tokens used this session: \${used.toLocaleString()}\`;
+					}
+					if (message.data.remainingPercentage !== undefined) {
+						// Quota percentage from assistant.usage
+						const pct = Math.round(message.data.remainingPercentage);
+						usageRemaining.textContent = \`Remaining: \${pct}%\`;
+						usageRemaining.title = \`remaining requests for account: \${pct}%\`;
 					}
 					break;
 			}

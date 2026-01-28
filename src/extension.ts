@@ -63,6 +63,23 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Register abort handler ONCE in activate
+	ChatPanelProvider.onAbort(async () => {
+		logger.info('Abort requested by user');
+		
+		if (cliManager && cliManager.isRunning()) {
+			try {
+				await cliManager.abortMessage();
+				logger.info('Message aborted successfully');
+			} catch (error) {
+				logger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);
+				vscode.window.showErrorMessage('Failed to abort message');
+			}
+		} else {
+			logger.warn('Cannot abort: CLI not running');
+		}
+	});
+
 	// Register view plan handler ONCE in activate
 	ChatPanelProvider.onViewPlan(() => {
 		const workspacePath = cliManager?.getWorkspacePath();
@@ -252,6 +269,18 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
 						vscode.window.showWarningMessage('Copilot CLI session ended');
+					} else if (message.data.status === 'aborted') {
+						// Message was aborted by user
+						ChatPanelProvider.addAssistantMessage('_Generation stopped by user._');
+						ChatPanelProvider.setThinking(false);
+					} else if (message.data.status === 'session_expired') {
+						// Old session expired, new one created
+						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
+						
+						// Add a clear visual separator showing the session boundary
+						ChatPanelProvider.addAssistantMessage('---\n\n⚠️ **Previous session expired after inactivity**\n\nThe conversation above is from an expired session and cannot be continued. A new session has been started below.\n\n---');
+						ChatPanelProvider.addAssistantMessage('New session started! How can I help you?');
+						updateSessionsList();
 					} else if (message.data.status === 'thinking') {
 						// Assistant is thinking/generating response
 						ChatPanelProvider.setThinking(true);
@@ -278,6 +307,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				case 'diff_available':
 					logger.info(`[Diff Available] ${JSON.stringify(message.data)}`);
 					ChatPanelProvider.notifyDiffAvailable(message.data);
+					break;
+				case 'usage_info':
+					logger.debug(`[Usage Info] ${message.data.currentTokens}/${message.data.tokenLimit}`);
+					ChatPanelProvider.postMessage({ type: 'usage_info', data: message.data });
 					break;
 			}
 		});
