@@ -21,18 +21,25 @@ Display format: `Window: 38% | Used: 49k | Remaining: 76%`
 All three metrics appear in the status bar, left of "Show Reasoning | Plan Mode | View Plan"
 
 #### Tool Grouping with Expand/Collapse
-- **Grouped Tools**: All tool executions now group into a single collapsible container
-  - Tools stay together until the user sends a new message
-  - Prevents tool spam from scrolling user prompts off screen
+- **Grouped Tools**: All tool executions group into a collapsible container
+  - Tools stay together until user sends message or assistant responds
+  - Prevents tool spam from scrolling prompts off screen
 - **Fixed Height with Overflow**: 
   - Shows first 2-3 tools by default (200px max height)
   - "Expand (X more)" link appears when tools overflow
   - Click to expand → shows all tools, dynamically grows as new tools arrive
   - "Contract" link to collapse back
 - **Smart Grouping Logic**:
-  - User sends message → closes current tool group
-  - Assistant responds → tools continue in same group
-  - Next user message → creates fresh tool group
+  - User sends message → closes current tool group, starts fresh
+  - Assistant responds → closes current tool group, starts fresh
+  - Tools intersperse naturally between assistant messages
+
+#### Stop Button
+- **New**: Send button transforms to Stop button while assistant is thinking
+- Click Stop to abort current generation (calls `session.abort()`)
+- Red styling makes Stop button visually distinct
+- Enter key still works to queue messages while thinking
+- Session remains active after stopping
 
 ### Bug Fixes
 

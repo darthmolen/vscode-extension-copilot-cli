@@ -14,13 +14,19 @@ All notable changes to the Copilot CLI Chat extension.
 - Tooltips show full numbers with details
 
 **Tool Grouping with Expand/Collapse**
-- All tool executions group into a single collapsible container
-- Tools stay together until user sends next message (prevents tool spam)
+- All tool executions group into collapsible containers
+- Tools stay together until user or assistant message (prevents tool spam)
 - Fixed height shows 2-3 tools by default (200px max)
 - "Expand (X more)" link appears when tools overflow
 - Click to expand shows all tools, dynamically grows as new tools arrive
 - "Contract" link to collapse back
-- Smart grouping logic based on user/assistant message flow
+- Smart grouping: user/assistant messages close groups, tools intersperse naturally
+
+**Stop Button**
+- Send button transforms to red Stop button while thinking
+- Click to abort current generation using `session.abort()`
+- Enter key still works to queue messages while thinking
+- Session remains active after stopping
 
 ### 🐛 Bug Fixes
 
