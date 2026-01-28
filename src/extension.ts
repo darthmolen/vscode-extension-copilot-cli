@@ -279,6 +279,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					logger.info(`[Diff Available] ${JSON.stringify(message.data)}`);
 					ChatPanelProvider.notifyDiffAvailable(message.data);
 					break;
+				case 'usage_info':
+					logger.debug(`[Usage Info] ${message.data.currentTokens}/${message.data.tokenLimit}`);
+					ChatPanelProvider.postMessage({ type: 'usage_info', data: message.data });
+					break;
 			}
 		});
 

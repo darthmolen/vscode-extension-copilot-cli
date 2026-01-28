@@ -739,6 +739,12 @@ export class ChatPanelProvider {
 			cursor: pointer;
 		}
 
+		.usage-info {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+		}
+
 		/* Scrollbar styling */
 		::-webkit-scrollbar {
 			width: 10px;
@@ -786,6 +792,14 @@ export class ChatPanelProvider {
 
 		<div class="input-container">
 			<div class="input-controls">
+				<span class="usage-info">
+					<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
+					<span> | </span>
+					<span id="usageUsed" title="tokens used this session">Used: 0</span>
+					<span> | </span>
+					<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
+				</span>
+				<span class="control-separator">|</span>
 				<label class="reasoning-toggle">
 					<input type="checkbox" id="showReasoningCheckbox" />
 					<span>Show Reasoning</span>
@@ -825,6 +839,9 @@ export class ChatPanelProvider {
 		const viewPlanBtn = document.getElementById('viewPlanBtn');
 		const showReasoningCheckbox = document.getElementById('showReasoningCheckbox');
 		const planModeCheckbox = document.getElementById('planModeCheckbox');
+		const usageWindow = document.getElementById('usageWindow');
+		const usageUsed = document.getElementById('usageUsed');
+		const usageRemaining = document.getElementById('usageRemaining');
 
 		let sessionActive = false;
 		let currentSessionId = null;
@@ -1186,6 +1203,19 @@ export class ChatPanelProvider {
 			return div.innerHTML;
 		}
 
+		function formatCompactNumber(num) {
+			if (num >= 1000000000) {
+				return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'b';
+			}
+			if (num >= 1000000) {
+				return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+			}
+			if (num >= 1000) {
+				return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+			}
+			return num.toString();
+		}
+
 		// Handle messages from extension
 		window.addEventListener('message', event => {
 			const message = event.data;
@@ -1278,6 +1308,31 @@ export class ChatPanelProvider {
 								});
 							});
 						}
+					}
+					break;
+				case 'usage_info':
+					// Update usage info display
+					// This can come from session.usage_info (tokens) or assistant.usage (quota %)
+					if (message.data.currentTokens !== undefined && message.data.tokenLimit !== undefined) {
+						// Token usage from session.usage_info
+						const used = message.data.currentTokens;
+						const limit = message.data.tokenLimit;
+						const usedCompact = formatCompactNumber(used);
+						const windowPct = Math.round((used / limit) * 100);
+						
+						// Update Window percentage
+						usageWindow.textContent = \`Window: \${windowPct}%\`;
+						usageWindow.title = \`context window usage: \${used.toLocaleString()} / \${limit.toLocaleString()} tokens\`;
+						
+						// Update Used count
+						usageUsed.textContent = \`Used: \${usedCompact}\`;
+						usageUsed.title = \`tokens used this session: \${used.toLocaleString()}\`;
+					}
+					if (message.data.remainingPercentage !== undefined) {
+						// Quota percentage from assistant.usage
+						const pct = Math.round(message.data.remainingPercentage);
+						usageRemaining.textContent = \`Remaining: \${pct}%\`;
+						usageRemaining.title = \`remaining requests for account: \${pct}%\`;
 					}
 					break;
 			}
