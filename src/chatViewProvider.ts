@@ -1064,8 +1064,8 @@ export class ChatPanelProvider {
 		function addMessage(role, text) {
 			emptyState.classList.add('hidden');
 			
-			// Close current tool group when user sends a message
-			if (role === 'user') {
+			// Close current tool group when user sends a message OR when assistant responds
+			if (role === 'user' || role === 'assistant') {
 				closeCurrentToolGroup();
 			}
 			
