@@ -36,6 +36,15 @@ All three metrics appear in the status bar, left of "Show Reasoning | Plan Mode 
 
 ### Bug Fixes
 
+#### Session Expiration Handling
+- **Fixed**: Automatic recovery when session expires after extended inactivity
+- When you leave the window open for hours and return, the extension now:
+  - Detects the expired session automatically
+  - Creates a new session seamlessly
+  - Shows a clear visual separator in the chat
+  - Preserves old conversation history above the separator
+- No more "session not found" errors - just continue working
+
 #### Session.idle Timeout Errors
 - **Fixed**: Suppressed confusing `Timeout after 60000ms waiting for session.idle` errors
 - Long-running bash commands (like `code --install-extension`) now complete silently
@@ -52,6 +61,9 @@ All three metrics appear in the status bar, left of "Show Reasoning | Plan Mode 
 - Tool grouping uses dynamic DOM manipulation with event delegation
 - Expand/collapse state persists until user sends next message
 - Fixed height uses CSS max-height with overflow:hidden + toggle
+- Session expiration detection checks for "session not found" errors
+- Automatic fallback to creating new session on resume failure
+- Visual separator preserves conversation context while marking session boundary
 
 ### Known Issues
 - Remaining quota shows "--" until first LLM API call completes (expected behavior)
@@ -67,5 +79,8 @@ No breaking changes. Update and reload - everything works as before with new fea
 - [x] Tool grouping works with multiple sequential tools
 - [x] Expand/collapse toggle appears when >3 tools
 - [x] User message closes tool group and starts fresh
+- [x] Session expiration recovery creates new session automatically
+- [x] Visual separator shows between expired and new session
+- [x] Old conversation history preserved above separator
 - [x] Session.idle timeout errors suppressed
 - [x] Long-running commands complete without error popup
