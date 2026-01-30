@@ -57,6 +57,8 @@ interface FileSnapshot {
     timestamp: number;
 }
 
+type SessionMode = 'work' | 'plan';
+
 export class SDKSessionManager {
     private client: any | null = null;
     private session: any | null = null;
@@ -71,6 +73,12 @@ export class SDKSessionManager {
     private lastMessageIntent: string | undefined;  // Store intent from report_intent tool calls
     private fileSnapshots: Map<string, FileSnapshot> = new Map();
     private tempDir: string;
+    
+    // Plan mode: dual session support
+    private currentMode: SessionMode = 'work';
+    private workSession: any | null = null;
+    private planSession: any | null = null;
+    private workSessionId: string | null = null;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -194,9 +202,14 @@ export class SDKSessionManager {
             }
 
             this.logger.info(`Session active: ${this.sessionId}`);
+            
+            // Initialize work session tracking (always starts in work mode)
+            this.workSession = this.session;
+            this.workSessionId = this.sessionId;
+            this.currentMode = 'work';
 
             // Set up event listeners
-            this.setupEventListeners();
+            this.setupSessionEventHandlers();
 
             this.onMessageEmitter.fire({
                 type: 'status',
@@ -210,7 +223,7 @@ export class SDKSessionManager {
         }
     }
 
-    private setupEventListeners(): void {
+    private setupSessionEventHandlers(): void {
         if (!this.session) {return;}
 
         this.session.on((event: any) => {
@@ -488,8 +501,70 @@ export class SDKSessionManager {
     }
 
     private getCustomTools(): any[] {
-        // Future: Add custom VS Code tools here
+        // Plan mode: return plan-specific tool
+        if (this.currentMode === 'plan') {
+            return [this.createUpdateWorkPlanTool()];
+        }
+        
+        // Work mode: no custom tools (for now)
         return [];
+    }
+    
+    /**
+     * Creates the update_work_plan tool for plan mode
+     * This is the ONLY tool available in plan sessions
+     * Writes directly to the work session's plan.md file
+     */
+    private createUpdateWorkPlanTool(): any {
+        return {
+            name: 'update_work_plan',
+            description: 'Update the implementation plan for the work session. Use this to document your planning, analysis, and design work. This plan will be available when switching back to work mode.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    content: {
+                        type: 'string',
+                        description: 'The complete plan content in markdown format. Should include problem statement, approach, tasks with checkboxes, and technical considerations.'
+                    }
+                },
+                required: ['content']
+            },
+            handler: async (args: { content: string }, invocation: any) => {
+                try {
+                    const homeDir = require('os').homedir();
+                    const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
+                    const planPath = path.join(workSessionPath, 'plan.md');
+                    
+                    this.logger.info(`[Plan Mode] Updating work plan at: ${planPath}`);
+                    
+                    // Ensure session directory exists
+                    if (!fs.existsSync(workSessionPath)) {
+                        this.logger.warn(`[Plan Mode] Work session directory doesn't exist: ${workSessionPath}`);
+                        return {
+                            textResultForLlm: `Error: Work session directory not found. Session may not exist yet.`,
+                            resultType: 'failure'
+                        };
+                    }
+                    
+                    // Write the plan
+                    await fs.promises.writeFile(planPath, args.content, 'utf-8');
+                    
+                    this.logger.info(`[Plan Mode] Plan updated successfully (${args.content.length} bytes)`);
+                    
+                    return {
+                        textResultForLlm: `Plan updated successfully! The plan has been saved to ${planPath}. When you switch back to work mode, this plan will be ready for implementation.`,
+                        resultType: 'success'
+                    };
+                } catch (error) {
+                    this.logger.error(`[Plan Mode] Failed to update work plan:`, error instanceof Error ? error : undefined);
+                    return {
+                        textResultForLlm: `Error updating plan: ${error instanceof Error ? error.message : String(error)}`,
+                        resultType: 'failure',
+                        error: error instanceof Error ? error.message : String(error)
+                    };
+                }
+            }
+        };
     }
     
     private getEnabledMCPServers(): Record<string, any> {
@@ -647,6 +722,162 @@ export class SDKSessionManager {
 
     public getSessionId(): string | null {
         return this.sessionId;
+    }
+    
+    public getCurrentMode(): SessionMode {
+        return this.currentMode;
+    }
+    
+    /**
+     * Enable plan mode: Create a plan session that can only update the work plan
+     * The plan session has ONE tool: update_work_plan
+     * All other tools are disabled (read-only mode)
+     */
+    public async enablePlanMode(): Promise<void> {
+        if (this.currentMode === 'plan') {
+            this.logger.warn('Already in plan mode');
+            return;
+        }
+        
+        if (!this.client) {
+            throw new Error('Client not initialized. Call start() first.');
+        }
+        
+        this.logger.info('Enabling plan mode...');
+        
+        // Store reference to work session
+        this.workSession = this.session;
+        this.workSessionId = this.sessionId;
+        
+        // Create plan session with predictable name
+        const planSessionId = `${this.workSessionId}-plan`;
+        this.logger.info(`Creating plan session: ${planSessionId}`);
+        
+        // Switch to plan mode before getting tools (so getCustomTools returns plan tool)
+        this.currentMode = 'plan';
+        
+        try {
+            const mcpServers = this.getEnabledMCPServers();
+            const hasMcpServers = Object.keys(mcpServers).length > 0;
+            
+            this.planSession = await this.client.createSession({
+                sessionId: planSessionId,
+                model: this.config.model || undefined,
+                tools: this.getCustomTools(), // Returns only update_work_plan tool
+                availableTools: ['update_work_plan'], // Whitelist: ONLY this tool
+                systemMessage: {
+                    mode: 'append',
+                    content: `
+
+---
+🎯 **YOU ARE IN PLAN MODE** 🎯
+---
+
+Your role is to PLAN, not to implement. You have the following capabilities:
+
+**WHAT YOU CAN DO:**
+- Analyze the codebase and understand requirements
+- Ask questions to clarify the task
+- Research and explore the code structure
+- Design solutions and consider alternatives
+- Create detailed implementation plans
+- Document your thinking and reasoning
+
+**WHAT YOU CANNOT DO:**
+- You CANNOT modify files (no edit/create/delete tools)
+- You CANNOT execute shell commands
+- You CANNOT make changes to the codebase
+- You are in READ-ONLY mode for code
+
+**HOW TO DOCUMENT YOUR PLAN:**
+Use the \`update_work_plan\` tool to write your implementation plan. This plan will be saved to the work session's plan.md file and will be available when the user switches back to work mode.
+
+Your plan should include:
+1. **Problem Statement**: Clear description of what needs to be done
+2. **Approach**: Proposed solution and why it's the best approach
+3. **Tasks**: Step-by-step implementation tasks with checkboxes [ ]
+4. **Technical Considerations**: Important details, risks, dependencies
+5. **Testing Strategy**: How to verify the implementation works
+
+When the user is satisfied with the plan, they will toggle back to WORK MODE to implement it.
+Remember: Your job is to think deeply and plan thoroughly, not to code!
+`
+                },
+                ...(hasMcpServers ? { mcpServers } : {}),
+            });
+            
+            this.session = this.planSession;
+            this.sessionId = planSessionId;
+            
+            this.logger.info(`✅ Plan mode enabled! Session: ${planSessionId}`);
+            this.logger.info(`Work session ${this.workSessionId} preserved for when plan mode is disabled`);
+            
+            // Setup event listeners for plan session
+            this.setupSessionEventHandlers();
+            
+            // Notify UI
+            this.onMessageEmitter.fire({
+                type: 'status',
+                data: { 
+                    status: 'plan_mode_enabled',
+                    planSessionId: planSessionId,
+                    workSessionId: this.workSessionId
+                },
+                timestamp: Date.now()
+            });
+            
+        } catch (error) {
+            // If creation failed, revert to work mode
+            this.currentMode = 'work';
+            this.session = this.workSession;
+            this.sessionId = this.workSessionId;
+            this.logger.error('Failed to enable plan mode', error instanceof Error ? error : undefined);
+            throw error;
+        }
+    }
+    
+    /**
+     * Disable plan mode: Resume the work session
+     * The plan session is destroyed (or kept for reference)
+     */
+    public async disablePlanMode(): Promise<void> {
+        if (this.currentMode !== 'plan') {
+            this.logger.warn('Not in plan mode');
+            return;
+        }
+        
+        this.logger.info('Disabling plan mode...');
+        
+        // Destroy plan session (could keep it for reference if desired)
+        if (this.planSession) {
+            try {
+                await this.planSession.destroy();
+                this.logger.info('Plan session destroyed');
+            } catch (error) {
+                this.logger.error('Error destroying plan session', error instanceof Error ? error : undefined);
+            }
+            this.planSession = null;
+        }
+        
+        // Resume work session
+        this.session = this.workSession;
+        this.sessionId = this.workSessionId;
+        this.currentMode = 'work';
+        
+        this.logger.info(`✅ Plan mode disabled! Resumed work session: ${this.sessionId}`);
+        
+        // Setup event listeners for work session (in case they were changed)
+        this.setupSessionEventHandlers();
+        
+        // Notify UI
+        this.onMessageEmitter.fire({
+            type: 'status',
+            data: { 
+                status: 'plan_mode_disabled',
+                workSessionId: this.sessionId
+            },
+            timestamp: Date.now()
+        });
     }
 
     public getWorkspacePath(): string | undefined {

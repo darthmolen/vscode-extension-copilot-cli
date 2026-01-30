@@ -80,6 +80,10 @@ export class ChatPanelProvider {
 					this.logger.info(`View diff requested from UI: ${JSON.stringify(data)}`);
 					vscode.commands.executeCommand('copilot-cli-extension.viewDiff', data);
 					break;
+				case 'togglePlanMode':
+					this.logger.info(`Plan mode toggle requested: ${data.enabled}`);
+					vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', data.enabled);
+					break;
 			}
 		});
 
@@ -870,7 +874,7 @@ export class ChatPanelProvider {
 					<span>Show Reasoning</span>
 				</label>
 				<span class="control-separator">|</span>
-				<label class="plan-mode-toggle" title="When enabled, all messages are prefixed with [[PLAN]]">
+				<label class="plan-mode-toggle" title="Plan Mode: Creates a separate planning session with read-only access. Use to analyze and design before implementing.">
 					<input type="checkbox" id="planModeCheckbox" />
 					<span>Plan Mode</span>
 				</label>
@@ -961,6 +965,13 @@ export class ChatPanelProvider {
 		// Plan mode checkbox handler
 		planModeCheckbox.addEventListener('change', (e) => {
 			planMode = e.target.checked;
+			console.log('[Plan Mode] Toggle:', planMode);
+			
+			// Notify extension about plan mode change
+			vscode.postMessage({
+				type: 'togglePlanMode',
+				enabled: planMode
+			});
 		});
 
 		// Auto-resize textarea
@@ -1011,13 +1022,10 @@ export class ChatPanelProvider {
 			historyIndex = -1;
 			currentDraft = '';
 
-			// Add [[PLAN]] prefix if plan mode is enabled
-			const messageToSend = planMode ? '[[PLAN]] ' + text : text;
-
-			console.log('[SEND] Posting message to extension:', messageToSend.substring(0, 50));
+			console.log('[SEND] Posting message to extension:', text.substring(0, 50));
 			vscode.postMessage({
 				type: 'sendMessage',
-				value: messageToSend
+				value: text
 			});
 
 			messageInput.value = '';

@@ -225,8 +225,31 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	});
+	
+	const togglePlanModeCommand = vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', async (enabled: boolean) => {
+		logger.info(`Toggle Plan Mode command triggered: ${enabled}`);
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			if (enabled) {
+				await cliManager.enablePlanMode();
+				vscode.window.showInformationMessage('🎯 Plan Mode enabled! You can now analyze and design without modifying files.');
+			} else {
+				await cliManager.disablePlanMode();
+				vscode.window.showInformationMessage('✅ Plan Mode disabled! Back to work mode - you can now implement the plan.');
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to toggle plan mode: ${errorMessage}`, error instanceof Error ? error : undefined);
+			vscode.window.showErrorMessage(`Failed to toggle plan mode: ${errorMessage}`);
+		}
+	});
 
-	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand);
+	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand, togglePlanModeCommand);
 	
 	logger.info('✅ Copilot CLI Extension activated successfully');
 	logger.info('='.repeat(60));
