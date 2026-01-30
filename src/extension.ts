@@ -82,7 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register view plan handler ONCE in activate
 	ChatPanelProvider.onViewPlan(() => {
-		const workspacePath = cliManager?.getWorkspacePath();
+		// Always use work session workspace path, even when in plan mode
+		const workspacePath = cliManager?.getWorkSessionWorkspacePath();
 		if (workspacePath) {
 			const planPath = vscode.Uri.file(`${workspacePath}/plan.md`);
 			vscode.workspace.openTextDocument(planPath).then(doc => {
@@ -248,8 +249,44 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Failed to toggle plan mode: ${errorMessage}`);
 		}
 	});
+	
+	const acceptPlanCommand = vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', async () => {
+		logger.info('Accept Plan command triggered');
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			await cliManager.acceptPlan();
+			vscode.window.showInformationMessage('✅ Plan accepted! Ready to implement.');
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to accept plan: ${errorMsg}`);
+			vscode.window.showErrorMessage(`Failed to accept plan: ${errorMsg}`);
+		}
+	});
+	
+	const rejectPlanCommand = vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', async () => {
+		logger.info('Reject Plan command triggered');
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			await cliManager.rejectPlan();
+			vscode.window.showInformationMessage('❌ Plan rejected. Changes discarded.');
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to reject plan: ${errorMsg}`);
+			vscode.window.showErrorMessage(`Failed to reject plan: ${errorMsg}`);
+		}
+	});
 
-	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand, togglePlanModeCommand);
+	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand, togglePlanModeCommand, acceptPlanCommand, rejectPlanCommand);
 	
 	logger.info('✅ Copilot CLI Extension activated successfully');
 	logger.info('='.repeat(60));

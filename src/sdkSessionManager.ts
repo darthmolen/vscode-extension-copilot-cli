@@ -79,6 +79,10 @@ export class SDKSessionManager {
     private workSession: any | null = null;
     private planSession: any | null = null;
     private workSessionId: string | null = null;
+    private planModeSnapshot: string | null = null;
+    
+    // Event handler cleanup
+    private sessionUnsubscribe: (() => void) | null = null;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -226,7 +230,14 @@ export class SDKSessionManager {
     private setupSessionEventHandlers(): void {
         if (!this.session) {return;}
 
-        this.session.on((event: any) => {
+        // Clean up previous event handler if it exists
+        if (this.sessionUnsubscribe) {
+            this.sessionUnsubscribe();
+            this.sessionUnsubscribe = null;
+        }
+
+        // Register new event handler and store unsubscribe function
+        this.sessionUnsubscribe = this.session.on((event: any) => {
             this.logger.debug(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
 
             switch (event.type) {
@@ -675,6 +686,12 @@ export class SDKSessionManager {
     public async stop(): Promise<void> {
         this.logger.info('Stopping SDK session manager...');
         
+        // Clean up event handler
+        if (this.sessionUnsubscribe) {
+            this.sessionUnsubscribe();
+            this.sessionUnsubscribe = null;
+        }
+        
         if (this.session) {
             try {
                 await this.session.destroy();
@@ -744,6 +761,24 @@ export class SDKSessionManager {
         }
         
         this.logger.info('Enabling plan mode...');
+        
+        // Snapshot current plan.md before entering plan mode
+        try {
+            const homeDir = require('os').homedir();
+            const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.sessionId!);
+            const planPath = path.join(workSessionPath, 'plan.md');
+            
+            if (fs.existsSync(planPath)) {
+                this.planModeSnapshot = await fs.promises.readFile(planPath, 'utf-8');
+                this.logger.info('[Plan Mode] Snapshotted plan.md before entering plan mode');
+            } else {
+                this.planModeSnapshot = null;
+                this.logger.info('[Plan Mode] No existing plan.md to snapshot');
+            }
+        } catch (error) {
+            this.logger.error('[Plan Mode] Failed to snapshot plan.md', error instanceof Error ? error : undefined);
+            this.planModeSnapshot = null;
+        }
         
         // Store reference to work session
         this.workSession = this.session;
@@ -866,8 +901,7 @@ Remember: Your job is to think deeply and plan thoroughly, not to code!
         
         this.logger.info(`✅ Plan mode disabled! Resumed work session: ${this.sessionId}`);
         
-        // Setup event listeners for work session (in case they were changed)
-        this.setupSessionEventHandlers();
+        // Work session already has event handlers - no need to re-setup
         
         // Notify UI
         this.onMessageEmitter.fire({
@@ -879,9 +913,96 @@ Remember: Your job is to think deeply and plan thoroughly, not to code!
             timestamp: Date.now()
         });
     }
+    
+    /**
+     * Accept the plan: Keep plan.md changes and exit plan mode
+     */
+    public async acceptPlan(): Promise<void> {
+        if (this.currentMode !== 'plan') {
+            this.logger.warn('Not in plan mode - cannot accept plan');
+            return;
+        }
+        
+        this.logger.info('[Plan Mode] Accepting plan...');
+        
+        // Clear snapshot (we're keeping the changes)
+        this.planModeSnapshot = null;
+        
+        // Exit plan mode
+        await this.disablePlanMode();
+        
+        // Notify UI with accept status
+        this.onMessageEmitter.fire({
+            type: 'status',
+            data: { 
+                status: 'plan_accepted',
+                workSessionId: this.sessionId
+            },
+            timestamp: Date.now()
+        });
+        
+        this.logger.info('[Plan Mode] ✅ Plan accepted!');
+    }
+    
+    /**
+     * Reject the plan: Restore plan.md from snapshot and exit plan mode
+     */
+    public async rejectPlan(): Promise<void> {
+        if (this.currentMode !== 'plan') {
+            this.logger.warn('Not in plan mode - cannot reject plan');
+            return;
+        }
+        
+        this.logger.info('[Plan Mode] Rejecting plan...');
+        
+        // Restore plan.md from snapshot if it exists
+        if (this.planModeSnapshot !== null) {
+            try {
+                const homeDir = require('os').homedir();
+                const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
+                const planPath = path.join(workSessionPath, 'plan.md');
+                
+                await fs.promises.writeFile(planPath, this.planModeSnapshot, 'utf-8');
+                this.logger.info('[Plan Mode] Restored plan.md from snapshot');
+            } catch (error) {
+                this.logger.error('[Plan Mode] Failed to restore plan.md', error instanceof Error ? error : undefined);
+            }
+        }
+        
+        // Clear snapshot
+        this.planModeSnapshot = null;
+        
+        // Exit plan mode
+        await this.disablePlanMode();
+        
+        // Notify UI with reject status
+        this.onMessageEmitter.fire({
+            type: 'status',
+            data: { 
+                status: 'plan_rejected',
+                workSessionId: this.sessionId
+            },
+            timestamp: Date.now()
+        });
+        
+        this.logger.info('[Plan Mode] ❌ Plan rejected - changes discarded');
+    }
 
     public getWorkspacePath(): string | undefined {
         return this.session?.workspacePath;
+    }
+    
+    /**
+     * Get the work session's workspace path
+     * Always returns the work session path, even when in plan mode
+     */
+    public getWorkSessionWorkspacePath(): string | undefined {
+        if (this.currentMode === 'work') {
+            return this.session?.workspacePath;
+        } else {
+            // In plan mode, return work session's workspace
+            return this.workSession?.workspacePath;
+        }
     }
 
     public getToolExecutions(): ToolExecutionState[] {
