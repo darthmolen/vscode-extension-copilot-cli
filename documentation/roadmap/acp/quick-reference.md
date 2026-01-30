@@ -8,7 +8,7 @@
 ## TL;DR
 
 | Aspect | SDK | ACP |
-|--------|-----|-----|
+| -------- | ----- | ----- |
 | **What it is** | Proprietary wrapper | Open standard protocol |
 | **Copilot CLI features** | 100% | 100% (identical) |
 | **Code complexity** | Low (5 lines) | High (20-30 lines) |
@@ -117,7 +117,7 @@ Until then: **SDK is the pragmatic choice.**
 ## Migration Effort (If Needed Later)
 
 | Task | Effort |
-|------|--------|
+| ------ | -------- |
 | Code changes (sdkSessionManager.ts) | 12-16 hours |
 | Testing (unit, integration, E2E) | 8-12 hours |
 | Documentation updates | 2-4 hours |

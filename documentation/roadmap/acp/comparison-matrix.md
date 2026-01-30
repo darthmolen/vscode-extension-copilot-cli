@@ -18,7 +18,7 @@
 
 ### Current: GitHub Copilot SDK
 
-```
+```text
 Your Extension (SDKSessionManager)
     ↓
 @github/copilot-sdk (CopilotClient + Session)
@@ -37,7 +37,7 @@ File System + Git + Web + MCP Servers
 
 ### Alternative: ACP Direct
 
-```
+```text
 Your Extension (ACP Client Implementation)
     ↓
 @agentclientprotocol/sdk (ClientSideConnection)
@@ -60,7 +60,7 @@ File System + Git + Web + MCP Servers
 ## 2. Feature Parity Analysis
 
 | Feature | GitHub SDK | ACP | Notes |
-|---------|-----------|-----|-------|
+| --------- | ----------- | ----- | ------- |
 | **Session Management** | ✅ Full | ✅ Full | Both support create, load, list |
 | **Session Resume** | ✅ `client.resumeSession()` | ✅ `session/load` | Same capability |
 | **Working Directory** | ✅ `cwd` parameter | ✅ `cwd` parameter | Identical |
@@ -88,7 +88,7 @@ File System + Git + Web + MCP Servers
 ### GitHub SDK Events (Current)
 
 | Event Type | Description | Your Usage |
-|------------|-------------|-----------|
+| ------------ | ------------- | ----------- |
 | `assistant.message` | Complete message | ✅ Display in UI |
 | `assistant.message_delta` | Streaming chunk | ⚠️ Not using (could enable) |
 | `assistant.reasoning` | Model thinking | ✅ Show/hide reasoning |
@@ -107,7 +107,7 @@ File System + Git + Web + MCP Servers
 ### ACP Events (Standardized)
 
 | Event Type | Description | SDK Equivalent |
-|------------|-------------|----------------|
+| ------------ | ------------- | ---------------- |
 | `agent_message_chunk` | Streaming text | `assistant.message_delta` |
 | `user_message_chunk` | User message replay | N/A (new feature) |
 | `tool_call` | Tool invocation | `tool.execution_start` |
@@ -130,7 +130,7 @@ File System + Git + Web + MCP Servers
 ## 4. Developer Experience
 
 | Aspect | GitHub SDK | ACP | Winner |
-|--------|-----------|-----|--------|
+| -------- | ----------- | ----- | -------- |
 | **Setup Complexity** | Low (3 lines) | Medium (10-15 lines) | SDK |
 | **Process Management** | Auto | Manual | SDK |
 | **Code Example** | 5 lines for basic | 20-30 lines for basic | SDK |
@@ -180,7 +180,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Open Standard vs. Proprietary
 
 | Dimension | GitHub SDK | ACP |
-|-----------|-----------|-----|
+| ----------- | ----------- | ----- |
 | **Protocol Ownership** | GitHub (proprietary) | Open standard (Apache 2.0) |
 | **Governance** | GitHub internal | Community + Zed Industries lead |
 | **Adoption** | GitHub products only | Zed, JetBrains, Gemini CLI, Claude Code |
@@ -191,7 +191,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Ecosystem & Community
 
 | Aspect | GitHub SDK | ACP |
-|--------|-----------|-----|
+| -------- | ----------- | ----- |
 | **Registry** | N/A | ✅ ACP Registry (central agent discovery) |
 | **Multi-Editor Support** | VS Code (custom) | Zed (native), JetBrains (coming), VS Code (custom) |
 | **Multi-Agent Support** | Copilot only | Copilot, Gemini, Claude, custom agents |
@@ -223,7 +223,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ## 6. Performance Comparison
 
 | Metric | GitHub SDK | ACP | Notes |
-|--------|-----------|-----|-------|
+| -------- | ----------- | ----- | ------- |
 | **Latency** | +1 hop (SDK wrapper) | Direct protocol | ~Negligible difference |
 | **Resource Usage** | +SDK process overhead | No wrapper overhead | Minimal impact |
 | **Startup Time** | SDK auto-spawn | Manual spawn | Same (both spawn CLI) |
@@ -239,7 +239,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Code Changes Required
 
 | File | Current LOC | Estimated Changes | Effort |
-|------|-------------|------------------|---------|
+| ------ | ------------- | ------------------ | --------- |
 | `sdkSessionManager.ts` | ~600 | ~400 (event handlers + lifecycle) | High |
 | `extension.ts` | ~200 | ~50 (minor adjustments) | Low |
 | `chatViewProvider.ts` | ~800 | ~20 (event data structure) | Low |
@@ -269,7 +269,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Risks of Staying with SDK
 
 | Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
+| ------ | ----------- | -------- | ----------- |
 | GitHub deprecates SDK for ACP | Medium | High | None (reactive) |
 | SDK gets fewer updates | Medium | Medium | Switch to ACP later |
 | Missing new ACP features (plans) | High | Low | Most features work fine |
@@ -278,7 +278,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Risks of Migrating to ACP
 
 | Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
+| ------ | ----------- | -------- | ----------- |
 | ACP breaking changes (preview) | High | High | Pin version, monitor releases |
 | Bugs in direct protocol usage | Medium | Medium | Thorough testing, fallback to SDK |
 | Regression during migration | Medium | High | Comprehensive E2E tests |
@@ -291,7 +291,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Advantages of ACP
 
 | Advantage | Value | Priority |
-|-----------|-------|----------|
+| ----------- | ------- | ---------- |
 | **Open standard** (not vendor-locked) | High | High |
 | **Multi-agent support** (Gemini, Claude) | Medium | Medium |
 | **Future-proof** (industry standard) | High | High |
@@ -303,7 +303,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Disadvantages of ACP
 
 | Disadvantage | Severity | Priority |
-|--------------|----------|----------|
+| -------------- | ---------- | ---------- |
 | **More boilerplate code** | Medium | Medium |
 | **Manual process management** | High | High |
 | **Still in public preview** | High | High |
@@ -315,7 +315,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Advantages of Staying with SDK
 
 | Advantage | Value | Priority |
-|-----------|-------|----------|
+| ----------- | ------- | ---------- |
 | **Zero migration effort** | High | **Critical** |
 | **Already working well** | High | **Critical** |
 | **Auto process management** | High | High |
@@ -325,7 +325,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### Disadvantages of Staying with SDK
 
 | Disadvantage | Severity | Priority |
-|--------------|----------|----------|
+| -------------- | ---------- | ---------- |
 | **Potential deprecation** | Medium | Medium |
 | **Vendor lock-in** | Medium | Low |
 | **Technical preview status** | Medium | Medium |
@@ -433,7 +433,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 ### CLI Feature Matrix
 
 | Feature | ACP Mode | SDK Mode | Notes |
-|---------|----------|----------|-------|
+| --------- | ---------- | ---------- | ------- |
 | **All CLI Flags** | ✅ Available | ✅ Available | `--allow-all`, `--model`, `--agent`, etc. |
 | **MCP Servers** | ✅ Full support | ✅ Full support | Same MCP server configuration |
 | **GitHub MCP Server** | ✅ Built-in | ✅ Built-in | Default toolsets: context, repos, issues, PRs, users |
@@ -459,7 +459,7 @@ const session = await connection.newSession({ cwd: workspaceDir, mcpServers: [] 
 Both ACP and SDK mode have access to the same Copilot CLI built-in tools:
 
 | Category | Tools | Count |
-|----------|-------|-------|
+| ---------- | ------- | ------- |
 | **File Operations** | `view`, `edit`, `create`, `glob`, `grep` | 5 |
 | **Shell** | `bash` (sync/async), `read_bash`, `write_bash`, `stop_bash` | 4 |
 | **Git Operations** | Via shell tool (`git status`, `git diff`, etc.) | N/A |
@@ -478,7 +478,7 @@ Both ACP and SDK mode have access to the same Copilot CLI built-in tools:
 The built-in GitHub MCP server provides these toolsets (same in both modes):
 
 | Toolset | Description | Tools | Default |
-|---------|-------------|-------|---------|
+| --------- | ------------- | ------- | --------- |
 | `context` | Current user & GitHub context | `get_me`, `get_teams`, `get_team_members` | ✅ |
 | `repos` | Repository operations | `get_file_contents`, `search_code`, `list_commits`, etc. | ✅ |
 | `issues` | Issue management | `issue_read`, `list_issues`, `search_issues` | ✅ |
@@ -507,7 +507,7 @@ The built-in GitHub MCP server provides these toolsets (same in both modes):
 ### Permission Model Differences
 
 | Aspect | ACP Mode | SDK Mode |
-|--------|----------|----------|
+| ------ | -------- | -------- |
 | **Permission Requests** | ✅ Explicit `session/request_permission` | ⚠️ Implicit (SDK handles) |
 | **User Approval** | ✅ You implement approval UI | ✅ SDK handles automatically |
 | **Granularity** | ✅ Per-tool approval | ✅ Same granularity |

@@ -98,7 +98,7 @@ TL;DR version with the essential facts and decision.
 **The Copilot CLI provides identical features in both modes.**
 
 | Feature Category | SDK | ACP |
-|-----------------|-----|-----|
+| ----------------- | ----- | ----- |
 | Built-in Tools (70+) | ✅ | ✅ |
 | GitHub MCP Server (50+ tools) | ✅ | ✅ |
 | Custom MCP Servers | ✅ | ✅ |
@@ -153,7 +153,7 @@ TL;DR version with the essential facts and decision.
 ### Estimated Effort: 22-32 hours
 
 | Task | Effort |
-|------|--------|
+| ------ | -------- |
 | Code changes (sdkSessionManager.ts + event handlers) | 12-16 hours |
 | Testing (unit, integration, E2E) | 8-12 hours |
 | Documentation updates | 2-4 hours |
@@ -175,7 +175,7 @@ TL;DR version with the essential facts and decision.
 ### Advantages of ACP (Future-Looking)
 
 | Advantage | Value | Priority |
-|-----------|-------|----------|
+| ----------- | ------- | ---------- |
 | **Open standard** (not vendor-locked) | High | High |
 | **Multi-agent support** (Gemini, Claude) | Medium | Medium |
 | **Future-proof** (industry standard like LSP) | High | High |
@@ -186,7 +186,7 @@ TL;DR version with the essential facts and decision.
 ### Advantages of SDK (Current Reality)
 
 | Advantage | Value | Priority |
-|-----------|-------|----------|
+| ----------- | ------- | ---------- |
 | **Zero migration effort** | High | **Critical** |
 | **Already working well** | High | **Critical** |
 | **Auto process management** | High | High |
@@ -199,7 +199,7 @@ TL;DR version with the essential facts and decision.
 
 ### Architecture: SDK
 
-```
+```text
 Extension (SDKSessionManager)
     ↓
 @github/copilot-sdk (CopilotClient + Session)
@@ -211,7 +211,7 @@ Tools + MCP Servers
 
 ### Architecture: ACP
 
-```
+```text
 Extension (ACP Client Implementation)
     ↓
 @agentclientprotocol/sdk (ClientSideConnection)
