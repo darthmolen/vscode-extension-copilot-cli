@@ -786,17 +786,35 @@ export class ChatPanelProvider {
 		}
 
 		.plan-btn {
-			padding: 4px 12px;
+			padding: 6px 8px;
 			background: var(--vscode-button-secondaryBackground);
 			color: var(--vscode-button-secondaryForeground);
 			border: 1px solid var(--vscode-button-border);
 			border-radius: 2px;
 			cursor: pointer;
-			font-size: 12px;
+			font-size: 14px;
 		}
 
 		.plan-btn:hover {
 			background: var(--vscode-button-secondaryHoverBackground);
+		}
+
+		.plan-mode-group {
+			display: inline-flex;
+			flex-direction: column;
+			gap: 2px;
+		}
+
+		.plan-mode-title {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			margin-bottom: 2px;
+			text-align: center;
+		}
+
+		.plan-mode-controls {
+			display: inline-flex;
+			gap: 4px;
 		}
 
 		.plan-mode-toggle {
@@ -896,13 +914,16 @@ export class ChatPanelProvider {
 					<span>Show Reasoning</span>
 				</label>
 				<span class="control-separator">|</span>
-				<div id="planModeControls" class="plan-mode-controls">
-					<button id="enterPlanModeBtn" class="plan-btn primary" title="Enter planning mode to analyze and design">📝 Plan Mode</button>
-					<button id="acceptPlanBtn" class="plan-btn accept" title="Accept the plan and return to work mode" style="display: none;">✅ Accept Plan</button>
-					<button id="rejectPlanBtn" class="plan-btn reject" title="Reject the plan and discard changes" style="display: none;">❌ Reject Plan</button>
+				<div class="plan-mode-group">
+					<div class="plan-mode-title">Planning</div>
+					<div id="planModeControls" class="plan-mode-controls">
+					<button id="enterPlanModeBtn" class="plan-btn primary" title="Enter planning mode to analyze and design">📝</button>
+					<button id="acceptPlanBtn" class="plan-btn accept" title="Accept the plan and return to work mode" style="display: none;">✅</button>
+					<button id="rejectPlanBtn" class="plan-btn reject" title="Reject the plan and discard changes" style="display: none;">❌</button>
+					</div>
 				</div>
 				<span class="control-separator">|</span>
-				<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋 View Plan</button>
+				<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
 			</div>
 			<div class="input-wrapper">
 				<textarea 
