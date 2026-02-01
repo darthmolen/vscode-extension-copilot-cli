@@ -1548,6 +1548,11 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         // Clear snapshot (we're keeping the changes)
         this.planModeSnapshot = null;
         
+        // Calculate plan path before exiting plan mode
+        const homeDir = require('os').homedir();
+        const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
+        const planPath = path.join(workSessionPath, 'plan.md');
+        
         // Send visual message to chat BEFORE exiting plan mode
         this.onMessageEmitter.fire({
             type: 'output',
@@ -1569,6 +1574,15 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
             timestamp: Date.now()
         });
         this.logger.info('[Plan Mode] plan_accepted event emitted');
+        
+        // Auto-inject context message to start implementation
+        this.logger.info('[Plan Mode] Auto-injecting implementation context...');
+        await this.sendMessage(
+            `I just finished planning and accepted the plan. The plan is located at: ${planPath}\n\n` +
+            `Please read the plan file and begin implementation. Review the tasks and start executing them.`,
+            false
+        );
+        this.logger.info('[Plan Mode] Implementation context injected');
         
         this.logger.info('[Plan Mode] ✅ Plan accepted!');
     }
