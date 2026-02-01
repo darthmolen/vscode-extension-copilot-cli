@@ -800,16 +800,19 @@ export class ChatPanelProvider {
 		}
 
 		.plan-mode-group {
+			position: relative;
 			display: inline-flex;
-			flex-direction: column;
-			gap: 2px;
+			padding-top: 12px;
 		}
 
 		.plan-mode-title {
+			position: absolute;
+			top: 0;
+			right: 0;
 			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
-			margin-bottom: 2px;
-			text-align: center;
+			text-align: right;
+			padding-right: 4px;
 		}
 
 		.plan-mode-controls {
