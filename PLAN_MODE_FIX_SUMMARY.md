@@ -1,111 +1,191 @@
-# Plan Mode Duplicate Tool Fix - Summary
+# Plan Mode Safe Tool Implementation - Complete
 
 ## Problem
-When enabling plan mode, the extension was failing with:
-```
-CAPIError: 400 tools: Tool names must be unique.
-Unknown tool name in the tool allowlist: "explore"
-```
+Plan mode needs to be sandboxed - it should only allow exploration and planning, not implementation. Previous approach tried to override SDK tools (bash, create, edit, task) with restricted versions, but this had limitations.
 
-## Root Cause
-1. **'explore' was incorrectly added to availableTools** - 'explore' is an agent type for the `task` tool, not a standalone tool
-2. **Missing tools** - `web_fetch` and `fetch_copilot_cli_documentation` were not in the allowed tools list
-3. **Insufficient logging** - Hard to debug which tools were being sent to the API
+## Solution: Renamed Tools + availableTools Whitelist
+Instead of trying to override SDK tools with the same name, we:
+1. **Rename custom tools** to unique identifiers that won't conflict with SDK tools
+2. **Use availableTools whitelist** to explicitly control which tools are available
+3. **Block SDK versions** of dangerous tools (bash, create, edit, task) by excluding them from availableTools
 
-## Changes Made
+## Implementation
 
-### 1. Fixed availableTools Array (`src/sdkSessionManager.ts` lines 1113-1121)
-**Before:**
+### Tool Renaming (src/sdkSessionManager.ts)
+**Custom Restricted Tools (5):**
+- `plan_bash_explore` - Restricted bash (read-only commands only)
+- `task_agent_type_explore` - Restricted task (explore agent type only)
+- `edit_plan_file` - Restricted edit (plan.md only)
+- `create_plan_file` - Restricted create (plan.md only)
+- `update_work_plan` - Update plan content (unchanged name)
+
+**Safe SDK Tools (6):**
+- `view` - Read any file
+- `grep` - Search content
+- `glob` - Find files by pattern
+- `web_fetch` - Fetch URLs
+- `fetch_copilot_cli_documentation` - Get CLI docs
+- `report_intent` - Report current intent
+
+**Blocked Tools (SDK versions):**
+- ❌ `bash` - Not in availableTools
+- ❌ `create` - Not in availableTools
+- ❌ `edit` - Not in availableTools
+- ❌ `task` - Not in availableTools
+
+### availableTools Whitelist
 ```typescript
-availableTools: [
-    'view',
-    'grep',
-    'glob',
-    'task',
-    'explore'  // ❌ ERROR: Not a tool!
-],
+this.planSession = await this.client.createSession({
+    sessionId: planSessionId,
+    model: this.config.model || undefined,
+    tools: customTools, // 5 custom restricted tools
+    availableTools: [
+        // Custom restricted tools (5)
+        'plan_bash_explore',
+        'task_agent_type_explore',
+        'edit_plan_file',
+        'create_plan_file',
+        'update_work_plan',
+        // Safe SDK tools (6)
+        'view',
+        'grep',
+        'glob',
+        'web_fetch',
+        'fetch_copilot_cli_documentation',
+        'report_intent'
+    ],
+    systemMessage: { /* ... */ }
+});
 ```
 
-**After:**
+## Test Suite (Phase 2 - TDD Approach)
+
+### Test 1: plan-mode-safe-tools.test.mjs
+Tests that the correct tools are available:
+- ✅ Custom tools work (plan_bash_explore, task_agent_type_explore, etc.)
+- ✅ SDK tools work (view, grep, glob, web_fetch, docs)
+- ✅ Blocked tools fail (SDK bash, create, edit, task)
+
+### Test 2: plan-mode-restrictions.test.mjs
+Tests that restrictions actually block dangerous operations:
+- ✅ Blocks 9 dangerous bash commands (rm, mv, npm install, git commit, etc.)
+- ✅ Blocks 6 non-explore agent types (code, fix, debug, implement, etc.)
+- ✅ Blocks editing 5 non-plan files
+- ✅ Blocks creating 5 non-plan files
+- ✅ Error messages are clear and helpful
+- **Total: 26/26 tests passed**
+
+### Test 3: plan-mode-integration.test.mjs
+End-to-end workflow test:
+- ✅ Create plan using create_plan_file
+- ✅ Update plan using update_work_plan
+- ✅ Edit plan using edit_plan_file
+- ✅ Execute safe bash commands
+- ✅ Block dangerous bash commands
+- ✅ Dispatch explore agents
+- ✅ Block non-explore agents
+- ✅ Cannot escape restrictions (non-plan files blocked)
+- **Total: 9/9 tests passed**
+
+## Security Guarantees
+
+### What Plan Mode CAN Do:
+✅ Read any file (view, grep, glob)
+✅ Execute read-only commands (git status, ls, cat, etc.)
+✅ Dispatch exploration sub-agents
+✅ Fetch documentation from web
+✅ Create/edit/update ONLY plan.md
+
+### What Plan Mode CANNOT Do:
+❌ Write/modify any code files
+❌ Install packages (npm install, pip install, etc.)
+❌ Commit or push to git
+❌ Execute dangerous commands (rm, mv, chmod, etc.)
+❌ Dispatch implementation agents (code, fix, debug, etc.)
+❌ Use SDK bash/create/edit/task tools (not in availableTools)
+
+## How It Works
+
+### 1. Tool Name Uniqueness
+By using unique names (plan_bash_explore vs bash), we avoid conflicts:
+- Custom tools and SDK tools can coexist
+- No "Tool names must be unique" errors
+- Clear which tool is which in logs
+
+### 2. availableTools as Complete Whitelist
+The SDK respects availableTools as the COMPLETE list of allowed tools:
+- Only listed tools are available
+- SDK's bash, create, edit, task are NOT listed → blocked
+- Custom plan_bash_explore, etc. ARE listed → available
+
+### 3. Restrictions in Custom Tool Handlers
+Each custom tool enforces its restrictions:
 ```typescript
-const availableTools = [
-    'view',
-    'grep',
-    'glob',
-    'task',
-    'web_fetch',                      // ✅ Added
-    'fetch_copilot_cli_documentation' // ✅ Added
-];
+// plan_bash_explore - whitelist of allowed commands
+const allowedCommands = ['pwd', 'ls', 'cat', 'git status', ...];
+
+// task_agent_type_explore - only allow "explore"
+if (agentType !== 'explore') {
+    return { textResultForLlm: '❌ Blocked...', resultType: 'denied' };
+}
+
+// edit_plan_file - only allow session plan.md
+if (filePath !== sessionPlanPath) {
+    return { textResultForLlm: '❌ Blocked...', resultType: 'denied' };
+}
 ```
-
-### 2. Added Structured Logging (`src/sdkSessionManager.ts` lines 1123-1127)
-```typescript
-// Log structured tool configuration
-this.logger.info(`[Plan Mode] Tool Configuration:`);
-this.logger.info(`[Plan Mode]   Custom tools (${customTools.length}): ${customTools.map(t => t.name).join(', ')}`);
-this.logger.info(`[Plan Mode]   Available tools (${availableTools.length}): ${availableTools.join(', ')}`);
-this.logger.info(`[Plan Mode]   MCP servers enabled: ${hasMcpServers}`);
-```
-
-Expected output:
-```
-[Plan Mode] Tool Configuration:
-[Plan Mode]   Custom tools (3): update_work_plan, bash, create
-[Plan Mode]   Available tools (6): view, grep, glob, task, web_fetch, fetch_copilot_cli_documentation
-[Plan Mode]   MCP servers enabled: true
-```
-
-### 3. Updated System Message
-- Removed reference to 'explore' tool
-- Added `web_fetch` and `fetch_copilot_cli_documentation` to documentation
-- Clarified that `task` agent should be used for exploration
-
-### 4. Created Integration Test (`tests/plan-mode-user-prompt.test.js`)
-- Tests plan mode with a real user prompt
-- 120-second timeout
-- Verifies no duplicate tool errors
-- Checks successful AI response
-- **Result: 4/4 iterations passed ✅**
-
-## How to Test
-
-### Option 1: Reload Extension in VS Code (Recommended)
-1. The code has already been compiled
-2. In VS Code, press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
-3. Type: `Developer: Reload Window`
-4. Press Enter
-5. Open Copilot CLI chat
-6. Toggle Plan Mode
-7. Check the output channel for the new structured logs
-
-### Option 2: Run Integration Test
-```bash
-cd /home/smolen/dev/vscode-copilot-cli-extension
-node tests/plan-mode-user-prompt.test.js
-```
-
-Expected output:
-```
-✅ Response received within timeout
-✅ PASSED
-Errors: 0
-```
-
-## Verification Checklist
-After reloading VS Code:
-- [ ] No "Tool names must be unique" error
-- [ ] No "Unknown tool name: explore" warning  
-- [ ] Structured logging appears in output channel
-- [ ] Plan mode works without errors
-- [ ] AI responds successfully to prompts in plan mode
 
 ## Files Changed
-- `src/sdkSessionManager.ts` - Fixed tool configuration and added logging
-- `tests/plan-mode-user-prompt.test.js` - New integration test
-- `reload-extension.sh` - Helper script for reloading
 
-## Technical Details
-- **Tool vs Agent Type**: 'explore' is an agent type used with `task` tool, not a standalone tool
-- **Custom tools**: update_work_plan, bash, create (3 tools)
-- **Available tools**: view, grep, glob, task, web_fetch, fetch_copilot_cli_documentation (6 tools)
-- **Total tools in plan mode**: 9 tools (3 custom + 6 available)
+### Phase 2 (Tests - TDD)
+- `tests/plan-mode-safe-tools.test.mjs` - NEW
+- `tests/plan-mode-restrictions.test.mjs` - NEW
+- `tests/plan-mode-integration.test.mjs` - NEW
+
+### Phase 3 (Implementation)
+- `src/sdkSessionManager.ts` - Updated:
+  - Renamed 4 tool creation methods (bash → plan_bash_explore, etc.)
+  - Added availableTools whitelist to plan session creation
+  - Updated system message with new tool names
+  - Updated logging to reflect availableTools enforcement
+
+### Phase 4 (Documentation)
+- `PLAN_MODE_FIX_SUMMARY.md` - Updated (this file)
+- `COPILOT.md` - To be updated with plan mode tool documentation
+
+## Verification
+
+### Run Tests
+```bash
+node tests/plan-mode-restrictions.test.mjs  # 26/26 passed
+node tests/plan-mode-integration.test.mjs   # 9/9 passed
+node tests/plan-mode-safe-tools.test.mjs    # 7/7 passed
+```
+
+### Manual Testing in VS Code
+1. Reload extension: `Developer: Reload Window`
+2. Open Copilot CLI chat
+3. Enable plan mode (toggle button)
+4. Try commands:
+   - ✅ Should work: "use plan_bash_explore to run git status"
+   - ❌ Should fail: "use bash to run rm -rf test"
+   - ✅ Should work: "create a plan using update_work_plan"
+   - ❌ Should fail: "use create to make a new file in src/"
+
+## Git Checkpoints
+- ✅ Phase 2 committed: "Create comprehensive test suite for plan mode safe tools"
+- ✅ Phase 3 committed: "Implement renamed tools with availableTools whitelist"
+- ⏳ Phase 4 in progress: Documentation and final verification
+
+## Technical Notes
+
+### Why This Approach Works
+1. **No Name Conflicts**: Unique names prevent tool collision
+2. **Complete Whitelist**: availableTools acts as security boundary
+3. **Defense in Depth**: Tool handlers enforce restrictions even if called
+4. **Clear Intent**: Tool names clearly indicate their purpose (plan_bash_explore)
+
+### Previous Approaches Tried
+1. ❌ Override SDK tools with same name → Unclear if custom or SDK version used
+2. ❌ availableTools without rename → Custom tools blocked when SDK tools excluded
+3. ✅ Rename + availableTools → Both custom and SDK tools work together safely

@@ -173,17 +173,50 @@ logger.error('Error details', error);
 currentMode = 'work';
 session = workSession;
 
-// Plan mode: ONE tool only (update_work_plan)
+// Plan mode: Restricted tools, exploration only
 currentMode = 'plan';
 session = planSession;  // <session-id>-plan
 ```
 
 **Key Implementation:**
-- `enablePlanMode()`: Creates plan session with only `update_work_plan` tool
+- `enablePlanMode()`: Creates plan session with restricted tools
 - `disablePlanMode()`: Resumes work session
 - Plan session writes to work session's `plan.md` file
 - No 2x cost: only one session active at a time
 - ACE-FCA aligned: isolated planning context
+
+**Plan Mode Tools (11 total):**
+
+*Plan Management (3 tools):*
+- `update_work_plan` - Create/update plan content (primary tool)
+- `create_plan_file` - Create plan.md (restricted to plan.md only)
+- `edit_plan_file` - Edit plan.md (restricted to plan.md only)
+
+*Exploration (4 tools):*
+- `plan_bash_explore` - Read-only bash commands (git status, ls, cat, etc.)
+- `task_agent_type_explore` - Dispatch exploration sub-agents (agent_type="explore" only)
+- `view` - Read any file
+- `grep` - Search file contents
+
+*Discovery & Documentation (4 tools):*
+- `glob` - Find files by pattern
+- `web_fetch` - Fetch web pages
+- `fetch_copilot_cli_documentation` - Get CLI docs
+- `report_intent` - Report current intent to UI
+
+**Security: What Plan Mode CANNOT Do:**
+- ❌ Write/modify code files (only plan.md)
+- ❌ Install packages (npm, pip, etc.)
+- ❌ Commit or push to git
+- ❌ Execute dangerous commands (rm, mv, chmod, etc.)
+- ❌ Dispatch implementation agents (code, fix, debug, etc.)
+- ❌ Use SDK bash/create/edit/task tools (not in availableTools)
+
+**Implementation Details:**
+- Custom tools use unique names to avoid SDK conflicts (plan_bash_explore vs bash)
+- `availableTools` whitelist explicitly controls available tools
+- SDK's bash, create, edit, task are excluded from whitelist
+- Defense in depth: tool handlers enforce restrictions even if called
 
 **GitHub Context**: SDK team is "debating" whether to add plan mode (issue #255). We built it ourselves using dual sessions. 💪
 
