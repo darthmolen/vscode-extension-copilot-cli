@@ -8,6 +8,15 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.0.6 - Plan Mode & UI Enhancements
+
+- 📋 **Plan Mode (ACE-FCA)** - Dedicated planning session separate from implementation
+  - **Dual Sessions**: Work session for coding, plan session for exploration
+  - **Sandboxed Tools**: 11 safe tools in plan mode (read-only, exploration only)
+  - **Auto-Context**: Automatically injects plan path when switching to work mode
+  - **Icon Buttons**: Compact planning controls (📝, ✅, ❌, 📋)
+  - See [PLAN_MODE.md](./PLAN_MODE.md) for complete guide
+
 ### v2.0 - Now Powered by Copilot SDK
 
 - ⚡ **SDK 2.0 Integration** - Built on official [@github/copilot-sdk](https://github.com/github/copilot-sdk) for production-ready agent runtime
@@ -21,10 +30,14 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 - 📜 **Session Management** - Resume previous conversations, switch between sessions with dropdown selector
 - 🔄 **Auto-resume** - Automatically picks up where you left off (configurable)
 - 📚 **Full History** - Loads complete conversation history from Copilot CLI's events.jsonl
+- 📊 **Usage Statistics** - Real-time context window, token usage, and quota tracking
+- 🔧 **Tool Grouping** - Collapsible tool execution groups with expand/collapse
 - ⚙️ **Complete CLI Configuration** - All Copilot CLI flags configurable via VS Code settings
 - 🚀 **YOLO Mode** - Quick development mode with all permissions enabled (default, recommended)
 - 🤖 **14 AI Models** - Choose from GPT-5, Claude 4.5 Sonnet/Opus, Gemini 3 Pro, and more
 - 🔧 **Granular Permissions** - Control tool access, file paths, and URLs individually
+- 📂 **Active File Context** - Automatically includes current file and selection
+- 🔗 **@file References** - Resolve file references in messages
 - ♿ **Accessibility** - Screen reader optimizations, ARIA labels, semantic HTML
 - 🌍 **Cross-Platform** - Works on Linux, macOS, and Windows
 
