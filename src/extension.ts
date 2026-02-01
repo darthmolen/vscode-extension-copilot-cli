@@ -352,7 +352,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					} else if (message.data.status === 'ready') {
 						// Assistant finished turn (might have more coming though)
 						// Don't turn off thinking here - wait for actual message
-					} else if (message.data.status === 'plan_mode_enabled' || message.data.status === 'plan_mode_disabled' || message.data.status === 'plan_accepted' || message.data.status === 'plan_rejected') {
+					} else if (
+						message.data.status === 'plan_mode_enabled' ||
+						message.data.status === 'plan_mode_disabled' ||
+						message.data.status === 'plan_accepted' ||
+						message.data.status === 'plan_rejected'
+					) {
 						// Forward plan mode status to webview for button updates
 						ChatPanelProvider.postMessage({ type: 'status', data: message.data });
 					}
