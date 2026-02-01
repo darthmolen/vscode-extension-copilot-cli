@@ -4,68 +4,39 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [2.0.6] - 2026-02-01
 
-### ✨ New Features
+### 📋 Plan Mode Enhancements
 
-**Plan Mode Auto-Context Injection**
+**ACE-FCA Methodology Support**
+- Dedicated planning session separate from work session
 - Automatically injects plan file path when accepting plan
 - Work session receives message with plan location and implementation instructions
 - Eliminates confusion when switching from planning to implementation
-- AI now knows exactly what plan to implement
 
-**Icon-Only Planning Buttons**
+**Improved Planning UI**
 - All planning buttons converted to compact icons (📝, ✅, ❌, 📋)
 - Prevents text overflow when resizing window
 - Tooltips provide full descriptions on hover
-- "Planning" group title for better organization
+- Planning buttons align horizontally with other controls
+- "Planning" title overlays buttons without affecting vertical position
 
-### 🔒 Security Improvements
+**Enhanced Safety**
+- Sandboxed environment with 11 safe tools (read-only operations only)
+- Cannot modify code, install packages, or commit changes in plan mode
+- Can explore codebase, read files, and create implementation plans
+- Defense-in-depth validation prevents accidental modifications
 
-**Plan Mode Tool Sandboxing**
-- Renamed custom tools to avoid SDK conflicts (`plan_bash_explore`, `task_agent_type_explore`, etc.)
-- Implemented `availableTools` whitelist for explicit tool control
-- 11 safe tools available in plan mode (5 custom + 6 SDK)
-- SDK's dangerous tools (bash, create, edit, task) completely blocked from plan mode
-
-**Enhanced Restrictions**
-- `plan_bash_explore`: Only allows read-only commands (git status, ls, cat, etc.)
-- `task_agent_type_explore`: Only allows explore agent type
-- `edit_plan_file`: Only allows editing plan.md
-- `create_plan_file`: Only allows creating plan.md
-- Defense-in-depth validation in tool handlers
+**See [PLAN_MODE.md](./PLAN_MODE.md) for complete guide**
 
 ### 🎨 UI/UX Improvements
-
-**Planning Controls Alignment**
-- Planning buttons now align horizontally with other controls
-- "Planning" title overlays buttons without affecting vertical position
-- Consistent baseline with metrics and Show Reasoning checkbox
 
 **Tool Group Behavior**
 - Tool groups now default to collapsed state when overflowing
 - "Expand (x more)" button correctly shows collapsed initially
 - Improved visual organization of multiple tool executions
 
-### 📚 Documentation
-
-**Comprehensive Plan Mode Guide**
-- New PLAN_MODE.md with ACE-FCA methodology explanation
-- Detailed usage instructions and workflow examples
-- Security and sandboxing documentation
-- Troubleshooting guide
-
-**Test Suite Documentation**
-- Reorganized test documentation in tests/README.md
-- Added plan mode test suite documentation (42 tests)
-- Moved completed planning docs to planning/completed/
-- Clear references to all documentation files
-
-### 🧪 Testing
-
-**Plan Mode Test Suites**
-- `plan-mode-safe-tools.test.mjs` - Tool availability tests (7 tests)
-- `plan-mode-restrictions.test.mjs` - Security restriction tests (26 tests)
-- `plan-mode-integration.test.mjs` - End-to-end workflow tests (9 tests)
-- All 42 tests passing ✅
+**Better Alignment**
+- Consistent baseline alignment for all controls
+- Metrics, Show Reasoning, and Planning controls in same row
 
 ### 🐛 Bug Fixes
 
