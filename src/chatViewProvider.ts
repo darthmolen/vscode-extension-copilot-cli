@@ -1238,6 +1238,11 @@ export class ChatPanelProvider {
 			const isOverflowing = container.scrollHeight > 200;
 			
 			if (isOverflowing) {
+				// Ensure container starts collapsed
+				if (!toolGroupExpanded) {
+					container.classList.remove('expanded');
+				}
+				
 				const toggle = document.createElement('div');
 				toggle.className = 'tool-group-toggle';
 				
