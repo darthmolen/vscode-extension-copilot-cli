@@ -82,7 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register view plan handler ONCE in activate
 	ChatPanelProvider.onViewPlan(() => {
-		const workspacePath = cliManager?.getWorkspacePath();
+		// Always use work session workspace path, even when in plan mode
+		const workspacePath = cliManager?.getWorkSessionWorkspacePath();
 		if (workspacePath) {
 			const planPath = vscode.Uri.file(`${workspacePath}/plan.md`);
 			vscode.workspace.openTextDocument(planPath).then(doc => {
@@ -128,8 +129,9 @@ export function activate(context: vscode.ExtensionContext) {
 		// Open the panel
 		ChatPanelProvider.createOrShow(context.extensionUri);
 		
-		// Clear messages and start fresh session
+		// Clear messages and reset plan mode state
 		ChatPanelProvider.clearMessages();
+		ChatPanelProvider.resetPlanMode();
 		await startCLISession(context, false); // false = new session
 		updateSessionsList();
 		vscode.window.showInformationMessage('New Copilot CLI session started!');
@@ -146,8 +148,9 @@ export function activate(context: vscode.ExtensionContext) {
 			cliManager = null;
 		}
 		
-		// Clear messages and start session with specific ID
+		// Clear messages and reset plan mode state
 		ChatPanelProvider.clearMessages();
+		ChatPanelProvider.resetPlanMode();
 		await startCLISession(context, true, sessionId);
 		loadSessionHistory(sessionId);
 		updateSessionsList();
@@ -225,8 +228,67 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage(`Failed to open diff: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	});
+	
+	const togglePlanModeCommand = vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', async (enabled: boolean) => {
+		logger.info(`Toggle Plan Mode command triggered: ${enabled}`);
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			if (enabled) {
+				await cliManager.enablePlanMode();
+				vscode.window.showInformationMessage('🎯 Plan Mode enabled! You can now analyze and design without modifying files.');
+			} else {
+				await cliManager.disablePlanMode();
+				vscode.window.showInformationMessage('✅ Plan Mode disabled! Back to work mode - you can now implement the plan.');
+			}
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to toggle plan mode: ${errorMessage}`, error instanceof Error ? error : undefined);
+			vscode.window.showErrorMessage(`Failed to toggle plan mode: ${errorMessage}`);
+		}
+	});
+	
+	const acceptPlanCommand = vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', async () => {
+		logger.info('Accept Plan command triggered');
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			await cliManager.acceptPlan();
+			vscode.window.showInformationMessage('✅ Plan accepted! Ready to implement.');
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to accept plan: ${errorMsg}`);
+			vscode.window.showErrorMessage(`Failed to accept plan: ${errorMsg}`);
+		}
+	});
+	
+	const rejectPlanCommand = vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', async () => {
+		logger.info('Reject Plan command triggered');
+		
+		if (!cliManager || !cliManager.isRunning()) {
+			vscode.window.showWarningMessage('No active Copilot CLI session');
+			return;
+		}
+		
+		try {
+			await cliManager.rejectPlan();
+			vscode.window.showInformationMessage('❌ Plan rejected. Changes discarded.');
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to reject plan: ${errorMsg}`);
+			vscode.window.showErrorMessage(`Failed to reject plan: ${errorMsg}`);
+		}
+	});
 
-	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand);
+	context.subscriptions.push(openChatCommand, startChatCommand, newSessionCommand, switchSessionCommand, stopChatCommand, refreshPanelCommand, viewDiffCommand, togglePlanModeCommand, acceptPlanCommand, rejectPlanCommand);
 	
 	logger.info('✅ Copilot CLI Extension activated successfully');
 	logger.info('='.repeat(60));
@@ -277,6 +339,9 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						// Old session expired, new one created
 						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
 						
+						// Set session active to turn indicator green
+						ChatPanelProvider.setSessionActive(true);
+						
 						// Add a clear visual separator showing the session boundary
 						ChatPanelProvider.addAssistantMessage('---\n\n⚠️ **Previous session expired after inactivity**\n\nThe conversation above is from an expired session and cannot be continued. A new session has been started below.\n\n---');
 						ChatPanelProvider.addAssistantMessage('New session started! How can I help you?');
@@ -287,6 +352,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					} else if (message.data.status === 'ready') {
 						// Assistant finished turn (might have more coming though)
 						// Don't turn off thinking here - wait for actual message
+					} else if (
+						message.data.status === 'plan_mode_enabled' ||
+						message.data.status === 'plan_mode_disabled' ||
+						message.data.status === 'plan_accepted' ||
+						message.data.status === 'plan_rejected'
+					) {
+						// Forward plan mode status to webview for button updates
+						ChatPanelProvider.postMessage({ type: 'status', data: message.data });
 					}
 					break;
 				case 'tool_start':
@@ -344,12 +417,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 
 function getCLIConfig(): CLIConfig {
 	const config = vscode.workspace.getConfiguration('copilotCLI');
+	const yolo = config.get<boolean>('yolo', false);
 	
 	return {
-		yolo: config.get<boolean>('yolo', false),
-		allowAllTools: config.get<boolean>('allowAllTools', false),
-		allowAllPaths: config.get<boolean>('allowAllPaths', false),
-		allowAllUrls: config.get<boolean>('allowAllUrls', false),
+		yolo: yolo,
+		// YOLO mode overrides all allow* settings to true
+		allowAllTools: yolo || config.get<boolean>('allowAllTools', false),
+		allowAllPaths: yolo || config.get<boolean>('allowAllPaths', false),
+		allowAllUrls: yolo || config.get<boolean>('allowAllUrls', false),
 		allowTools: config.get<string[]>('allowTools', []),
 		denyTools: config.get<string[]>('denyTools', []),
 		allowUrls: config.get<string[]>('allowUrls', []),

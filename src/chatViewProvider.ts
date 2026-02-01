@@ -80,6 +80,18 @@ export class ChatPanelProvider {
 					this.logger.info(`View diff requested from UI: ${JSON.stringify(data)}`);
 					vscode.commands.executeCommand('copilot-cli-extension.viewDiff', data);
 					break;
+				case 'togglePlanMode':
+					this.logger.info(`Plan mode toggle requested: ${data.enabled}`);
+					vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', data.enabled);
+					break;
+				case 'acceptPlan':
+					this.logger.info('Accept plan requested from UI');
+					vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
+					break;
+				case 'rejectPlan':
+					this.logger.info('Reject plan requested from UI');
+					vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
+					break;
 			}
 		});
 
@@ -138,6 +150,10 @@ export class ChatPanelProvider {
 	public static clearMessages() {
 		ChatPanelProvider.postMessage({ type: 'clearMessages' });
 	}
+	
+	public static resetPlanMode() {
+		ChatPanelProvider.postMessage({ type: 'resetPlanMode' });
+	}
 
 	public static updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
 		ChatPanelProvider.postMessage({ 
@@ -186,8 +202,9 @@ export class ChatPanelProvider {
 			ChatPanelProvider.panel.dispose();
 			ChatPanelProvider.panel = undefined;
 		}
-		// Recreate with fresh HTML
+		// Recreate with fresh HTML and reset plan mode
 		ChatPanelProvider.createOrShow(extensionUri);
+		ChatPanelProvider.resetPlanMode();
 	}
 
 	private static getHtmlForWebview(webview: vscode.Webview) {
@@ -769,17 +786,38 @@ export class ChatPanelProvider {
 		}
 
 		.plan-btn {
-			padding: 4px 12px;
+			padding: 6px 8px;
 			background: var(--vscode-button-secondaryBackground);
 			color: var(--vscode-button-secondaryForeground);
 			border: 1px solid var(--vscode-button-border);
 			border-radius: 2px;
 			cursor: pointer;
-			font-size: 12px;
+			font-size: 14px;
 		}
 
 		.plan-btn:hover {
 			background: var(--vscode-button-secondaryHoverBackground);
+		}
+
+		.plan-mode-group {
+			position: relative;
+			display: inline-flex;
+			padding-top: 12px;
+		}
+
+		.plan-mode-title {
+			position: absolute;
+			top: 0;
+			right: 0;
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			text-align: right;
+			padding-right: 4px;
+		}
+
+		.plan-mode-controls {
+			display: inline-flex;
+			gap: 4px;
 		}
 
 		.plan-mode-toggle {
@@ -808,6 +846,12 @@ export class ChatPanelProvider {
 			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;
+		}
+		
+		.reasoning-indicator {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			font-style: italic;
 		}
 
 		/* Scrollbar styling */
@@ -864,17 +908,24 @@ export class ChatPanelProvider {
 					<span> | </span>
 					<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
 				</span>
-				<span class="control-separator">|</span>
+				<span id="reasoningIndicator" class="reasoning-indicator" style="display: none; margin-left: 8px;">
+					🧠 <span id="reasoningText">Reasoning...</span>
+				</span>
+				<span style="flex: 1;"></span>
 				<label class="reasoning-toggle">
 					<input type="checkbox" id="showReasoningCheckbox" />
 					<span>Show Reasoning</span>
 				</label>
 				<span class="control-separator">|</span>
-				<label class="plan-mode-toggle" title="When enabled, all messages are prefixed with [[PLAN]]">
-					<input type="checkbox" id="planModeCheckbox" />
-					<span>Plan Mode</span>
-				</label>
-				<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋 View Plan</button>
+				<div class="plan-mode-group">
+					<div class="plan-mode-title">Planning</div>
+					<div id="planModeControls" class="plan-mode-controls">
+					<button id="enterPlanModeBtn" class="plan-btn primary" title="Enter planning mode to analyze and design">📝</button>
+					<button id="acceptPlanBtn" class="plan-btn accept" title="Accept the plan and return to work mode" style="display: none;">✅</button>
+					<button id="rejectPlanBtn" class="plan-btn reject" title="Reject the plan and discard changes" style="display: none;">❌</button>
+					<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
+					</div>
+				</div>
 			</div>
 			<div class="input-wrapper">
 				<textarea 
@@ -903,7 +954,10 @@ export class ChatPanelProvider {
 		const newSessionBtn = document.getElementById('newSessionBtn');
 		const viewPlanBtn = document.getElementById('viewPlanBtn');
 		const showReasoningCheckbox = document.getElementById('showReasoningCheckbox');
-		const planModeCheckbox = document.getElementById('planModeCheckbox');
+		const enterPlanModeBtn = document.getElementById('enterPlanModeBtn');
+		const acceptPlanBtn = document.getElementById('acceptPlanBtn');
+		const rejectPlanBtn = document.getElementById('rejectPlanBtn');
+		const reasoningIndicator = document.getElementById('reasoningIndicator');
 		const usageWindow = document.getElementById('usageWindow');
 		const usageUsed = document.getElementById('usageUsed');
 		const usageRemaining = document.getElementById('usageRemaining');
@@ -913,6 +967,7 @@ export class ChatPanelProvider {
 		let showReasoning = false;
 		let planMode = false;
 		let workspacePath = null;
+		let isReasoning = false;
 		
 		// Prompt history
 		const messageHistory = [];
@@ -958,10 +1013,57 @@ export class ChatPanelProvider {
 			});
 		});
 
-		// Plan mode checkbox handler
-		planModeCheckbox.addEventListener('change', (e) => {
-			planMode = e.target.checked;
+		// Plan mode button handlers
+		enterPlanModeBtn.addEventListener('click', () => {
+			console.log('[Plan Mode] Entering plan mode');
+			planMode = true;
+			vscode.postMessage({
+				type: 'togglePlanMode',
+				enabled: true
+			});
+			updatePlanModeUI();
 		});
+		
+		acceptPlanBtn.addEventListener('click', () => {
+			console.log('[Plan Mode] Accepting plan');
+			vscode.postMessage({
+				type: 'acceptPlan'
+			});
+		});
+		
+		rejectPlanBtn.addEventListener('click', () => {
+			console.log('[Plan Mode] Rejecting plan');
+			vscode.postMessage({
+				type: 'rejectPlan'
+			});
+		});
+		
+		function updatePlanModeUI() {
+			console.log('[updatePlanModeUI] Called with planMode =', planMode);
+			if (planMode) {
+				// In plan mode: hide enter button, show accept/reject
+				console.log('[updatePlanModeUI] PLAN MODE - hiding enter, showing accept/reject');
+				enterPlanModeBtn.style.display = 'none';
+				acceptPlanBtn.style.display = 'inline-block';
+				rejectPlanBtn.style.display = 'inline-block';
+				console.log('[updatePlanModeUI] Button states:', {
+					enter: enterPlanModeBtn.style.display,
+					accept: acceptPlanBtn.style.display,
+					reject: rejectPlanBtn.style.display
+				});
+			} else {
+				// In work mode: show enter button, hide accept/reject
+				console.log('[updatePlanModeUI] WORK MODE - showing enter, hiding accept/reject');
+				enterPlanModeBtn.style.display = 'inline-block';
+				acceptPlanBtn.style.display = 'none';
+				rejectPlanBtn.style.display = 'none';
+				console.log('[updatePlanModeUI] Button states:', {
+					enter: enterPlanModeBtn.style.display,
+					accept: acceptPlanBtn.style.display,
+					reject: rejectPlanBtn.style.display
+				});
+			}
+		}
 
 		// Auto-resize textarea
 		messageInput.addEventListener('input', () => {
@@ -1011,13 +1113,10 @@ export class ChatPanelProvider {
 			historyIndex = -1;
 			currentDraft = '';
 
-			// Add [[PLAN]] prefix if plan mode is enabled
-			const messageToSend = planMode ? '[[PLAN]] ' + text : text;
-
-			console.log('[SEND] Posting message to extension:', messageToSend.substring(0, 50));
+			console.log('[SEND] Posting message to extension:', text.substring(0, 50));
 			vscode.postMessage({
 				type: 'sendMessage',
-				value: messageToSend
+				value: text
 			});
 
 			messageInput.value = '';
@@ -1142,6 +1241,11 @@ export class ChatPanelProvider {
 			const isOverflowing = container.scrollHeight > 200;
 			
 			if (isOverflowing) {
+				// Ensure container starts collapsed
+				if (!toolGroupExpanded) {
+					container.classList.remove('expanded');
+				}
+				
 				const toggle = document.createElement('div');
 				toggle.className = 'tool-group-toggle';
 				
@@ -1162,6 +1266,9 @@ export class ChatPanelProvider {
 				});
 				
 				element.appendChild(toggle);
+			} else {
+				// Not overflowing - remove height restriction so details can expand fully
+				container.classList.add('expanded');
 			}
 		}
 
@@ -1510,6 +1617,42 @@ export class ChatPanelProvider {
 						const pct = Math.round(message.data.remainingPercentage);
 						usageRemaining.textContent = \`Remaining: \${pct}%\`;
 						usageRemaining.title = \`remaining requests for account: \${pct}%\`;
+					}
+					break;
+				case 'resetPlanMode':
+					// Force reset plan mode to false
+					planMode = false;
+					updatePlanModeUI();
+					break;
+				case 'status':
+					// Handle status updates including plan mode
+					const status = message.data.status;
+					console.log('[STATUS EVENT] Received status:', status, 'Full data:', message.data);
+					if (status === 'plan_mode_enabled') {
+						console.log('[STATUS EVENT] Enabling plan mode UI');
+						planMode = true;
+						updatePlanModeUI();
+					} else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
+						console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
+						planMode = false;
+						updatePlanModeUI();
+						
+						// Show notification
+						if (status === 'plan_accepted') {
+							console.log('✅ Plan accepted! Ready to implement.');
+						} else if (status === 'plan_rejected') {
+							console.log('❌ Plan rejected. Changes discarded.');
+						}
+					} else if (status === 'thinking') {
+						isReasoning = true;
+						if (reasoningIndicator) {
+							reasoningIndicator.style.display = 'inline';
+						}
+					} else if (status === 'ready') {
+						isReasoning = false;
+						if (reasoningIndicator) {
+							reasoningIndicator.style.display = 'none';
+						}
 					}
 					break;
 			}

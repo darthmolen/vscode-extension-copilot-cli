@@ -2,6 +2,78 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.0.6] - 2026-02-01
+
+### 📋 Plan Mode Enhancements
+
+**ACE-FCA Methodology Support**
+- Dedicated planning session separate from work session
+- Automatically injects plan file path when accepting plan
+- Work session receives message with plan location and implementation instructions
+- Eliminates confusion when switching from planning to implementation
+
+**Improved Planning UI**
+- All planning buttons converted to compact icons (📝, ✅, ❌, 📋)
+- Prevents text overflow when resizing window
+- Tooltips provide full descriptions on hover
+- Planning buttons align horizontally with other controls
+- "Planning" title overlays buttons without affecting vertical position
+
+**Enhanced Safety**
+- Sandboxed environment with 11 safe tools (read-only operations only)
+- Cannot modify code, install packages, or commit changes in plan mode
+- Can explore codebase, read files, and create implementation plans
+- Defense-in-depth validation prevents accidental modifications
+
+**See [PLAN_MODE.md](./PLAN_MODE.md) for complete guide**
+
+### 🎨 UI/UX Improvements
+
+**Tool Group Behavior**
+- Tool groups now default to collapsed state when overflowing
+- "Expand (x more)" button correctly shows collapsed initially
+- Improved visual organization of multiple tool executions
+
+**Better Alignment**
+- Consistent baseline alignment for all controls
+- Metrics, Show Reasoning, and Planning controls in same row
+
+### 🐛 Bug Fixes
+
+- Fixed View Plan button alignment (moved into Planning group)
+- Fixed tool group expand/collapse state synchronization
+- Fixed plan context loss when switching from plan to work mode
+
+## [2.0.2] - 2026-01-31
+
+### ✨ New Features
+
+**Active File Context**
+- Automatically includes the currently active file in VS Code as context
+- If text is selected, includes the selection with line numbers
+- Can be disabled via `copilotCLI.includeActiveFile` setting (enabled by default)
+- Provides seamless context awareness for file-specific questions
+
+**@file_name Reference Resolution**
+- Support for `@file_name` syntax in messages
+- Automatically resolves file references to relative workspace paths
+- Searches workspace for matching files if not found directly
+- Can be disabled via `copilotCLI.resolveFileReferences` setting (enabled by default)
+- Example: `@src/extension.ts` resolves to the correct path
+
+### 🐛 Bug Fixes
+
+**Plan Mode Timeout Fix**
+- Fixed "Tool names must be unique" error causing timeouts in plan mode
+- Removed duplicate `update_work_plan` tool from availableTools list
+- Plan mode now works reliably without API errors
+
+**Plan Mode Tool Improvements**
+- Added `explore` tool to available tools in plan mode
+- Improved system message to clearly indicate `update_work_plan` must be used instead of `create`
+- Added explicit tool list to help agent understand available capabilities
+- Better error guidance when wrong tools are attempted
+
 ## [2.0.1] - 2026-01-28
 
 ### ✨ New Features

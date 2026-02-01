@@ -40,6 +40,11 @@ npm run test:sdk
 
 # Run all tests (alias for test:comprehensive)
 npm test
+
+# Run plan mode tests
+node tests/plan-mode-safe-tools.test.mjs
+node tests/plan-mode-restrictions.test.mjs
+node tests/plan-mode-integration.test.mjs
 ```
 
 ---
@@ -253,12 +258,54 @@ tests/
 
 ---
 
-## Detailed Documentation
+## Plan Mode Tests
 
-- **[TEST-SUITE-OVERVIEW.md](./TEST-SUITE-OVERVIEW.md)** - Architecture, data flow, extending tests
-- **[COMPREHENSIVE-TEST.md](./COMPREHENSIVE-TEST.md)** - Comprehensive test suite details
-- **[evaluation/README.md](./evaluation/README.md)** - Evaluation framework documentation
-- **[QUICKREF-COMPREHENSIVE.md](./QUICKREF-COMPREHENSIVE.md)** - Quick reference guide
+The extension includes specialized tests for plan mode functionality:
+
+### Test Files
+- **`plan-mode-safe-tools.test.mjs`** - Tests renamed tools with availableTools whitelist (7 tests)
+- **`plan-mode-restrictions.test.mjs`** - Tests security restrictions block dangerous operations (26 tests)
+- **`plan-mode-integration.test.mjs`** - End-to-end plan mode workflow tests (9 tests)
+- **`sdk-plan-mode-tools.test.mjs`** - SDK integration test for plan mode tools
+
+### What Gets Tested
+- ✅ Custom restricted tools (plan_bash_explore, task_agent_type_explore, edit_plan_file, create_plan_file, update_work_plan)
+- ✅ Safe SDK tools (view, grep, glob, web_fetch, fetch_copilot_cli_documentation)
+- ✅ Blocked operations (dangerous bash commands, non-explore agents, non-plan file edits)
+- ✅ Clear error messages for blocked operations
+- ✅ Complete workflow: create plan → update → edit → accept → implement
+
+### Running Plan Mode Tests
+```bash
+# Run all plan mode tests
+node tests/plan-mode-restrictions.test.mjs  # 26/26 tests
+node tests/plan-mode-integration.test.mjs   # 9/9 tests
+node tests/plan-mode-safe-tools.test.mjs    # 7/7 tests
+```
+
+See [PLAN_MODE_FIX_SUMMARY.md](../PLAN_MODE_FIX_SUMMARY.md) in the root for implementation details.
+
+---
+
+## 📚 Documentation Files
+
+This test suite includes comprehensive documentation:
+
+### Main Documentation
+- **[README.md](./README.md)** (this file) - Complete test suite guide, quick start, and reference
+- **[TEST-SUITE-OVERVIEW.md](./TEST-SUITE-OVERVIEW.md)** - Architecture, component design, data flow, and extension guide
+- **[COMPREHENSIVE-TEST.md](./COMPREHENSIVE-TEST.md)** - Detailed comprehensive test suite documentation
+- **[QUICKREF-COMPREHENSIVE.md](./QUICKREF-COMPREHENSIVE.md)** - Quick reference for running tests
+
+### Additional Documentation
+- **[evaluation/README.md](./evaluation/README.md)** - Evaluation framework and quality criteria
+- **[mcp-server/TEST-README.md](./mcp-server/TEST-README.md)** - MCP test server documentation
+
+### Historical Plans (Completed)
+Completed planning documents have been moved to `/planning/completed/`:
+- `PHASE-6-COMPLETE.md` - Phase 6 completion summary
+- `PHASE-6-SUMMARY.md` - Phase 6 implementation details
+- `INTEGRATION-TEST-PLAN.md` - Original integration test planning
 
 ---
 
