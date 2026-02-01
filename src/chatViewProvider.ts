@@ -150,6 +150,10 @@ export class ChatPanelProvider {
 	public static clearMessages() {
 		ChatPanelProvider.postMessage({ type: 'clearMessages' });
 	}
+	
+	public static resetPlanMode() {
+		ChatPanelProvider.postMessage({ type: 'resetPlanMode' });
+	}
 
 	public static updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
 		ChatPanelProvider.postMessage({ 
@@ -198,8 +202,9 @@ export class ChatPanelProvider {
 			ChatPanelProvider.panel.dispose();
 			ChatPanelProvider.panel = undefined;
 		}
-		// Recreate with fresh HTML
+		// Recreate with fresh HTML and reset plan mode
 		ChatPanelProvider.createOrShow(extensionUri);
+		ChatPanelProvider.resetPlanMode();
 	}
 
 	private static getHtmlForWebview(webview: vscode.Webview) {
@@ -1011,16 +1016,29 @@ export class ChatPanelProvider {
 		});
 		
 		function updatePlanModeUI() {
+			console.log('[updatePlanModeUI] Called with planMode =', planMode);
 			if (planMode) {
 				// In plan mode: hide enter button, show accept/reject
+				console.log('[updatePlanModeUI] PLAN MODE - hiding enter, showing accept/reject');
 				enterPlanModeBtn.style.display = 'none';
 				acceptPlanBtn.style.display = 'inline-block';
 				rejectPlanBtn.style.display = 'inline-block';
+				console.log('[updatePlanModeUI] Button states:', {
+					enter: enterPlanModeBtn.style.display,
+					accept: acceptPlanBtn.style.display,
+					reject: rejectPlanBtn.style.display
+				});
 			} else {
 				// In work mode: show enter button, hide accept/reject
+				console.log('[updatePlanModeUI] WORK MODE - showing enter, hiding accept/reject');
 				enterPlanModeBtn.style.display = 'inline-block';
 				acceptPlanBtn.style.display = 'none';
 				rejectPlanBtn.style.display = 'none';
+				console.log('[updatePlanModeUI] Button states:', {
+					enter: enterPlanModeBtn.style.display,
+					accept: acceptPlanBtn.style.display,
+					reject: rejectPlanBtn.style.display
+				});
 			}
 		}
 
@@ -1220,6 +1238,9 @@ export class ChatPanelProvider {
 				});
 				
 				element.appendChild(toggle);
+			} else {
+				// Not overflowing - remove height restriction so details can expand fully
+				container.classList.add('expanded');
 			}
 		}
 
@@ -1570,13 +1591,21 @@ export class ChatPanelProvider {
 						usageRemaining.title = \`remaining requests for account: \${pct}%\`;
 					}
 					break;
+				case 'resetPlanMode':
+					// Force reset plan mode to false
+					planMode = false;
+					updatePlanModeUI();
+					break;
 				case 'status':
 					// Handle status updates including plan mode
 					const status = message.data.status;
+					console.log('[STATUS EVENT] Received status:', status, 'Full data:', message.data);
 					if (status === 'plan_mode_enabled') {
+						console.log('[STATUS EVENT] Enabling plan mode UI');
 						planMode = true;
 						updatePlanModeUI();
 					} else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
+						console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
 						planMode = false;
 						updatePlanModeUI();
 						

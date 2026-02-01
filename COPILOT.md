@@ -4,9 +4,43 @@
 
 This document provides context and guidelines for AI agents helping to develop the vscode-copilot-cli-extension.
 
+## 🚨 MANDATORY DEVELOPMENT PRACTICES
+
+### 1. Always Use `using-superpowers` Skill
+
+**Before starting ANY work**, invoke the `using-superpowers` skill:
+- This ensures you follow established workflows
+- It activates necessary context and guidelines
+- It prevents common mistakes and rework
+
+**Example**: User asks to fix a bug → First call `using-superpowers`, then proceed
+
+### 2. Test-First Development (ALWAYS)
+
+**Never write production code without a test first!**
+
+When fixing bugs or adding features:
+1. **Find or create a failing test** that demonstrates the issue
+2. **Run the test** to confirm it fails
+3. **Make the minimal fix** to make the test pass
+4. **Run the test again** to verify the fix
+5. **Only then** consider the work complete
+
+**Why**: Tests in this project exist but were ignored, leading to bugs. The `tests/sdk-plan-mode-tools.test.mjs` had the correct implementation, but production code diverged.
+
+**Test locations**:
+- `tests/*.test.js` - Integration tests
+- `tests/*.test.mjs` - SDK-specific tests (ESM modules)
+
 ## Project Overview
 
 This is a **VS Code extension** that provides a chat panel for GitHub Copilot CLI, built on the official `@github/copilot-sdk`.
+
+**Architecture Components**:
+1. **Backend (TypeScript)**: SDK session management, event handling, custom tools
+2. **Frontend (Webview)**: HTML/CSS/JS embedded in `chatViewProvider.ts` as string literals
+3. **SDK Integration**: Uses `@github/copilot-sdk` for CLI session lifecycle (NOT for UI)
+4. **Extension Host**: VS Code runs our extension, we create a webview panel for the chat UI
 
 **Key Differentiation**: Unlike the built-in Copilot chat, this extension:
 - Uses CLI-style sessions with plan.md files
@@ -14,6 +48,7 @@ This is a **VS Code extension** that provides a chat panel for GitHub Copilot CL
 - Integrates MCP (Model Context Protocol) servers
 - Provides real-time tool execution visibility
 - Implements custom features like dual-session plan mode
+- **Builds its own chat UI** (not provided by SDK or VS Code)
 
 ## Development Workflow (CRITICAL)
 
@@ -51,10 +86,12 @@ Due to a Microsoft bug in VS Code 1.100+ with Node.js 20+, the Extension Develop
 | File | Purpose | Key Points |
 |------|---------|-----------|
 | `extension.ts` | Entry point, command registration | Activates extension, registers commands, manages cliManager |
-| `sdkSessionManager.ts` | SDK session lifecycle | Manages work/plan sessions, event handlers, custom tools |
-| `chatViewProvider.ts` | Webview UI | Contains HTML/CSS/JS as strings, message passing |
+| `sdkSessionManager.ts` | **Backend** SDK session lifecycle | Manages work/plan sessions, event handlers, custom tools for plan mode |
+| `chatViewProvider.ts` | **Frontend** Webview UI | Contains HTML/CSS/JS as strings, renders chat messages, tool calls, message passing |
 | `logger.ts` | Logging to Output Channel | Use `Logger.getInstance()` everywhere |
 | `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/` |
+
+**Critical: chatViewProvider.ts IS our UI** - The Copilot SDK does NOT provide any UI components. It's a backend-only library for managing CLI sessions. All chat UI (messages, tool calls, input box) is built by us in the webview.
 
 ### Architecture Patterns
 
@@ -195,6 +232,17 @@ const session = await client.createSession({
 ```
 
 ## UI Development (Webview)
+
+### Critical Understanding: We Build the Entire UI
+
+**The Copilot SDK is backend-only!** It does NOT provide:
+- ❌ Chat interface
+- ❌ Message rendering
+- ❌ Tool call display
+- ❌ Input box
+- ❌ Any UI components whatsoever
+
+**We build everything ourselves** in `chatViewProvider.ts` using VS Code's Webview API.
 
 ### HTML/CSS/JS is Embedded in TypeScript
 
@@ -501,6 +549,12 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 
 ### Version: @github/copilot-sdk ^0.1.18
 
+**CRITICAL: SDK is Backend-Only!**
+- ✅ Provides: Session management, event streaming, tool execution
+- ❌ Does NOT provide: Any UI, rendering, or display components
+- We use SDK for: Managing conversations, handling events
+- We build ourselves: All UI in `chatViewProvider.ts`
+
 **Key SDK Concepts:**
 - `CopilotClient`: Manages connection to CLI
 - `CopilotSession`: Represents a conversation
@@ -513,6 +567,7 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 - No plan mode API (issue #255) - we built our own! 
 - No `remainingPercentage` getter - must use events
 - System prompts: append or replace mode only
+- **No UI components** - we build all UI ourselves
 
 **SDK Event Types:**
 - `assistant.message` - Final response

@@ -129,8 +129,9 @@ export function activate(context: vscode.ExtensionContext) {
 		// Open the panel
 		ChatPanelProvider.createOrShow(context.extensionUri);
 		
-		// Clear messages and start fresh session
+		// Clear messages and reset plan mode state
 		ChatPanelProvider.clearMessages();
+		ChatPanelProvider.resetPlanMode();
 		await startCLISession(context, false); // false = new session
 		updateSessionsList();
 		vscode.window.showInformationMessage('New Copilot CLI session started!');
@@ -147,8 +148,9 @@ export function activate(context: vscode.ExtensionContext) {
 			cliManager = null;
 		}
 		
-		// Clear messages and start session with specific ID
+		// Clear messages and reset plan mode state
 		ChatPanelProvider.clearMessages();
+		ChatPanelProvider.resetPlanMode();
 		await startCLISession(context, true, sessionId);
 		loadSessionHistory(sessionId);
 		updateSessionsList();
@@ -337,6 +339,9 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						// Old session expired, new one created
 						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
 						
+						// Set session active to turn indicator green
+						ChatPanelProvider.setSessionActive(true);
+						
 						// Add a clear visual separator showing the session boundary
 						ChatPanelProvider.addAssistantMessage('---\n\n⚠️ **Previous session expired after inactivity**\n\nThe conversation above is from an expired session and cannot be continued. A new session has been started below.\n\n---');
 						ChatPanelProvider.addAssistantMessage('New session started! How can I help you?');
@@ -347,6 +352,9 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					} else if (message.data.status === 'ready') {
 						// Assistant finished turn (might have more coming though)
 						// Don't turn off thinking here - wait for actual message
+					} else if (message.data.status === 'plan_mode_enabled' || message.data.status === 'plan_mode_disabled' || message.data.status === 'plan_accepted' || message.data.status === 'plan_rejected') {
+						// Forward plan mode status to webview for button updates
+						ChatPanelProvider.postMessage({ type: 'status', data: message.data });
 					}
 					break;
 				case 'tool_start':
@@ -404,12 +412,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 
 function getCLIConfig(): CLIConfig {
 	const config = vscode.workspace.getConfiguration('copilotCLI');
+	const yolo = config.get<boolean>('yolo', false);
 	
 	return {
-		yolo: config.get<boolean>('yolo', false),
-		allowAllTools: config.get<boolean>('allowAllTools', false),
-		allowAllPaths: config.get<boolean>('allowAllPaths', false),
-		allowAllUrls: config.get<boolean>('allowAllUrls', false),
+		yolo: yolo,
+		// YOLO mode overrides all allow* settings to true
+		allowAllTools: yolo || config.get<boolean>('allowAllTools', false),
+		allowAllPaths: yolo || config.get<boolean>('allowAllPaths', false),
+		allowAllUrls: yolo || config.get<boolean>('allowAllUrls', false),
 		allowTools: config.get<string[]>('allowTools', []),
 		denyTools: config.get<string[]>('denyTools', []),
 		allowUrls: config.get<string[]>('allowUrls', []),

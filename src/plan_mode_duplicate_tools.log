@@ -1,0 +1,153 @@
+[INFO ] 2026-01-31T22:54:44.058Z ============================================================
+[INFO ] 2026-01-31T22:54:44.058Z Copilot CLI Extension activating...
+[INFO ] 2026-01-31T22:54:44.058Z Extension path: /home/smolen/.vscode-server/extensions/darthmolen.copilot-cli-extension-2.0.2
+[INFO ] 2026-01-31T22:54:44.058Z VS Code version: 1.108.2
+[INFO ] 2026-01-31T22:54:44.058Z Status bar item created
+[INFO ] 2026-01-31T22:54:44.058Z Message and view plan handlers registered
+[INFO ] 2026-01-31T22:54:44.058Z ✅ Copilot CLI Extension activated successfully
+[INFO ] 2026-01-31T22:54:44.058Z ============================================================
+[INFO ] 2026-01-31T22:54:57.933Z Open Chat command triggered
+[INFO ] 2026-01-31T22:54:57.934Z ✅ Chat panel created
+[INFO ] 2026-01-31T22:54:57.936Z Auto-starting CLI session (resume=true)...
+[INFO ] 2026-01-31T22:54:57.936Z Creating CLI Process Manager with config:
+[DEBUG] 2026-01-31T22:54:57.936Z {
+  "yolo": true,
+  "allowAllTools": true,
+  "allowAllPaths": true,
+  "allowAllUrls": true,
+  "allowTools": [],
+  "denyTools": [],
+  "allowUrls": [],
+  "denyUrls": [],
+  "addDirs": [],
+  "agent": "",
+  "model": "",
+  "noAskUser": false
+}
+[INFO ] 2026-01-31T22:54:57.936Z Working directory set to: /home/smolen/dev/vscode-copilot-cli-extension
+[DEBUG] 2026-01-31T22:54:57.937Z No events.jsonl found for session 02584bff-5edb-4f55-95b1-f605890e0e42
+[DEBUG] 2026-01-31T22:54:57.938Z No events.jsonl found for session 03c63de3-8642-4922-9e83-7f325bf29f8c
+[DEBUG] 2026-01-31T22:54:57.939Z No events.jsonl found for session 0abd884f-cfd7-434f-b42e-0e40ca0cc05e
+[DEBUG] 2026-01-31T22:54:57.940Z No events.jsonl found for session 0f9e09c2-f50f-4868-8a20-633d9d38fdf7
+[DEBUG] 2026-01-31T22:54:57.940Z No events.jsonl found for session 10851271-5509-4141-ad5d-b592195dd4b4
+[DEBUG] 2026-01-31T22:54:57.940Z No events.jsonl found for session 17536b50-f6b3-46e6-b6de-f1e4994b4597
+[DEBUG] 2026-01-31T22:54:57.940Z No events.jsonl found for session 17536b50-f6b3-46e6-b6de-f1e4994b4597-plan
+[DEBUG] 2026-01-31T22:54:57.941Z No events.jsonl found for session 23587606-b683-4c5c-9b7e-43d7601b1471
+[DEBUG] 2026-01-31T22:54:57.941Z No events.jsonl found for session 23587606-b683-4c5c-9b7e-43d7601b1471-plan
+[DEBUG] 2026-01-31T22:54:57.942Z No events.jsonl found for session 2e1b164d-4d2b-42d6-b687-e073678bccab
+[DEBUG] 2026-01-31T22:54:57.942Z No events.jsonl found for session 3029b87f-e9dd-49ab-9b4b-abe51ad8cb7b
+[DEBUG] 2026-01-31T22:54:57.944Z No events.jsonl found for session 35032abc-62f7-4cbf-91bf-dd72419ab6f6
+[DEBUG] 2026-01-31T22:54:57.945Z No events.jsonl found for session 3564e211-ffa6-403d-83b7-d2da878ba329
+[DEBUG] 2026-01-31T22:54:57.945Z No events.jsonl found for session 3588890d-b16a-44b3-86ff-5332da00e9fe
+[DEBUG] 2026-01-31T22:54:57.945Z No events.jsonl found for session 4015358e-4841-4fda-9e50-7f72af5d13a7
+[DEBUG] 2026-01-31T22:54:57.945Z No events.jsonl found for session 45b0906b-8783-4897-8fca-30d70aee7f37
+[DEBUG] 2026-01-31T22:54:57.946Z No events.jsonl found for session 48075e49-8cdf-4f8a-a283-7e596bee3dc9
+[DEBUG] 2026-01-31T22:54:57.946Z No events.jsonl found for session 4b8ec9e4-288a-4881-9e90-f265e296137e-plan
+[DEBUG] 2026-01-31T22:54:57.947Z No events.jsonl found for session 4d98bc96-4962-4003-ae33-88ce9c558f97
+[DEBUG] 2026-01-31T22:54:57.948Z No events.jsonl found for session 59772011-cd94-47ce-b238-8fa7448eb760
+[DEBUG] 2026-01-31T22:54:57.948Z No events.jsonl found for session 598ff747-86de-4330-bdf9-507833b1e8db
+[DEBUG] 2026-01-31T22:54:57.949Z No events.jsonl found for session 5f354e63-5f6f-4ad3-9890-3b4f9e24dcb5
+[DEBUG] 2026-01-31T22:54:57.952Z No events.jsonl found for session 7fd82dfe-d822-4454-bed0-a58657cea3d9
+[DEBUG] 2026-01-31T22:54:57.953Z No events.jsonl found for session 8ea1e832-3e6a-478c-b9a5-df55de5e9dd9
+[DEBUG] 2026-01-31T22:54:57.955Z No events.jsonl found for session a01fc6f1-aedc-4553-964d-6cf5e1ab447d
+[DEBUG] 2026-01-31T22:54:57.956Z No events.jsonl found for session abf22979-6a5d-4818-8e27-14c42a9fa8c8
+[DEBUG] 2026-01-31T22:54:57.957Z No events.jsonl found for session b60caba1-6c48-4464-892b-9a01295a74c1
+[DEBUG] 2026-01-31T22:54:57.957Z No events.jsonl found for session b9b72fb0-fac7-494e-be3e-006eda7f9d37
+[DEBUG] 2026-01-31T22:54:57.957Z No events.jsonl found for session bc3fc41e-d398-423a-9c17-ada5836c2f01
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session c09a1a08-4a40-4fca-90f0-8d55e7e1ebc4
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session c0a636e7-1769-4f84-848e-bd8303c949f1
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session c263e911-9795-41fc-ab4a-23e18855577d
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session c6410295-5305-42ec-9456-f570aa9a5e07
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session c6f3a7d0-188d-4027-acb8-cff6afa47f94
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session ca19b743-8d54-45ca-a450-26d2039af05d
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session cb5dac31-30d9-4457-b6d3-e98a51dc8681
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session cecbb06c-d9d8-4742-a222-8f66e2c2d4ed
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session d036099c-fd87-4609-a408-40cba9518001
+[DEBUG] 2026-01-31T22:54:57.958Z No events.jsonl found for session d2ce1cb3-f4b7-4f18-8bde-06282dfc747f
+[DEBUG] 2026-01-31T22:54:57.961Z No events.jsonl found for session e4779bf9-4f4d-4c8c-840e-45fe9304a414
+[DEBUG] 2026-01-31T22:54:57.961Z No events.jsonl found for session e73fa10d-f00c-4568-bcd0-2855cef7b0e9
+[DEBUG] 2026-01-31T22:54:57.962Z Filtered 142 sessions to 74 matching folder: /home/smolen/dev/vscode-copilot-cli-extension
+[INFO ] 2026-01-31T22:54:57.962Z Using most recent folder-specific session: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5
+[INFO ] 2026-01-31T22:54:57.962Z Will resume session: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5 (folder filtering: true)
+[INFO ] 2026-01-31T22:54:57.962Z Starting CLI process...
+[INFO ] 2026-01-31T22:54:57.963Z Starting SDK Session Manager...
+[INFO ] 2026-01-31T22:54:57.966Z CopilotClient created, initializing session...
+[DEBUG] 2026-01-31T22:54:57.966Z Expanded: "${workspaceFolder}/tests/mcp-server/hello-mcp/venv/bin/python" -> "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/venv/bin/python"
+[DEBUG] 2026-01-31T22:54:57.966Z Expanded: "${workspaceFolder}/tests/mcp-server/hello-mcp/server.py" -> "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/server.py"
+[INFO ] 2026-01-31T22:54:57.966Z MCP Servers configured: hello-mcp
+[INFO ] 2026-01-31T22:54:57.966Z MCP Servers to configure: ["hello-mcp"]
+[DEBUG] 2026-01-31T22:54:57.966Z MCP Server details: {
+  "hello-mcp": {
+    "type": "local",
+    "command": "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/venv/bin/python",
+    "args": [
+      "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/server.py"
+    ],
+    "tools": [
+      "*"
+    ]
+  }
+}
+[INFO ] 2026-01-31T22:54:57.966Z Attempting to resume session: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5
+[DEBUG] 2026-01-31T22:54:58.105Z [Webview Message] ready
+[INFO ] 2026-01-31T22:54:58.105Z Webview is ready
+[INFO ] 2026-01-31T22:54:59.020Z Successfully resumed session
+[INFO ] 2026-01-31T22:54:59.020Z Session active: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5
+[INFO ] 2026-01-31T22:54:59.021Z [CLI Status] {"status":"ready","sessionId":"3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5"}
+[INFO ] 2026-01-31T22:54:59.021Z ✅ CLI process started successfully
+[INFO ] 2026-01-31T22:54:59.021Z Loading session history from /home/smolen/.copilot/session-state/3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5/events.jsonl
+[INFO ] 2026-01-31T22:54:59.024Z Loaded 6 messages from session history
+[DEBUG] 2026-01-31T22:55:18.297Z [Webview Message] togglePlanMode
+[INFO ] 2026-01-31T22:55:18.297Z Plan mode toggle requested: true
+[INFO ] 2026-01-31T22:55:18.297Z Toggle Plan Mode command triggered: true
+[INFO ] 2026-01-31T22:55:18.297Z Enabling plan mode...
+[INFO ] 2026-01-31T22:55:18.297Z [Plan Mode] No existing plan.md to snapshot
+[INFO ] 2026-01-31T22:55:18.297Z Creating plan session: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5-plan
+[DEBUG] 2026-01-31T22:55:18.297Z Expanded: "${workspaceFolder}/tests/mcp-server/hello-mcp/venv/bin/python" -> "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/venv/bin/python"
+[DEBUG] 2026-01-31T22:55:18.297Z Expanded: "${workspaceFolder}/tests/mcp-server/hello-mcp/server.py" -> "/home/smolen/dev/vscode-copilot-cli-extension/tests/mcp-server/hello-mcp/server.py"
+[INFO ] 2026-01-31T22:55:18.297Z MCP Servers configured: hello-mcp
+[INFO ] 2026-01-31T22:55:18.298Z [Plan Mode] Registering 3 custom tools: update_work_plan, bash, create
+[INFO ] 2026-01-31T22:55:18.315Z ✅ Plan mode enabled! Session: 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5-plan
+[INFO ] 2026-01-31T22:55:18.315Z Work session 3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5 preserved for when plan mode is disabled
+[INFO ] 2026-01-31T22:55:18.315Z [Plan Mode] Emitting plan_mode_enabled status event
+[INFO ] 2026-01-31T22:55:18.315Z [CLI Status] {"status":"plan_mode_enabled","planSessionId":"3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5-plan","workSessionId":"3df4aea4-7ecd-4ca6-82e9-242aa5b5e0d5"}
+[INFO ] 2026-01-31T22:55:18.315Z [Plan Mode] plan_mode_enabled event emitted
+[DEBUG] 2026-01-31T22:55:18.315Z [CLI Output] 🎯 **Entered Plan Mode**
+
+I can now analyze and design without modifying files. I can only edit plan.md in the session workspace. Use Accept/Reject buttons when ready.
+[DEBUG] 2026-01-31T22:58:41.372Z [Webview Message] sendMessage
+[INFO ] 2026-01-31T22:58:41.372Z User sent message: I don't see the allowed tools in the debug., just the custom tools. let's show those. also, add another custom tool for task that only allows agent_type="explore"
+[INFO ] 2026-01-31T22:58:41.372Z Sending user message to CLI: I don't see the allowed tools in the debug., just the custom tools. let's show those. also, add another custom tool for task that only allows agent_type="explore"
+[INFO ] 2026-01-31T22:58:41.373Z Sending message: I don't see the allowed tools in the debug., just the custom tools. let's show those. also, add anot...
+[DEBUG] 2026-01-31T22:58:41.385Z [SDK Event] pending_messages.modified: {}
+[DEBUG] 2026-01-31T22:58:41.385Z Unhandled event type: pending_messages.modified
+[DEBUG] 2026-01-31T22:58:42.378Z [SDK Event] pending_messages.modified: {}
+[DEBUG] 2026-01-31T22:58:42.378Z Unhandled event type: pending_messages.modified
+[DEBUG] 2026-01-31T22:58:42.946Z [SDK Event] session.info: {"infoType":"configuration","message":"Disabled tools: edit, fetch_copilot_cli_documentation, hello-mcp-get_test_data, hello-mcp-validate_format, list_bash, read_bash, report_intent, skill, stop_bash, store_memory, update_todo, web_fetch, write_bash"}
+[DEBUG] 2026-01-31T22:58:42.946Z Unhandled event type: session.info
+[DEBUG] 2026-01-31T22:58:42.946Z [SDK Event] session.info: {"infoType":"configuration","message":"Unknown tool name in the tool allowlist: \"explore\""}
+[DEBUG] 2026-01-31T22:58:42.946Z Unhandled event type: session.info
+[DEBUG] 2026-01-31T22:58:43.630Z [SDK Event] user.message: {"content":"I don't see the allowed tools in the debug., just the custom tools. let's show those. also, add another custom tool for task that only allows agent_type=\"explore\"","transformedContent":"<current_datetime>2026-01-31T22:58:43.250Z</current_datetime>\n\nI don't see the allowed tools in the debug., just the custom tools. let's show those. also, add another custom tool for task that only allows agent_type=\"explore\"","attachments":[]}
+[DEBUG] 2026-01-31T22:58:43.630Z Unhandled event type: user.message
+[DEBUG] 2026-01-31T22:58:43.630Z [SDK Event] assistant.turn_start: {"turnId":"0"}
+[DEBUG] 2026-01-31T22:58:43.630Z Assistant turn 0 started
+[INFO ] 2026-01-31T22:58:43.630Z [CLI Status] {"status":"thinking","turnId":"0"}
+[DEBUG] 2026-01-31T22:58:43.630Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:58:43.630Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:58:43.630Z [Usage Info] 7501/128000
+[DEBUG] 2026-01-31T22:58:48.869Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:58:48.869Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:58:48.869Z [Usage Info] 7501/128000
+[DEBUG] 2026-01-31T22:58:56.503Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:58:56.503Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:58:56.503Z [Usage Info] 7501/128000
+[DEBUG] 2026-01-31T22:59:06.039Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:59:06.039Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:59:06.039Z [Usage Info] 7501/128000
+[DEBUG] 2026-01-31T22:59:19.257Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:59:19.257Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:59:19.257Z [Usage Info] 7501/128000
+[INFO ] 2026-01-31T22:59:37.226Z Session idle timeout (command likely completed): Timeout after 60000ms waiting for session.idle
+[DEBUG] 2026-01-31T22:59:38.379Z [SDK Event] session.usage_info: {"tokenLimit":128000,"currentTokens":7501,"messagesLength":2}
+[DEBUG] 2026-01-31T22:59:38.379Z Token usage: 7501/128000
+[DEBUG] 2026-01-31T22:59:38.379Z [Usage Info] 7501/128000

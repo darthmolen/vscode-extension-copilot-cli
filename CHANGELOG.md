@@ -2,6 +2,36 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.0.2] - 2026-01-31
+
+### ✨ New Features
+
+**Active File Context**
+- Automatically includes the currently active file in VS Code as context
+- If text is selected, includes the selection with line numbers
+- Can be disabled via `copilotCLI.includeActiveFile` setting (enabled by default)
+- Provides seamless context awareness for file-specific questions
+
+**@file_name Reference Resolution**
+- Support for `@file_name` syntax in messages
+- Automatically resolves file references to relative workspace paths
+- Searches workspace for matching files if not found directly
+- Can be disabled via `copilotCLI.resolveFileReferences` setting (enabled by default)
+- Example: `@src/extension.ts` resolves to the correct path
+
+### 🐛 Bug Fixes
+
+**Plan Mode Timeout Fix**
+- Fixed "Tool names must be unique" error causing timeouts in plan mode
+- Removed duplicate `update_work_plan` tool from availableTools list
+- Plan mode now works reliably without API errors
+
+**Plan Mode Tool Improvements**
+- Added `explore` tool to available tools in plan mode
+- Improved system message to clearly indicate `update_work_plan` must be used instead of `create`
+- Added explicit tool list to help agent understand available capabilities
+- Better error guidance when wrong tools are attempted
+
 ## [2.0.1] - 2026-01-28
 
 ### ✨ New Features

@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.0.1",
+  "version": "2.0.4",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -95,6 +95,16 @@
           "type": "boolean",
           "default": true,
           "description": "Filter sessions by workspace folder when resuming (only shows sessions created in the current folder)"
+        },
+        "copilotCLI.includeActiveFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically include the currently active file and selection as context in messages"
+        },
+        "copilotCLI.resolveFileReferences": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically resolve @file_name references to relative paths"
         },
         "copilotCLI.allowAllTools": {
           "type": "boolean",
@@ -260,6 +270,8 @@
     "test": "npm run test:comprehensive",
     "test:comprehensive": "node tests/comprehensive-test.js",
     "test:mcp": "npm run compile && node tests/mcp-integration.test.js",
+    "test:plan-mode": "npm run compile && node tests/plan-mode-integration.test.js",
+    "test:plan-tools": "node tests/plan-mode-tools.test.js",
     "test:integration": "npm run compile && node tests/sdk-integration.test.js",
     "test:verify": "node tests/verify-setup.js",
     "test:sdk": "node tests/sdk-integration.test.js"
