@@ -618,7 +618,7 @@ export class SDKSessionManager {
             'sudo', 'su', 'chmod', 'chown'
         ];
         
-        return defineTool('bash', {
+        return defineTool('plan_bash_explore', {
             description: 'Execute READ-ONLY bash commands to analyze the environment. Only whitelisted commands are allowed in plan mode.',
             parameters: {
                 type: 'object',
@@ -703,7 +703,7 @@ export class SDKSessionManager {
      * Only allows creating the session's plan.md file
      */
     private createRestrictedCreateTool(): any {
-        return defineTool('create', {
+        return defineTool('create_plan_file', {
             description: 'Create the session plan.md file. ONLY the session plan.md file can be created in plan mode.',
             parameters: {
                 type: 'object',
@@ -778,7 +778,7 @@ export class SDKSessionManager {
      * Only allows editing the session's plan.md file
      */
     private createRestrictedEditTool(): any {
-        return defineTool('edit', {
+        return defineTool('edit_plan_file', {
             description: 'Edit the session plan.md file. ONLY the session plan.md file can be edited in plan mode.',
             parameters: {
                 type: 'object',
@@ -864,7 +864,7 @@ export class SDKSessionManager {
      * Only allows agent_type: "explore"
      */
     private createRestrictedTaskTool(): any {
-        return defineTool('task', {
+        return defineTool('task_agent_type_explore', {
             description: 'Dispatch a task to a specialized agent. In plan mode, only "explore" agent type is allowed for codebase exploration.',
             parameters: {
                 type: 'object',
@@ -1268,13 +1268,13 @@ export class SDKSessionManager {
             const customTools = this.getCustomTools();
             
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
-            this.logger.info(`[Plan Mode]   CUSTOM TOOLS (${customTools.length}) - override SDK tools:`);
+            this.logger.info(`[Plan Mode]   CUSTOM TOOLS (${customTools.length}) - with unique names:`);
             customTools.forEach(tool => {
                 this.logger.info(`[Plan Mode]     ✓ ${tool.name} (restricted)`);
             });
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
-            this.logger.info(`[Plan Mode]   SDK TOOLS: All enabled by default (view, grep, glob, etc.)`);
-            this.logger.info(`[Plan Mode]   Note: Custom tools above override SDK tools with same name`);
+            this.logger.info(`[Plan Mode]   SDK TOOLS: view, grep, glob, web_fetch, fetch_copilot_cli_documentation`);
+            this.logger.info(`[Plan Mode]   Note: Only whitelisted tools are available via availableTools`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
             this.logger.info(`[Plan Mode]   Model: ${this.config.model || 'default'}`);
             this.logger.info(`[Plan Mode]   MCP Servers: ${hasMcpServers ? Object.keys(mcpServers).join(', ') : 'none'}`);
@@ -1284,7 +1284,7 @@ export class SDKSessionManager {
             this.logger.info(`[Plan Mode]     sessionId: ${planSessionId}`);
             this.logger.info(`[Plan Mode]     model: ${this.config.model || 'default'}`);
             this.logger.info(`[Plan Mode]     tools: [${customTools.map(t => t.name).join(', ')}] (custom)`);
-            this.logger.info(`[Plan Mode]     availableTools: NOT SET (allows all SDK tools)`);
+            this.logger.info(`[Plan Mode]     availableTools: [plan_bash_explore, task_agent_type_explore, edit_plan_file, create_plan_file, update_work_plan, view, grep, glob, web_fetch, fetch_copilot_cli_documentation]`);
             this.logger.info(`[Plan Mode]     mcpServers: ${hasMcpServers ? 'enabled' : 'disabled'}`);
             this.logger.info(`[Plan Mode]     systemMessage: mode=append (plan mode instructions)`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
@@ -1293,8 +1293,21 @@ export class SDKSessionManager {
                 sessionId: planSessionId,
                 model: this.config.model || undefined,
                 tools: customTools,
-                // NOTE: We do NOT use availableTools because custom tools override SDK tools with the same name
-                // When availableTools is not specified, all SDK tools are available by default
+                availableTools: [
+                    // Custom restricted tools (5)
+                    'plan_bash_explore',           // restricted bash for read-only commands
+                    'task_agent_type_explore',     // restricted task for exploration only
+                    'edit_plan_file',              // edit ONLY plan.md
+                    'create_plan_file',            // create ONLY plan.md
+                    'update_work_plan',            // update plan content
+                    // Safe SDK tools (5)
+                    'view',                        // read files
+                    'grep',                        // search content
+                    'glob',                        // find files
+                    'web_fetch',                   // fetch URLs
+                    'fetch_copilot_cli_documentation', // get CLI docs
+                    'report_intent'                // report intent to UI
+                ],
                 systemMessage: {
                     mode: 'append',
                     content: `
@@ -1309,30 +1322,35 @@ Your role is to PLAN, not to implement. You have the following capabilities:
 Your plan is stored at: \`${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md\`
 This is your dedicated workspace for planning.
 
-**AVAILABLE TOOLS IN PLAN MODE:**
+**AVAILABLE TOOLS IN PLAN MODE (10 total):**
+
+*Plan Management Tools:*
 - \`update_work_plan\` - **PRIMARY TOOL** for creating/updating your implementation plan
-- \`create\` - **RESTRICTED**: Only for creating plan.md if it doesn't exist (prefer update_work_plan)
-- \`edit\` - **RESTRICTED**: Only for editing plan.md (prefer update_work_plan for full rewrites)
+- \`create_plan_file\` - Create plan.md if it doesn't exist (restricted to plan.md only)
+- \`edit_plan_file\` - Edit plan.md (restricted to plan.md only)
+
+*Exploration Tools:*
 - \`view\` - Read file contents
 - \`grep\` - Search in files
 - \`glob\` - Find files by pattern
-- \`bash\` - Execute read-only shell commands (restricted)
-- \`task\` - **RESTRICTED**: Only allows agent_type="explore" for codebase exploration
+- \`plan_bash_explore\` - Execute read-only shell commands (git status, ls, cat, etc.)
+- \`task_agent_type_explore\` - Dispatch exploration sub-agents (agent_type="explore" only)
+
+*Documentation Tools:*
 - \`web_fetch\` - Fetch web pages and documentation
 - \`fetch_copilot_cli_documentation\` - Get Copilot CLI documentation
-- \`report_intent\` - Report current intent to user interface
 
 **CRITICAL: HOW TO CREATE YOUR PLAN**
-You MUST use ONLY these two tools to create/update your plan:
+You MUST use ONLY these tools to create/update your plan:
 
 1. **update_work_plan** (PREFERRED) - Use this to create or update your plan:
    \`\`\`
    update_work_plan({ content: "# Plan\\n\\n## Problem...\\n\\n## Tasks\\n- [ ] Task 1" })
    \`\`\`
 
-2. **create** (FALLBACK) - Only if update_work_plan fails, use create with the exact path:
+2. **create_plan_file** (FALLBACK) - Only if update_work_plan fails, use create_plan_file with the exact path:
    \`\`\`
-   create({ 
+   create_plan_file({ 
      path: "${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md",
      file_text: "# Plan\\n\\n## Problem..."
    })
@@ -1340,14 +1358,14 @@ You MUST use ONLY these two tools to create/update your plan:
 
 ❌ DO NOT try to create files in /tmp or anywhere else
 ❌ DO NOT use bash to create the plan
-✅ ALWAYS use update_work_plan or create (with exact path above)
+✅ ALWAYS use update_work_plan or create_plan_file (with exact path above)
 
 **WHAT YOU CAN DO:**
 - Analyze the codebase and understand requirements (use view, grep, glob tools)
 - Ask questions to clarify the task (use ask_user if available)
-- Research and explore the code structure (use task/explore tools)
+- Research and explore the code structure (use task_agent_type_explore with agent_type="explore")
 - Fetch documentation and web resources (use web_fetch)
-- Run read-only commands to understand the environment (git status, ls, cat, etc. via bash)
+- Run read-only commands to understand the environment (git status, ls, cat, etc. via plan_bash_explore)
 - Design solutions and consider alternatives
 - **Create and update implementation plans using update_work_plan**
 - Document your thinking and reasoning
