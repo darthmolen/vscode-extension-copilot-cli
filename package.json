@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.0.6",
+  "version": "2.1.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -276,7 +276,9 @@
     "test:plan-tools": "node tests/plan-mode-tools.test.js",
     "test:integration": "npm run compile && node tests/sdk-integration.test.js",
     "test:verify": "node tests/verify-setup.js",
-    "test:sdk": "node tests/sdk-integration.test.js"
+    "test:sdk": "node tests/sdk-integration.test.js",
+    "test:webview": "npm run compile && node tests/webview-lifecycle-integration.test.js",
+    "test:session": "npm run compile && node tests/session-resume.test.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

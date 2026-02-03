@@ -1,8 +1,9 @@
-# UI Interaction Workflows
+# UI Interaction Workflows (pre 2.0.7)
 
-This document describes the technical workflows that occur when users interact with the VS Code Copilot CLI extension's UI elements.
+This document describes the technical workflows that occured pre 2.0.7 when users interact with the VS Code Copilot CLI extension's UI elements. This caused a major bug because session creation and webView were tied to the cli events with no clear separation of concerns. so when a user clicked "x" on the window and re-opened it, it would create the webview, but would get no session state because the cli was already running.
 
 ## Table of Contents
+
 - [Status Bar Click: "CLI Running"](#status-bar-click-cli-running)
 - [Chat Icon Click](#chat-icon-click)
 - [Message Send Workflow](#message-send-workflow)
@@ -17,6 +18,7 @@ The status bar item at the bottom of VS Code displays the CLI session status and
 ### Status Bar States
 
 The status bar displays different text based on the CLI state:
+
 - `$(comment-discussion) Copilot CLI` - Initial state, session not running
 - `$(debug-start) CLI Running` - Active CLI session
 - `$(error) CLI Failed` - CLI failed to start
@@ -58,8 +60,7 @@ The command handler does 5 things synchronously:
    - Logs: "Auto-starting CLI session (resume={value})..."
    - Calls `startCLISession(context, resumeLastSession)` asynchronously
    - When complete: If `resumeLastSession=true` AND `sessionId` exists, calls `loadSessionHistory(sessionId)`
-   
-   **This is where session resume actually happens!**
+**This is where session resume actually happens!**
 
 ### Start CLI Session Flow
 
@@ -70,9 +71,7 @@ The command handler does 5 things synchronously:
    - Sets working directory to workspace root
    - Initializes temporary directory for file snapshots
    - **Determines session ID to use:**
-     
      **If `specificSessionId` provided:** Uses that exact session
-     
      **Else if `resumeLastSession = true`:** Calls `loadLastSessionId()` which:
      - Checks `copilotCLI.filterSessionsByFolder` setting (default: true)
      - Calls `getMostRecentSession(workingDirectory, filterByFolder)` (`src/sessionUtils.ts:128-156`)
@@ -83,15 +82,13 @@ The command handler does 5 things synchronously:
        4. Sorts sessions by modification time (most recent first)
        5. If `filterByFolder = true`: Returns most recent session matching current workspace folder
        6. If `filterByFolder = false` OR no folder match: Returns most recent session globally
-       7. If no sessions exist: `sessionId` remains null, will create new session
-     
+       7. If no sessions exist: `sessionId` remains null, will create new session  
      **Else:** `sessionId` remains null, will create new session
 
 2. **Start SDK Session** (`src/sdkSessionManager.ts:133-215`)
    - Loads `@github/copilot-sdk` dynamically
    - Creates `CopilotClient` instance with config
-   - **Resume or Create Session:**
-     
+   - **Resume or Create Session:** 
      **If `sessionId` is set (from step 1):**
      - Attempts `client.resumeSession(sessionId)` (`src/sdkSessionManager.ts:169`)
      - **Success:** Session resumed, existing context preserved
@@ -100,7 +97,6 @@ The command handler does 5 things synchronously:
        - Sets `sessionId = null`
        - Creates new session with `client.createSession()`
        - Fires `session_expired` status event to UI (shows warning message)
-     
      **If `sessionId` is null:**
      - Creates new session with `client.createSession()`
      - Generates new session ID

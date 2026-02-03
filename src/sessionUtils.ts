@@ -57,6 +57,7 @@ export function getSessionCwd(sessionId: string): string | undefined {
 
 /**
  * Gets all sessions with their metadata (id, cwd, mtime).
+ * Only returns sessions that have a valid events.jsonl file.
  * 
  * @returns Array of session info objects
  */
@@ -73,7 +74,18 @@ export function getAllSessions(): SessionInfo[] {
         return fs.readdirSync(sessionDir)
             .filter(name => {
                 const fullPath = path.join(sessionDir, name);
-                return fs.statSync(fullPath).isDirectory();
+                if (!fs.statSync(fullPath).isDirectory()) {
+                    return false;
+                }
+                
+                // Validate that events.jsonl exists
+                const eventsPath = path.join(fullPath, 'events.jsonl');
+                if (!fs.existsSync(eventsPath)) {
+                    logger.debug(`Skipping session ${name}: no events.jsonl found`);
+                    return false;
+                }
+                
+                return true;
             })
             .map(name => {
                 const fullPath = path.join(sessionDir, name);

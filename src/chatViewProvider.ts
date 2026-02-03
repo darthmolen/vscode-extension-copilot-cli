@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
+import { getBackendState } from './backendState';
 
 export class ChatPanelProvider {
 	private static panel: vscode.WebviewPanel | undefined;
@@ -19,13 +20,17 @@ export class ChatPanelProvider {
 
 		// If we already have a panel, show it
 		if (ChatPanelProvider.panel) {
-			this.logger.debug('Chat panel already exists, revealing it');
+			this.logger.info('[DIAGNOSTIC] Chat panel already exists, REVEALING (not creating)');
+			const backendState = getBackendState();
+			this.logger.info(`[DIAGNOSTIC] BackendState on reveal: ${backendState.getMessages().length} messages, sessionId=${backendState.getSessionId()}`);
 			ChatPanelProvider.panel.reveal(column);
 			return;
 		}
 
 		// Otherwise, create a new panel
-		this.logger.debug('Creating new chat panel');
+		this.logger.info('[DIAGNOSTIC] CREATING NEW chat panel (first time)');
+		const backendState = getBackendState();
+		this.logger.info(`[DIAGNOSTIC] BackendState on create: ${backendState.getMessages().length} messages, sessionId=${backendState.getSessionId()}`);
 		ChatPanelProvider.panel = vscode.window.createWebviewPanel(
 			'copilotCLIChat',
 			'Copilot CLI',
@@ -37,9 +42,21 @@ export class ChatPanelProvider {
 			}
 		);
 
-		ChatPanelProvider.panel.webview.html = ChatPanelProvider.getHtmlForWebview(ChatPanelProvider.panel.webview);
+		// Handle panel disposal (X button)
+		ChatPanelProvider.panel.onDidDispose(() => {
+			this.logger.info('='.repeat(60));
+			this.logger.info('[DIAGNOSTIC] ========== PANEL DISPOSED (X BUTTON) ==========');
+			const backendState = getBackendState();
+			this.logger.info(`[DIAGNOSTIC] BackendState at disposal: ${backendState.getMessages().length} messages`);
+			this.logger.info(`[DIAGNOSTIC] Session ID at disposal: ${backendState.getSessionId()}`);
+			this.logger.info(`[DIAGNOSTIC] Session active at disposal: ${backendState.isSessionActive()}`);
+			this.logger.info('[DIAGNOSTIC] Panel will be set to undefined');
+			this.logger.info('='.repeat(60));
+			ChatPanelProvider.panel = undefined;
+		});
 
-		// Handle messages from the webview
+		// CRITICAL FIX: Register message handler BEFORE setting HTML
+		// This ensures we catch the 'ready' message that fires immediately when HTML loads
 		ChatPanelProvider.panel.webview.onDidReceiveMessage(data => {
 			this.logger.debug(`[Webview Message] ${data.type}`);
 			switch (data.type) {
@@ -63,11 +80,37 @@ export class ChatPanelProvider {
 					break;
 				case 'ready':
 					this.logger.info('Webview is ready');
-					ChatPanelProvider.postMessage({ type: 'init', sessionActive: ChatPanelProvider.isSessionActive });
+					
+					// Get full state from backend and send to webview
+					// History should already be loaded by this point
+					const backendState = getBackendState();
+					const fullState = backendState.getFullState();
+					
+					// DIAGNOSTIC: Log BackendState contents
+					this.logger.info(`[DIAGNOSTIC] BackendState when ready: ${fullState.messages.length} messages, sessionId=${fullState.sessionId}, sessionActive=${fullState.sessionActive}`);
+					if (fullState.messages.length > 0) {
+						this.logger.info(`[DIAGNOSTIC] First message: ${JSON.stringify(fullState.messages[0]).substring(0, 100)}`);
+						this.logger.info(`[DIAGNOSTIC] Last message: ${JSON.stringify(fullState.messages[fullState.messages.length - 1]).substring(0, 100)}`);
+					} else {
+						this.logger.warn(`[DIAGNOSTIC] BackendState is EMPTY when webview ready - history not loaded!`);
+					}
+					
+					ChatPanelProvider.postMessage({ 
+						type: 'init', 
+						sessionId: fullState.sessionId,
+						sessionActive: fullState.sessionActive,
+						messages: fullState.messages,
+						planModeStatus: fullState.planModeStatus,
+						workspacePath: fullState.workspacePath,
+						activeFilePath: fullState.activeFilePath
+					});
+					
+					this.logger.info(`[DIAGNOSTIC] Sent init message to webview with ${fullState.messages.length} messages`);
+					this.logger.info(`[DIAGNOSTIC] Firing ${this.onViewOpenedHandlers.size} onViewOpened handlers`);
 					this.onViewOpenedHandlers.forEach(handler => handler());
 					break;
 				case 'switchSession':
-					this.logger.info(`Switch session requested: ${data.sessionId}`);
+					this.logger.info(`[DIAGNOSTIC] Switch session requested from dropdown: ${data.sessionId}`);
 					vscode.commands.executeCommand('copilot-cli-extension.switchSession', data.sessionId);
 					break;
 				case 'newSession':
@@ -97,10 +140,8 @@ export class ChatPanelProvider {
 			}
 		});
 
-		// Reset when the panel is closed
-		ChatPanelProvider.panel.onDidDispose(() => {
-			ChatPanelProvider.panel = undefined;
-		});
+		// NOW set HTML - webview will load and send 'ready' which we can now catch
+		ChatPanelProvider.panel.webview.html = ChatPanelProvider.getHtmlForWebview(ChatPanelProvider.panel.webview);
 
 		this.logger.info('✅ Chat panel created');
 	}
@@ -111,19 +152,69 @@ export class ChatPanelProvider {
 		}
 	}
 
-	public static addUserMessage(text: string) {
+	public static addUserMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'user',
+				type: 'user',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'userMessage', text });
 	}
 
-	public static addAssistantMessage(text: string) {
+	public static addAssistantMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'assistant',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'assistantMessage', text });
 	}
 
-	public static addReasoningMessage(text: string) {
+	public static addReasoningMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'reasoning',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'reasoningMessage', text });
 	}
 
-	public static addToolExecution(toolState: any) {
+	public static addToolExecution(toolState: any, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'tool',
+				content: toolState.description || toolState.name || 'Tool execution',
+				toolName: toolState.name,
+				status: 'running',
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'toolStart', tool: toolState });
 	}
 
@@ -158,6 +249,12 @@ export class ChatPanelProvider {
 	}
 
 	public static updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
+		this.logger?.info(`[DIAGNOSTIC] Updating session dropdown: ${sessions.length} sessions, currentSessionId=${currentSessionId}`);
+		if (sessions.length > 0) {
+			this.logger?.info(`[DIAGNOSTIC] First session in list: ${sessions[0].id} (${sessions[0].label})`);
+			const selectedIndex = sessions.findIndex(s => s.id === currentSessionId);
+			this.logger?.info(`[DIAGNOSTIC] Selected session index: ${selectedIndex} (${selectedIndex >= 0 ? sessions[selectedIndex].id : 'NOT FOUND'})`);
+		}
 		ChatPanelProvider.postMessage({ 
 			type: 'updateSessions', 
 			sessions,
@@ -1714,9 +1811,32 @@ export class ChatPanelProvider {
 			const message = event.data;
 			
 			switch (message.type) {
-				case 'init':
+				case 'init': {
+					// Clear existing messages
+					messagesContainer.innerHTML = '';
+					const emptyStateDiv = document.createElement('div');
+					emptyStateDiv.className = 'empty-state';
+					emptyStateDiv.id = 'emptyState';
+					emptyStateDiv.innerHTML = \`
+						<div class="empty-state-icon" aria-hidden="true">💬</div>
+						<div class="empty-state-text">
+							Start a chat session to begin<br>
+							Use the command palette to start the CLI
+						</div>
+					\`;
+					messagesContainer.appendChild(emptyStateDiv);
+					
+					// Add messages from init
+					if (message.messages && message.messages.length > 0) {
+						for (const msg of message.messages) {
+							const role = msg.type || msg.role;
+							addMessage(role, msg.content);
+						}
+					}
+					
 					setSessionActive(message.sessionActive);
 					break;
+				}
 				case 'userMessage':
 					addMessage('user', message.text);
 					break;
@@ -1736,7 +1856,7 @@ export class ChatPanelProvider {
 				case 'thinking':
 					setThinking(message.isThinking);
 					break;
-				case 'clearMessages':
+				case 'clearMessages': {
 					// Clear all messages except empty state
 					messagesContainer.innerHTML = '';
 					const emptyStateDiv = document.createElement('div');
@@ -1751,6 +1871,7 @@ export class ChatPanelProvider {
 					\`;
 					messagesContainer.appendChild(emptyStateDiv);
 					break;
+				}
 				case 'updateSessions':
 					// Update session dropdown
 					currentSessionId = message.currentSessionId;
