@@ -14,10 +14,20 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info(`Extension path: ${context.extensionPath}`);
 	logger.info(`VS Code version: ${vscode.version}`);
 	
+	// Track active file changes
+	context.subscriptions.push(
+		vscode.window.onDidChangeActiveTextEditor(editor => {
+			updateActiveFile(editor);
+		})
+	);
+	
 	// Register open chat command
 	const openChatCommand = vscode.commands.registerCommand('copilot-cli-extension.openChat', () => {
 		logger.info('Open Chat command triggered');
 		ChatPanelProvider.createOrShow(context.extensionUri);
+		
+		// Update active file when panel opens
+		updateActiveFile(vscode.window.activeTextEditor);
 		
 		// Update sessions list when panel opens
 		updateSessionsList();
@@ -556,6 +566,32 @@ function loadSessionHistory(sessionId: string) {
 	} catch (error) {
 		logger.error('Failed to load session history', error instanceof Error ? error : undefined);
 	}
+}
+
+function updateActiveFile(editor: vscode.TextEditor | undefined) {
+	if (!editor) {
+		ChatPanelProvider.updateActiveFile(null);
+		return;
+	}
+	
+	const includeActiveFile = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true);
+	if (!includeActiveFile) {
+		ChatPanelProvider.updateActiveFile(null);
+		return;
+	}
+	
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	let relativePath = editor.document.uri.fsPath;
+	
+	// Try to make it relative to workspace
+	if (workspaceFolders && workspaceFolders.length > 0) {
+		const workspaceRoot = workspaceFolders[0].uri.fsPath;
+		if (relativePath.startsWith(workspaceRoot)) {
+			relativePath = relativePath.substring(workspaceRoot.length + 1);
+		}
+	}
+	
+	ChatPanelProvider.updateActiveFile(relativePath);
 }
 
 export function deactivate() {
