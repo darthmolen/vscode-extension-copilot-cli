@@ -19,11 +19,13 @@ export class ChatPanelProvider {
 
 		// If we already have a panel, show it
 		if (ChatPanelProvider.panel) {
+			this.logger.debug('Chat panel already exists, revealing it');
 			ChatPanelProvider.panel.reveal(column);
 			return;
 		}
 
 		// Otherwise, create a new panel
+		this.logger.debug('Creating new chat panel');
 		ChatPanelProvider.panel = vscode.window.createWebviewPanel(
 			'copilotCLIChat',
 			'Copilot CLI',
