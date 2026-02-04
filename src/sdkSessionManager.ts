@@ -1018,6 +1018,9 @@ export class SDKSessionManager {
                 
                 this.logger.warn('Session no longer exists, recreating...');
                 
+                // Preserve current mode before destroying session
+                const wasPlanMode = this.currentMode === 'plan';
+                
                 // Destroy old session and create a new one (but keep the client alive)
                 if (this.session) {
                     try {
@@ -1033,20 +1036,53 @@ export class SDKSessionManager {
                 const mcpServers = this.getEnabledMCPServers();
                 const hasMcpServers = Object.keys(mcpServers).length > 0;
                 
-                this.session = await this.client.createSession({
-                    model: this.config.model || undefined,
-                    tools: this.getCustomTools(),
-                    ...(hasMcpServers ? { mcpServers } : {}),
-                });
-                this.sessionId = this.session.sessionId;
+                if (wasPlanMode) {
+                    // Recreate plan session with restricted tools
+                    this.logger.info('Recreating plan mode session...');
+                    const planSessionId = `${this.workSessionId}-plan`;
+                    
+                    this.session = await this.client.createSession({
+                        sessionId: planSessionId,
+                        model: this.config.planModel || this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        availableTools: [
+                            'plan_bash_explore',
+                            'task_agent_type_explore',
+                            'edit_plan_file',
+                            'create_plan_file',
+                            'update_work_plan',
+                            'present_plan',
+                            'view',
+                            'grep',
+                            'glob',
+                            'web_fetch',
+                            'fetch_copilot_cli_documentation',
+                            'report_intent'
+                        ],
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    this.planSession = this.session;
+                    this.sessionId = planSessionId;
+                    // currentMode stays 'plan'
+                } else {
+                    // Recreate work session with full tools
+                    this.logger.info('Recreating work mode session...');
+                    
+                    this.session = await this.client.createSession({
+                        model: this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    this.sessionId = this.session.sessionId;
+                    
+                    // Update work session tracking
+                    this.workSession = this.session;
+                    this.workSessionId = this.sessionId;
+                    this.currentMode = 'work';
+                }
                 
                 // Re-setup event handlers for new session
                 this.setupSessionEventHandlers();
-                
-                // Update work session tracking
-                this.workSession = this.session;
-                this.workSessionId = this.sessionId;
-                this.currentMode = 'work';
                 
                 this.logger.info(`Session recreated: ${this.sessionId}`);
                 
