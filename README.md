@@ -8,6 +8,20 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.1.2 - Plan Mode Model & Bug Fixes
+
+- ⚙️ **Plan Mode Model Configuration** - Use different AI models for planning vs implementation
+  - Added `copilotCLI.planModel` setting for model selection in planning mode
+  - Cost optimization: Use Haiku for planning, Sonnet for work
+  - Extensive planning: Use Opus for planning, Sonnet for work
+  - Falls back to work mode model if not specified
+
+- 🐛 **Session Expiration Recovery** - Fixed CLI becoming unresponsive after timeout
+  - Session recreation now maintains client connection
+  - Seamless recovery without manual intervention
+
+- 🎨 **UI Polish** - Larger planning mode icons for better visibility
+
 ### v2.1.1 - Stability & Polish
 
 - 🐛 **Bug Fixes** - Enhanced reliability and user experience
