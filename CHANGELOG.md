@@ -2,6 +2,19 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.1.3] - 2026-02-04
+
+### 🐛 Bug Fixes
+
+### Session List Filtering
+
+- Fixed session dropdown showing all sessions regardless of workspace folder filtering setting
+- When `copilotCLI.filterSessionsByFolder` is enabled, the dropdown now correctly shows only sessions for the current workspace
+- Previously: Dropdown showed ALL sessions, but only workspace-specific ones were resumable (confusing UI)
+- Now: Dropdown only shows sessions that match the current workspace folder (when filtering is enabled)
+- Technical: `updateSessionsList()` now uses the same `filterSessionsByFolder()` utility as session resumption logic
+- Added logging to show filtering status and session count changes
+
 ## [2.1.2] - 2026-02-04
 
 ### ✨ Features
