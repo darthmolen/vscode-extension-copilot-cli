@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.0.6",
+  "version": "2.1.1",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -258,6 +258,9 @@
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "build": "npm run compile",
+    "build:extension": "node esbuild.js",
+    "build:webview": "echo 'Webview build placeholder - will be used in Phase 1'",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -267,14 +270,15 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "npm run test:comprehensive",
-    "test:comprehensive": "node tests/comprehensive-test.js",
+    "test": "npm run test:plan-mode",
     "test:mcp": "npm run compile && node tests/mcp-integration.test.js",
     "test:plan-mode": "npm run compile && node tests/plan-mode-integration.test.js",
     "test:plan-tools": "node tests/plan-mode-tools.test.js",
     "test:integration": "npm run compile && node tests/sdk-integration.test.js",
     "test:verify": "node tests/verify-setup.js",
-    "test:sdk": "node tests/sdk-integration.test.js"
+    "test:sdk": "node tests/sdk-integration.test.js",
+    "test:webview": "npm run compile && node tests/webview-lifecycle-integration.test.js",
+    "test:session": "npm run compile && node tests/session-resume.test.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

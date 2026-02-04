@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Quick verification that comprehensive test can initialize
- * Checks dependencies, imports, and basic setup without running full tests
+ * Quick verification that test infrastructure is working
+ * Checks dependencies, imports, and basic setup
  */
 
 // Mock vscode module BEFORE any imports
@@ -30,31 +30,40 @@ Module.prototype.require = function(id) {
   return originalRequire.apply(this, arguments);
 };
 
-console.log('🔍 Verifying comprehensive test setup...\n');
+console.log('🔍 Verifying test setup...\n');
 
 const checks = [];
 
-// Check 1: Can load scenarios
+// Check 1: Can load scenarios (used by some tests)
 try {
   const scenarios = require('./scenarios');
-  console.log(`✅ Scenarios loaded: ${scenarios.length} tests`);
+  console.log(`✅ Scenarios loaded: ${scenarios.length} scenarios available`);
   checks.push(true);
 } catch (error) {
   console.error('❌ Failed to load scenarios:', error.message);
   checks.push(false);
 }
 
-// Check 2: Can load evaluation framework
+// Check 2: Extension build exists
 try {
-  const { evaluatePipeline } = require('./evaluation');
-  console.log('✅ Evaluation framework loaded');
-  checks.push(true);
+  const fs = require('fs');
+  const path = require('path');
+  const extensionPath = path.join(__dirname, '../dist/extension.js');
+  
+  if (fs.existsSync(extensionPath)) {
+    console.log('✅ Extension build exists (dist/extension.js)');
+    checks.push(true);
+  } else {
+    console.error('❌ Extension build not found');
+    console.error('   Run: npm run compile');
+    checks.push(false);
+  }
 } catch (error) {
-  console.error('❌ Failed to load evaluation framework:', error.message);
+  console.error('❌ Failed to check extension build:', error.message);
   checks.push(false);
 }
 
-// Check 3: Can load extension
+// Check 3: SDKSessionManager can be loaded
 try {
   const { SDKSessionManager } = require('../dist/extension.js');
   console.log('✅ SDKSessionManager loaded');
@@ -83,13 +92,29 @@ try {
   checks.push(false);
 }
 
-// Check 5: Can load comprehensive test module
+// Check 5: Verify test files exist
 try {
-  const { main } = require('./comprehensive-test');
-  console.log('✅ Comprehensive test module loaded');
-  checks.push(true);
+  const fs = require('fs');
+  const path = require('path');
+  const testFiles = [
+    'plan-mode-tools.test.js',
+    'mcp-integration.test.js',
+    'scenarios.js'
+  ];
+  
+  const existing = testFiles.filter(f => 
+    fs.existsSync(path.join(__dirname, f))
+  );
+  
+  if (existing.length === testFiles.length) {
+    console.log(`✅ Test files found (${existing.length}/${testFiles.length})`);
+    checks.push(true);
+  } else {
+    console.error(`❌ Some test files missing (${existing.length}/${testFiles.length})`);
+    checks.push(false);
+  }
 } catch (error) {
-  console.error('❌ Failed to load comprehensive test:', error.message);
+  console.error('❌ Failed to check test files:', error.message);
   checks.push(false);
 }
 
@@ -102,8 +127,12 @@ console.log(`Checks: ${passed}/${total} passed`);
 console.log('─'.repeat(50));
 
 if (passed === total) {
-  console.log('\n✅ All checks passed! Ready to run comprehensive test.');
-  console.log('\nRun: npm run test:comprehensive\n');
+  console.log('\n✅ All checks passed! Test infrastructure is ready.');
+  console.log('\nAvailable test commands:');
+  console.log('  npm run test              # Run default tests');
+  console.log('  npm run test:plan-mode    # Plan mode tests');
+  console.log('  npm run test:mcp          # MCP integration tests');
+  console.log('  npm run test:integration  # SDK integration tests\n');
   process.exit(0);
 } else {
   console.log('\n❌ Some checks failed. Fix issues above before running tests.\n');

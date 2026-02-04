@@ -2,22 +2,41 @@ import * as vscode from 'vscode';
 import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatPanelProvider } from './chatViewProvider';
+import { getBackendState, BackendState } from './backendState';
 
 let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
+let backendState: BackendState;
+let lastKnownTextEditor: vscode.TextEditor | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
+	backendState = getBackendState();
+	
 	logger.info('='.repeat(60));
 	logger.info('Copilot CLI Extension activating...');
 	logger.info(`Extension path: ${context.extensionPath}`);
 	logger.info(`VS Code version: ${vscode.version}`);
 	
+	// Track active file changes
+	context.subscriptions.push(
+		vscode.window.onDidChangeActiveTextEditor(editor => {
+			updateActiveFile(editor);
+		})
+	);
+	
 	// Register open chat command
-	const openChatCommand = vscode.commands.registerCommand('copilot-cli-extension.openChat', () => {
-		logger.info('Open Chat command triggered');
+	const openChatCommand = vscode.commands.registerCommand('copilot-cli-extension.openChat', async () => {
+		logger.info('='.repeat(60));
+		logger.info('[DIAGNOSTIC] Open Chat command triggered');
+		logger.info(`[DIAGNOSTIC] CLI running: ${cliManager?.isRunning() || false}`);
+		logger.info(`[DIAGNOSTIC] BackendState before createOrShow: ${backendState.getMessages().length} messages`);
+		
 		ChatPanelProvider.createOrShow(context.extensionUri);
+		
+		// Update active file when panel opens
+		updateActiveFile(vscode.window.activeTextEditor);
 		
 		// Update sessions list when panel opens
 		updateSessionsList();
@@ -25,17 +44,28 @@ export function activate(context: vscode.ExtensionContext) {
 		// Auto-start CLI session when panel opens (based on setting)
 		if (!cliManager || !cliManager.isRunning()) {
 			const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
-			logger.info(`Auto-starting CLI session (resume=${resumeLastSession})...`);
-			startCLISession(context, resumeLastSession).then(() => {
-				// Load history if resuming
-				if (resumeLastSession && cliManager) {
-					const sessionId = cliManager.getSessionId();
-					if (sessionId) {
-						loadSessionHistory(sessionId);
-					}
+			logger.info(`[DIAGNOSTIC] Auto-starting CLI session (resume=${resumeLastSession})...`);
+			
+			// NEW: Determine session ID and load history BEFORE starting CLI
+			let sessionIdToResume: string | undefined = undefined;
+			if (resumeLastSession) {
+				const sessionId = await determineSessionToResume(context);
+				if (sessionId) {
+					logger.info(`[DIAGNOSTIC] Pre-loading history for session: ${sessionId}`);
+					await loadSessionHistory(sessionId);
+					logger.info(`[DIAGNOSTIC] After loadSessionHistory: BackendState has ${backendState.getMessages().length} messages`);
+					sessionIdToResume = sessionId; // CRITICAL: Pass this to CLI manager!
+				} else {
+					logger.info(`[DIAGNOSTIC] No session to resume found`);
 				}
-			});
+			}
+			
+			await startCLISession(context, resumeLastSession, sessionIdToResume);
+		} else {
+			logger.info(`[DIAGNOSTIC] CLI already running, NOT loading history or starting new session`);
+			logger.info(`[DIAGNOSTIC] Current session: ${cliManager.getSessionId()}`);
 		}
+		logger.info('='.repeat(60));
 	});
 	
 	// Create status bar item that opens the chat
@@ -149,10 +179,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Clear messages and reset plan mode state
-		ChatPanelProvider.clearMessages();
 		ChatPanelProvider.resetPlanMode();
 		await startCLISession(context, true, sessionId);
-		loadSessionHistory(sessionId);
+		await loadSessionHistory(sessionId);
+		
+		// Send init message with full state
+		const fullState = backendState.getFullState();
+		ChatPanelProvider.postMessage({
+			type: 'init',
+			sessionId: fullState.sessionId,
+			sessionActive: fullState.sessionActive,
+			messages: fullState.messages,
+			planModeStatus: fullState.planModeStatus,
+			workspacePath: fullState.workspacePath,
+			activeFilePath: fullState.activeFilePath
+		});
+		
 		updateSessionsList();
 	});
 
@@ -294,6 +336,28 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('='.repeat(60));
 }
 
+async function determineSessionToResume(context: vscode.ExtensionContext): Promise<string | null> {
+	const { getMostRecentSession } = require('./sessionUtils');
+	
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	if (!workspaceFolders || workspaceFolders.length === 0) {
+		logger.info('No workspace folder, cannot determine session');
+		return null;
+	}
+	
+	const workspaceFolder = workspaceFolders[0].uri.fsPath;
+	const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
+	
+	const sessionId = getMostRecentSession(workspaceFolder, filterByFolder);
+	if (sessionId) {
+		logger.info(`Determined session to resume: ${sessionId}`);
+	} else {
+		logger.info('No session to resume');
+	}
+	
+	return sessionId;
+}
+
 async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string): Promise<void> {
 	if (cliManager && cliManager.isRunning()) {
 		logger.warn('CLI session already running');
@@ -327,6 +391,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				case 'status':
 					logger.info(`[CLI Status] ${JSON.stringify(message.data)}`);
 					if (message.data.status === 'exited' || message.data.status === 'stopped') {
+						backendState.setSessionActive(false);
 						statusBarItem.text = "$(comment-discussion) CLI Exited";
 						statusBarItem.tooltip = "Copilot CLI ended";
 						ChatPanelProvider.setSessionActive(false);
@@ -338,6 +403,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					} else if (message.data.status === 'session_expired') {
 						// Old session expired, new one created
 						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
+						
+						// Update backend state with new session
+						backendState.setSessionId(message.data.newSessionId);
+						backendState.setSessionActive(true);
 						
 						// Set session active to turn indicator green
 						ChatPanelProvider.setSessionActive(true);
@@ -391,12 +460,18 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Starting CLI process...');
 		await cliManager.start();
 		
+		// Update backend state
+		const sessionId = cliManager.getSessionId();
+		backendState.setSessionId(sessionId);
+		backendState.setSessionActive(true);
+		
 		statusBarItem.text = "$(debug-start) CLI Running";
 		statusBarItem.tooltip = "Copilot CLI is active";
 		ChatPanelProvider.setSessionActive(true);
 		
 		// Send workspace path to UI
 		const workspacePath = cliManager.getWorkspacePath();
+		backendState.setWorkspacePath(workspacePath || null);
 		ChatPanelProvider.setWorkspacePath(workspacePath);
 		
 		logger.info('✅ CLI process started successfully');
@@ -451,7 +526,18 @@ function updateSessionsList() {
 		const sessions = fs.readdirSync(sessionDir)
 			.filter((name: string) => {
 				const fullPath = path.join(sessionDir, name);
-				return fs.statSync(fullPath).isDirectory();
+				if (!fs.statSync(fullPath).isDirectory()) {
+					return false;
+				}
+				
+				// Filter out sessions without valid events.jsonl
+				const eventsPath = path.join(fullPath, 'events.jsonl');
+				if (!fs.existsSync(eventsPath)) {
+					logger.debug(`Skipping session ${name} from dropdown: no events.jsonl found`);
+					return false;
+				}
+				
+				return true;
 			})
 			.map((name: string) => ({
 				id: name,
@@ -495,67 +581,126 @@ function formatSessionLabel(sessionId: string, sessionPath: string): string {
 	return sessionId.substring(0, 8);
 }
 
-function loadSessionHistory(sessionId: string) {
-	const fs = require('fs');
-	const path = require('path');
-	const os = require('os');
-	const readline = require('readline');
-	
-	try {
-		const eventsPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId, 'events.jsonl');
-		if (!fs.existsSync(eventsPath)) {
-			logger.warn(`No events.jsonl found for session ${sessionId}`);
-			return;
-		}
+function loadSessionHistory(sessionId: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const fs = require('fs');
+		const path = require('path');
+		const os = require('os');
+		const readline = require('readline');
 		
-		logger.info(`Loading session history from ${eventsPath}`);
-		const fileStream = fs.createReadStream(eventsPath);
-		const rl = readline.createInterface({
-			input: fileStream,
-			crlfDelay: Infinity
-		});
-		
-		const messages: Array<{role: string, content: string}> = [];
-		
-		rl.on('line', (line: string) => {
-			try {
-				const event = JSON.parse(line);
-				
-				if (event.type === 'user.message' && event.data?.content) {
-					messages.push({
-						role: 'user',
-						content: event.data.content
-					});
-				} else if (event.type === 'assistant.message' && event.data?.content) {
-					// Skip tool requests, just get the text content
-					const content = event.data.content;
-					if (content && typeof content === 'string') {
+		try {
+			const eventsPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId, 'events.jsonl');
+			if (!fs.existsSync(eventsPath)) {
+				logger.warn(`No events.jsonl found for session ${sessionId}`);
+				resolve();
+				return;
+			}
+			
+			logger.info(`Loading session history from ${eventsPath}`);
+			const fileStream = fs.createReadStream(eventsPath);
+			const rl = readline.createInterface({
+				input: fileStream,
+				crlfDelay: Infinity
+			});
+			
+			const messages: Array<{role: 'user' | 'assistant', content: string, timestamp?: number}> = [];
+			
+			rl.on('line', (line: string) => {
+				try {
+					const event = JSON.parse(line);
+					
+					if (event.type === 'user.message' && event.data?.content) {
 						messages.push({
-							role: 'assistant',
-							content: content
+							role: 'user',
+							content: event.data.content,
+							timestamp: event.timestamp
 						});
+					} else if (event.type === 'assistant.message' && event.data?.content) {
+						// Skip tool requests, just get the text content
+						const content = event.data.content;
+						if (content && typeof content === 'string') {
+							messages.push({
+								role: 'assistant',
+								content: content,
+								timestamp: event.timestamp
+							});
+						}
 					}
+				} catch (e) {
+					// Skip malformed lines
 				}
-			} catch (e) {
-				// Skip malformed lines
-			}
-		});
-		
-		rl.on('close', () => {
-			logger.info(`Loaded ${messages.length} messages from session history`);
-			// Add messages to chat in order
-			for (const msg of messages) {
-				if (msg.role === 'user') {
-					ChatPanelProvider.addUserMessage(msg.content);
-				} else {
-					ChatPanelProvider.addAssistantMessage(msg.content);
+			});
+			
+			rl.on('close', () => {
+				logger.info(`[DIAGNOSTIC] Loaded ${messages.length} messages from session history file`);
+				
+				// Load messages into BackendState only - webview will get them via init message
+				logger.info(`[DIAGNOSTIC] Clearing BackendState before loading history...`);
+				backendState.clearMessages(); // Clear any existing messages
+				logger.info(`[DIAGNOSTIC] Adding ${messages.length} messages to BackendState...`);
+				for (const msg of messages) {
+					backendState.addMessage({
+						role: msg.role,
+						type: msg.role === 'user' ? 'user' : 'assistant',
+						content: msg.content,
+						timestamp: msg.timestamp
+					});
 				}
-			}
-		});
-		
-	} catch (error) {
-		logger.error('Failed to load session history', error instanceof Error ? error : undefined);
+				logger.info(`[DIAGNOSTIC] BackendState now has ${backendState.getMessages().length} messages`);
+				logger.info(`[DIAGNOSTIC] ✅ History loaded into BackendState (will be sent to webview via init)`);
+				resolve();
+			});
+			
+			rl.on('error', (error: Error) => {
+				logger.error('Failed to load session history', error);
+				reject(error);
+			});
+			
+		} catch (error) {
+			logger.error('Failed to load session history', error instanceof Error ? error : undefined);
+			reject(error);
+		}
+	});
+}
+
+function updateActiveFile(editor: vscode.TextEditor | undefined) {
+	// If editor is defined, update last known editor
+	if (editor) {
+		lastKnownTextEditor = editor;
 	}
+	
+	// If editor is undefined, only clear if there are no visible text editors
+	if (!editor) {
+		if (vscode.window.visibleTextEditors.length === 0) {
+			// All files are closed, clear active file
+			backendState.setActiveFilePath(null);
+			ChatPanelProvider.updateActiveFile(null);
+			lastKnownTextEditor = undefined;
+		}
+		// Otherwise, keep the last known active file (focus moved to webview)
+		return;
+	}
+	
+	const includeActiveFile = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true);
+	if (!includeActiveFile) {
+		backendState.setActiveFilePath(null);
+		ChatPanelProvider.updateActiveFile(null);
+		return;
+	}
+	
+	const workspaceFolders = vscode.workspace.workspaceFolders;
+	let relativePath = editor.document.uri.fsPath;
+	
+	// Try to make it relative to workspace
+	if (workspaceFolders && workspaceFolders.length > 0) {
+		const workspaceRoot = workspaceFolders[0].uri.fsPath;
+		if (relativePath.startsWith(workspaceRoot)) {
+			relativePath = relativePath.substring(workspaceRoot.length + 1);
+		}
+	}
+	
+	backendState.setActiveFilePath(relativePath);
+	ChatPanelProvider.updateActiveFile(relativePath);
 }
 
 export function deactivate() {
@@ -569,3 +714,4 @@ export function deactivate() {
 
 // Export for testing
 export { SDKSessionManager } from './sdkSessionManager';
+export { BackendState, getBackendState } from './backendState';

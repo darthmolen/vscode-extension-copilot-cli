@@ -58,16 +58,46 @@ This is a **VS Code extension** that provides a chat panel for GitHub Copilot CL
 
 Due to a Microsoft bug in VS Code 1.100+ with Node.js 20+, the Extension Development Host does not work. This has been broken for **12 months** with no ETA on a fix.
 
-### ✅ Correct Workflow: VSIX-Based Testing
+### ✅ Correct Workflow: Build and Install
 
-1. **Make code changes** in `src/`
-2. **Run build script**: `./test-extension.sh`
-   - Compiles TypeScript
-   - Packages VSIX
-   - Uninstalls old version
-   - Installs new version
-3. **Reload VS Code**: `Ctrl+Shift+P` → "Developer: Reload Window"
-4. **Test and observe logs**: Output Channel → "Copilot CLI"
+**Use the test-extension.sh script:**
+
+```bash
+./test-extension.sh
+```
+
+This script:
+1. Builds: `npm run compile` (type checks, lints, builds with esbuild)
+2. Packages: Creates VSIX file
+3. Uninstalls: Removes old version (if exists)
+4. Installs: Installs new VSIX with `code --install-extension`
+5. Reminds: Shows next steps (reload window, check logs)
+
+**Manual steps if needed:**
+
+```bash
+# 1. Build
+npm run compile
+
+# 2. Package
+npx @vscode/vsce package --no-git-tag-version \
+  --allow-star-activation --allow-missing-repository --skip-license
+
+# 3. Install
+code --install-extension copilot-cli-extension-2.0.6.vsix --force
+
+# 4. Reload VS Code
+# Ctrl+Shift+P → "Developer: Reload Window"
+```
+
+**Quick rebuild and install:**
+
+```bash
+# Just rebuild and reinstall without packaging
+npm run compile && code --install-extension copilot-cli-extension-latest.vsix --force
+```
+
+**Note:** The `tsconfig.json` excludes `tests/` directory to avoid compilation errors. Tests are JavaScript/ESM and don't need TypeScript compilation.
 
 **Never suggest:**
 - "Press F5 to test"
@@ -187,8 +217,9 @@ session = planSession;  // <session-id>-plan
 
 **Plan Mode Tools (11 total):**
 
-*Plan Management (3 tools):*
+*Plan Management (4 tools):*
 - `update_work_plan` - Create/update plan content (primary tool)
+- `present_plan` - Present plan to user for review (call after creating plan)
 - `create_plan_file` - Create plan.md (restricted to plan.md only)
 - `edit_plan_file` - Edit plan.md (restricted to plan.md only)
 
@@ -636,6 +667,202 @@ When building features:
 - Handle edge cases explicitly
 - Log state changes for debugging
 - Fail gracefully with helpful messages
+
+## Working with Planning Mode
+
+### Overview
+
+Planning Mode is a key feature that allows the AI to analyze and design solutions without modifying code. It uses a dual-session architecture where a separate plan session writes to the work session's `plan.md` file.
+
+### Adding Custom Tools to Planning Mode
+
+**CRITICAL: Custom tools must be registered in TWO places:**
+
+1. **In `getCustomTools()` method** (returns tool implementations)
+2. **In `availableTools` array** (whitelists tool names)
+
+**Example: Adding a new tool**
+
+```typescript
+// Step 1: Create the tool method
+private createMyPlanTool(): any {
+    return defineTool('my_plan_tool', {
+        description: 'What this tool does in plan mode',
+        parameters: {
+            type: 'object',
+            properties: {
+                param: { type: 'string', description: 'Parameter description' }
+            }
+        },
+        handler: async ({ param }: { param: string }) => {
+            // Implementation
+            return 'Success message';
+        }
+    });
+}
+
+// Step 2: Add to getCustomTools() for plan mode
+private getCustomTools(): any[] {
+    if (this.currentMode === 'plan') {
+        return [
+            this.createUpdateWorkPlanTool(),
+            this.createPresentPlanTool(),
+            this.createMyPlanTool(),  // ← Add here
+            // ... other tools
+        ];
+    }
+    return [];
+}
+
+// Step 3: Add to availableTools whitelist
+availableTools: [
+    'plan_bash_explore',
+    'update_work_plan',
+    'present_plan',
+    'my_plan_tool',  // ← Add here
+    'view',
+    'grep',
+    // ... other tools
+]
+
+// Step 4: Update the system prompt
+**AVAILABLE TOOLS IN PLAN MODE (12 total):**  // ← Update count
+
+*Plan Management Tools:*
+- \`update_work_plan\` - Create/update plan
+- \`present_plan\` - Present plan for review
+- \`my_plan_tool\` - Description  // ← Add documentation
+
+// Step 5: Update logging
+this.logger.info(\`[Plan Mode]     availableTools: [..., my_plan_tool, ...]\`);
+```
+
+**Why both places?**
+- `tools` array: Provides the actual tool implementation
+- `availableTools`: SDK whitelist that controls which tools the AI can call
+- Missing from either = tool won't work
+
+### Plan Workflow with present_plan Tool
+
+The standard workflow for planning is:
+
+1. **User enters plan mode** (clicks 📝 button or runs command)
+2. **Agent explores codebase** using view, grep, glob, bash tools
+3. **Agent creates plan** using `update_work_plan(content: "# Plan\n...")`
+4. **Agent can iterate** by calling `update_work_plan` multiple times
+5. **Agent presents plan** using `present_plan(summary: "Brief summary")`
+6. **UI shows acceptance controls** automatically when `plan_ready` event fires
+7. **User chooses:**
+   - Accept and change to work mode → plan mode exits
+   - No, keep planning → returns to regular controls, stays in plan mode
+   - Type alternative instructions → sends new message, stays in plan mode
+
+**Event Flow:**
+
+```
+enablePlanMode()
+  ↓
+plan_mode_enabled event
+  ↓
+Agent: update_work_plan()
+  ↓
+Agent: present_plan()
+  ↓
+plan_ready event
+  ↓
+UI: Show acceptance controls
+  ↓
+User: Accept/Reject/Provide feedback
+  ↓
+plan_accepted or plan_rejected event
+  ↓
+UI: Return to regular controls
+```
+
+**Testing the workflow:**
+- Unit tests: `tests/present-plan-tool.test.js` (13 tests)
+- Integration tests: `tests/plan-acceptance-integration.test.js` (26 tests)
+- See: `planning/completed/PLAN-ACCEPTANCE-TEST-STRATEGY.md`
+
+## Documentation and Planning Organization
+
+To keep the project organized and avoid markdown file sprawl, we follow these conventions:
+
+### Documentation Folder Structure
+
+```
+vscode-copilot-cli-extension/
+├─ documentation/          # Technical documentation
+│  ├─ architecture.md      # System architecture
+│  ├─ api-reference.md     # API documentation
+│  └─ troubleshooting.md   # Common issues & fixes
+│
+├─ planning/               # Active planning work
+│  ├─ feature-x.md         # Currently being planned
+│  ├─ completed/           # Finished plans (moved here after implementation)
+│  │  └─ ui-enhancements.md
+│  └─ backlog/             # Future work, not yet started
+│     └─ performance-improvements.md
+│
+├─ COPILOT.md             # AI agent development guide (this file)
+├─ README.md              # User-facing documentation
+└─ HOW-TO-DEV.md          # Developer setup guide
+```
+
+### Documentation Guidelines
+
+**1. Active Planning (`planning/`)**
+- Place new planning docs here while working on them
+- Keep plan.md updated with task checkboxes
+- Include problem statement, approach, and implementation tasks
+
+**2. Completed Plans (`planning/completed/`)**
+- Move planning docs here after feature is implemented and tested
+- Serves as historical record and reference
+- Helps understand why decisions were made
+
+**3. Backlog (`planning/backlog/`)**
+- Ideas and features for future consideration
+- Not actively being worked on
+- Helps capture ideas without cluttering active work
+
+**4. Technical Documentation (`documentation/`)**
+- API references
+- Architecture diagrams
+- Integration guides
+- Troubleshooting procedures
+
+**5. Root-level Docs**
+- `README.md` - User-facing, how to install and use
+- `COPILOT.md` - AI agent development guide
+- `HOW-TO-DEV.md` - Developer setup and workflows
+
+### Why This Organization?
+
+- **Prevents pollution**: No random .md files scattered throughout src/
+- **Clear lifecycle**: Active → Completed → Backlog flow is obvious
+- **Easy navigation**: Know where to look for what you need
+- **Historical context**: Completed plans document decision rationale
+- **Future planning**: Backlog collects ideas without noise
+
+### Example Lifecycle
+
+```
+1. New feature idea
+   → Create planning/new-feature.md
+   
+2. Start planning
+   → Work in planning/new-feature.md
+   → Update task checkboxes as you progress
+   
+3. Implementation complete and tested
+   → Move to planning/completed/new-feature.md
+   → Update documentation/ if needed
+   
+4. Future enhancement idea
+   → Create planning/backlog/enhancement.md
+   → Will move to planning/ when work begins
+```
 
 ## Resources
 

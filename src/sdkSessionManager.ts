@@ -538,6 +538,7 @@ export class SDKSessionManager {
         if (this.currentMode === 'plan') {
             return [
                 this.createUpdateWorkPlanTool(),
+                this.createPresentPlanTool(),
                 this.createRestrictedBashTool(),
                 this.createRestrictedCreateTool(),
                 this.createRestrictedEditTool(),
@@ -591,6 +592,45 @@ export class SDKSessionManager {
                 } catch (error) {
                     this.logger.error(`[Plan Mode] Failed to update work plan:`, error instanceof Error ? error : undefined);
                     return `Error updating plan: ${error instanceof Error ? error.message : String(error)}`;
+                }
+            }
+        });
+    }
+    
+    /**
+     * Creates the present_plan tool for plan mode
+     * Notifies the UI that the plan is ready for user review
+     */
+    private createPresentPlanTool(): any {
+        return defineTool('present_plan', {
+            description: 'Present the plan to the user for review and acceptance. Call this AFTER writing the plan with update_work_plan to notify the user that the plan is ready. The UI will show acceptance options.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    summary: {
+                        type: 'string',
+                        description: 'A brief one-sentence summary of what the plan covers (optional)'
+                    }
+                }
+            },
+            handler: async ({ summary }: { summary?: string }) => {
+                try {
+                    this.logger.info(`[Plan Mode] Presenting plan to user: ${summary || 'No summary provided'}`);
+                    
+                    // Emit a message to notify the UI to show acceptance controls
+                    this.onMessageEmitter.fire({
+                        type: 'status',
+                        data: { 
+                            status: 'plan_ready',
+                            summary: summary || null
+                        },
+                        timestamp: Date.now()
+                    });
+                    
+                    return `Plan presented to user. They can now review it and choose to accept, continue planning, or provide new instructions.`;
+                } catch (error) {
+                    this.logger.error(`[Plan Mode] Failed to present plan:`, error instanceof Error ? error : undefined);
+                    return `Error presenting plan: ${error instanceof Error ? error.message : String(error)}`;
                 }
             }
         });
@@ -1284,7 +1324,7 @@ export class SDKSessionManager {
             this.logger.info(`[Plan Mode]     sessionId: ${planSessionId}`);
             this.logger.info(`[Plan Mode]     model: ${this.config.model || 'default'}`);
             this.logger.info(`[Plan Mode]     tools: [${customTools.map(t => t.name).join(', ')}] (custom)`);
-            this.logger.info(`[Plan Mode]     availableTools: [plan_bash_explore, task_agent_type_explore, edit_plan_file, create_plan_file, update_work_plan, view, grep, glob, web_fetch, fetch_copilot_cli_documentation]`);
+            this.logger.info(`[Plan Mode]     availableTools: [plan_bash_explore, task_agent_type_explore, edit_plan_file, create_plan_file, update_work_plan, present_plan, view, grep, glob, web_fetch, fetch_copilot_cli_documentation]`);
             this.logger.info(`[Plan Mode]     mcpServers: ${hasMcpServers ? 'enabled' : 'disabled'}`);
             this.logger.info(`[Plan Mode]     systemMessage: mode=append (plan mode instructions)`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
@@ -1294,12 +1334,13 @@ export class SDKSessionManager {
                 model: this.config.model || undefined,
                 tools: customTools,
                 availableTools: [
-                    // Custom restricted tools (5)
+                    // Custom restricted tools (6)
                     'plan_bash_explore',           // restricted bash for read-only commands
                     'task_agent_type_explore',     // restricted task for exploration only
                     'edit_plan_file',              // edit ONLY plan.md
                     'create_plan_file',            // create ONLY plan.md
                     'update_work_plan',            // update plan content
+                    'present_plan',                // present plan to user for acceptance
                     // Safe SDK tools (5)
                     'view',                        // read files
                     'grep',                        // search content
@@ -1322,10 +1363,11 @@ Your role is to PLAN, not to implement. You have the following capabilities:
 Your plan is stored at: \`${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md\`
 This is your dedicated workspace for planning.
 
-**AVAILABLE TOOLS IN PLAN MODE (10 total):**
+**AVAILABLE TOOLS IN PLAN MODE (11 total):**
 
 *Plan Management Tools:*
 - \`update_work_plan\` - **PRIMARY TOOL** for creating/updating your implementation plan
+- \`present_plan\` - **REQUIRED AFTER PLANNING** to present the plan to the user for review
 - \`create_plan_file\` - Create plan.md if it doesn't exist (restricted to plan.md only)
 - \`edit_plan_file\` - Edit plan.md (restricted to plan.md only)
 
@@ -1348,7 +1390,13 @@ You MUST use ONLY these tools to create/update your plan:
    update_work_plan({ content: "# Plan\\n\\n## Problem...\\n\\n## Tasks\\n- [ ] Task 1" })
    \`\`\`
 
-2. **create_plan_file** (FALLBACK) - Only if update_work_plan fails, use create_plan_file with the exact path:
+2. **present_plan** (REQUIRED) - After finalizing your plan, call this to present it to the user:
+   \`\`\`
+   present_plan({ summary: "Plan for implementing feature X" })
+   \`\`\`
+   This notifies the user that the plan is ready for review and acceptance.
+
+3. **create_plan_file** (FALLBACK) - Only if update_work_plan fails, use create_plan_file with the exact path:
    \`\`\`
    create_plan_file({ 
      path: "${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md",
@@ -1356,9 +1404,16 @@ You MUST use ONLY these tools to create/update your plan:
    })
    \`\`\`
 
+**WORKFLOW:**
+1. Explore and analyze the codebase
+2. Create/update your plan using \`update_work_plan\`
+3. When the plan is complete and ready for user review, call \`present_plan\`
+4. The user will then review and either accept, request changes, or provide new instructions
+
 ❌ DO NOT try to create files in /tmp or anywhere else
 ❌ DO NOT use bash to create the plan
-✅ ALWAYS use update_work_plan or create_plan_file (with exact path above)
+✅ ALWAYS use update_work_plan to create/update the plan
+✅ ALWAYS call present_plan when the plan is ready for review
 
 **WHAT YOU CAN DO:**
 - Analyze the codebase and understand requirements (use view, grep, glob tools)

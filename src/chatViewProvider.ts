@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
+import { getBackendState } from './backendState';
 
 export class ChatPanelProvider {
 	private static panel: vscode.WebviewPanel | undefined;
@@ -19,11 +20,17 @@ export class ChatPanelProvider {
 
 		// If we already have a panel, show it
 		if (ChatPanelProvider.panel) {
+			this.logger.info('[DIAGNOSTIC] Chat panel already exists, REVEALING (not creating)');
+			const backendState = getBackendState();
+			this.logger.info(`[DIAGNOSTIC] BackendState on reveal: ${backendState.getMessages().length} messages, sessionId=${backendState.getSessionId()}`);
 			ChatPanelProvider.panel.reveal(column);
 			return;
 		}
 
 		// Otherwise, create a new panel
+		this.logger.info('[DIAGNOSTIC] CREATING NEW chat panel (first time)');
+		const backendState = getBackendState();
+		this.logger.info(`[DIAGNOSTIC] BackendState on create: ${backendState.getMessages().length} messages, sessionId=${backendState.getSessionId()}`);
 		ChatPanelProvider.panel = vscode.window.createWebviewPanel(
 			'copilotCLIChat',
 			'Copilot CLI',
@@ -35,9 +42,21 @@ export class ChatPanelProvider {
 			}
 		);
 
-		ChatPanelProvider.panel.webview.html = ChatPanelProvider.getHtmlForWebview(ChatPanelProvider.panel.webview);
+		// Handle panel disposal (X button)
+		ChatPanelProvider.panel.onDidDispose(() => {
+			this.logger.info('='.repeat(60));
+			this.logger.info('[DIAGNOSTIC] ========== PANEL DISPOSED (X BUTTON) ==========');
+			const backendState = getBackendState();
+			this.logger.info(`[DIAGNOSTIC] BackendState at disposal: ${backendState.getMessages().length} messages`);
+			this.logger.info(`[DIAGNOSTIC] Session ID at disposal: ${backendState.getSessionId()}`);
+			this.logger.info(`[DIAGNOSTIC] Session active at disposal: ${backendState.isSessionActive()}`);
+			this.logger.info('[DIAGNOSTIC] Panel will be set to undefined');
+			this.logger.info('='.repeat(60));
+			ChatPanelProvider.panel = undefined;
+		});
 
-		// Handle messages from the webview
+		// CRITICAL FIX: Register message handler BEFORE setting HTML
+		// This ensures we catch the 'ready' message that fires immediately when HTML loads
 		ChatPanelProvider.panel.webview.onDidReceiveMessage(data => {
 			this.logger.debug(`[Webview Message] ${data.type}`);
 			switch (data.type) {
@@ -61,11 +80,37 @@ export class ChatPanelProvider {
 					break;
 				case 'ready':
 					this.logger.info('Webview is ready');
-					ChatPanelProvider.postMessage({ type: 'init', sessionActive: ChatPanelProvider.isSessionActive });
+					
+					// Get full state from backend and send to webview
+					// History should already be loaded by this point
+					const backendState = getBackendState();
+					const fullState = backendState.getFullState();
+					
+					// DIAGNOSTIC: Log BackendState contents
+					this.logger.info(`[DIAGNOSTIC] BackendState when ready: ${fullState.messages.length} messages, sessionId=${fullState.sessionId}, sessionActive=${fullState.sessionActive}`);
+					if (fullState.messages.length > 0) {
+						this.logger.info(`[DIAGNOSTIC] First message: ${JSON.stringify(fullState.messages[0]).substring(0, 100)}`);
+						this.logger.info(`[DIAGNOSTIC] Last message: ${JSON.stringify(fullState.messages[fullState.messages.length - 1]).substring(0, 100)}`);
+					} else {
+						this.logger.warn(`[DIAGNOSTIC] BackendState is EMPTY when webview ready - history not loaded!`);
+					}
+					
+					ChatPanelProvider.postMessage({ 
+						type: 'init', 
+						sessionId: fullState.sessionId,
+						sessionActive: fullState.sessionActive,
+						messages: fullState.messages,
+						planModeStatus: fullState.planModeStatus,
+						workspacePath: fullState.workspacePath,
+						activeFilePath: fullState.activeFilePath
+					});
+					
+					this.logger.info(`[DIAGNOSTIC] Sent init message to webview with ${fullState.messages.length} messages`);
+					this.logger.info(`[DIAGNOSTIC] Firing ${this.onViewOpenedHandlers.size} onViewOpened handlers`);
 					this.onViewOpenedHandlers.forEach(handler => handler());
 					break;
 				case 'switchSession':
-					this.logger.info(`Switch session requested: ${data.sessionId}`);
+					this.logger.info(`[DIAGNOSTIC] Switch session requested from dropdown: ${data.sessionId}`);
 					vscode.commands.executeCommand('copilot-cli-extension.switchSession', data.sessionId);
 					break;
 				case 'newSession':
@@ -95,10 +140,8 @@ export class ChatPanelProvider {
 			}
 		});
 
-		// Reset when the panel is closed
-		ChatPanelProvider.panel.onDidDispose(() => {
-			ChatPanelProvider.panel = undefined;
-		});
+		// NOW set HTML - webview will load and send 'ready' which we can now catch
+		ChatPanelProvider.panel.webview.html = ChatPanelProvider.getHtmlForWebview(ChatPanelProvider.panel.webview);
 
 		this.logger.info('✅ Chat panel created');
 	}
@@ -109,19 +152,69 @@ export class ChatPanelProvider {
 		}
 	}
 
-	public static addUserMessage(text: string) {
+	public static addUserMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'user',
+				type: 'user',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'userMessage', text });
 	}
 
-	public static addAssistantMessage(text: string) {
+	public static addAssistantMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'assistant',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'assistantMessage', text });
 	}
 
-	public static addReasoningMessage(text: string) {
+	public static addReasoningMessage(text: string, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'reasoning',
+				content: text,
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'reasoningMessage', text });
 	}
 
-	public static addToolExecution(toolState: any) {
+	public static addToolExecution(toolState: any, storeInBackend: boolean = true) {
+		// Store in backend state
+		if (storeInBackend) {
+			const backendState = getBackendState();
+			backendState.addMessage({
+				role: 'assistant',
+				type: 'tool',
+				content: toolState.description || toolState.name || 'Tool execution',
+				toolName: toolState.name,
+				status: 'running',
+				timestamp: Date.now()
+			});
+		}
+		
+		// Send to webview
 		ChatPanelProvider.postMessage({ type: 'toolStart', tool: toolState });
 	}
 
@@ -156,6 +249,12 @@ export class ChatPanelProvider {
 	}
 
 	public static updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
+		this.logger?.info(`[DIAGNOSTIC] Updating session dropdown: ${sessions.length} sessions, currentSessionId=${currentSessionId}`);
+		if (sessions.length > 0) {
+			this.logger?.info(`[DIAGNOSTIC] First session in list: ${sessions[0].id} (${sessions[0].label})`);
+			const selectedIndex = sessions.findIndex(s => s.id === currentSessionId);
+			this.logger?.info(`[DIAGNOSTIC] Selected session index: ${selectedIndex} (${selectedIndex >= 0 ? sessions[selectedIndex].id : 'NOT FOUND'})`);
+		}
 		ChatPanelProvider.postMessage({ 
 			type: 'updateSessions', 
 			sessions,
@@ -166,6 +265,10 @@ export class ChatPanelProvider {
 	public static setWorkspacePath(workspacePath: string | undefined) {
 		ChatPanelProvider.currentWorkspacePath = workspacePath;
 		ChatPanelProvider.postMessage({ type: 'workspacePath', workspacePath });
+	}
+
+	public static updateActiveFile(filePath: string | null) {
+		ChatPanelProvider.postMessage({ type: 'activeFileChanged', filePath });
 	}
 
 	public static onUserMessage(handler: (message: string) => void) {
@@ -680,6 +783,51 @@ export class ChatPanelProvider {
 			background-color: var(--vscode-sideBar-background);
 		}
 
+		.top-controls-row {
+			display: flex;
+			gap: 12px;
+			align-items: flex-start;
+			width: 100%;
+			order: -1;
+		}
+
+		.focus-file-group {
+			display: inline-flex;
+			gap: 6px;
+			align-items: center;
+			flex: 1;
+			min-width: 0;
+		}
+
+		.focus-file-title {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+		}
+
+		.focus-file-info {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.planning-header-spacer {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 100px;
+			flex-shrink: 0;
+		}
+
+		.plan-mode-title-top {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			text-align: center;
+			white-space: nowrap;
+		}
+
 		.input-wrapper {
 			display: flex;
 			gap: 8px;
@@ -766,12 +914,81 @@ export class ChatPanelProvider {
 
 		.input-controls {
 			display: flex;
+			flex-wrap: wrap;
 			gap: 12px;
 			padding: 8px 12px;
 			align-items: center;
 			justify-content: flex-end;
 			border-top: 1px solid var(--vscode-panel-border);
 			background: var(--vscode-editor-background);
+		}
+		
+		.acceptance-controls {
+			display: none;
+			gap: 12px;
+			padding: 8px 12px;
+			align-items: center;
+			justify-content: flex-end;
+			border-top: 1px solid var(--vscode-panel-border);
+			background: var(--vscode-editor-background);
+			min-height: 52px;
+		}
+		
+		.acceptance-controls.active {
+			display: flex;
+		}
+		
+		.acceptance-title {
+			font-size: 13px;
+			font-weight: 600;
+			color: var(--vscode-foreground);
+		}
+		
+		.acceptance-input {
+			flex: 1;
+			background-color: var(--vscode-input-background);
+			color: var(--vscode-input-foreground);
+			border: 1px solid var(--vscode-input-border);
+			padding: 6px 10px;
+			border-radius: 3px;
+			font-family: var(--vscode-font-family);
+			font-size: 12px;
+		}
+		
+		.acceptance-input::placeholder {
+			color: var(--vscode-input-placeholderForeground);
+			font-style: italic;
+		}
+		
+		.acceptance-input:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+		
+		.acceptance-btn {
+			padding: 6px 12px;
+			background: var(--vscode-button-background);
+			color: var(--vscode-button-foreground);
+			border: none;
+			border-radius: 3px;
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: 600;
+			white-space: nowrap;
+		}
+		
+		.acceptance-btn:hover {
+			background: var(--vscode-button-hoverBackground);
+		}
+		
+		.acceptance-btn.secondary {
+			background: var(--vscode-button-secondaryBackground);
+			color: var(--vscode-button-secondaryForeground);
+			border: 1px solid var(--vscode-button-border);
+		}
+		
+		.acceptance-btn.secondary:hover {
+			background: var(--vscode-button-secondaryHoverBackground);
 		}
 		
 		.controls-group {
@@ -800,19 +1017,7 @@ export class ChatPanelProvider {
 		}
 
 		.plan-mode-group {
-			position: relative;
 			display: inline-flex;
-			padding-top: 12px;
-		}
-
-		.plan-mode-title {
-			position: absolute;
-			top: 0;
-			right: 0;
-			font-size: 11px;
-			color: var(--vscode-descriptionForeground);
-			text-align: right;
-			padding-right: 4px;
 		}
 
 		.plan-mode-controls {
@@ -846,6 +1051,32 @@ export class ChatPanelProvider {
 			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;
+		}
+		
+		.usage-group {
+			position: relative;
+			display: inline-flex;
+			padding-top: 12px;
+		}
+		
+		.usage-title {
+			position: absolute;
+			top: 0;
+			left: 0;
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			text-align: left;
+			padding-left: 4px;
+		}
+		
+		.reasoning-toggle {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			cursor: pointer;
+			font-size: 12px;
+			user-select: none;
+			padding-top: 12px;
 		}
 		
 		.reasoning-indicator {
@@ -901,13 +1132,25 @@ export class ChatPanelProvider {
 
 		<div class="input-container">
 			<div class="input-controls">
-				<span class="usage-info">
-					<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
-					<span> | </span>
-					<span id="usageUsed" title="tokens used this session">Used: 0</span>
-					<span> | </span>
-					<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
-				</span>
+				<div class="top-controls-row">
+					<div class="focus-file-group">
+						<div class="focus-file-title">Active File:</div>
+						<span class="focus-file-info" id="focusFileInfo" aria-live="polite"></span>
+					</div>
+					<span style="flex: 1;"></span>
+					<div class="planning-header-spacer">
+						<div class="plan-mode-title-top">Planning</div>
+					</div>
+				</div>
+				<div class="usage-group">
+					<span class="usage-info">
+						<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
+						<span> | </span>
+						<span id="usageUsed" title="tokens used this session">Used: 0</span>
+						<span> | </span>
+						<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
+					</span>
+				</div>
 				<span id="reasoningIndicator" class="reasoning-indicator" style="display: none; margin-left: 8px;">
 					🧠 <span id="reasoningText">Reasoning...</span>
 				</span>
@@ -918,7 +1161,6 @@ export class ChatPanelProvider {
 				</label>
 				<span class="control-separator">|</span>
 				<div class="plan-mode-group">
-					<div class="plan-mode-title">Planning</div>
 					<div id="planModeControls" class="plan-mode-controls">
 					<button id="enterPlanModeBtn" class="plan-btn primary" title="Enter planning mode to analyze and design">📝</button>
 					<button id="acceptPlanBtn" class="plan-btn accept" title="Accept the plan and return to work mode" style="display: none;">✅</button>
@@ -926,6 +1168,19 @@ export class ChatPanelProvider {
 					<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
 					</div>
 				</div>
+			</div>
+			<div class="acceptance-controls" id="acceptanceControls" role="region" aria-label="Plan acceptance controls">
+				<span class="acceptance-title" id="acceptanceTitle">Accept this plan?</span>
+				<input 
+					type="text" 
+					class="acceptance-input" 
+					id="acceptanceInput" 
+					placeholder="Tell copilot what to do instead"
+					aria-label="Alternative instructions for the plan"
+					aria-describedby="acceptanceTitle"
+				/>
+				<button class="acceptance-btn secondary" id="keepPlanningBtn" aria-label="Keep planning without accepting">No, Keep Planning</button>
+				<button class="acceptance-btn" id="acceptAndWorkBtn" aria-label="Accept plan and switch to work mode">Accept and change to work mode</button>
 			</div>
 			<div class="input-wrapper">
 				<textarea 
@@ -961,6 +1216,11 @@ export class ChatPanelProvider {
 		const usageWindow = document.getElementById('usageWindow');
 		const usageUsed = document.getElementById('usageUsed');
 		const usageRemaining = document.getElementById('usageRemaining');
+		const focusFileInfo = document.getElementById('focusFileInfo');
+		const acceptanceControls = document.getElementById('acceptanceControls');
+		const acceptanceInput = document.getElementById('acceptanceInput');
+		const keepPlanningBtn = document.getElementById('keepPlanningBtn');
+		const acceptAndWorkBtn = document.getElementById('acceptAndWorkBtn');
 
 		let sessionActive = false;
 		let currentSessionId = null;
@@ -1037,6 +1297,52 @@ export class ChatPanelProvider {
 				type: 'rejectPlan'
 			});
 		});
+		
+		// Acceptance control handlers
+		acceptAndWorkBtn.addEventListener('click', () => {
+			console.log('[Acceptance] Accept and work');
+			vscode.postMessage({
+				type: 'acceptPlan'
+			});
+			swapToRegularControls();
+		});
+		
+		keepPlanningBtn.addEventListener('click', () => {
+			console.log('[Acceptance] Keep planning');
+			swapToRegularControls();
+		});
+		
+		acceptanceInput.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault();
+				const instructions = acceptanceInput.value.trim();
+				if (instructions) {
+					console.log('[Acceptance] Sending alternative instructions:', instructions);
+					vscode.postMessage({
+						type: 'sendMessage',
+						value: instructions
+					});
+					acceptanceInput.value = '';
+					swapToRegularControls();
+				}
+			} else if (e.key === 'Escape') {
+				swapToRegularControls();
+			}
+		});
+		
+		function swapToAcceptanceControls() {
+			console.log('[Control Surface] Swapping to acceptance controls');
+			document.querySelector('.input-controls').style.display = 'none';
+			acceptanceControls.classList.add('active');
+			acceptanceInput.focus();
+		}
+		
+		function swapToRegularControls() {
+			console.log('[Control Surface] Swapping to regular controls');
+			acceptanceControls.classList.remove('active');
+			document.querySelector('.input-controls').style.display = 'flex';
+			acceptanceInput.value = '';
+		}
 		
 		function updatePlanModeUI() {
 			console.log('[updatePlanModeUI] Called with planMode =', planMode);
@@ -1505,9 +1811,32 @@ export class ChatPanelProvider {
 			const message = event.data;
 			
 			switch (message.type) {
-				case 'init':
+				case 'init': {
+					// Clear existing messages
+					messagesContainer.innerHTML = '';
+					const emptyStateDiv = document.createElement('div');
+					emptyStateDiv.className = 'empty-state';
+					emptyStateDiv.id = 'emptyState';
+					emptyStateDiv.innerHTML = \`
+						<div class="empty-state-icon" aria-hidden="true">💬</div>
+						<div class="empty-state-text">
+							Start a chat session to begin<br>
+							Use the command palette to start the CLI
+						</div>
+					\`;
+					messagesContainer.appendChild(emptyStateDiv);
+					
+					// Add messages from init
+					if (message.messages && message.messages.length > 0) {
+						for (const msg of message.messages) {
+							const role = msg.type || msg.role;
+							addMessage(role, msg.content);
+						}
+					}
+					
 					setSessionActive(message.sessionActive);
 					break;
+				}
 				case 'userMessage':
 					addMessage('user', message.text);
 					break;
@@ -1527,7 +1856,7 @@ export class ChatPanelProvider {
 				case 'thinking':
 					setThinking(message.isThinking);
 					break;
-				case 'clearMessages':
+				case 'clearMessages': {
 					// Clear all messages except empty state
 					messagesContainer.innerHTML = '';
 					const emptyStateDiv = document.createElement('div');
@@ -1542,6 +1871,7 @@ export class ChatPanelProvider {
 					\`;
 					messagesContainer.appendChild(emptyStateDiv);
 					break;
+				}
 				case 'updateSessions':
 					// Update session dropdown
 					currentSessionId = message.currentSessionId;
@@ -1555,6 +1885,16 @@ export class ChatPanelProvider {
 					// Show/hide view plan button based on workspace path availability
 					workspacePath = message.workspacePath;
 					viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
+					break;
+				case 'activeFileChanged':
+					// Update active file display - just show/hide the filename, label stays
+					if (message.filePath) {
+						focusFileInfo.textContent = message.filePath;
+						focusFileInfo.title = message.filePath;
+						focusFileInfo.style.display = 'inline';
+					} else {
+						focusFileInfo.style.display = 'none';
+					}
 					break;
 				case 'toolStart':
 					addOrUpdateTool(message.tool);
@@ -1623,6 +1963,7 @@ export class ChatPanelProvider {
 					// Force reset plan mode to false
 					planMode = false;
 					updatePlanModeUI();
+					swapToRegularControls();
 					break;
 				case 'status':
 					// Handle status updates including plan mode
@@ -1636,6 +1977,7 @@ export class ChatPanelProvider {
 						console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
 						planMode = false;
 						updatePlanModeUI();
+						swapToRegularControls();
 						
 						// Show notification
 						if (status === 'plan_accepted') {
@@ -1653,6 +1995,10 @@ export class ChatPanelProvider {
 						if (reasoningIndicator) {
 							reasoningIndicator.style.display = 'none';
 						}
+					} else if (status === 'plan_ready') {
+						// Plan is ready for user review - show acceptance controls
+						console.log('[Plan Ready] Swapping to acceptance controls');
+						swapToAcceptanceControls();
 					}
 					break;
 			}
