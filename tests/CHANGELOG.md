@@ -2,6 +2,31 @@
 
 Internal changelog for test suite development and improvements.
 
+## [2.1.1] - 2026-02-04
+
+### Session Management Tests
+
+**Enhanced session-resume.test.js:**
+- Added tests for empty session filtering (sessions with no messages)
+- Added tests for corrupt session handling (malformed events.jsonl)
+- Validates session list excludes invalid sessions
+- Tests that only non-empty, valid sessions appear in dropdown
+
+**Session State Tests:**
+- Added tests for panel close/reopen behavior
+- Validates that closing chat panel doesn't reload session from disk
+- Tests that active session state persists when panel reopens
+- Verifies background session continues without interruption
+
+**All session tests passing:** ✅
+
+### Bug Fix Validation
+
+**Active File Tracking:**
+- Added test coverage for `updateActiveFile()` behavior
+- Tests editor undefined handling with visible editors check
+- Validates active file persistence when focus moves to webview
+
 ## [2.0.6] - 2026-02-01
 
 ### Plan Mode Test Suites

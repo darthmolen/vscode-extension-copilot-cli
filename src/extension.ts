@@ -8,6 +8,7 @@ let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
+let lastKnownTextEditor: vscode.TextEditor | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
@@ -663,9 +664,20 @@ function loadSessionHistory(sessionId: string): Promise<void> {
 }
 
 function updateActiveFile(editor: vscode.TextEditor | undefined) {
+	// If editor is defined, update last known editor
+	if (editor) {
+		lastKnownTextEditor = editor;
+	}
+	
+	// If editor is undefined, only clear if there are no visible text editors
 	if (!editor) {
-		backendState.setActiveFilePath(null);
-		ChatPanelProvider.updateActiveFile(null);
+		if (vscode.window.visibleTextEditors.length === 0) {
+			// All files are closed, clear active file
+			backendState.setActiveFilePath(null);
+			ChatPanelProvider.updateActiveFile(null);
+			lastKnownTextEditor = undefined;
+		}
+		// Otherwise, keep the last known active file (focus moved to webview)
 		return;
 	}
 	

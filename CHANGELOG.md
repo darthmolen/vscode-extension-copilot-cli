@@ -2,17 +2,52 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.1.1] - 2026-02-04
+
+### 🐛 Bug Fixes
+
+### Active File Persistence
+
+- Fixed active file disappearing when clicking in the text input box
+- Active file now persists when webview gets focus (previously cleared to null)
+- Only clears active file when all text editors are actually closed
+- Improved logic tracks last known text editor to distinguish between "focus moved to webview" vs "all files closed"
+
+### Session State Management
+
+- Fixed session automatically reloading when closing and reopening the chat panel
+- Chat panel now correctly preserves the active session state instead of reloading from disk
+- Closing the panel with X button no longer triggers session history reload on reopen
+- Session continues running in background; panel just reconnects to existing state
+
+### Session List Cleanup
+
+- Empty sessions (no messages) are now filtered out of the session dropdown
+- Corrupt sessions that fail to parse are excluded from the session list
+- Session list only shows valid, non-empty sessions
+- Improved error handling when reading session metadata
+
+### 🔧 Technical Changes
+
+- Added `lastKnownTextEditor` module-level variable in `src/extension.ts`
+- Modified `updateActiveFile()` to check `visibleTextEditors.length` before clearing
+- Better handling of `onDidChangeActiveTextEditor` event when editor is undefined
+- Refactored session state logic to prevent unnecessary history reloads and separate state management from webview
+- Enhanced session listing with validation and filtering for empty/corrupt sessions
+
 ## [2.0.6] - 2026-02-01
 
 ### 📋 Plan Mode Enhancements
 
 **ACE-FCA Methodology Support**
+
 - Dedicated planning session separate from work session
 - Automatically injects plan file path when accepting plan
 - Work session receives message with plan location and implementation instructions
 - Eliminates confusion when switching from planning to implementation
 
 **Improved Planning UI**
+
 - All planning buttons converted to compact icons (📝, ✅, ❌, 📋)
 - Prevents text overflow when resizing window
 - Tooltips provide full descriptions on hover
@@ -20,6 +55,7 @@ All notable changes to the Copilot CLI Chat extension.
 - "Planning" title overlays buttons without affecting vertical position
 
 **Enhanced Safety**
+
 - Sandboxed environment with 11 safe tools (read-only operations only)
 - Cannot modify code, install packages, or commit changes in plan mode
 - Can explore codebase, read files, and create implementation plans
@@ -30,11 +66,13 @@ All notable changes to the Copilot CLI Chat extension.
 ### 🎨 UI/UX Improvements
 
 **Tool Group Behavior**
+
 - Tool groups now default to collapsed state when overflowing
 - "Expand (x more)" button correctly shows collapsed initially
 - Improved visual organization of multiple tool executions
 
 **Better Alignment**
+
 - Consistent baseline alignment for all controls
 - Metrics, Show Reasoning, and Planning controls in same row
 
@@ -49,12 +87,14 @@ All notable changes to the Copilot CLI Chat extension.
 ### ✨ New Features
 
 **Active File Context**
+
 - Automatically includes the currently active file in VS Code as context
 - If text is selected, includes the selection with line numbers
 - Can be disabled via `copilotCLI.includeActiveFile` setting (enabled by default)
 - Provides seamless context awareness for file-specific questions
 
 **@file_name Reference Resolution**
+
 - Support for `@file_name` syntax in messages
 - Automatically resolves file references to relative workspace paths
 - Searches workspace for matching files if not found directly
