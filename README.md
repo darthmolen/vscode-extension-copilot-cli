@@ -8,6 +8,14 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.1.1 - Stability & Polish
+
+- 🐛 **Bug Fixes** - Enhanced reliability and user experience
+  - **Active File Persistence**: File context no longer disappears when clicking in input box
+  - **Session State**: Chat panel properly preserves session when closed and reopened
+  - **Session List Cleanup**: Empty and corrupt sessions filtered from dropdown
+  - **Auto-Recovery**: Gracefully handles expired sessions without manual intervention
+
 ### v2.0.6 - Plan Mode & UI Enhancements
 
 - 📋 **Plan Mode (ACE-FCA)** - Dedicated planning session separate from implementation

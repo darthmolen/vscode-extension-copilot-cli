@@ -590,13 +590,16 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 
 ## Release Process
 
+**⚠️ BEFORE PUBLISHING: Update both CHANGELOG.md and README.md**
+
 1. **Test thoroughly** using VSIX workflow
 2. **Update version** in `package.json`:
    ```bash
    npm version patch  # 2.0.1 → 2.0.2
    ```
-3. **Update CHANGELOG.md** with changes
-4. **Commit and tag**:
+3. **Update CHANGELOG.md** with all changes
+4. **Update README.md** features section with new version highlights
+5. **Commit and tag**:
    ```bash
    git add -A
    git commit -m "v2.0.2: Description of changes"
@@ -604,7 +607,7 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
    git tag v2.0.2
    git push --tags
    ```
-5. **Publish** (if maintainer):
+6. **Publish** (if maintainer):
    ```bash
    npx vsce publish
    ```

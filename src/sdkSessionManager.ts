@@ -1017,11 +1017,44 @@ export class SDKSessionManager {
                 
                 this.logger.warn('Session no longer exists, recreating...');
                 
-                // Destroy and recreate session
-                await this.stop();
-                await this.start();
+                // Destroy old session and create a new one (but keep the client alive)
+                if (this.session) {
+                    try {
+                        await this.session.destroy();
+                    } catch (e) {
+                        // Ignore errors destroying expired session
+                        this.logger.debug('Error destroying expired session (expected)');
+                    }
+                    this.session = null;
+                }
                 
-                this.logger.info('Session recreated, retrying message...');
+                // Create new session with same client
+                const mcpServers = this.getEnabledMCPServers();
+                const hasMcpServers = Object.keys(mcpServers).length > 0;
+                
+                this.session = await this.client.createSession({
+                    model: this.config.model || undefined,
+                    tools: this.getCustomTools(),
+                    ...(hasMcpServers ? { mcpServers } : {}),
+                });
+                this.sessionId = this.session.sessionId;
+                
+                // Re-setup event handlers for new session
+                this.setupSessionEventHandlers();
+                
+                // Update work session tracking
+                this.workSession = this.session;
+                this.workSessionId = this.sessionId;
+                this.currentMode = 'work';
+                
+                this.logger.info(`Session recreated: ${this.sessionId}`);
+                
+                // Notify UI about new session
+                this.onMessageEmitter.fire({
+                    type: 'status',
+                    data: { status: 'session_expired', newSessionId: this.sessionId },
+                    timestamp: Date.now()
+                });
                 
                 // Retry the message once (use flag to prevent infinite loop)
                 if (!isRetry) {

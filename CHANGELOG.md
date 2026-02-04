@@ -2,6 +2,23 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.1.2] - 2026-02-04
+
+### 🐛 Bug Fixes
+
+### Session Expiration Recovery
+
+- Fixed CLI exiting after one message following session timeout
+- Session recreation now properly maintains the client connection
+- Previous issue: After timeout, only one message could be sent before CLI became unresponsive
+- Now: Session recreates seamlessly and continues working indefinitely
+- Technical: Changed from `stop()/start()` to in-place session recreation keeping client alive
+
+### 📝 Documentation
+
+- Updated README.md with 2.1.1 feature highlights
+- Added release process reminder to update both CHANGELOG.md and README.md before publishing
+
 ## [2.1.1] - 2026-02-04
 
 ### 🐛 Bug Fixes
