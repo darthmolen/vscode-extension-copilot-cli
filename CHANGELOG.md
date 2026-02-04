@@ -4,6 +4,15 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [2.1.2] - 2026-02-04
 
+### ✨ Features
+
+### Plan Mode Model Configuration
+
+- Added `copilotCLI.planModel` setting to use different AI models for planning vs implementation
+- Plan mode can now use a faster/cheaper model (e.g., Claude Haiku 4.5) while work mode uses a more powerful one (e.g., Claude Sonnet 4.5)
+- Falls back to work mode model if not specified
+- Example: Use Haiku for exploration and planning, Sonnet for code implementation
+
 ### 🐛 Bug Fixes
 
 ### Session Expiration Recovery

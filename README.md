@@ -114,6 +114,7 @@ All Copilot CLI flags are configurable via VS Code settings:
   "copilotCLI.resumeLastSession": true,   // Auto-resume last session on open
   "copilotCLI.cliPath": "copilot",        // Path to copilot executable
   "copilotCLI.model": "",                 // AI model (empty = default claude-sonnet-4.5)
+  "copilotCLI.planModel": "",             // AI model for planning mode (empty = use same as work mode)
   "copilotCLI.allowAllTools": false,      // Auto-approve all tools
   "copilotCLI.allowTools": [],            // Specific tools: ["shell(git)", "write"]
   "copilotCLI.denyTools": [],             // Block tools: ["shell(rm)"]
@@ -137,6 +138,24 @@ Choose from 14 AI models in settings:
 - GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
 - GPT Codex variants (5.1, 5.2, mini)
 - Gemini 3 Pro Preview
+
+### Plan Mode Model
+
+Use a different AI model for planning mode vs work mode. This allows you to optimize for speed and cost:
+
+```json
+{
+  "copilotCLI.model": "claude-sonnet-4.5",        // For work mode (implementation)
+  "copilotCLI.planModel": "claude-haiku-4.5"      // For plan mode (faster/cheaper exploration)
+}
+```
+
+**Benefits:**
+- **Cost optimization**: Use cheaper models for planning, premium models for implementation
+- **Speed**: Use faster models for exploratory planning
+- **Flexibility**: Different models may excel at different tasks
+
+If `copilotCLI.planModel` is not set, planning mode uses the same model as work mode.
 
 ### MCP Server Integration
 

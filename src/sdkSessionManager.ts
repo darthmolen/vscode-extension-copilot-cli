@@ -31,6 +31,7 @@ export interface CLIConfig {
     addDirs?: string[];
     agent?: string;
     model?: string;
+    planModel?: string;
     noAskUser?: boolean;
 }
 
@@ -1364,7 +1365,7 @@ export class SDKSessionManager {
             
             this.planSession = await this.client.createSession({
                 sessionId: planSessionId,
-                model: this.config.model || undefined,
+                model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
                 availableTools: [
                     // Custom restricted tools (6)
