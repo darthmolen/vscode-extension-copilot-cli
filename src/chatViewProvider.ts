@@ -1009,7 +1009,7 @@ export class ChatPanelProvider {
 			border: 1px solid var(--vscode-button-border);
 			border-radius: 2px;
 			cursor: pointer;
-			font-size: 14px;
+			font-size: 18px;
 		}
 
 		.plan-btn:hover {

@@ -8,6 +8,28 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.1.2 - Plan Mode Model & Bug Fixes
+
+- ⚙️ **Plan Mode Model Configuration** - Use different AI models for planning vs implementation
+  - Added `copilotCLI.planModel` setting for model selection in planning mode
+  - Cost optimization: Use Haiku for planning, Sonnet for work
+  - Extensive planning: Use Opus for planning, Sonnet for work
+  - Falls back to work mode model if not specified
+
+- 🐛 **Session Expiration Recovery** - Fixed CLI becoming unresponsive after timeout
+  - Session recreation now maintains client connection
+  - Seamless recovery without manual intervention
+
+- 🎨 **UI Polish** - Larger planning mode icons for better visibility
+
+### v2.1.1 - Stability & Polish
+
+- 🐛 **Bug Fixes** - Enhanced reliability and user experience
+  - **Active File Persistence**: File context no longer disappears when clicking in input box
+  - **Session State**: Chat panel properly preserves session when closed and reopened
+  - **Session List Cleanup**: Empty and corrupt sessions filtered from dropdown
+  - **Auto-Recovery**: Gracefully handles expired sessions without manual intervention
+
 ### v2.0.6 - Plan Mode & UI Enhancements
 
 - 📋 **Plan Mode (ACE-FCA)** - Dedicated planning session separate from implementation
@@ -73,14 +95,17 @@ code --install-extension darthmolen.copilot-cli-extension
 ### Open the Chat Panel
 
 **Option 1: Command Palette**
+
 1. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
 2. Type "Copilot CLI: Open Chat"
 3. Press Enter
 
 **Option 2: Status Bar**
+
 - Click the "💬 Copilot CLI" item in the status bar
 
 **Option 3: Editor Toolbar**
+
 - Click the chat icon in the editor toolbar
 
 ### Start Chatting
@@ -106,6 +131,7 @@ All Copilot CLI flags are configurable via VS Code settings:
   "copilotCLI.resumeLastSession": true,   // Auto-resume last session on open
   "copilotCLI.cliPath": "copilot",        // Path to copilot executable
   "copilotCLI.model": "",                 // AI model (empty = default claude-sonnet-4.5)
+  "copilotCLI.planModel": "",             // AI model for planning mode (empty = use same as work mode)
   "copilotCLI.allowAllTools": false,      // Auto-approve all tools
   "copilotCLI.allowTools": [],            // Specific tools: ["shell(git)", "write"]
   "copilotCLI.denyTools": [],             // Block tools: ["shell(rm)"]
@@ -125,10 +151,48 @@ All Copilot CLI flags are configurable via VS Code settings:
 ### Available Models
 
 Choose from 14 AI models in settings:
+
 - Claude Sonnet 4.5 (default), Claude Haiku 4.5, Claude Opus 4.5
 - GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
 - GPT Codex variants (5.1, 5.2, mini)
 - Gemini 3 Pro Preview
+
+### Plan Mode Model
+
+Use a different AI model for planning mode vs work mode. This allows you to optimize for speed and cost or extensive planning and easy implementation.
+
+If `copilotCLI.planModel` is not set, planning mode uses the same model as work mode.
+
+#### Cost Optimization
+
+- **Cost optimization**: Use cheaper models for planning, premium models for implementation
+- **Speed**: Use faster models for exploratory planning
+- **Flexibility**: Different models may excel at different tasks
+
+```json
+{
+  "copilotCLI.model": "claude-sonnet-4.5",        // For work mode (implementation)
+  "copilotCLI.planModel": "claude-haiku-4.5"      // For plan mode (faster/cheaper exploration)
+}
+```
+
+#### Extensive Planning
+
+- **Deep Dive Concepts** - Maybe you really want the agent to pull down tons of research and put together the monster roadmap for a product
+- **Unravel Complex Code** - Deep code bases require more thought so having a larger and newer LLM aids in less rework.
+- **Refactor** - it's always best to think more and write less when refactoring.
+
+```text
+"Better to plan once well than implement twice"
+-- Every experienced developer
+```
+
+```json
+{
+  "copilotCLI.model": "claude-sonnet-4.5",        // For work mode (faster implementation. might even consider haiku if your plan is good enough)
+  "copilotCLI.planModel": "claude-opus-4.5"      // For plan mode (extensive exploration/research/planning)
+}
+```
 
 ### MCP Server Integration
 
@@ -160,6 +224,7 @@ Add custom MCP servers via settings:
 #### Popular MCP Servers
 
 **Official Reference Servers**:
+
 - `@modelcontextprotocol/server-filesystem` - Secure file operations with access controls
 - `@modelcontextprotocol/server-fetch` - Web content fetching and conversion
 - `@modelcontextprotocol/server-git` - Git repository operations and search
@@ -186,10 +251,12 @@ Copilot CLI (server mode)
 ```
 
 The extension provides:
+
 - **UI/UX Layer**: Chat panel, markdown rendering, session selector
 - **Configuration Bridge**: VS Code settings → SDK/CLI options
 - **Event Handling**: Real-time streaming, reasoning display, inline tool execution visibility
 - **Session Persistence**: Auto-resume, history loading, workspace filtering
+- **Planning Mode**: Separate session for planning with limited tools and alternate model. Plan juggling back to main session.
 
 The SDK provides:
 - **Agent Runtime**: Production-tested orchestration engine
@@ -232,6 +299,7 @@ MIT - See [LICENSE](LICENSE) for details
 ## ⭐ Support
 
 If you find this extension helpful, please:
+
 - ⭐ Star the [GitHub repository](https://github.com/darthmolen/vscode-extension-copilot-cli)
 - ✍️ Leave a review on the [marketplace](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 - 🐦 Share with others!

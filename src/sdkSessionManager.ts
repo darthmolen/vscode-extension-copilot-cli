@@ -31,6 +31,7 @@ export interface CLIConfig {
     addDirs?: string[];
     agent?: string;
     model?: string;
+    planModel?: string;
     noAskUser?: boolean;
 }
 
@@ -1017,11 +1018,80 @@ export class SDKSessionManager {
                 
                 this.logger.warn('Session no longer exists, recreating...');
                 
-                // Destroy and recreate session
-                await this.stop();
-                await this.start();
+                // Preserve current mode before destroying session
+                const wasPlanMode = this.currentMode === 'plan';
                 
-                this.logger.info('Session recreated, retrying message...');
+                // Destroy old session and create a new one (but keep the client alive)
+                if (this.session) {
+                    try {
+                        await this.session.destroy();
+                    } catch (e) {
+                        // Ignore errors destroying expired session
+                        this.logger.debug('Error destroying expired session (expected)');
+                    }
+                    this.session = null;
+                }
+                
+                // Create new session with same client
+                const mcpServers = this.getEnabledMCPServers();
+                const hasMcpServers = Object.keys(mcpServers).length > 0;
+                
+                if (wasPlanMode) {
+                    // Recreate plan session with restricted tools
+                    this.logger.info('Recreating plan mode session...');
+                    const planSessionId = `${this.workSessionId}-plan`;
+                    
+                    this.session = await this.client.createSession({
+                        sessionId: planSessionId,
+                        model: this.config.planModel || this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        availableTools: [
+                            'plan_bash_explore',
+                            'task_agent_type_explore',
+                            'edit_plan_file',
+                            'create_plan_file',
+                            'update_work_plan',
+                            'present_plan',
+                            'view',
+                            'grep',
+                            'glob',
+                            'web_fetch',
+                            'fetch_copilot_cli_documentation',
+                            'report_intent'
+                        ],
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    this.planSession = this.session;
+                    this.sessionId = planSessionId;
+                    // currentMode stays 'plan'
+                } else {
+                    // Recreate work session with full tools
+                    this.logger.info('Recreating work mode session...');
+                    
+                    this.session = await this.client.createSession({
+                        model: this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    this.sessionId = this.session.sessionId;
+                    
+                    // Update work session tracking
+                    this.workSession = this.session;
+                    this.workSessionId = this.sessionId;
+                    this.currentMode = 'work';
+                }
+                
+                // Re-setup event handlers for new session
+                this.setupSessionEventHandlers();
+                
+                this.logger.info(`Session recreated: ${this.sessionId}`);
+                
+                // Notify UI about new session
+                this.onMessageEmitter.fire({
+                    type: 'status',
+                    data: { status: 'session_expired', newSessionId: this.sessionId },
+                    timestamp: Date.now()
+                });
                 
                 // Retry the message once (use flag to prevent infinite loop)
                 if (!isRetry) {
@@ -1331,7 +1401,7 @@ export class SDKSessionManager {
             
             this.planSession = await this.client.createSession({
                 sessionId: planSessionId,
-                model: this.config.model || undefined,
+                model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
                 availableTools: [
                     // Custom restricted tools (6)

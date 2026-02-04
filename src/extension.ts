@@ -507,6 +507,7 @@ function getCLIConfig(): CLIConfig {
 		addDirs: config.get<string[]>('addDirs', []),
 		agent: config.get<string>('agent', ''),
 		model: config.get<string>('model', ''),
+		planModel: config.get<string>('planModel', ''),
 		noAskUser: config.get<boolean>('noAskUser', false)
 	};
 }

@@ -2,6 +2,32 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.1.2] - 2026-02-04
+
+### ✨ Features
+
+### Plan Mode Model Configuration
+
+- Added `copilotCLI.planModel` setting to use different AI models for planning vs implementation
+- Plan mode can now use a faster/cheaper model (e.g., Claude Haiku 4.5) while work mode uses a more powerful one (e.g., Claude Sonnet 4.5)
+- Falls back to work mode model if not specified
+- Example: Use Haiku for exploration and planning, Sonnet for code implementation
+
+### 🐛 Bug Fixes
+
+### Session Expiration Recovery
+
+- Fixed CLI exiting after one message following session timeout
+- Session recreation now properly maintains the client connection
+- Previous issue: After timeout, only one message could be sent before CLI became unresponsive
+- Now: Session recreates seamlessly and continues working indefinitely
+- Technical: Changed from `stop()/start()` to in-place session recreation keeping client alive
+
+### 📝 Documentation
+
+- Updated README.md with 2.1.1 feature highlights
+- Added release process reminder to update both CHANGELOG.md and README.md before publishing
+
 ## [2.1.1] - 2026-02-04
 
 ### 🐛 Bug Fixes

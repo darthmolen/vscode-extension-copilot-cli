@@ -6,14 +6,14 @@ This document provides context and guidelines for AI agents helping to develop t
 
 ## 🚨 MANDATORY DEVELOPMENT PRACTICES
 
-### 1. Always Use `using-superpowers` Skill
+### 1. Always Use `using-superpowers` and `test-first` Skill
 
-**Before starting ANY work**, invoke the `using-superpowers` skill:
+**Before starting ANY work**, invoke the `using-superpowers` and `test-first` skill:
 - This ensures you follow established workflows
 - It activates necessary context and guidelines
 - It prevents common mistakes and rework
 
-**Example**: User asks to fix a bug → First call `using-superpowers`, then proceed
+**Example**: User asks to fix a bug → First call `using-superpowers` and `test-first`, then proceed
 
 ### 2. Test-First Development (ALWAYS)
 
@@ -70,7 +70,7 @@ This script:
 1. Builds: `npm run compile` (type checks, lints, builds with esbuild)
 2. Packages: Creates VSIX file
 3. Uninstalls: Removes old version (if exists)
-4. Installs: Installs new VSIX with `code --install-extension`
+4. Installs: Installs new VSIX with `code --install-extension --force`
 5. Reminds: Shows next steps (reload window, check logs)
 
 **Manual steps if needed:**
@@ -115,11 +115,13 @@ npm run compile && code --install-extension copilot-cli-extension-latest.vsix --
 
 | File | Purpose | Key Points |
 |------|---------|-----------|
-| `extension.ts` | Entry point, command registration | Activates extension, registers commands, manages cliManager |
+| `extension.ts` | Extension entry point, command registration | Activates extension, registers commands, manages session lifecycle |
 | `sdkSessionManager.ts` | **Backend** SDK session lifecycle | Manages work/plan sessions, event handlers, custom tools for plan mode |
 | `chatViewProvider.ts` | **Frontend** Webview UI | Contains HTML/CSS/JS as strings, renders chat messages, tool calls, message passing |
+| `backendState.ts` | Centralized state management | In-memory state that persists across webview recreations |
+| `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/`, filters by workspace |
 | `logger.ts` | Logging to Output Channel | Use `Logger.getInstance()` everywhere |
-| `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/` |
+| `cliProcessManager.ts` | Legacy CLI process spawning | Deprecated v1.0 implementation, kept for reference |
 
 **Critical: chatViewProvider.ts IS our UI** - The Copilot SDK does NOT provide any UI components. It's a backend-only library for managing CLI sessions. All chat UI (messages, tool calls, input box) is built by us in the webview.
 
@@ -215,25 +217,9 @@ session = planSession;  // <session-id>-plan
 - No 2x cost: only one session active at a time
 - ACE-FCA aligned: isolated planning context
 
-**Plan Mode Tools (11 total):**
+**Plan Mode Tools:**
 
-*Plan Management (4 tools):*
-- `update_work_plan` - Create/update plan content (primary tool)
-- `present_plan` - Present plan to user for review (call after creating plan)
-- `create_plan_file` - Create plan.md (restricted to plan.md only)
-- `edit_plan_file` - Edit plan.md (restricted to plan.md only)
-
-*Exploration (4 tools):*
-- `plan_bash_explore` - Read-only bash commands (git status, ls, cat, etc.)
-- `task_agent_type_explore` - Dispatch exploration sub-agents (agent_type="explore" only)
-- `view` - Read any file
-- `grep` - Search file contents
-
-*Discovery & Documentation (4 tools):*
-- `glob` - Find files by pattern
-- `web_fetch` - Fetch web pages
-- `fetch_copilot_cli_documentation` - Get CLI docs
-- `report_intent` - Report current intent to UI
+Plan mode provides a restricted set of tools focused on exploration and planning. The exact list is defined in `sdkSessionManager.ts` in the `enablePlanMode()` method via the `availableTools` array. The extension's system prompt tells the AI which tools are available when in plan mode.
 
 **Security: What Plan Mode CANNOT Do:**
 - ❌ Write/modify code files (only plan.md)
@@ -590,13 +576,31 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 
 ## Release Process
 
+**⚠️ BEFORE PUBLISHING:**
+- **MUST** update version in package.json (use `npm version patch/minor/major`)
+- **MUST** update CHANGELOG.md and README.md with the **SAME** version number
+
 1. **Test thoroughly** using VSIX workflow
 2. **Update version** in `package.json`:
    ```bash
-   npm version patch  # 2.0.1 → 2.0.2
+   npm version patch --no-git-tag-version  # 2.1.1 → 2.1.2
+   npm version minor --no-git-tag-version  # 2.1.2 → 2.2.0
+   npm version major --no-git-tag-version  # 2.2.0 → 3.0.0
    ```
-3. **Update CHANGELOG.md** with changes
-4. **Commit and tag**:
+3. **Update CHANGELOG.md** - Add section with the **SAME** version from step 2:
+   ```markdown
+   ## [2.1.2] - 2026-02-04
+   
+   ### 🐛 Bug Fixes
+   - Description of changes
+   ```
+4. **Update README.md** - Add features section with the **SAME** version from step 2:
+   ```markdown
+   ### v2.1.2 - Short Description
+   
+   - Feature highlights
+   ```
+5. **Commit and tag**:
    ```bash
    git add -A
    git commit -m "v2.0.2: Description of changes"
@@ -604,7 +608,7 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
    git tag v2.0.2
    git push --tags
    ```
-5. **Publish** (if maintainer):
+6. **Publish** (if maintainer):
    ```bash
    npx vsce publish
    ```
@@ -668,6 +672,7 @@ When building features:
 - Log state changes for debugging
 - Fail gracefully with helpful messages
 
+
 ## Working with Planning Mode
 
 ### Overview
@@ -725,16 +730,8 @@ availableTools: [
     // ... other tools
 ]
 
-// Step 4: Update the system prompt
-**AVAILABLE TOOLS IN PLAN MODE (12 total):**  // ← Update count
-
-*Plan Management Tools:*
-- \`update_work_plan\` - Create/update plan
-- \`present_plan\` - Present plan for review
-- \`my_plan_tool\` - Description  // ← Add documentation
-
+// Step 4: Update the system prompt in sdkSessionManager.ts enablePlanMode()
 // Step 5: Update logging
-this.logger.info(\`[Plan Mode]     availableTools: [..., my_plan_tool, ...]\`);
 ```
 
 **Why both places?**
@@ -742,143 +739,8 @@ this.logger.info(\`[Plan Mode]     availableTools: [..., my_plan_tool, ...]\`);
 - `availableTools`: SDK whitelist that controls which tools the AI can call
 - Missing from either = tool won't work
 
-### Plan Workflow with present_plan Tool
-
-The standard workflow for planning is:
-
-1. **User enters plan mode** (clicks 📝 button or runs command)
-2. **Agent explores codebase** using view, grep, glob, bash tools
-3. **Agent creates plan** using `update_work_plan(content: "# Plan\n...")`
-4. **Agent can iterate** by calling `update_work_plan` multiple times
-5. **Agent presents plan** using `present_plan(summary: "Brief summary")`
-6. **UI shows acceptance controls** automatically when `plan_ready` event fires
-7. **User chooses:**
-   - Accept and change to work mode → plan mode exits
-   - No, keep planning → returns to regular controls, stays in plan mode
-   - Type alternative instructions → sends new message, stays in plan mode
-
-**Event Flow:**
-
-```
-enablePlanMode()
-  ↓
-plan_mode_enabled event
-  ↓
-Agent: update_work_plan()
-  ↓
-Agent: present_plan()
-  ↓
-plan_ready event
-  ↓
-UI: Show acceptance controls
-  ↓
-User: Accept/Reject/Provide feedback
-  ↓
-plan_accepted or plan_rejected event
-  ↓
-UI: Return to regular controls
-```
-
-**Testing the workflow:**
-- Unit tests: `tests/present-plan-tool.test.js` (13 tests)
-- Integration tests: `tests/plan-acceptance-integration.test.js` (26 tests)
+**Testing:**
+- Unit tests: `tests/present-plan-tool.test.js`
+- Integration tests: `tests/plan-acceptance-integration.test.js`
 - See: `planning/completed/PLAN-ACCEPTANCE-TEST-STRATEGY.md`
 
-## Documentation and Planning Organization
-
-To keep the project organized and avoid markdown file sprawl, we follow these conventions:
-
-### Documentation Folder Structure
-
-```
-vscode-copilot-cli-extension/
-├─ documentation/          # Technical documentation
-│  ├─ architecture.md      # System architecture
-│  ├─ api-reference.md     # API documentation
-│  └─ troubleshooting.md   # Common issues & fixes
-│
-├─ planning/               # Active planning work
-│  ├─ feature-x.md         # Currently being planned
-│  ├─ completed/           # Finished plans (moved here after implementation)
-│  │  └─ ui-enhancements.md
-│  └─ backlog/             # Future work, not yet started
-│     └─ performance-improvements.md
-│
-├─ COPILOT.md             # AI agent development guide (this file)
-├─ README.md              # User-facing documentation
-└─ HOW-TO-DEV.md          # Developer setup guide
-```
-
-### Documentation Guidelines
-
-**1. Active Planning (`planning/`)**
-- Place new planning docs here while working on them
-- Keep plan.md updated with task checkboxes
-- Include problem statement, approach, and implementation tasks
-
-**2. Completed Plans (`planning/completed/`)**
-- Move planning docs here after feature is implemented and tested
-- Serves as historical record and reference
-- Helps understand why decisions were made
-
-**3. Backlog (`planning/backlog/`)**
-- Ideas and features for future consideration
-- Not actively being worked on
-- Helps capture ideas without cluttering active work
-
-**4. Technical Documentation (`documentation/`)**
-- API references
-- Architecture diagrams
-- Integration guides
-- Troubleshooting procedures
-
-**5. Root-level Docs**
-- `README.md` - User-facing, how to install and use
-- `COPILOT.md` - AI agent development guide
-- `HOW-TO-DEV.md` - Developer setup and workflows
-
-### Why This Organization?
-
-- **Prevents pollution**: No random .md files scattered throughout src/
-- **Clear lifecycle**: Active → Completed → Backlog flow is obvious
-- **Easy navigation**: Know where to look for what you need
-- **Historical context**: Completed plans document decision rationale
-- **Future planning**: Backlog collects ideas without noise
-
-### Example Lifecycle
-
-```
-1. New feature idea
-   → Create planning/new-feature.md
-   
-2. Start planning
-   → Work in planning/new-feature.md
-   → Update task checkboxes as you progress
-   
-3. Implementation complete and tested
-   → Move to planning/completed/new-feature.md
-   → Update documentation/ if needed
-   
-4. Future enhancement idea
-   → Create planning/backlog/enhancement.md
-   → Will move to planning/ when work begins
-```
-
-## Resources
-
-- **Extension Repo**: https://github.com/darthmolen/vscode-extension-copilot-cli
-- **SDK Docs**: https://github.com/github/copilot-sdk
-- **SDK Issues**: https://github.com/github/copilot-sdk/issues
-- **HOW-TO-DEV.md**: Detailed development workflow
-- **VS Code Extension API**: https://code.visualstudio.com/api
-
-## Contact
-
-For questions about this codebase:
-- Open an issue on GitHub
-- Check existing documentation
-- Review git history for context
-
----
-
-**Remember**: We can't use F5. Always suggest the VSIX workflow!

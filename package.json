@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -187,6 +187,28 @@
           ],
           "default": "",
           "description": "AI model to use (empty = default: claude-sonnet-4.5)"
+        },
+        "copilotCLI.planModel": {
+          "type": "string",
+          "enum": [
+            "",
+            "claude-sonnet-4.5",
+            "claude-haiku-4.5",
+            "claude-opus-4.5",
+            "claude-sonnet-4",
+            "gpt-5.2-codex",
+            "gpt-5.1-codex-max",
+            "gpt-5.1-codex",
+            "gpt-5.2",
+            "gpt-5.1",
+            "gpt-5",
+            "gpt-5.1-codex-mini",
+            "gpt-5-mini",
+            "gpt-4.1",
+            "gemini-3-pro-preview"
+          ],
+          "default": "",
+          "description": "AI model for planning mode (empty = use same as work mode)"
         },
         "copilotCLI.noAskUser": {
           "type": "boolean",
