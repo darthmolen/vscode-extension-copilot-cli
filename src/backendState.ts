@@ -59,11 +59,6 @@ export class BackendState {
     }
 
     public clearMessages(): void {
-        // DIAGNOSTIC: Log who's clearing messages with stack trace
-        const stack = new Error().stack || '';
-        const caller = stack.split('\n')[2]?.trim() || 'unknown';
-        console.log(`[DIAGNOSTIC] BackendState.clearMessages() called from: ${caller}`);
-        console.log(`[DIAGNOSTIC] Clearing ${this.messages.length} messages from session ${this.sessionId}`);
         this.messages = [];
     }
 
