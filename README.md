@@ -184,7 +184,7 @@ If `copilotCLI.planModel` is not set, planning mode uses the same model as work 
 
 ```text
 "Better to plan once well than implement twice"
--- Every smart developer that's been around the block and in the "wash"
+-- Every experienced developer
 ```
 
 ```json
