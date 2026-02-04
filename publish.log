@@ -1,0 +1,46 @@
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> copilot-cli-extension@2.1.2 vscode:prepublish
+> npm run package
+
+
+> copilot-cli-extension@2.1.2 package
+> npm run check-types && npm run lint && node esbuild.js --production
+
+
+> copilot-cli-extension@2.1.2 check-types
+> tsc --noEmit
+
+
+> copilot-cli-extension@2.1.2 lint
+> eslint src
+
+[watch] build started
+[watch] build finished
+[watch] build started
+[watch] build finished
+ INFO  Files included in the VSIX:
+tmp-27693-2knxsrS72xfL
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ LICENSE.txt [1.04 KB]
+   ├─ PLAN_MODE.md [11.2 KB]
+   ├─ RELEASE-NOTES-2.0.1.md [3.95 KB]
+   ├─ RELEASE-NOTES-2.0.6.md [3.71 KB]
+   ├─ changelog.md 
+   ├─ package.json [10.59 KB]
+   ├─ publish.log [0.43 KB]
+   ├─ readme.md 
+   ├─ reload-extension.sh [0.68 KB]
+   ├─ .github/
+   │  └─ copilot-instructions.md [21.02 KB]
+   ├─ dist/
+   │  └─ extension.js [178.64 KB]
+   └─ images/
+      └─ icon.png [4.32 KB]
+
+ INFO  Publishing 'darthmolen.copilot-cli-extension v2.1.2'...
+ INFO  Extension URL (might take a few minutes): https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension
+ INFO  Hub URL: https://marketplace.visualstudio.com/manage/publishers/darthmolen/extensions/copilot-cli-extension/hub
+ DONE  Published darthmolen.copilot-cli-extension v2.1.2.

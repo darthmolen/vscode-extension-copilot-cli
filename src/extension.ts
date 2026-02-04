@@ -539,6 +539,19 @@ function updateSessionsList() {
 			logger.debug(`Session filtering disabled or no workspace open (filterByFolder: ${filterByFolder}, workspace: ${workspaceFolder})`);
 		}
 		
+		// Get current session ID
+		const currentSessionId = cliManager?.getSessionId() || null;
+		
+		// If current session exists but isn't in the list yet (new session without events.jsonl),
+		// add it to the front of the list
+		if (currentSessionId && !sessions.find(s => s.id === currentSessionId)) {
+			logger.info(`Current session ${currentSessionId} not in list yet, adding it`);
+			sessions.unshift({
+				id: currentSessionId,
+				mtime: Date.now() // Most recent
+			});
+		}
+		
 		// If no sessions found, send empty list
 		if (sessions.length === 0) {
 			ChatPanelProvider.updateSessions([], null);
@@ -554,7 +567,6 @@ function updateSessionsList() {
 			label: formatSessionLabel(session.id, path.join(os.homedir(), '.copilot', 'session-state', session.id))
 		}));
 		
-		const currentSessionId = cliManager?.getSessionId() || null;
 		ChatPanelProvider.updateSessions(sessionList, currentSessionId);
 	} catch (error) {
 		logger.error('Failed to update sessions list', error instanceof Error ? error : undefined);
