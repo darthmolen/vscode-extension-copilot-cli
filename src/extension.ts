@@ -521,7 +521,7 @@ function updateSessionsList() {
 	try {
 		// Get configuration
 		const config = vscode.workspace.getConfiguration('copilotCLI');
-		const filterByFolder = config.get<boolean>('filterSessionsByFolder', false);
+		const filterByFolder = config.get<boolean>('filterSessionsByFolder', true);
 		const workspaceFolders = vscode.workspace.workspaceFolders;
 		const workspaceFolder = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : null;
 		

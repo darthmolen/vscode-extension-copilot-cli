@@ -2,6 +2,19 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.1.4] - 2026-02-04
+
+### 🐛 Bug Fixes
+
+### Active File Context Fix
+
+- Fixed active file context not being sent to the LLM when chat panel has focus
+- Extension now tracks the last active text editor via `onDidChangeActiveTextEditor` event
+- Active file context is preserved even when focus moves to the chat webview
+- Plan mode sessions now receive workspace root and active file context (matching work mode)
+- Added comprehensive diagnostic logging in `enhanceMessageWithContext()` method
+- Technical: Both backend (`SDKSessionManager`) and UI (`extension.ts`) now use consistent `lastActiveTextEditor` pattern
+
 ## [2.1.3] - 2026-02-04
 
 ### 🐛 Bug Fixes
