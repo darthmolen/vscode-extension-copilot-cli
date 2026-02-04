@@ -592,7 +592,7 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 
 **⚠️ BEFORE PUBLISHING:**
 - **MUST** update version in package.json (use `npm version patch/minor/major`)
-- **MUST** update both CHANGELOG.md and README.md
+- **MUST** update CHANGELOG.md and README.md with the **SAME** version number
 
 1. **Test thoroughly** using VSIX workflow
 2. **Update version** in `package.json`:
@@ -601,8 +601,19 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
    npm version minor --no-git-tag-version  # 2.1.2 → 2.2.0
    npm version major --no-git-tag-version  # 2.2.0 → 3.0.0
    ```
-3. **Update CHANGELOG.md** with all changes
-4. **Update README.md** features section with new version highlights
+3. **Update CHANGELOG.md** - Add section with the **SAME** version from step 2:
+   ```markdown
+   ## [2.1.2] - 2026-02-04
+   
+   ### 🐛 Bug Fixes
+   - Description of changes
+   ```
+4. **Update README.md** - Add features section with the **SAME** version from step 2:
+   ```markdown
+   ### v2.1.2 - Short Description
+   
+   - Feature highlights
+   ```
 5. **Commit and tag**:
    ```bash
    git add -A
