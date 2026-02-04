@@ -6,14 +6,14 @@ This document provides context and guidelines for AI agents helping to develop t
 
 ## 🚨 MANDATORY DEVELOPMENT PRACTICES
 
-### 1. Always Use `using-superpowers` Skill
+### 1. Always Use `using-superpowers` and `test-first` Skill
 
-**Before starting ANY work**, invoke the `using-superpowers` skill:
+**Before starting ANY work**, invoke the `using-superpowers` and `test-first` skill:
 - This ensures you follow established workflows
 - It activates necessary context and guidelines
 - It prevents common mistakes and rework
 
-**Example**: User asks to fix a bug → First call `using-superpowers`, then proceed
+**Example**: User asks to fix a bug → First call `using-superpowers` and `test-first`, then proceed
 
 ### 2. Test-First Development (ALWAYS)
 
@@ -70,7 +70,7 @@ This script:
 1. Builds: `npm run compile` (type checks, lints, builds with esbuild)
 2. Packages: Creates VSIX file
 3. Uninstalls: Removes old version (if exists)
-4. Installs: Installs new VSIX with `code --install-extension`
+4. Installs: Installs new VSIX with `code --install-extension --force`
 5. Reminds: Shows next steps (reload window, check logs)
 
 **Manual steps if needed:**
@@ -115,11 +115,13 @@ npm run compile && code --install-extension copilot-cli-extension-latest.vsix --
 
 | File | Purpose | Key Points |
 |------|---------|-----------|
-| `extension.ts` | Entry point, command registration | Activates extension, registers commands, manages cliManager |
+| `extension.ts` | Extension entry point, command registration | Activates extension, registers commands, manages session lifecycle |
 | `sdkSessionManager.ts` | **Backend** SDK session lifecycle | Manages work/plan sessions, event handlers, custom tools for plan mode |
 | `chatViewProvider.ts` | **Frontend** Webview UI | Contains HTML/CSS/JS as strings, renders chat messages, tool calls, message passing |
+| `backendState.ts` | Centralized state management | In-memory state that persists across webview recreations |
+| `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/`, filters by workspace |
 | `logger.ts` | Logging to Output Channel | Use `Logger.getInstance()` everywhere |
-| `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/` |
+| `cliProcessManager.ts` | Legacy CLI process spawning | Deprecated v1.0 implementation, kept for reference |
 
 **Critical: chatViewProvider.ts IS our UI** - The Copilot SDK does NOT provide any UI components. It's a backend-only library for managing CLI sessions. All chat UI (messages, tool calls, input box) is built by us in the webview.
 
