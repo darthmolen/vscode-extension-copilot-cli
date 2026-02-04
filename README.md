@@ -8,6 +8,13 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.1.3 - Session Filtering Fix
+
+- 🐛 **Session Dropdown Filtering** - Fixed workspace folder filtering
+  - Dropdown now correctly shows only workspace-specific sessions when filtering is enabled
+  - Previously showed all sessions but only workspace ones were resumable (confusing)
+  - Setting: `copilotCLI.filterSessionsByFolder`
+
 ### v2.1.2 - Plan Mode Model & Bug Fixes
 
 - ⚙️ **Plan Mode Model Configuration** - Use different AI models for planning vs implementation
