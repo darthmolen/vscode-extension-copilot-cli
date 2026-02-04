@@ -86,6 +86,10 @@ export class SDKSessionManager {
     
     // Event handler cleanup
     private sessionUnsubscribe: (() => void) | null = null;
+    
+    // Track last active text editor (since activeTextEditor is null when webview has focus)
+    private lastActiveTextEditor: vscode.TextEditor | undefined = undefined;
+    private activeEditorDisposable: vscode.Disposable | undefined = undefined;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -103,6 +107,15 @@ export class SDKSessionManager {
         if (!fs.existsSync(this.tempDir)) {
             fs.mkdirSync(this.tempDir, { recursive: true });
         }
+        
+        // Track the last active text editor (current one might be null if webview has focus)
+        this.lastActiveTextEditor = vscode.window.activeTextEditor;
+        this.activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor) {
+                this.lastActiveTextEditor = editor;
+                this.logger.debug(`Active editor changed to: ${editor.document.uri.fsPath}`);
+            }
+        });
         
         // If specific session ID provided, use it
         if (specificSessionId) {
@@ -997,6 +1010,8 @@ export class SDKSessionManager {
         // Enhance message with active file context and process @file references
         const enhancedMessage = await this.enhanceMessageWithContext(message);
         
+        this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
+        
         try {
             await this.session.sendAndWait({ prompt: enhancedMessage });
             this.logger.info('Message sent and completed successfully');
@@ -1119,21 +1134,31 @@ export class SDKSessionManager {
      * Enhances the user message with active file context and processes @file references
      */
     private async enhanceMessageWithContext(message: string): Promise<string> {
+        this.logger.debug('[Enhance] Starting message enhancement...');
+        
         const config = vscode.workspace.getConfiguration('copilotCLI');
         const includeActiveFile = config.get<boolean>('includeActiveFile', true);
         const resolveFileReferences = config.get<boolean>('resolveFileReferences', true);
+        
+        this.logger.debug(`[Enhance] includeActiveFile config: ${includeActiveFile}`);
+        this.logger.debug(`[Enhance] resolveFileReferences config: ${resolveFileReferences}`);
         
         const parts: string[] = [];
         
         // Add active file context if enabled and there's an active editor
         if (includeActiveFile) {
-            const activeEditor = vscode.window.activeTextEditor;
+            // Use lastActiveTextEditor instead of vscode.window.activeTextEditor
+            // because activeTextEditor is null when webview has focus
+            const activeEditor = this.lastActiveTextEditor;
+            this.logger.debug(`[Enhance] activeEditor (lastActive): ${activeEditor ? activeEditor.document.uri.fsPath : 'null'}`);
+            
             if (activeEditor) {
                 const document = activeEditor.document;
                 const relativePath = vscode.workspace.asRelativePath(document.uri);
                 const selection = activeEditor.selection;
                 
                 parts.push(`[Active File: ${relativePath}]`);
+                this.logger.debug(`[Enhance] Added active file context: ${relativePath}`);
                 
                 // If there's a selection, include it
                 if (!selection.isEmpty) {
@@ -1141,6 +1166,7 @@ export class SDKSessionManager {
                     const startLine = selection.start.line + 1;
                     const endLine = selection.end.line + 1;
                     parts.push(`[Selected lines ${startLine}-${endLine}]:\n\`\`\`\n${selectedText}\n\`\`\``);
+                    this.logger.debug(`[Enhance] Added selection context: lines ${startLine}-${endLine}`);
                 }
             }
         }
@@ -1150,11 +1176,16 @@ export class SDKSessionManager {
             ? await this.processFileReferences(message)
             : message;
         
+        this.logger.debug(`[Enhance] parts array length: ${parts.length}`);
+        
         // Combine context with the message
         if (parts.length > 0) {
-            return `${parts.join('\n')}\n\n${processedMessage}`;
+            const enhanced = `${parts.join('\n')}\n\n${processedMessage}`;
+            this.logger.debug(`[Enhance] Final enhanced message (first 200 chars): ${enhanced.substring(0, 200)}`);
+            return enhanced;
         }
         
+        this.logger.debug(`[Enhance] No enhancement applied, returning original message`);
         return processedMessage;
     }
     
@@ -1789,5 +1820,6 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
     public dispose(): void {
         this.stop();
         this.onMessageEmitter.dispose();
+        this.activeEditorDisposable?.dispose();
     }
 }

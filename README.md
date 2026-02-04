@@ -8,6 +8,14 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.1.4 - Active File Context Fix
+
+- 🐛 **Active File Context Preserved** - AI now knows which file you're working on
+  - Fixed: Active file context not sent to LLM when chat panel has focus
+  - Extension tracks last active text editor, preserves context across focus changes
+  - Works in both work mode and plan mode
+  - No need to manually specify filenames anymore!
+
 ### v2.1.3 - Session Filtering Fix
 
 - 🐛 **Session Dropdown Filtering** - Fixed workspace folder filtering
