@@ -3,6 +3,7 @@ import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatPanelProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
+import { getAllSessions, filterSessionsByFolder } from './sessionUtils';
 
 let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
@@ -518,40 +519,55 @@ function updateSessionsList() {
 	const os = require('os');
 	
 	try {
-		const sessionDir = path.join(os.homedir(), '.copilot', 'session-state');
-		if (!fs.existsSync(sessionDir)) {
+		// Get configuration
+		const config = vscode.workspace.getConfiguration('copilotCLI');
+		const filterByFolder = config.get<boolean>('filterSessionsByFolder', false);
+		const workspaceFolders = vscode.workspace.workspaceFolders;
+		const workspaceFolder = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : null;
+		
+		// Use sessionUtils to get all sessions with metadata
+		let sessions = getAllSessions();
+		
+		logger.debug(`Found ${sessions.length} total sessions`);
+		
+		// Apply workspace filtering if enabled and workspace is open
+		if (filterByFolder && workspaceFolder) {
+			const beforeCount = sessions.length;
+			sessions = filterSessionsByFolder(sessions, workspaceFolder);
+			logger.debug(`Filtered ${beforeCount} sessions to ${sessions.length} for workspace: ${workspaceFolder}`);
+		} else {
+			logger.debug(`Session filtering disabled or no workspace open (filterByFolder: ${filterByFolder}, workspace: ${workspaceFolder})`);
+		}
+		
+		// Get current session ID
+		const currentSessionId = cliManager?.getSessionId() || null;
+		
+		// If current session exists but isn't in the list yet (new session without events.jsonl),
+		// add it to the front of the list
+		if (currentSessionId && !sessions.find(s => s.id === currentSessionId)) {
+			logger.info(`Current session ${currentSessionId} not in list yet, adding it`);
+			sessions.unshift({
+				id: currentSessionId,
+				mtime: Date.now() // Most recent
+			});
+		}
+		
+		// If no sessions found, send empty list
+		if (sessions.length === 0) {
 			ChatPanelProvider.updateSessions([], null);
 			return;
 		}
 		
-		const sessions = fs.readdirSync(sessionDir)
-			.filter((name: string) => {
-				const fullPath = path.join(sessionDir, name);
-				if (!fs.statSync(fullPath).isDirectory()) {
-					return false;
-				}
-				
-				// Filter out sessions without valid events.jsonl
-				const eventsPath = path.join(fullPath, 'events.jsonl');
-				if (!fs.existsSync(eventsPath)) {
-					logger.debug(`Skipping session ${name} from dropdown: no events.jsonl found`);
-					return false;
-				}
-				
-				return true;
-			})
-			.map((name: string) => ({
-				id: name,
-				time: fs.statSync(path.join(sessionDir, name)).mtime.getTime(),
-				label: formatSessionLabel(name, path.join(sessionDir, name))
-			}))
-			.sort((a: any, b: any) => b.time - a.time);
+		// Sort by modification time (most recent first)
+		const sortedSessions = sessions.sort((a, b) => b.mtime - a.mtime);
 		
-		const currentSessionId = cliManager?.getSessionId() || null;
-		ChatPanelProvider.updateSessions(
-			sessions.map((s: any) => ({ id: s.id, label: s.label })),
-			currentSessionId
-		);
+		// Format labels and prepare for UI
+		const sessionList = sortedSessions.map((session) => ({
+			id: session.id,
+			label: formatSessionLabel(session.id, path.join(os.homedir(), '.copilot', 'session-state', session.id))
+		}));
+		
+		ChatPanelProvider.updateSessions(sessionList, currentSessionId);
 	} catch (error) {
 		logger.error('Failed to update sessions list', error instanceof Error ? error : undefined);
 	}
@@ -716,3 +732,4 @@ export function deactivate() {
 // Export for testing
 export { SDKSessionManager } from './sdkSessionManager';
 export { BackendState, getBackendState } from './backendState';
+export { updateSessionsList }; // Exported for testing
