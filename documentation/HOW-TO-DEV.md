@@ -40,7 +40,8 @@ npm install --save-dev @vscode/vsce
 Edit files in `src/`:
 - `src/extension.ts` - Main extension entry point
 - `src/chatViewProvider.ts` - Webview chat panel
-- `src/cliProcessManager.ts` - CLI process management
+- `src/sdkSessionManager.ts` - SDK session management
+- `src/modelCapabilitiesService.ts` - Model capabilities and validation
 - `src/logger.ts` - Logging to Output Channel
 
 #### 2. Build and Install
@@ -104,7 +105,10 @@ vscode-extension-copilot-cli/
 ├── src/                    # TypeScript source
 │   ├── extension.ts        # Main entry point
 │   ├── chatViewProvider.ts # Chat UI
-│   ├── cliProcessManager.ts# CLI integration
+│   ├── sdkSessionManager.ts# SDK session management
+│   ├── modelCapabilitiesService.ts # Model capabilities
+│   ├── backendState.ts     # State management
+│   ├── sessionUtils.ts     # Session utilities
 │   └── logger.ts           # Logging utility
 ├── dist/                   # Compiled JavaScript
 ├── images/                 # Extension icon

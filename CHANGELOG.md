@@ -2,6 +2,15 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [Unreleased]
+
+### 🧹 Chore
+
+- Removed deprecated `cliProcessManager.ts` (v1.0 legacy implementation)
+  - This file was superseded by `sdkSessionManager.ts` in v2.0 (January 2026)
+  - No functionality lost - all features are in the SDK-based implementation
+  - Historical reference preserved in git history (pre-v2.0 commits)
+
 ## [2.1.4] - 2026-02-04
 
 ### 🐛 Bug Fixes
