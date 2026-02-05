@@ -66,11 +66,7 @@ global.vscode = {
             appendLine: () => {},
             show: () => {},
             dispose: () => {}
-        }),
-        onDidChangeActiveTextEditor: (callback) => ({
-            dispose: () => {}
-        }),
-        activeTextEditor: undefined
+        })
     },
     commands: {
         registerCommand: () => ({ dispose: () => {} }),

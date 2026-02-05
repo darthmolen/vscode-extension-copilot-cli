@@ -80,26 +80,13 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('Status bar item created');
 
 	// Register message handler ONCE in activate, not in startCLISession
-	ChatPanelProvider.onUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string; webviewUri?: string}>}) => {
-		logger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);
-		if (data.attachments && data.attachments.length > 0) {
-			logger.info(`  with ${data.attachments.length} attachment(s):`);
-			data.attachments.forEach((att, i) => {
-				logger.info(`    ${i + 1}. ${att.displayName} (${att.path})`);
-			});
-		}
-		
-		// Convert attachments to display format (with webviewUri for thumbnails)
-		const displayAttachments = data.attachments?.map(att => ({
-			displayName: att.displayName || att.path.split(/[/\\]/).pop() || 'unknown',
-			webviewUri: att.webviewUri // Keep webviewUri for displaying in message history
-		}));
-		
-		ChatPanelProvider.addUserMessage(data.text, displayAttachments);
+	ChatPanelProvider.onUserMessage(async (text: string) => {
+		logger.info(`Sending user message to CLI: ${text}`);
+		ChatPanelProvider.addUserMessage(text);
 		ChatPanelProvider.setThinking(true);
 		
 		if (cliManager && cliManager.isRunning()) {
-			cliManager.sendMessage(data.text, data.attachments);
+			cliManager.sendMessage(text);
 		} else {
 			logger.error('Cannot send message: CLI not running');
 			ChatPanelProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');

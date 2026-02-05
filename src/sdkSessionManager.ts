@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './logger';
 import { getMostRecentSession } from './sessionUtils';
-import { ModelCapabilitiesService } from './modelCapabilitiesService';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -91,10 +90,6 @@ export class SDKSessionManager {
     // Track last active text editor (since activeTextEditor is null when webview has focus)
     private lastActiveTextEditor: vscode.TextEditor | undefined = undefined;
     private activeEditorDisposable: vscode.Disposable | undefined = undefined;
-    
-    // Model capabilities service (singleton, client-level)
-    private modelCapabilitiesService: ModelCapabilitiesService;
-    private currentModelId: string | null = null;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -106,9 +101,6 @@ export class SDKSessionManager {
         this.workingDirectory = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
         this.logger.info(`Working directory set to: ${this.workingDirectory}`);
         this.resumeSession = resumeLastSession;
-        
-        // Initialize model capabilities service
-        this.modelCapabilitiesService = new ModelCapabilitiesService();
         
         // Set up temp directory for file snapshots
         this.tempDir = context.globalStorageUri.fsPath;
@@ -175,9 +167,6 @@ export class SDKSessionManager {
             });
 
             this.logger.info('CopilotClient created, initializing session...');
-            
-            // Initialize model capabilities service with the client
-            await this.modelCapabilitiesService.initialize(this.client);
 
             // Create or resume session
             const mcpServers = this.getEnabledMCPServers();
@@ -241,9 +230,6 @@ export class SDKSessionManager {
 
             // Set up event listeners
             this.setupSessionEventHandlers();
-            
-            // Fetch model capabilities for vision support
-            await this.updateModelCapabilities();
 
             this.onMessageEmitter.fire({
                 type: 'status',
@@ -1014,34 +1000,12 @@ export class SDKSessionManager {
         return obj;
     }
 
-    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false): Promise<void> {
+    public async sendMessage(message: string, isRetry: boolean = false): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
         }
 
         this.logger.info(`Sending message: ${message.substring(0, 100)}...`);
-        if (attachments && attachments.length > 0) {
-            this.logger.info(`[Attachments] Sending ${attachments.length} attachment(s):`);
-            attachments.forEach((att, idx) => {
-                this.logger.info(`[Attachments]   ${idx + 1}. ${att.displayName || path.basename(att.path)} (${att.path})`);
-            });
-            
-            // Validate attachments before sending
-            const validation = await this.validateAttachments(attachments.map(a => a.path));
-            if (!validation.valid) {
-                const errorMsg = validation.error || 'Attachment validation failed';
-                this.logger.error(`[Attachments] Validation failed: ${errorMsg}`);
-                
-                // Fire error event to UI
-                this.onMessageEmitter.fire({
-                    type: 'error',
-                    data: errorMsg,
-                    timestamp: Date.now()
-                });
-                
-                throw new Error(errorMsg);
-            }
-        }
         
         // Enhance message with active file context and process @file references
         const enhancedMessage = await this.enhanceMessageWithContext(message);
@@ -1049,13 +1013,7 @@ export class SDKSessionManager {
         this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
         
         try {
-            // Send message with or without attachments
-            const sendOptions: any = { prompt: enhancedMessage };
-            if (attachments && attachments.length > 0) {
-                sendOptions.attachments = attachments;
-            }
-            
-            await this.session.sendAndWait(sendOptions);
+            await this.session.sendAndWait({ prompt: enhancedMessage });
             this.logger.info('Message sent and completed successfully');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1141,9 +1099,6 @@ export class SDKSessionManager {
                 // Re-setup event handlers for new session
                 this.setupSessionEventHandlers();
                 
-                // Fetch model capabilities for new session
-                await this.updateModelCapabilities();
-                
                 this.logger.info(`Session recreated: ${this.sessionId}`);
                 
                 // Notify UI about new session
@@ -1155,7 +1110,7 @@ export class SDKSessionManager {
                 
                 // Retry the message once (use flag to prevent infinite loop)
                 if (!isRetry) {
-                    return this.sendMessage(message, attachments, true);
+                    return this.sendMessage(message, true);
                 } else {
                     throw new Error('Session recreation failed on retry');
                 }
@@ -1781,8 +1736,7 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         await this.sendMessage(
             `I just finished planning and accepted the plan. The plan is located at: ${planPath}\n\n` +
             `Please read the plan file and begin implementation. Review the tasks and start executing them.`,
-            undefined, // no attachments
-            false      // isRetry
+            false
         );
         this.logger.info('[Plan Mode] Implementation context injected');
         
@@ -1861,81 +1815,6 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
 
     public getToolExecutions(): ToolExecutionState[] {
         return Array.from(this.toolExecutions.values());
-    }
-    
-    /**
-     * Update model capabilities by logging them for current model
-     * Called on session start and model changes
-     */
-    private async updateModelCapabilities(): Promise<void> {
-        try {
-            // Get model ID from config or session
-            this.currentModelId = this.config.model || 'gpt-5'; // Default model
-            
-            // Log capabilities using the service
-            await this.modelCapabilitiesService.logCapabilities(this.currentModelId);
-            
-        } catch (error) {
-            this.logger.error('[Model Capabilities] Failed to fetch model capabilities', error instanceof Error ? error : undefined);
-        }
-    }
-    
-    /**
-     * Check if current model supports vision/image attachments
-     */
-    public async supportsVision(): Promise<boolean> {
-        if (!this.currentModelId) {
-            return false;
-        }
-        return this.modelCapabilitiesService.supportsVision(this.currentModelId);
-    }
-    
-    /**
-     * Get maximum number of images allowed per message for current model
-     */
-    public async getMaxImages(): Promise<number> {
-        if (!this.currentModelId) {
-            return 0;
-        }
-        return this.modelCapabilitiesService.getMaxImages(this.currentModelId);
-    }
-    
-    /**
-     * Get maximum image file size in bytes for current model
-     */
-    public async getMaxImageSize(): Promise<number> {
-        if (!this.currentModelId) {
-            return 0;
-        }
-        return this.modelCapabilitiesService.getMaxImageSize(this.currentModelId);
-    }
-    
-    /**
-     * Get supported media types for images
-     */
-    public async getSupportedMediaTypes(): Promise<string[]> {
-        if (!this.currentModelId) {
-            return [];
-        }
-        return this.modelCapabilitiesService.getSupportedMediaTypes(this.currentModelId);
-    }
-    
-    /**
-     * Get the model capabilities service (for direct access if needed)
-     */
-    public getModelCapabilitiesService(): ModelCapabilitiesService {
-        return this.modelCapabilitiesService;
-    }
-    
-    /**
-     * Validate all attachments (delegates to ModelCapabilitiesService)
-     * Returns first validation error encountered
-     */
-    public async validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }> {
-        if (!this.currentModelId) {
-            return { valid: false, error: 'No model selected' };
-        }
-        return this.modelCapabilitiesService.validateAttachments(this.currentModelId, filePaths);
     }
 
     public dispose(): void {

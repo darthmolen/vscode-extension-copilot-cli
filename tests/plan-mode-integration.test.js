@@ -11,7 +11,6 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const Module = require('module');
-const { createVSCodeMock } = require('./vscode-mock');
 
 // Mock the 'vscode' module BEFORE any imports
 const originalRequire = Module.prototype.require;
@@ -22,8 +21,61 @@ Module.prototype.require = function(id) {
     return originalRequire.apply(this, arguments);
 };
 
-// Mock VS Code API using shared mock
-global.vscode = createVSCodeMock();
+// Mock VS Code API
+global.vscode = {
+    workspace: {
+        workspaceFolders: [{ uri: { fsPath: __dirname } }],
+        getConfiguration: (section) => ({
+            get: (key, defaultValue) => {
+                if (section === 'copilotCLI') {
+                    const config = {
+                        'cliPath': 'copilot',
+                        'yoloMode': false,
+                        'model': 'gpt-4o'
+                    };
+                    return config[key] !== undefined ? config[key] : defaultValue;
+                }
+                return defaultValue;
+            }
+        })
+    },
+    EventEmitter: class EventEmitter {
+        constructor() {
+            this.listeners = [];
+            this.event = this.event.bind(this);
+        }
+        fire(data) {
+            this.listeners.forEach(listener => listener(data));
+        }
+        event(listener) {
+            this.listeners.push(listener);
+            return { dispose: () => {
+                const index = this.listeners.indexOf(listener);
+                if (index > -1) this.listeners.splice(index, 1);
+            }};
+        }
+        dispose() {
+            this.listeners = [];
+        }
+    },
+    Uri: {
+        file: (path) => ({ fsPath: path })
+    },
+    window: {
+        showInformationMessage: () => {},
+        showErrorMessage: () => {},
+        showWarningMessage: () => {},
+        createOutputChannel: () => ({
+            appendLine: () => {},
+            show: () => {},
+            dispose: () => {}
+        })
+    },
+    commands: {
+        registerCommand: () => ({ dispose: () => {} }),
+        executeCommand: () => Promise.resolve()
+    }
+};
 
 // Test logger
 class TestLogger {
