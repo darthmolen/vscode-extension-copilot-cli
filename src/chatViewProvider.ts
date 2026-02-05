@@ -5,7 +5,7 @@ import { getBackendState } from './backendState';
 export class ChatPanelProvider {
 	private static panel: vscode.WebviewPanel | undefined;
 	private static logger: Logger;
-	private static messageHandlers: Set<(message: string) => void> = new Set();
+	private static messageHandlers: Set<(data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => void> = new Set();
 	private static abortHandlers: Set<() => void> = new Set();
 	private static onViewOpenedHandlers: Set<() => void> = new Set();
 	private static isSessionActive: boolean = false;
@@ -37,7 +37,10 @@ export class ChatPanelProvider {
 			column,
 			{
 				enableScripts: true,
-				localResourceRoots: [extensionUri],
+				localResourceRoots: [
+					extensionUri,
+					vscode.Uri.file('/') // Allow access to entire filesystem for image attachments
+				],
 				retainContextWhenHidden: true
 			}
 		);
@@ -63,16 +66,26 @@ export class ChatPanelProvider {
 				case 'sendMessage':
 					// Prevent duplicate sends (same message within 1 second)
 					const now = Date.now();
-					if (ChatPanelProvider.lastSentMessage === data.value && 
+					if (ChatPanelProvider.lastSentMessage === data.text && 
 					    now - ChatPanelProvider.lastSentTime < 1000) {
-						this.logger.warn(`Ignoring duplicate message send: ${data.value.substring(0, 50)}...`);
+						this.logger.warn(`Ignoring duplicate message send: ${data.text.substring(0, 50)}...`);
 						return;
 					}
-					ChatPanelProvider.lastSentMessage = data.value;
+					ChatPanelProvider.lastSentMessage = data.text;
 					ChatPanelProvider.lastSentTime = now;
 					
-					this.logger.info(`User sent message: ${data.value}`);
-					this.messageHandlers.forEach(handler => handler(data.value));
+					this.logger.info(`User sent message: ${data.text.substring(0, 100)}...`);
+					if (data.attachments && data.attachments.length > 0) {
+						this.logger.info(`  with ${data.attachments.length} attachment(s)`);
+					}
+					this.messageHandlers.forEach(handler => handler({
+						text: data.text,
+						attachments: data.attachments
+					}));
+					break;
+				case 'pickFiles':
+					this.logger.info('File picker requested from UI');
+					this.handleFilePicker();
 					break;
 				case 'abortMessage':
 					this.logger.info('Abort requested from UI');
@@ -152,7 +165,7 @@ export class ChatPanelProvider {
 		}
 	}
 
-	public static addUserMessage(text: string, storeInBackend: boolean = true) {
+	public static addUserMessage(text: string, attachments?: Array<{displayName: string; webviewUri?: string}>, storeInBackend: boolean = true) {
 		// Store in backend state
 		if (storeInBackend) {
 			const backendState = getBackendState();
@@ -164,8 +177,12 @@ export class ChatPanelProvider {
 			});
 		}
 		
-		// Send to webview
-		ChatPanelProvider.postMessage({ type: 'userMessage', text });
+		// Send to webview with attachments
+		ChatPanelProvider.postMessage({ 
+			type: 'userMessage', 
+			text,
+			attachments 
+		});
 	}
 
 	public static addAssistantMessage(text: string, storeInBackend: boolean = true) {
@@ -271,7 +288,7 @@ export class ChatPanelProvider {
 		ChatPanelProvider.postMessage({ type: 'activeFileChanged', filePath });
 	}
 
-	public static onUserMessage(handler: (message: string) => void) {
+	public static onUserMessage(handler: (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => void) {
 		// Clear any existing handlers to prevent duplicates if extension re-activates
 		if (ChatPanelProvider.messageHandlers.size > 0) {
 			this.logger?.warn(`Clearing ${ChatPanelProvider.messageHandlers.size} existing message handlers`);
@@ -279,6 +296,47 @@ export class ChatPanelProvider {
 		}
 		ChatPanelProvider.messageHandlers.add(handler);
 		this.logger?.info(`Message handler registered (total: ${ChatPanelProvider.messageHandlers.size})`);
+	}
+	
+	private static async handleFilePicker() {
+		const options: vscode.OpenDialogOptions = {
+			canSelectMany: true,
+			openLabel: 'Select Images',
+			filters: {
+				'Images': ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']
+			}
+		};
+		
+		const fileUris = await vscode.window.showOpenDialog(options);
+		if (fileUris && fileUris.length > 0) {
+			this.logger.info(`[ATTACH] User selected ${fileUris.length} file(s)`);
+			
+			// Convert to webview URIs - VS Code serves them securely, no size limit
+			const attachments = fileUris.map(uri => {
+				this.logger.info(`[ATTACH] Processing file: ${uri.fsPath}`);
+				
+				// Convert to webview URI - works for any size image
+				const webviewUri = this.panel?.webview.asWebviewUri(uri);
+				
+				this.logger.info(`[ATTACH] File: ${uri.fsPath}`);
+				this.logger.info(`[ATTACH]   Webview URI: ${webviewUri?.toString()}`);
+				
+				return {
+					type: 'file' as const,
+					path: uri.fsPath,
+					displayName: uri.fsPath.split(/[/\\]/).pop() || 'unknown',
+					webviewUri: webviewUri?.toString() || ''
+				};
+			});
+			
+			this.logger.info(`[ATTACH] Sending ${attachments.length} attachments to webview`);
+			ChatPanelProvider.postMessage({
+				type: 'filesSelected',
+				attachments
+			});
+		} else {
+			this.logger.info('File picker cancelled');
+		}
 	}
 
 	public static onAbort(handler: () => void) {
@@ -318,7 +376,7 @@ export class ChatPanelProvider {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net;">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net; img-src ${webview.cspSource} data:;">
 	<title>Copilot CLI Chat</title>
 	<script nonce="${nonce}" src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
 	<style>
@@ -537,6 +595,38 @@ export class ChatPanelProvider {
 		
 		.message-content strong {
 			font-weight: 600;
+		}
+		
+		/* Message attachments */
+		.message-attachments {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			margin-top: 12px;
+			padding-top: 12px;
+			border-top: 1px solid var(--vscode-panel-border);
+		}
+		
+		.message-attachment {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 4px;
+			max-width: 150px;
+		}
+		
+		.message-attachment-image {
+			max-width: 150px;
+			max-height: 150px;
+			border-radius: 4px;
+			border: 1px solid var(--vscode-panel-border);
+		}
+		
+		.message-attachment-name {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			text-align: center;
+			word-break: break-all;
 		}
 		
 		.message-content em {
@@ -877,6 +967,98 @@ export class ChatPanelProvider {
 			opacity: 0.5;
 			cursor: not-allowed;
 		}
+		
+		/* Attachment UI Styles */
+		.attach-btn {
+			position: relative;
+			padding: 6px;
+			min-width: 36px;
+			background-color: transparent;
+			border: 1px solid var(--vscode-input-border);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		
+		.attach-btn:hover {
+			background-color: var(--vscode-list-hoverBackground);
+		}
+		
+		.attach-count {
+			position: absolute;
+			top: -4px;
+			right: -4px;
+			background-color: var(--vscode-badge-background);
+			color: var(--vscode-badge-foreground);
+			border-radius: 10px;
+			padding: 2px 6px;
+			font-size: 10px;
+			font-weight: bold;
+			min-width: 18px;
+			text-align: center;
+		}
+		
+		.attachments-preview {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+			padding: 8px 12px;
+			border-bottom: 1px solid var(--vscode-panel-border);
+			background-color: var(--vscode-editor-background);
+		}
+		
+		.attachment-item {
+			position: relative;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 4px;
+			padding: 8px;
+			border: 1px solid var(--vscode-panel-border);
+			border-radius: 4px;
+			background-color: var(--vscode-input-background);
+			max-width: 120px;
+		}
+		
+		.attachment-thumbnail {
+			width: 80px;
+			height: 80px;
+			object-fit: cover;
+			border-radius: 2px;
+		}
+		
+		.attachment-name {
+			font-size: 11px;
+			text-align: center;
+			word-break: break-all;
+			max-width: 100px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		
+		.attachment-remove {
+			position: absolute;
+			top: 4px;
+			right: 4px;
+			background-color: var(--vscode-errorForeground);
+			color: white;
+			border: none;
+			border-radius: 50%;
+			width: 20px;
+			height: 20px;
+			padding: 0;
+			cursor: pointer;
+			font-size: 14px;
+			line-height: 1;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		
+		.attachment-remove:hover {
+			opacity: 0.8;
+		}
 
 		button.stop-button {
 			background-color: var(--vscode-errorForeground);
@@ -1182,7 +1364,16 @@ export class ChatPanelProvider {
 				<button class="acceptance-btn secondary" id="keepPlanningBtn" aria-label="Keep planning without accepting">No, Keep Planning</button>
 				<button class="acceptance-btn" id="acceptAndWorkBtn" aria-label="Accept plan and switch to work mode">Accept and change to work mode</button>
 			</div>
+			<!-- Attachment preview area -->
+			<div class="attachments-preview" id="attachmentsPreview" style="display: none;"></div>
+			
 			<div class="input-wrapper">
+				<button id="attachButton" class="attach-btn" aria-label="Attach images" title="Attach images">
+					<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+						<path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a3.5 3.5 0 1 1-7 0V5a.5.5 0 0 1 1 0v7a2.5 2.5 0 0 0 5 0V3a1.5 1.5 0 1 0-3 0v9a.5.5 0 0 0 1 0V5a.5.5 0 0 1 1 0v7a1.5 1.5 0 1 1-3 0V3z"/>
+					</svg>
+					<span class="attach-count" id="attachCount" style="display: none;"></span>
+				</button>
 				<textarea 
 					id="messageInput" 
 					placeholder="Type a message..."
@@ -1221,6 +1412,9 @@ export class ChatPanelProvider {
 		const acceptanceInput = document.getElementById('acceptanceInput');
 		const keepPlanningBtn = document.getElementById('keepPlanningBtn');
 		const acceptAndWorkBtn = document.getElementById('acceptAndWorkBtn');
+		const attachButton = document.getElementById('attachButton');
+		const attachmentsPreview = document.getElementById('attachmentsPreview');
+		const attachCount = document.getElementById('attachCount');
 
 		let sessionActive = false;
 		let currentSessionId = null;
@@ -1228,6 +1422,9 @@ export class ChatPanelProvider {
 		let planMode = false;
 		let workspacePath = null;
 		let isReasoning = false;
+		
+		// Attachments state
+		let pendingAttachments = [];
 		
 		// Prompt history
 		const messageHistory = [];
@@ -1387,6 +1584,11 @@ export class ChatPanelProvider {
 				sendMessage();
 			}
 		});
+		
+		// Attach button click handler
+		attachButton.addEventListener('click', () => {
+			vscode.postMessage({ type: 'pickFiles' });
+		});
 
 		// Send message on Enter (Shift+Enter for newline)
 		// Arrow keys for history navigation
@@ -1408,6 +1610,7 @@ export class ChatPanelProvider {
 			if (!text || !sessionActive) return;
 
 			console.log('[SEND] sendMessage() called, text:', text.substring(0, 50));
+			console.log('[SEND] Pending attachments:', pendingAttachments.length);
 			
 			// Save to history (without [[PLAN]] prefix - save what user typed)
 			messageHistory.push(text);
@@ -1422,12 +1625,61 @@ export class ChatPanelProvider {
 			console.log('[SEND] Posting message to extension:', text.substring(0, 50));
 			vscode.postMessage({
 				type: 'sendMessage',
-				value: text
+				text: text,
+				attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined
 			});
 
 			messageInput.value = '';
 			messageInput.style.height = 'auto';
+			
+			// Clear attachments after sending
+			clearAttachments();
 		}
+		
+		function clearAttachments() {
+			pendingAttachments = [];
+			updateAttachmentsPreview();
+			updateAttachCount();
+		}
+		
+		function updateAttachmentsPreview() {
+			console.log('[ATTACH] updateAttachmentsPreview called with', pendingAttachments.length, 'attachments');
+			
+			if (pendingAttachments.length === 0) {
+				attachmentsPreview.style.display = 'none';
+				attachmentsPreview.innerHTML = '';
+				return;
+			}
+			
+			attachmentsPreview.style.display = 'flex';
+			
+			attachmentsPreview.innerHTML = pendingAttachments.map((att, index) => {
+				const imgSrc = att.webviewUri || 'data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23ccc\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%23666\\' font-size=\\'12\\'%3EImage%3C/text%3E%3C/svg%3E';
+				
+				return \`
+					<div class="attachment-item">
+						<button class="attachment-remove" onclick="removeAttachment(\${index})" title="Remove">&times;</button>
+						<img class="attachment-thumbnail" src="\${imgSrc}" alt="\${att.displayName}" />
+						<div class="attachment-name" title="\${att.displayName}">\${att.displayName}</div>
+					</div>
+				\`;
+			}).join('');
+		}
+		
+		function updateAttachCount() {
+			if (pendingAttachments.length > 0) {
+				attachCount.textContent = pendingAttachments.length;
+				attachCount.style.display = 'block';
+			} else {
+				attachCount.style.display = 'none';
+			}
+		}
+		
+		window.removeAttachment = function(index) {
+			pendingAttachments.splice(index, 1);
+			updateAttachmentsPreview();
+			updateAttachCount();
+		};
 		
 		function navigateHistory(direction) {
 			if (messageHistory.length === 0) return;
@@ -1466,7 +1718,7 @@ export class ChatPanelProvider {
 			}
 		}
 
-		function addMessage(role, text) {
+		function addMessage(role, text, attachments) {
 			emptyState.classList.add('hidden');
 			
 			// Close current tool group when user sends a message OR when assistant responds
@@ -1490,9 +1742,24 @@ export class ChatPanelProvider {
 				messageDiv.setAttribute('aria-label', \`\${role === 'user' ? 'Your' : 'Assistant'} message\`);
 				// Use marked for assistant messages, plain text for user
 				const content = role === 'assistant' ? marked.parse(text) : escapeHtml(text);
+				
+				// Build attachments HTML if present
+				let attachmentsHtml = '';
+				if (attachments && attachments.length > 0) {
+					attachmentsHtml = '<div class="message-attachments">' + 
+						attachments.map(att => \`
+							<div class="message-attachment">
+								\${att.webviewUri ? \`<img src="\${att.webviewUri}" alt="\${att.displayName}" class="message-attachment-image" />\` : ''}
+								<div class="message-attachment-name">📎 \${att.displayName}</div>
+							</div>
+						\`).join('') +
+						'</div>';
+				}
+				
 				messageDiv.innerHTML = \`
 					<div class="message-header">\${role === 'user' ? 'You' : 'Assistant'}</div>
 					<div class="message-content">\${content}</div>
+					\${attachmentsHtml}
 				\`;
 			}
 			
@@ -1837,8 +2104,18 @@ export class ChatPanelProvider {
 					setSessionActive(message.sessionActive);
 					break;
 				}
+				case 'filesSelected': {
+					// Add selected files to pending attachments
+					console.log('[ATTACH] Received filesSelected, attachments:', message.attachments.length);
+					if (message.attachments && message.attachments.length > 0) {
+						pendingAttachments.push(...message.attachments);
+						updateAttachmentsPreview();
+						updateAttachCount();
+					}
+					break;
+				}
 				case 'userMessage':
-					addMessage('user', message.text);
+					addMessage('user', message.text, message.attachments);
 					break;
 				case 'assistantMessage':
 					addMessage('assistant', message.text);
