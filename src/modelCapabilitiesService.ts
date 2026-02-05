@@ -58,6 +58,13 @@ export class ModelCapabilitiesService {
     }
     
     /**
+     * Set the Copilot SDK client (for testing)
+     */
+    public setClient(client: any): void {
+        this.client = client;
+    }
+    
+    /**
      * Initialize the service with a Copilot SDK client
      */
     public async initialize(client: any): Promise<void> {
