@@ -80,6 +80,9 @@ global.vscode = {
             show: () => {},
             dispose: () => {}
         }),
+        onDidChangeActiveTextEditor: (callback) => ({
+            dispose: () => {}
+        }),
         activeTextEditor: undefined
     },
     commands: {
