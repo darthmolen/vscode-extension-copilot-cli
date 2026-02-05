@@ -189,26 +189,26 @@ describe('Attachment Validation Error Handling', () => {
         it('should reject .gif files for Claude (not supported)', async () => {
             const result = await service.validateAttachmentType('claude-3.5-sonnet', '/path/to/animation.gif');
             assert.strictEqual(result.valid, false);
-            assert.match(result.error, /Unsupported image type/);
+            assert.match(result.error, /Format \.gif not supported/);
             assert.match(result.error, /\.gif/);
         });
         
         it('should reject .pdf files', async () => {
             const result = await service.validateAttachmentType('gpt-4o', '/path/to/document.pdf');
             assert.strictEqual(result.valid, false);
-            assert.match(result.error, /Unsupported file extension/);
+            assert.match(result.error, /Unsupported file type/);
         });
         
         it('should reject .txt files', async () => {
             const result = await service.validateAttachmentType('gpt-4o', '/path/to/file.txt');
             assert.strictEqual(result.valid, false);
-            assert.match(result.error, /Unsupported file extension/);
+            assert.match(result.error, /Unsupported file type/);
         });
         
         it('should reject .bmp files', async () => {
             const result = await service.validateAttachmentType('gpt-4o', '/path/to/bitmap.bmp');
             assert.strictEqual(result.valid, false);
-            assert.match(result.error, /Unsupported file extension/);
+            assert.match(result.error, /Unsupported file type/);
         });
     });
     

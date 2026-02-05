@@ -71,3 +71,4 @@ function createVSCodeMock() {
 }
 
 module.exports = createVSCodeMock();
+module.exports.createVSCodeMock = createVSCodeMock;

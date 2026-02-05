@@ -86,7 +86,8 @@ export class ModelCapabilitiesService {
         }
         
         this.logger.info('[ModelCapabilitiesService] Fetching models from SDK...');
-        const models = await this.client.listModels();
+        const response = await this.client.listModels();
+        const models = response.models || [];
         this.allModelsCache = models;
         
         // Cache individual model capabilities
