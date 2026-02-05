@@ -13,6 +13,7 @@ export class ChatPanelProvider {
 	private static viewPlanHandlers: Set<() => void> = new Set();
 	private static lastSentMessage: string | undefined;
 	private static lastSentTime: number = 0;
+	private static validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;
 
 	public static createOrShow(extensionUri: vscode.Uri) {
 		this.logger = Logger.getInstance();
@@ -311,6 +312,23 @@ export class ChatPanelProvider {
 		if (fileUris && fileUris.length > 0) {
 			this.logger.info(`[ATTACH] User selected ${fileUris.length} file(s)`);
 			
+			// Validate attachments before processing
+			if (this.validateAttachmentsCallback) {
+				const filePaths = fileUris.map(uri => uri.fsPath);
+				this.logger.info(`[ATTACH] Validating ${filePaths.length} files...`);
+				
+				const validationResult = await this.validateAttachmentsCallback(filePaths);
+				if (!validationResult.valid) {
+					this.logger.warn(`[ATTACH] Validation failed: ${validationResult.error}`);
+					vscode.window.showErrorMessage(validationResult.error || 'Invalid attachment');
+					return;
+				}
+				
+				this.logger.info('[ATTACH] Validation passed ✓');
+			} else {
+				this.logger.warn('[ATTACH] No validation callback registered, skipping validation');
+			}
+			
 			// Convert to webview URIs - VS Code serves them securely, no size limit
 			const attachments = fileUris.map(uri => {
 				this.logger.info(`[ATTACH] Processing file: ${uri.fsPath}`);
@@ -355,6 +373,11 @@ export class ChatPanelProvider {
 
 	public static onViewPlan(handler: () => void) {
 		ChatPanelProvider.viewPlanHandlers.add(handler);
+	}
+
+	public static setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) {
+		ChatPanelProvider.validateAttachmentsCallback = callback;
+		this.logger?.info('Attachment validation callback registered');
 	}
 
 	public static forceRecreate(extensionUri: vscode.Uri) {

@@ -488,6 +488,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		backendState.setWorkspacePath(workspacePath || null);
 		ChatPanelProvider.setWorkspacePath(workspacePath);
 		
+		// Register attachment validation callback
+		ChatPanelProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
+			if (!cliManager) {
+				return { valid: false, error: 'Session not active' };
+			}
+			return await cliManager.validateAttachments(filePaths);
+		});
+		
 		logger.info('✅ CLI process started successfully');
 		ChatPanelProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
 		
