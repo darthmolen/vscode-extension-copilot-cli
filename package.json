@@ -303,6 +303,7 @@
     "test:session": "npm run compile && node tests/session-resume.test.js"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.108.1",
@@ -314,6 +315,7 @@
     "eslint": "^9.39.2",
     "mocha": "^11.7.5",
     "npm-run-all": "^4.1.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.52.0"
   },
