@@ -5,6 +5,9 @@ import { Logger } from './logger';
 import { getMostRecentSession } from './sessionUtils';
 import { ModelCapabilitiesService } from './modelCapabilitiesService';
 import { PlanModeToolsService } from './planModeToolsService';
+import { MessageEnhancementService } from './messageEnhancementService';
+import { FileSnapshotService, FileSnapshot } from './fileSnapshotService';
+import { MCPConfigurationService } from './mcpConfigurationService';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -56,12 +59,6 @@ export interface ToolExecutionState {
     intent?: string;  // Intent from the message containing this tool call
 }
 
-interface FileSnapshot {
-    originalPath: string;
-    tempFilePath: string;
-    timestamp: number;
-}
-
 type SessionMode = 'work' | 'plan';
 
 export class SDKSessionManager {
@@ -76,8 +73,6 @@ export class SDKSessionManager {
     private toolExecutions: Map<string, ToolExecutionState> = new Map();
     private sdkLoaded: boolean = false;
     private lastMessageIntent: string | undefined;  // Store intent from report_intent tool calls
-    private fileSnapshots: Map<string, FileSnapshot> = new Map();
-    private tempDir: string;
     
     // Plan mode: dual session support
     private currentMode: SessionMode = 'work';
@@ -89,16 +84,13 @@ export class SDKSessionManager {
     // Event handler cleanup
     private sessionUnsubscribe: (() => void) | null = null;
     
-    // Track last active text editor (since activeTextEditor is null when webview has focus)
-    private lastActiveTextEditor: vscode.TextEditor | undefined = undefined;
-    private activeEditorDisposable: vscode.Disposable | undefined = undefined;
-    
-    // Model capabilities service (singleton, client-level)
+    // Services
     private modelCapabilitiesService: ModelCapabilitiesService;
     private currentModelId: string | null = null;
-    
-    // Plan mode tools service
     private planModeToolsService: PlanModeToolsService | null = null;
+    private messageEnhancementService: MessageEnhancementService;
+    private fileSnapshotService: FileSnapshotService;
+    private mcpConfigurationService: MCPConfigurationService;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -111,23 +103,11 @@ export class SDKSessionManager {
         this.logger.info(`Working directory set to: ${this.workingDirectory}`);
         this.resumeSession = resumeLastSession;
         
-        // Initialize model capabilities service
+        // Initialize services
         this.modelCapabilitiesService = new ModelCapabilitiesService();
-        
-        // Set up temp directory for file snapshots
-        this.tempDir = context.globalStorageUri.fsPath;
-        if (!fs.existsSync(this.tempDir)) {
-            fs.mkdirSync(this.tempDir, { recursive: true });
-        }
-        
-        // Track the last active text editor (current one might be null if webview has focus)
-        this.lastActiveTextEditor = vscode.window.activeTextEditor;
-        this.activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (editor) {
-                this.lastActiveTextEditor = editor;
-                this.logger.debug(`Active editor changed to: ${editor.document.uri.fsPath}`);
-            }
-        });
+        this.messageEnhancementService = new MessageEnhancementService();
+        this.fileSnapshotService = new FileSnapshotService();
+        this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
         
         // If specific session ID provided, use it
         if (specificSessionId) {
@@ -430,7 +410,7 @@ export class SDKSessionManager {
         this.toolExecutions.set(data.toolCallId, state);
         
         // Capture file snapshot for edit/create tools
-        this.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
+        this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
         
         this.onMessageEmitter.fire({
             type: 'tool_start',
@@ -482,7 +462,7 @@ export class SDKSessionManager {
                 });
                 
                 // If we have a snapshot and operation succeeded, fire diff_available
-                const snapshot = this.fileSnapshots.get(data.toolCallId);
+                const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
                 if (snapshot && data.success) {
                     const fileName = path.basename(snapshot.originalPath);
                     this.onMessageEmitter.fire({
@@ -500,69 +480,9 @@ export class SDKSessionManager {
         }
     }
     
-    private captureFileSnapshot(toolCallId: string, toolName: string, args: any): void {
-        // Only capture for edit and create tools
-        if (toolName !== 'edit' && toolName !== 'create') {
-            return;
-        }
-        
-        try {
-            // Extract file path from arguments
-            const filePath = (args as any)?.path;
-            if (!filePath) {
-                this.logger.debug(`No path in ${toolName} tool arguments`);
-                return;
-            }
-            
-            // For edit: file should exist, read it
-            // For create: file won't exist, create empty snapshot
-            let content = '';
-            const fileExists = fs.existsSync(filePath);
-            
-            this.logger.info(`[Snapshot] ${toolName} for ${filePath}, file exists: ${fileExists}`);
-            
-            if (toolName === 'edit') {
-                if (fileExists) {
-                    content = fs.readFileSync(filePath, 'utf8');
-                    this.logger.info(`[Snapshot] Captured ${content.length} bytes: ${JSON.stringify(content.substring(0, 100))}`);
-                } else {
-                    this.logger.warn(`[Snapshot] File doesn't exist for edit operation: ${filePath}`);
-                }
-            } else {
-                this.logger.info(`[Snapshot] Create operation, using empty snapshot`);
-            }
-            
-            // Write to temp file
-            const tempFileName = `${toolCallId}-before-${path.basename(filePath)}`;
-            const tempFilePath = path.join(this.tempDir, tempFileName);
-            fs.writeFileSync(tempFilePath, content, 'utf8');
-            
-            // Store snapshot
-            this.fileSnapshots.set(toolCallId, {
-                originalPath: filePath,
-                tempFilePath: tempFilePath,
-                timestamp: Date.now()
-            });
-            
-            this.logger.debug(`Captured file snapshot for ${toolName}: ${filePath} -> ${tempFilePath}`);
-        } catch (error) {
-            this.logger.error(`Failed to capture file snapshot: ${error}`);
-        }
-    }
     
     public cleanupDiffSnapshot(toolCallId: string): void {
-        const snapshot = this.fileSnapshots.get(toolCallId);
-        if (snapshot) {
-            try {
-                if (fs.existsSync(snapshot.tempFilePath)) {
-                    fs.unlinkSync(snapshot.tempFilePath);
-                }
-                this.fileSnapshots.delete(toolCallId);
-                this.logger.debug(`Cleaned up snapshot for ${toolCallId}`);
-            } catch (error) {
-                this.logger.error(`Failed to cleanup snapshot: ${error}`);
-            }
-        }
+        this.fileSnapshotService.cleanupSnapshot(toolCallId);
     }
 
     private getCustomTools(): any[] {
@@ -582,45 +502,7 @@ export class SDKSessionManager {
     private getEnabledMCPServers(): Record<string, any> {
         const mcpConfig = vscode.workspace.getConfiguration('copilotCLI')
             .get<Record<string, any>>('mcpServers', {});
-        
-        // Filter to only enabled servers
-        const enabled: Record<string, any> = {};
-        for (const [name, config] of Object.entries(mcpConfig)) {
-            if (config && config.enabled !== false) {
-                // Remove the 'enabled' field before passing to SDK
-                const { enabled: _, ...serverConfig } = config;
-                
-                // Expand ${workspaceFolder} variables
-                const expandedConfig = this.expandVariables(serverConfig);
-                enabled[name] = expandedConfig;
-            }
-        }
-        
-        if (Object.keys(enabled).length > 0) {
-            this.logger.info(`MCP Servers configured: ${Object.keys(enabled).join(', ')}`);
-        }
-        
-        return enabled;
-    }
-    
-    private expandVariables(obj: any): any {
-        if (typeof obj === 'string') {
-            // Expand ${workspaceFolder}
-            const expanded = obj.replace(/\$\{workspaceFolder\}/g, this.workingDirectory);
-            if (expanded !== obj) {
-                this.logger.debug(`Expanded: "${obj}" -> "${expanded}"`);
-            }
-            return expanded;
-        } else if (Array.isArray(obj)) {
-            return obj.map(item => this.expandVariables(item));
-        } else if (obj && typeof obj === 'object') {
-            const expanded: any = {};
-            for (const [key, value] of Object.entries(obj)) {
-                expanded[key] = this.expandVariables(value);
-            }
-            return expanded;
-        }
-        return obj;
+        return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
     }
 
     public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false): Promise<void> {
@@ -653,7 +535,7 @@ export class SDKSessionManager {
         }
         
         // Enhance message with active file context and process @file references
-        const enhancedMessage = await this.enhanceMessageWithContext(message);
+        const enhancedMessage = await this.messageEnhancementService.enhanceMessageWithContext(message);
         
         this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
         
@@ -787,115 +669,6 @@ export class SDKSessionManager {
     /**
      * Enhances the user message with active file context and processes @file references
      */
-    private async enhanceMessageWithContext(message: string): Promise<string> {
-        this.logger.debug('[Enhance] Starting message enhancement...');
-        
-        const config = vscode.workspace.getConfiguration('copilotCLI');
-        const includeActiveFile = config.get<boolean>('includeActiveFile', true);
-        const resolveFileReferences = config.get<boolean>('resolveFileReferences', true);
-        
-        this.logger.debug(`[Enhance] includeActiveFile config: ${includeActiveFile}`);
-        this.logger.debug(`[Enhance] resolveFileReferences config: ${resolveFileReferences}`);
-        
-        const parts: string[] = [];
-        
-        // Add active file context if enabled and there's an active editor
-        if (includeActiveFile) {
-            // Use lastActiveTextEditor instead of vscode.window.activeTextEditor
-            // because activeTextEditor is null when webview has focus
-            const activeEditor = this.lastActiveTextEditor;
-            this.logger.debug(`[Enhance] activeEditor (lastActive): ${activeEditor ? activeEditor.document.uri.fsPath : 'null'}`);
-            
-            if (activeEditor) {
-                const document = activeEditor.document;
-                const relativePath = vscode.workspace.asRelativePath(document.uri);
-                const selection = activeEditor.selection;
-                
-                parts.push(`[Active File: ${relativePath}]`);
-                this.logger.debug(`[Enhance] Added active file context: ${relativePath}`);
-                
-                // If there's a selection, include it
-                if (!selection.isEmpty) {
-                    const selectedText = document.getText(selection);
-                    const startLine = selection.start.line + 1;
-                    const endLine = selection.end.line + 1;
-                    parts.push(`[Selected lines ${startLine}-${endLine}]:\n\`\`\`\n${selectedText}\n\`\`\``);
-                    this.logger.debug(`[Enhance] Added selection context: lines ${startLine}-${endLine}`);
-                }
-            }
-        }
-        
-        // Process @file_name references if enabled
-        const processedMessage = resolveFileReferences 
-            ? await this.processFileReferences(message)
-            : message;
-        
-        this.logger.debug(`[Enhance] parts array length: ${parts.length}`);
-        
-        // Combine context with the message
-        if (parts.length > 0) {
-            const enhanced = `${parts.join('\n')}\n\n${processedMessage}`;
-            this.logger.debug(`[Enhance] Final enhanced message (first 200 chars): ${enhanced.substring(0, 200)}`);
-            return enhanced;
-        }
-        
-        this.logger.debug(`[Enhance] No enhancement applied, returning original message`);
-        return processedMessage;
-    }
-    
-    /**
-     * Processes @file_name references in the message
-     */
-    private async processFileReferences(message: string): Promise<string> {
-        // Match @filename patterns (handles paths with /,\,., -, _)
-        const fileRefPattern = /@([\w\-._/\\]+\.\w+)/g;
-        let processedMessage = message;
-        const matches = Array.from(message.matchAll(fileRefPattern));
-        
-        for (const match of matches) {
-            const fileName = match[1];
-            const fullMatch = match[0];
-            
-            try {
-                // Try to find the file in the workspace
-                const workspaceFolders = vscode.workspace.workspaceFolders;
-                if (!workspaceFolders) {
-                    continue;
-                }
-                
-                // Check if it's already a valid path
-                let fileUri: vscode.Uri | null = null;
-                
-                // Try as relative path from workspace root
-                const rootPath = workspaceFolders[0].uri.fsPath;
-                const absolutePath = path.isAbsolute(fileName) 
-                    ? fileName 
-                    : path.join(rootPath, fileName);
-                
-                if (fs.existsSync(absolutePath)) {
-                    fileUri = vscode.Uri.file(absolutePath);
-                } else {
-                    // Try to find the file using workspace findFiles
-                    const pattern = `**/${fileName}`;
-                    const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 1);
-                    if (files.length > 0) {
-                        fileUri = files[0];
-                    }
-                }
-                
-                if (fileUri) {
-                    const relativePath = vscode.workspace.asRelativePath(fileUri);
-                    // Replace @file with the relative path
-                    processedMessage = processedMessage.replace(fullMatch, relativePath);
-                    this.logger.info(`Resolved ${fullMatch} to ${relativePath}`);
-                }
-            } catch (error) {
-                this.logger.warn(`Failed to resolve file reference ${fullMatch}: ${error}`);
-            }
-        }
-        
-        return processedMessage;
-    }
 
     public async abortMessage(): Promise<void> {
         if (!this.session) {
@@ -954,17 +727,8 @@ export class SDKSessionManager {
         this.sessionId = null;
         this.toolExecutions.clear();
         
-        // Cleanup all file snapshots
-        this.fileSnapshots.forEach(snapshot => {
-            try {
-                if (fs.existsSync(snapshot.tempFilePath)) {
-                    fs.unlinkSync(snapshot.tempFilePath);
-                }
-            } catch (error) {
-                this.logger.error(`Failed to cleanup snapshot: ${error}`);
-            }
-        });
-        this.fileSnapshots.clear();
+        // Cleanup all file snapshots via service
+        this.fileSnapshotService.cleanupAllSnapshots();
 
         this.onMessageEmitter.fire({
             type: 'status',
@@ -1567,7 +1331,15 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
 
     public dispose(): void {
         this.stop();
+        
+        // Dispose all services
+        this.messageEnhancementService.dispose();
+        this.fileSnapshotService.dispose();
+        // MCPConfigurationService has no dispose method (no resources to clean up)
+        if (this.planModeToolsService) {
+            this.planModeToolsService.dispose();
+        }
+        
         this.onMessageEmitter.dispose();
-        this.activeEditorDisposable?.dispose();
     }
 }
