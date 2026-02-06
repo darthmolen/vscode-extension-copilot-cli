@@ -11,6 +11,71 @@ All notable changes to the Copilot CLI Chat extension.
   - No functionality lost - all features are in the SDK-based implementation
   - Historical reference preserved in git history (pre-v2.0 commits)
 
+## [2.2.0] - 2026-02-06
+
+### 🎨 New Features
+
+#### Image Attachment Support
+- 📎 **Attach Images to Messages** - Send images to vision-capable AI models
+  - Click attachment button (📎) next to input box to select images
+  - Preview thumbnails with filename and size before sending
+  - Remove individual attachments before sending message
+  - Supports PNG, JPEG, GIF, WebP formats
+  - Validated against model capabilities (size limits, count limits, types)
+
+#### Vision Model Detection
+- 🤖 **Automatic Vision Capability Detection**
+  - Extension detects which models support image analysis
+  - Model capabilities cached for performance
+  - Real-time validation prevents errors before sending
+  - Clear error messages when model doesn't support images
+
+#### Error Handling & Validation
+- ✅ **Comprehensive Attachment Validation**
+  - File size validation (enforced by model capabilities)
+  - Image count validation (enforced by model capabilities)
+  - File type validation (images only for now)
+  - Clear error dialogs guide users when validation fails
+  - Session remains functional after validation errors
+
+### 🏗️ Architecture Improvements
+
+#### Services Refactor (Phase 5.5)
+- 🧹 **SDKSessionManager Reduced by 31%** (1946 → 1345 lines)
+  - Extracted 4 new services with single responsibilities:
+    - `MessageEnhancementService` - Message formatting and context injection
+    - `FileSnapshotService` - Git snapshot generation (8/8 tests ✅)
+    - `MCPConfigurationService` - MCP server configuration (9/9 tests ✅)
+    - `PlanModeToolsService` - Custom tools for plan mode (22/22 tests ✅)
+  - Better separation of concerns and maintainability
+  - Test-driven development: 39 new tests passing
+
+### 🐛 Bug Fixes
+
+#### Model Capabilities Service
+- Fixed critical bug in `ModelCapabilitiesService.fetchAllModels()`
+  - SDK's `listModels()` returns `ModelInfo[]` directly, not `{models: []}`
+  - Bug caused 0 models to be cached, resulting in "Model not found" warnings
+  - All models now correctly cached and detected
+
+### 🧪 Testing
+
+#### Integration Tests
+- Created `tests/attachment-non-vision-e2e.test.js` (5/5 tests passing)
+  - Tests non-vision model (gpt-3.5-turbo) rejecting attachments
+  - Validates error propagation through all layers
+  - Verifies session resilience after validation errors
+  - New npm script: `npm run test:attachment-error`
+- Test fixture: `tests/fixtures/test-icon.png` (4.32 KB)
+
+### 📝 Known Limitations
+
+The following features are deferred to v2.2.1:
+- Attachment button doesn't disable for non-vision models (shows error after file selection instead)
+- Tool-returned images not displayed (AI can receive images but cannot return them yet)
+- Attachment history not persisted (attachments don't show in session resume)
+- Plan mode attachment support not tested (should work but needs validation)
+
 ## [2.1.4] - 2026-02-04
 
 ### 🐛 Bug Fixes

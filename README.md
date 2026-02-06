@@ -8,6 +8,33 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.2.0 - Image Attachment Support 🎨
+
+- 📎 **Attach Images to Messages** - Send images to vision-capable AI models
+  - Click attachment button (📎) next to chat input box
+  - Select PNG, JPEG, GIF, or WebP images from file picker
+  - Preview thumbnails with filename and size before sending
+  - Remove individual attachments before sending
+  - Automatic validation (size, count, type) prevents errors
+  - Works with GPT-4o, Claude Sonnet 4, and other vision-capable models
+  
+- 🤖 **Vision Model Detection** - Smart capability detection
+  - Extension automatically detects which models support image analysis
+  - Model capabilities cached for performance
+  - Clear error messages when model doesn't support images
+  - Session remains functional after validation errors
+  
+- 🏗️ **Architecture Refactor** - Cleaner, more maintainable code
+  - SDKSessionManager reduced by 31% (1946 → 1345 lines)
+  - 4 new services with single responsibilities
+  - 39 new tests ensuring quality
+  - Test-driven development throughout
+
+**Known Limitations** (coming in v2.2.1):
+- Attachment button doesn't disable for non-vision models
+- Tool-returned images not displayed yet
+- Attachment history not persisted in session resume
+
 ### v2.1.4 - Active File Context Fix
 
 - 🐛 **Active File Context Preserved** - AI now knows which file you're working on
