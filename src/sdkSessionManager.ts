@@ -8,6 +8,7 @@ import { PlanModeToolsService } from './planModeToolsService';
 import { MessageEnhancementService } from './messageEnhancementService';
 import { FileSnapshotService } from './fileSnapshotService';
 import { MCPConfigurationService } from './mcpConfigurationService';
+import { classifySessionError, checkAuthEnvVars, ErrorType } from './authUtils';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -237,6 +238,31 @@ export class SDKSessionManager {
 
         } catch (error) {
             this.logger.error('Failed to start SDK session', error instanceof Error ? error : undefined);
+            
+            // Classify the error for better error handling
+            if (error instanceof Error) {
+                const errorType = classifySessionError(error);
+                const envCheck = checkAuthEnvVars();
+                
+                // Log classification results
+                this.logger.info(`[Auth Detection] Classified as ${errorType} error`);
+                if (envCheck.hasEnvVar) {
+                    this.logger.info(`[Auth Detection] Found ${envCheck.source} environment variable`);
+                } else {
+                    this.logger.info('[Auth Detection] No authentication environment variables found');
+                }
+                
+                this.logger.error(`[Auth Detection] Error type: ${errorType}, Has env var: ${envCheck.hasEnvVar}${envCheck.source ? ` (${envCheck.source})` : ''}`);
+                
+                // Create enhanced error with classification info
+                const enhancedError: any = error;
+                enhancedError.errorType = errorType;
+                enhancedError.hasEnvVar = envCheck.hasEnvVar;
+                enhancedError.envVarSource = envCheck.source;
+                
+                throw enhancedError;
+            }
+            
             throw error;
         }
     }

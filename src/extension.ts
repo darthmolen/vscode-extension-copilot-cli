@@ -505,9 +505,113 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		logger.error(`❌ Failed to start CLI: ${errorMessage}`, error instanceof Error ? error : undefined);
-		statusBarItem.text = "$(error) CLI Failed";
-		statusBarItem.tooltip = `Failed: ${errorMessage}`;
-		vscode.window.showErrorMessage(`Failed to start Copilot CLI: ${errorMessage}`);
+		
+		// Check if this is an authentication error
+		const enhancedError: any = error;
+		if (enhancedError.errorType === 'authentication') {
+			logger.info('[Auth Handler] Authentication error detected, showing guidance');
+			
+			// Check if environment variable is set
+			const hasEnvVar = enhancedError.hasEnvVar || false;
+			const envVarSource = enhancedError.envVarSource;
+			
+			statusBarItem.text = "$(warning) Not Authenticated";
+			statusBarItem.tooltip = "Copilot CLI authentication required";
+			
+			if (hasEnvVar) {
+				// Scenario 2: Environment variable set but invalid/expired
+				logger.info(`[Auth Handler] Invalid/expired token in ${envVarSource}`);
+				
+				// Add message to chat panel
+				ChatPanelProvider.addAssistantMessage(
+					`🔐 **Authentication Failed**\n\n` +
+					`Your \`${envVarSource}\` environment variable appears to be invalid or expired.\n\n` +
+					`**To fix this:**\n` +
+					`1. Update your token with a valid Personal Access Token\n` +
+					`2. Or unset the environment variable to use interactive login\n` +
+					`3. Then restart VS Code and try again\n\n` +
+					`Use the buttons below for more help.`
+				);
+				
+				const action = await vscode.window.showErrorMessage(
+					`Authentication failed. Your ${envVarSource} appears to be invalid or expired.`,
+					{ modal: false },
+					'Show Instructions',
+					'Open Terminal',
+					'Start New Session'
+				);
+				
+				if (action === 'Show Instructions') {
+					// Open GitHub docs in browser
+					vscode.env.openExternal(vscode.Uri.parse('https://docs.github.com/en/copilot/managing-copilot/configure-personal-settings/installing-github-copilot-in-the-cli'));
+				} else if (action === 'Open Terminal') {
+					// Open terminal for user to manually fix
+					const terminal = vscode.window.createTerminal('Copilot Auth');
+					terminal.show();
+					ChatPanelProvider.addAssistantMessage(`Terminal opened. Update your \`${envVarSource}\` or unset it, then restart VS Code.`);
+				} else if (action === 'Start New Session') {
+					await startCLISession(context, false, undefined);
+				}
+			} else {
+				// Scenario 1: No environment variable, need OAuth login
+				logger.info('[Auth Handler] No auth environment variables detected');
+				
+				// Check for enterprise SSO slug configuration
+				const ssoSlug = vscode.workspace.getConfiguration('copilotCLI').get<string>('ghSsoEnterpriseSlug', '');
+				
+				const action = await vscode.window.showErrorMessage(
+					'Copilot CLI not authenticated. Authenticate to continue.',
+					{ modal: false },
+					'Authenticate Now',
+					'Retry'
+				);
+				
+				if (action === 'Authenticate Now') {
+					const terminal = vscode.window.createTerminal('Copilot Auth');
+					
+					if (ssoSlug) {
+						// SSO-enabled enterprise
+						const host = `https://github.com/enterprises/${ssoSlug}/sso`;
+						terminal.sendText(`copilot login --host ${host}`);
+						logger.info(`[Auth Handler] Opening terminal for SSO enterprise auth: ${host}`);
+					} else {
+						// GitHub.com OR enterprise without SSO
+						terminal.sendText('copilot login');
+						logger.info('[Auth Handler] Opening terminal for standard GitHub auth');
+					}
+					
+					terminal.show();
+					
+					// Add message to chat panel with clear instructions
+					ChatPanelProvider.addAssistantMessage(
+						'🔐 **Authentication Required**\n\n' +
+						'A terminal has been opened with the `copilot login` command. Please:\n\n' +
+						'1. Complete the device code flow in your browser\n' +
+						'2. After successful authentication, use the **"Start New Session"** button (+ icon) at the top of this panel\n\n' +
+						'_Or close this panel and reopen it with Ctrl+Shift+P → "Copilot CLI: Open Chat"_'
+					);
+					
+					// Show a more persistent notification with retry option
+					const retryAction = await vscode.window.showInformationMessage(
+						'Complete authentication in the terminal, then start a new session',
+						{ modal: false },
+						'Start New Session'
+					);
+					
+					if (retryAction === 'Start New Session') {
+						await startCLISession(context, false, undefined); // Start fresh session
+					}
+				} else if (action === 'Retry') {
+					await startCLISession(context, resumeLastSession, specificSessionId);
+				}
+			}
+		} else {
+			// Non-authentication error - show generic error
+			statusBarItem.text = "$(error) CLI Failed";
+			statusBarItem.tooltip = `Failed: ${errorMessage}`;
+			vscode.window.showErrorMessage(`Failed to start Copilot CLI: ${errorMessage}`);
+		}
+		
 		throw error;
 	}
 }

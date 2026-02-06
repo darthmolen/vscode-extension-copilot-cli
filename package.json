@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -209,6 +209,13 @@
           ],
           "default": "",
           "description": "AI model for planning mode (empty = use same as work mode)"
+        },
+        "copilotCLI.ghSsoEnterpriseSlug": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "GitHub Enterprise slug for **SSO-enabled organizations only** (e.g., `acme` for `https://github.com/enterprises/acme/sso`).\n\n**When to use**: Only if your enterprise has SSO enabled and requires the `/enterprises/{slug}/sso` path for authentication.\n\n**Leave empty if**:\n- Using github.com (public GitHub)\n- Using GitHub Enterprise Server (self-hosted)\n- Using GitHub Enterprise Cloud without SSO\n\n**How it works**: When authentication fails and this is set, the extension will auto-generate the SSO login command:\n```\ncopilot login --host https://github.com/enterprises/{slug}/sso\n```\n\nExample: Set to `acme` for the Acme Corp enterprise with SSO enabled.",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "patternErrorMessage": "Slug must contain only lowercase letters, numbers, and hyphens (cannot start/end with hyphen)"
         },
         "copilotCLI.noAskUser": {
           "type": "boolean",

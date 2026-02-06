@@ -11,6 +11,54 @@ All notable changes to the Copilot CLI Chat extension.
   - No functionality lost - all features are in the SDK-based implementation
   - Historical reference preserved in git history (pre-v2.0 commits)
 
+## [2.2.1] - 2026-02-06
+
+### 🔐 Authentication & Enterprise Support
+
+#### Authentication Detection & Guidance
+- 🔍 **Smart Error Detection** - Automatically detects authentication failures
+  - Classifies errors: authentication, session expired, network, or unknown
+  - Comprehensive logging with error context for debugging
+  - Different handling for environment variable auth vs. OAuth
+  - **Test Coverage**: 9/9 tests passing for error classification and env var detection
+
+#### Terminal-Based Authentication Flow
+- ✨ **Interactive Authentication** - One-click authentication setup
+  - Click "Authenticate Now" button in error dialog
+  - Extension opens terminal with `copilot login` command pre-filled
+  - Clear instructions guide users through the process
+  - "Retry" button to test authentication after completion
+
+#### Environment Variable Support
+- 🔑 **Token-Based Authentication** - Detects and validates environment variables
+  - Checks `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` (in priority order)
+  - Logs which variable is detected (without exposing token value)
+  - Shows helpful error if token is invalid or expired
+  - Suggests updating token or using interactive login
+
+#### GitHub Enterprise SSO
+- 🏢 **Enterprise SSO Support** - First-class support for SSO-enabled enterprises
+  - New setting: `copilotCLI.ghSsoEnterpriseSlug`
+  - Automatically generates SSO login command with enterprise slug
+  - Example: `copilot login --host https://github.com/enterprises/acme/sso`
+  - Regex validation ensures slug format is correct
+  - Clear documentation for when to use (SSO-enabled enterprises only)
+
+#### User Experience Improvements
+- 📚 **Comprehensive Documentation** - Clear auth instructions in README
+  - Step-by-step guide for interactive OAuth login
+  - Environment variable setup for automation/CI
+  - GitHub Enterprise SSO configuration guide
+  - Troubleshooting section with common issues
+  - Links to official GitHub documentation
+
+### 🐛 Bug Fixes
+
+- Fixed: Generic "Failed to start SDK session" errors with no actionable guidance
+- Fixed: No detection of authentication vs. other error types
+- Fixed: No support for GitHub Enterprise SSO authentication paths
+- Fixed: "Retry" button in notification disappears - now shows clear instructions in chat panel with "Start New Session" guidance
+
 ## [2.2.0] - 2026-02-06
 
 ### 🎨 New Features

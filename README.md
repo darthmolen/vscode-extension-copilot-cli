@@ -8,6 +8,33 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.2.1 - Authentication Detection & Enterprise Support 🔐
+
+- 🔍 **Smart Authentication Detection** - Automatic error detection and guidance
+  - Extension detects when Copilot CLI is not authenticated
+  - Clear, actionable error messages instead of generic failures
+  - Different handling for OAuth vs. environment variable authentication
+  - Comprehensive logging for debugging authentication issues
+  
+- ✨ **One-Click Authentication** - Terminal-based interactive setup
+  - Click "Authenticate Now" button in error dialog
+  - Extension opens terminal with `copilot login` command pre-filled
+  - Follow device code flow in browser to complete authentication
+  - "Retry" button to test authentication after completion
+  
+- 🔑 **Environment Variable Support** - Token-based authentication detection
+  - Detects `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` (priority order)
+  - Validates tokens and shows helpful error if invalid/expired
+  - Suggests updating token or using interactive login
+  - Supports automation and CI/CD scenarios
+  
+- 🏢 **GitHub Enterprise SSO** - First-class enterprise support
+  - New setting: `copilotCLI.ghSsoEnterpriseSlug` for SSO-enabled enterprises
+  - Auto-generates SSO login command with enterprise slug
+  - Example: `copilot login --host https://github.com/enterprises/acme/sso`
+  - Clear documentation for when SSO configuration is needed
+  - Works seamlessly with standard GitHub Enterprise (no SSO)
+
 ### v2.2.0 - Image Attachment Support 🎨
 
 - 📎 **Attach Images to Messages** - Send images to vision-capable AI models
@@ -131,6 +158,73 @@ code --install-extension darthmolen.copilot-cli-extension
 - **Active Copilot subscription**
 
 ⚠️ **Important**: This extension requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
+
+### Authentication
+
+Before using the extension, you must authenticate the Copilot CLI with GitHub.
+
+#### Option 1: Interactive Login (Recommended)
+
+The extension will automatically guide you if authentication is needed:
+
+1. Open the chat panel (Ctrl+Shift+P → "Copilot CLI: Open Chat")
+2. If not authenticated, click **"Authenticate Now"** in the error dialog
+3. The extension opens a terminal with the `copilot login` command pre-filled
+4. Follow the device code flow in your browser to complete authentication
+5. Click **"Retry"** in VS Code to start your session
+
+**Manual authentication**: You can also run `copilot login` in any terminal, then restart the extension.
+
+#### Option 2: Environment Variable
+
+For automation or CI/CD scenarios, set an authentication token as an environment variable:
+
+1. Create a fine-grained Personal Access Token (PAT) with "Copilot Requests" permission
+   - Go to: https://github.com/settings/tokens?type=beta
+   - Generate new token → Select "Copilot Requests" scope
+2. Set the environment variable (priority order):
+   - **`COPILOT_GITHUB_TOKEN`** (highest priority)
+   - **`GH_TOKEN`**
+   - **`GITHUB_TOKEN`** (lowest priority)
+3. Restart VS Code to pick up the environment variable
+
+**Linux/macOS**:
+```bash
+export GH_TOKEN="ghp_your_token_here"
+code  # Restart VS Code from terminal to inherit env vars
+```
+
+**Windows (PowerShell)**:
+```powershell
+$env:GH_TOKEN="ghp_your_token_here"
+code  # Restart VS Code
+```
+
+**Note**: If a token is set but authentication fails, the extension will notify you that the token appears invalid or expired.
+
+#### GitHub Enterprise with SSO
+
+**Only for enterprises with SSO enabled** (most enterprises don't need this):
+
+If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{slug}/sso` authentication path:
+
+1. Get your enterprise slug from your admin (e.g., `acme`)
+2. Configure in VS Code settings:
+   - Open Settings (Ctrl+,)
+   - Search for "Copilot CLI GH SSO Enterprise Slug"
+   - Enter just the slug: `acme`
+3. When authenticating, the extension will automatically generate:
+   ```bash
+   copilot login --host https://github.com/enterprises/acme/sso
+   ```
+
+**When to use this**:
+- ✅ Your enterprise has SSO enabled and requires `/enterprises/{slug}/sso` path
+- ❌ Using github.com (public GitHub) - leave empty
+- ❌ Using GitHub Enterprise Server (self-hosted) - leave empty
+- ❌ Using GitHub Enterprise Cloud without SSO - leave empty
+
+**Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
 
 ## 🚀 Quick Start
 
