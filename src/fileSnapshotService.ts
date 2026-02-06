@@ -145,7 +145,7 @@ export class FileSnapshotService {
         // Remove temp directory
         try {
             if (fs.existsSync(this.tempDir)) {
-                fs.rmdirSync(this.tempDir);
+                fs.rmSync(this.tempDir, { recursive: true, force: true });
                 this.logger.debug(`[FileSnapshot] Removed temp directory: ${this.tempDir}`);
             }
         } catch (error) {

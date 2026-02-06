@@ -214,11 +214,6 @@ describe('Attachment Validation Error Handling', () => {
     
     describe('validateAttachments (combined)', () => {
         it('should validate all attachments and return first error', async () => {
-            const files = [
-                '/path/to/valid.jpg',
-                '/path/to/huge-file.png'  // Will be too large
-            ];
-            
             // We can't easily test this without real files, so this is a placeholder
             // The actual implementation will need fs.statSync to check file sizes
             // For now, just verify the method exists

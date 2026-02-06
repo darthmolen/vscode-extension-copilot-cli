@@ -40,7 +40,7 @@ export class ChatPanelProvider {
 				enableScripts: true,
 				localResourceRoots: [
 					extensionUri,
-					vscode.Uri.file('/') // Allow access to entire filesystem for image attachments
+					...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)
 				],
 				retainContextWhenHidden: true
 			}
@@ -326,7 +326,9 @@ export class ChatPanelProvider {
 				
 				this.logger.info('[ATTACH] Validation passed ✓');
 			} else {
-				this.logger.warn('[ATTACH] No validation callback registered, skipping validation');
+				this.logger.warn('[ATTACH] No validation callback registered; blocking attachment to avoid sending unvalidated files');
+				vscode.window.showErrorMessage('File attachments are not ready yet. Please try again in a moment.');
+				return;
 			}
 			
 			// Convert to webview URIs - VS Code serves them securely, no size limit
@@ -1665,6 +1667,15 @@ export class ChatPanelProvider {
 			updateAttachCount();
 		}
 		
+		function escapeHtml(unsafe) {
+			return unsafe
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;")
+				.replace(/'/g, "&#039;");
+		}
+		
 		function updateAttachmentsPreview() {
 			console.log('[ATTACH] updateAttachmentsPreview called with', pendingAttachments.length, 'attachments');
 			
@@ -1678,12 +1689,13 @@ export class ChatPanelProvider {
 			
 			attachmentsPreview.innerHTML = pendingAttachments.map((att, index) => {
 				const imgSrc = att.webviewUri || 'data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'80\\' height=\\'80\\'%3E%3Crect fill=\\'%23ccc\\' width=\\'80\\' height=\\'80\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%23666\\' font-size=\\'12\\'%3EImage%3C/text%3E%3C/svg%3E';
+				const safeName = escapeHtml(att.displayName);
 				
 				return \`
 					<div class="attachment-item">
 						<button class="attachment-remove" onclick="removeAttachment(\${index})" title="Remove">&times;</button>
-						<img class="attachment-thumbnail" src="\${imgSrc}" alt="\${att.displayName}" />
-						<div class="attachment-name" title="\${att.displayName}">\${att.displayName}</div>
+						<img class="attachment-thumbnail" src="\${imgSrc}" alt="\${safeName}" />
+						<div class="attachment-name" title="\${safeName}">\${safeName}</div>
 					</div>
 				\`;
 			}).join('');

@@ -6,7 +6,7 @@ import { getMostRecentSession } from './sessionUtils';
 import { ModelCapabilitiesService } from './modelCapabilitiesService';
 import { PlanModeToolsService } from './planModeToolsService';
 import { MessageEnhancementService } from './messageEnhancementService';
-import { FileSnapshotService, FileSnapshot } from './fileSnapshotService';
+import { FileSnapshotService } from './fileSnapshotService';
 import { MCPConfigurationService } from './mcpConfigurationService';
 
 // Dynamic import for SDK (ESM module)
