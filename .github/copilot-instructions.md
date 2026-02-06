@@ -121,7 +121,7 @@ npm run compile && code --install-extension copilot-cli-extension-latest.vsix --
 | `backendState.ts` | Centralized state management | In-memory state that persists across webview recreations |
 | `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/`, filters by workspace |
 | `logger.ts` | Logging to Output Channel | Use `Logger.getInstance()` everywhere |
-| `cliProcessManager.ts` | Legacy CLI process spawning | Deprecated v1.0 implementation, kept for reference |
+| `modelCapabilitiesService.ts` | Model capabilities and validation | Manages model info caching, attachment validation |
 
 **Critical: chatViewProvider.ts IS our UI** - The Copilot SDK does NOT provide any UI components. It's a backend-only library for managing CLI sessions. All chat UI (messages, tool calls, input box) is built by us in the webview.
 

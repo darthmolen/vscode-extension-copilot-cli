@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "2.1.4",
+  "version": "2.2.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -295,6 +295,7 @@
     "test": "npm run test:plan-mode",
     "test:mcp": "npm run compile && node tests/mcp-integration.test.js",
     "test:plan-mode": "npm run compile && node tests/plan-mode-integration.test.js",
+    "test:attachment-error": "npm run compile && node tests/attachment-non-vision-e2e.test.js",
     "test:plan-tools": "node tests/plan-mode-tools.test.js",
     "test:integration": "npm run compile && node tests/sdk-integration.test.js",
     "test:verify": "node tests/verify-setup.js",
@@ -303,15 +304,19 @@
     "test:session": "npm run compile && node tests/session-resume.test.js"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.108.1",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.7.1",
+    "chai": "^6.2.2",
     "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
+    "mocha": "^11.7.5",
     "npm-run-all": "^4.1.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.52.0"
   },

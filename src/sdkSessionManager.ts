@@ -3,6 +3,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './logger';
 import { getMostRecentSession } from './sessionUtils';
+import { ModelCapabilitiesService } from './modelCapabilitiesService';
+import { PlanModeToolsService } from './planModeToolsService';
+import { MessageEnhancementService } from './messageEnhancementService';
+import { FileSnapshotService } from './fileSnapshotService';
+import { MCPConfigurationService } from './mcpConfigurationService';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -54,12 +59,6 @@ export interface ToolExecutionState {
     intent?: string;  // Intent from the message containing this tool call
 }
 
-interface FileSnapshot {
-    originalPath: string;
-    tempFilePath: string;
-    timestamp: number;
-}
-
 type SessionMode = 'work' | 'plan';
 
 export class SDKSessionManager {
@@ -74,8 +73,6 @@ export class SDKSessionManager {
     private toolExecutions: Map<string, ToolExecutionState> = new Map();
     private sdkLoaded: boolean = false;
     private lastMessageIntent: string | undefined;  // Store intent from report_intent tool calls
-    private fileSnapshots: Map<string, FileSnapshot> = new Map();
-    private tempDir: string;
     
     // Plan mode: dual session support
     private currentMode: SessionMode = 'work';
@@ -87,9 +84,13 @@ export class SDKSessionManager {
     // Event handler cleanup
     private sessionUnsubscribe: (() => void) | null = null;
     
-    // Track last active text editor (since activeTextEditor is null when webview has focus)
-    private lastActiveTextEditor: vscode.TextEditor | undefined = undefined;
-    private activeEditorDisposable: vscode.Disposable | undefined = undefined;
+    // Services
+    private modelCapabilitiesService: ModelCapabilitiesService;
+    private currentModelId: string | null = null;
+    private planModeToolsService: PlanModeToolsService | null = null;
+    private messageEnhancementService: MessageEnhancementService;
+    private fileSnapshotService: FileSnapshotService;
+    private mcpConfigurationService: MCPConfigurationService;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -102,20 +103,11 @@ export class SDKSessionManager {
         this.logger.info(`Working directory set to: ${this.workingDirectory}`);
         this.resumeSession = resumeLastSession;
         
-        // Set up temp directory for file snapshots
-        this.tempDir = context.globalStorageUri.fsPath;
-        if (!fs.existsSync(this.tempDir)) {
-            fs.mkdirSync(this.tempDir, { recursive: true });
-        }
-        
-        // Track the last active text editor (current one might be null if webview has focus)
-        this.lastActiveTextEditor = vscode.window.activeTextEditor;
-        this.activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (editor) {
-                this.lastActiveTextEditor = editor;
-                this.logger.debug(`Active editor changed to: ${editor.document.uri.fsPath}`);
-            }
-        });
+        // Initialize services
+        this.modelCapabilitiesService = new ModelCapabilitiesService();
+        this.messageEnhancementService = new MessageEnhancementService();
+        this.fileSnapshotService = new FileSnapshotService();
+        this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
         
         // If specific session ID provided, use it
         if (specificSessionId) {
@@ -167,6 +159,9 @@ export class SDKSessionManager {
             });
 
             this.logger.info('CopilotClient created, initializing session...');
+            
+            // Initialize model capabilities service with the client
+            await this.modelCapabilitiesService.initialize(this.client);
 
             // Create or resume session
             const mcpServers = this.getEnabledMCPServers();
@@ -230,6 +225,9 @@ export class SDKSessionManager {
 
             // Set up event listeners
             this.setupSessionEventHandlers();
+            
+            // Fetch model capabilities for vision support
+            await this.updateModelCapabilities();
 
             this.onMessageEmitter.fire({
                 type: 'status',
@@ -412,7 +410,7 @@ export class SDKSessionManager {
         this.toolExecutions.set(data.toolCallId, state);
         
         // Capture file snapshot for edit/create tools
-        this.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
+        this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
         
         this.onMessageEmitter.fire({
             type: 'tool_start',
@@ -464,7 +462,7 @@ export class SDKSessionManager {
                 });
                 
                 // If we have a snapshot and operation succeeded, fire diff_available
-                const snapshot = this.fileSnapshots.get(data.toolCallId);
+                const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
                 if (snapshot && data.success) {
                     const fileName = path.basename(snapshot.originalPath);
                     this.onMessageEmitter.fire({
@@ -482,538 +480,73 @@ export class SDKSessionManager {
         }
     }
     
-    private captureFileSnapshot(toolCallId: string, toolName: string, args: any): void {
-        // Only capture for edit and create tools
-        if (toolName !== 'edit' && toolName !== 'create') {
-            return;
-        }
-        
-        try {
-            // Extract file path from arguments
-            const filePath = (args as any)?.path;
-            if (!filePath) {
-                this.logger.debug(`No path in ${toolName} tool arguments`);
-                return;
-            }
-            
-            // For edit: file should exist, read it
-            // For create: file won't exist, create empty snapshot
-            let content = '';
-            const fileExists = fs.existsSync(filePath);
-            
-            this.logger.info(`[Snapshot] ${toolName} for ${filePath}, file exists: ${fileExists}`);
-            
-            if (toolName === 'edit') {
-                if (fileExists) {
-                    content = fs.readFileSync(filePath, 'utf8');
-                    this.logger.info(`[Snapshot] Captured ${content.length} bytes: ${JSON.stringify(content.substring(0, 100))}`);
-                } else {
-                    this.logger.warn(`[Snapshot] File doesn't exist for edit operation: ${filePath}`);
-                }
-            } else {
-                this.logger.info(`[Snapshot] Create operation, using empty snapshot`);
-            }
-            
-            // Write to temp file
-            const tempFileName = `${toolCallId}-before-${path.basename(filePath)}`;
-            const tempFilePath = path.join(this.tempDir, tempFileName);
-            fs.writeFileSync(tempFilePath, content, 'utf8');
-            
-            // Store snapshot
-            this.fileSnapshots.set(toolCallId, {
-                originalPath: filePath,
-                tempFilePath: tempFilePath,
-                timestamp: Date.now()
-            });
-            
-            this.logger.debug(`Captured file snapshot for ${toolName}: ${filePath} -> ${tempFilePath}`);
-        } catch (error) {
-            this.logger.error(`Failed to capture file snapshot: ${error}`);
-        }
-    }
     
     public cleanupDiffSnapshot(toolCallId: string): void {
-        const snapshot = this.fileSnapshots.get(toolCallId);
-        if (snapshot) {
-            try {
-                if (fs.existsSync(snapshot.tempFilePath)) {
-                    fs.unlinkSync(snapshot.tempFilePath);
-                }
-                this.fileSnapshots.delete(toolCallId);
-                this.logger.debug(`Cleaned up snapshot for ${toolCallId}`);
-            } catch (error) {
-                this.logger.error(`Failed to cleanup snapshot: ${error}`);
-            }
-        }
+        this.fileSnapshotService.cleanupSnapshot(toolCallId);
     }
 
     private getCustomTools(): any[] {
-        // Plan mode: return plan-specific tools
+        // Plan mode: return tools from PlanModeToolsService
         if (this.currentMode === 'plan') {
-            return [
-                this.createUpdateWorkPlanTool(),
-                this.createPresentPlanTool(),
-                this.createRestrictedBashTool(),
-                this.createRestrictedCreateTool(),
-                this.createRestrictedEditTool(),
-                this.createRestrictedTaskTool()
-                // Note: SDK 'view', 'grep', 'glob' etc. remain available
-            ];
+            if (!this.planModeToolsService) {
+                this.logger.error('[Plan Mode] PlanModeToolsService not initialized!');
+                return [];
+            }
+            return this.planModeToolsService.getTools();
         }
         
         // Work mode: no custom tools (for now)
         return [];
     }
     
-    /**
-     * Creates the update_work_plan tool for plan mode
-     * This is the ONLY tool available in plan sessions
-     * Writes directly to the work session's plan.md file
-     */
-    private createUpdateWorkPlanTool(): any {
-        return defineTool('update_work_plan', {
-            description: 'Update the implementation plan for the work session. Use this to document your planning, analysis, and design work. This plan will be available when switching back to work mode.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    content: {
-                        type: 'string',
-                        description: 'The complete plan content in markdown format. Should include problem statement, approach, tasks with checkboxes, and technical considerations.'
-                    }
-                },
-                required: ['content']
-            },
-            handler: async ({ content }: { content: string }) => {
-                try {
-                    const homeDir = require('os').homedir();
-                    const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
-                    const planPath = path.join(workSessionPath, 'plan.md');
-                    
-                    this.logger.info(`[Plan Mode] Updating work plan at: ${planPath}`);
-                    
-                    // Ensure session directory exists
-                    if (!fs.existsSync(workSessionPath)) {
-                        this.logger.warn(`[Plan Mode] Work session directory doesn't exist: ${workSessionPath}`);
-                        return `Error: Work session directory not found. Session may not exist yet.`;
-                    }
-                    
-                    // Write the plan
-                    await fs.promises.writeFile(planPath, content, 'utf-8');
-                    
-                    this.logger.info(`[Plan Mode] Plan updated successfully (${content.length} bytes)`);
-                    
-                    return `Plan updated successfully! The plan has been saved to ${planPath}. When you switch back to work mode, this plan will be ready for implementation.`;
-                } catch (error) {
-                    this.logger.error(`[Plan Mode] Failed to update work plan:`, error instanceof Error ? error : undefined);
-                    return `Error updating plan: ${error instanceof Error ? error.message : String(error)}`;
-                }
-            }
-        });
-    }
-    
-    /**
-     * Creates the present_plan tool for plan mode
-     * Notifies the UI that the plan is ready for user review
-     */
-    private createPresentPlanTool(): any {
-        return defineTool('present_plan', {
-            description: 'Present the plan to the user for review and acceptance. Call this AFTER writing the plan with update_work_plan to notify the user that the plan is ready. The UI will show acceptance options.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    summary: {
-                        type: 'string',
-                        description: 'A brief one-sentence summary of what the plan covers (optional)'
-                    }
-                }
-            },
-            handler: async ({ summary }: { summary?: string }) => {
-                try {
-                    this.logger.info(`[Plan Mode] Presenting plan to user: ${summary || 'No summary provided'}`);
-                    
-                    // Emit a message to notify the UI to show acceptance controls
-                    this.onMessageEmitter.fire({
-                        type: 'status',
-                        data: { 
-                            status: 'plan_ready',
-                            summary: summary || null
-                        },
-                        timestamp: Date.now()
-                    });
-                    
-                    return `Plan presented to user. They can now review it and choose to accept, continue planning, or provide new instructions.`;
-                } catch (error) {
-                    this.logger.error(`[Plan Mode] Failed to present plan:`, error instanceof Error ? error : undefined);
-                    return `Error presenting plan: ${error instanceof Error ? error.message : String(error)}`;
-                }
-            }
-        });
-    }
-    
-    /**
-     * Creates a restricted bash tool for plan mode
-     * Only allows read-only commands
-     */
-    private createRestrictedBashTool(): any {
-        const allowedCommandPrefixes = [
-            'git status', 'git log', 'git branch', 'git diff', 'git show',
-            'ls', 'cat', 'head', 'tail', 'wc', 'find', 'grep', 'tree', 'pwd',
-            'npm list', 'pip list', 'pip show', 'go list', 'go mod graph',
-            'which', 'whereis', 'ps', 'env', 'echo', 'date', 'uname'
-        ];
-        
-        const blockedCommandPrefixes = [
-            'git commit', 'git push', 'git checkout', 'git merge', 'git rebase', 'git cherry-pick',
-            'rm', 'mv', 'cp', 'touch', 'mkdir', 'rmdir',
-            'npm install', 'npm uninstall', 'npm run', 'npm start', 'npm test',
-            'pip install', 'pip uninstall',
-            'go get', 'go install',
-            'make', 'cmake', 'cargo build', 'dotnet build',
-            'sudo', 'su', 'chmod', 'chown'
-        ];
-        
-        return defineTool('plan_bash_explore', {
-            description: 'Execute READ-ONLY bash commands to analyze the environment. Only whitelisted commands are allowed in plan mode.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    command: {
-                        type: 'string',
-                        description: 'The bash command to execute (read-only commands only)'
-                    },
-                    description: {
-                        type: 'string',
-                        description: 'Description of what the command does'
-                    }
-                },
-                required: ['command', 'description']
-            },
-            handler: async (args: { command: string; description: string }) => {
-                const command = args.command.trim();
-                
-                // Check if command starts with a blocked prefix
-                for (const blocked of blockedCommandPrefixes) {
-                    if (command.startsWith(blocked)) {
-                        this.logger.warn(`[Plan Mode] Blocked bash command: ${command}`);
-                        return {
-                            textResultForLlm: `❌ Command blocked in plan mode: "${command}"\n\nThis command is not allowed because it could modify the system. Plan mode is read-only.\n\nAllowed commands: ${allowedCommandPrefixes.join(', ')}`,
-                            resultType: 'denied'
-                        };
-                    }
-                }
-                
-                // Check if command starts with an allowed prefix
-                let isAllowed = false;
-                for (const allowed of allowedCommandPrefixes) {
-                    if (command.startsWith(allowed)) {
-                        isAllowed = true;
-                        break;
-                    }
-                }
-                
-                if (!isAllowed) {
-                    this.logger.warn(`[Plan Mode] Unknown bash command (not in whitelist): ${command}`);
-                    return {
-                        textResultForLlm: `❌ Command not in whitelist: "${command}"\n\nIn plan mode, only read-only commands are allowed.\n\nAllowed commands: ${allowedCommandPrefixes.join(', ')}`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                // Command is allowed - execute it
-                this.logger.info(`[Plan Mode] Executing allowed bash command: ${command}`);
-                
-                try {
-                    const { exec } = require('child_process');
-                    const { promisify } = require('util');
-                    const execAsync = promisify(exec);
-                    
-                    const result = await execAsync(command, {
-                        cwd: this.workingDirectory,
-                        timeout: 30000, // 30 second timeout
-                        maxBuffer: 1024 * 1024 // 1MB buffer
-                    });
-                    
-                    const output = result.stdout + result.stderr;
-                    this.logger.info(`[Plan Mode] Bash command completed (${output.length} bytes)`);
-                    
-                    return {
-                        textResultForLlm: output || '(command completed with no output)',
-                        resultType: 'success'
-                    };
-                } catch (error: any) {
-                    this.logger.error(`[Plan Mode] Bash command failed:`, error);
-                    return {
-                        textResultForLlm: `Command failed: ${error.message}\n\nStderr: ${error.stderr || '(none)'}`,
-                        resultType: 'failure',
-                        error: error.message
-                    };
-                }
-            }
-        });
-    }
-    
-    /**
-     * Creates a restricted create tool for plan mode
-     * Only allows creating the session's plan.md file
-     */
-    private createRestrictedCreateTool(): any {
-        return defineTool('create_plan_file', {
-            description: 'Create the session plan.md file. ONLY the session plan.md file can be created in plan mode.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    path: {
-                        type: 'string',
-                        description: 'The path to the file (must be the session plan.md file)'
-                    },
-                    file_text: {
-                        type: 'string',
-                        description: 'The content of the plan file'
-                    }
-                },
-                required: ['path', 'file_text']
-            },
-            handler: async (args: { path: string; file_text?: string }) => {
-                const requestedPath = path.resolve(args.path);
-                
-                // Calculate the session plan path
-                const homeDir = require('os').homedir();
-                const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
-                const sessionPlanPath = path.join(workSessionPath, 'plan.md');
-                
-                // Only allow creating the session's plan.md file
-                if (requestedPath !== sessionPlanPath) {
-                    this.logger.warn(`[Plan Mode] Blocked create attempt: ${requestedPath}`);
-                    return {
-                        textResultForLlm: `❌ File creation blocked in plan mode!\n\nYou can ONLY create the session plan file at:\n${sessionPlanPath}\n\nYou attempted to create:\n${requestedPath}\n\nInstead, use the 'update_work_plan' tool to create/update your plan.`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                // Check if file already exists
-                if (fs.existsSync(sessionPlanPath)) {
-                    this.logger.warn(`[Plan Mode] Plan file already exists: ${sessionPlanPath}`);
-                    return {
-                        textResultForLlm: `❌ File already exists: ${sessionPlanPath}\n\nUse 'update_work_plan' tool to update the plan instead.`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                // Create the plan file
-                try {
-                    // Ensure session directory exists
-                    if (!fs.existsSync(workSessionPath)) {
-                        fs.mkdirSync(workSessionPath, { recursive: true });
-                        this.logger.info(`[Plan Mode] Created session directory: ${workSessionPath}`);
-                    }
-                    
-                    const content = args.file_text || '';
-                    fs.writeFileSync(sessionPlanPath, content, 'utf8');
-                    this.logger.info(`[Plan Mode] Created plan file: ${sessionPlanPath}`);
-                    
-                    return {
-                        textResultForLlm: `✅ Plan file created successfully at ${sessionPlanPath}`,
-                        resultType: 'success'
-                    };
-                } catch (error) {
-                    this.logger.error(`[Plan Mode] Failed to create plan file:`, error instanceof Error ? error : undefined);
-                    return {
-                        textResultForLlm: `❌ Error creating plan file: ${error instanceof Error ? error.message : String(error)}`,
-                        resultType: 'failure',
-                        error: error instanceof Error ? error.message : String(error)
-                    };
-                }
-            }
-        });
-    }
-    
-    /**
-     * Creates a restricted edit tool for plan mode
-     * Only allows editing the session's plan.md file
-     */
-    private createRestrictedEditTool(): any {
-        return defineTool('edit_plan_file', {
-            description: 'Edit the session plan.md file. ONLY the session plan.md file can be edited in plan mode.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    path: {
-                        type: 'string',
-                        description: 'The path to the file (must be the session plan.md file)'
-                    },
-                    old_str: {
-                        type: 'string',
-                        description: 'The exact string to find and replace'
-                    },
-                    new_str: {
-                        type: 'string',
-                        description: 'The new string to replace with'
-                    }
-                },
-                required: ['path', 'old_str', 'new_str']
-            },
-            handler: async (args: { path: string; old_str: string; new_str: string }) => {
-                const requestedPath = path.resolve(args.path);
-                
-                // Calculate the session plan path
-                const homeDir = require('os').homedir();
-                const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!);
-                const sessionPlanPath = path.join(workSessionPath, 'plan.md');
-                
-                // Only allow editing the session's plan.md file
-                if (requestedPath !== sessionPlanPath) {
-                    this.logger.warn(`[Plan Mode] Blocked edit attempt: ${requestedPath}`);
-                    return {
-                        textResultForLlm: `❌ File editing blocked in plan mode!\n\nYou can ONLY edit the session plan file at:\n${sessionPlanPath}\n\nYou attempted to edit:\n${requestedPath}\n\nUse the 'update_work_plan' tool instead for better control.`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                // Check if file exists
-                if (!fs.existsSync(sessionPlanPath)) {
-                    this.logger.warn(`[Plan Mode] Plan file doesn't exist: ${sessionPlanPath}`);
-                    return {
-                        textResultForLlm: `❌ File doesn't exist: ${sessionPlanPath}\n\nUse 'update_work_plan' or 'create' tool to create the plan first.`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                // Perform the edit
-                try {
-                    const content = fs.readFileSync(sessionPlanPath, 'utf-8');
-                    
-                    // Check if old_str exists in the file
-                    if (!content.includes(args.old_str)) {
-                        this.logger.warn(`[Plan Mode] String not found in plan file`);
-                        return {
-                            textResultForLlm: `❌ String not found in plan file.\n\nSearching for:\n${args.old_str.substring(0, 100)}...\n\nConsider using 'update_work_plan' to rewrite the entire plan instead.`,
-                            resultType: 'failure'
-                        };
-                    }
-                    
-                    // Replace the string
-                    const newContent = content.replace(args.old_str, args.new_str);
-                    fs.writeFileSync(sessionPlanPath, newContent, 'utf-8');
-                    
-                    this.logger.info(`[Plan Mode] Edited plan file: ${sessionPlanPath}`);
-                    
-                    return {
-                        textResultForLlm: `✅ Plan file edited successfully at ${sessionPlanPath}`,
-                        resultType: 'success'
-                    };
-                } catch (error) {
-                    this.logger.error(`[Plan Mode] Failed to edit plan file:`, error instanceof Error ? error : undefined);
-                    return {
-                        textResultForLlm: `❌ Error editing plan file: ${error instanceof Error ? error.message : String(error)}`,
-                        resultType: 'failure',
-                        error: error instanceof Error ? error.message : String(error)
-                    };
-                }
-            }
-        });
-    }
-    
-    /**
-     * Creates a restricted task tool for plan mode
-     * Only allows agent_type: "explore"
-     */
-    private createRestrictedTaskTool(): any {
-        return defineTool('task_agent_type_explore', {
-            description: 'Dispatch a task to a specialized agent. In plan mode, only "explore" agent type is allowed for codebase exploration.',
-            parameters: {
-                type: 'object',
-                properties: {
-                    agent_type: {
-                        type: 'string',
-                        description: 'Type of agent to use (only "explore" allowed in plan mode)'
-                    },
-                    instruction: {
-                        type: 'string',
-                        description: 'The task instruction for the agent'
-                    }
-                },
-                required: ['agent_type', 'instruction']
-            },
-            handler: async (args: { agent_type: string; instruction: string }) => {
-                // Only allow explore agent in plan mode
-                if (args.agent_type !== 'explore') {
-                    this.logger.warn(`[Plan Mode] Blocked task with agent_type: ${args.agent_type}`);
-                    return {
-                        textResultForLlm: `❌ Agent type "${args.agent_type}" not allowed in plan mode!\n\nOnly "explore" agent is allowed for codebase exploration during planning.\n\nAllowed: task(agent_type="explore", instruction="...")`,
-                        resultType: 'denied'
-                    };
-                }
-                
-                this.logger.info(`[Plan Mode] Allowing explore task: ${args.instruction.substring(0, 50)}...`);
-                
-                // The SDK will handle the actual task dispatch
-                // We just validate and pass through
-                return {
-                    textResultForLlm: `✅ Explore task allowed. The SDK will dispatch this to an exploration agent.`,
-                    resultType: 'success'
-                };
-            }
-        });
-    }
-    
     private getEnabledMCPServers(): Record<string, any> {
         const mcpConfig = vscode.workspace.getConfiguration('copilotCLI')
             .get<Record<string, any>>('mcpServers', {});
-        
-        // Filter to only enabled servers
-        const enabled: Record<string, any> = {};
-        for (const [name, config] of Object.entries(mcpConfig)) {
-            if (config && config.enabled !== false) {
-                // Remove the 'enabled' field before passing to SDK
-                const { enabled: _, ...serverConfig } = config;
-                
-                // Expand ${workspaceFolder} variables
-                const expandedConfig = this.expandVariables(serverConfig);
-                enabled[name] = expandedConfig;
-            }
-        }
-        
-        if (Object.keys(enabled).length > 0) {
-            this.logger.info(`MCP Servers configured: ${Object.keys(enabled).join(', ')}`);
-        }
-        
-        return enabled;
-    }
-    
-    private expandVariables(obj: any): any {
-        if (typeof obj === 'string') {
-            // Expand ${workspaceFolder}
-            const expanded = obj.replace(/\$\{workspaceFolder\}/g, this.workingDirectory);
-            if (expanded !== obj) {
-                this.logger.debug(`Expanded: "${obj}" -> "${expanded}"`);
-            }
-            return expanded;
-        } else if (Array.isArray(obj)) {
-            return obj.map(item => this.expandVariables(item));
-        } else if (obj && typeof obj === 'object') {
-            const expanded: any = {};
-            for (const [key, value] of Object.entries(obj)) {
-                expanded[key] = this.expandVariables(value);
-            }
-            return expanded;
-        }
-        return obj;
+        return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
     }
 
-    public async sendMessage(message: string, isRetry: boolean = false): Promise<void> {
+    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
         }
 
         this.logger.info(`Sending message: ${message.substring(0, 100)}...`);
+        if (attachments && attachments.length > 0) {
+            this.logger.info(`[Attachments] Sending ${attachments.length} attachment(s):`);
+            attachments.forEach((att, idx) => {
+                this.logger.info(`[Attachments]   ${idx + 1}. ${att.displayName || path.basename(att.path)} (${att.path})`);
+            });
+            
+            // Validate attachments before sending
+            const validation = await this.validateAttachments(attachments.map(a => a.path));
+            if (!validation.valid) {
+                const errorMsg = validation.error || 'Attachment validation failed';
+                this.logger.error(`[Attachments] Validation failed: ${errorMsg}`);
+                
+                // Fire error event to UI
+                this.onMessageEmitter.fire({
+                    type: 'error',
+                    data: errorMsg,
+                    timestamp: Date.now()
+                });
+                
+                throw new Error(errorMsg);
+            }
+        }
         
         // Enhance message with active file context and process @file references
-        const enhancedMessage = await this.enhanceMessageWithContext(message);
+        const enhancedMessage = await this.messageEnhancementService.enhanceMessageWithContext(message);
         
         this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
         
         try {
-            await this.session.sendAndWait({ prompt: enhancedMessage });
+            // Send message with or without attachments
+            const sendOptions: any = { prompt: enhancedMessage };
+            if (attachments && attachments.length > 0) {
+                sendOptions.attachments = attachments;
+            }
+            
+            await this.session.sendAndWait(sendOptions);
             this.logger.info('Message sent and completed successfully');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1099,6 +632,9 @@ export class SDKSessionManager {
                 // Re-setup event handlers for new session
                 this.setupSessionEventHandlers();
                 
+                // Fetch model capabilities for new session
+                await this.updateModelCapabilities();
+                
                 this.logger.info(`Session recreated: ${this.sessionId}`);
                 
                 // Notify UI about new session
@@ -1110,7 +646,7 @@ export class SDKSessionManager {
                 
                 // Retry the message once (use flag to prevent infinite loop)
                 if (!isRetry) {
-                    return this.sendMessage(message, true);
+                    return this.sendMessage(message, attachments, true);
                 } else {
                     throw new Error('Session recreation failed on retry');
                 }
@@ -1133,115 +669,6 @@ export class SDKSessionManager {
     /**
      * Enhances the user message with active file context and processes @file references
      */
-    private async enhanceMessageWithContext(message: string): Promise<string> {
-        this.logger.debug('[Enhance] Starting message enhancement...');
-        
-        const config = vscode.workspace.getConfiguration('copilotCLI');
-        const includeActiveFile = config.get<boolean>('includeActiveFile', true);
-        const resolveFileReferences = config.get<boolean>('resolveFileReferences', true);
-        
-        this.logger.debug(`[Enhance] includeActiveFile config: ${includeActiveFile}`);
-        this.logger.debug(`[Enhance] resolveFileReferences config: ${resolveFileReferences}`);
-        
-        const parts: string[] = [];
-        
-        // Add active file context if enabled and there's an active editor
-        if (includeActiveFile) {
-            // Use lastActiveTextEditor instead of vscode.window.activeTextEditor
-            // because activeTextEditor is null when webview has focus
-            const activeEditor = this.lastActiveTextEditor;
-            this.logger.debug(`[Enhance] activeEditor (lastActive): ${activeEditor ? activeEditor.document.uri.fsPath : 'null'}`);
-            
-            if (activeEditor) {
-                const document = activeEditor.document;
-                const relativePath = vscode.workspace.asRelativePath(document.uri);
-                const selection = activeEditor.selection;
-                
-                parts.push(`[Active File: ${relativePath}]`);
-                this.logger.debug(`[Enhance] Added active file context: ${relativePath}`);
-                
-                // If there's a selection, include it
-                if (!selection.isEmpty) {
-                    const selectedText = document.getText(selection);
-                    const startLine = selection.start.line + 1;
-                    const endLine = selection.end.line + 1;
-                    parts.push(`[Selected lines ${startLine}-${endLine}]:\n\`\`\`\n${selectedText}\n\`\`\``);
-                    this.logger.debug(`[Enhance] Added selection context: lines ${startLine}-${endLine}`);
-                }
-            }
-        }
-        
-        // Process @file_name references if enabled
-        const processedMessage = resolveFileReferences 
-            ? await this.processFileReferences(message)
-            : message;
-        
-        this.logger.debug(`[Enhance] parts array length: ${parts.length}`);
-        
-        // Combine context with the message
-        if (parts.length > 0) {
-            const enhanced = `${parts.join('\n')}\n\n${processedMessage}`;
-            this.logger.debug(`[Enhance] Final enhanced message (first 200 chars): ${enhanced.substring(0, 200)}`);
-            return enhanced;
-        }
-        
-        this.logger.debug(`[Enhance] No enhancement applied, returning original message`);
-        return processedMessage;
-    }
-    
-    /**
-     * Processes @file_name references in the message
-     */
-    private async processFileReferences(message: string): Promise<string> {
-        // Match @filename patterns (handles paths with /,\,., -, _)
-        const fileRefPattern = /@([\w\-._/\\]+\.\w+)/g;
-        let processedMessage = message;
-        const matches = Array.from(message.matchAll(fileRefPattern));
-        
-        for (const match of matches) {
-            const fileName = match[1];
-            const fullMatch = match[0];
-            
-            try {
-                // Try to find the file in the workspace
-                const workspaceFolders = vscode.workspace.workspaceFolders;
-                if (!workspaceFolders) {
-                    continue;
-                }
-                
-                // Check if it's already a valid path
-                let fileUri: vscode.Uri | null = null;
-                
-                // Try as relative path from workspace root
-                const rootPath = workspaceFolders[0].uri.fsPath;
-                const absolutePath = path.isAbsolute(fileName) 
-                    ? fileName 
-                    : path.join(rootPath, fileName);
-                
-                if (fs.existsSync(absolutePath)) {
-                    fileUri = vscode.Uri.file(absolutePath);
-                } else {
-                    // Try to find the file using workspace findFiles
-                    const pattern = `**/${fileName}`;
-                    const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 1);
-                    if (files.length > 0) {
-                        fileUri = files[0];
-                    }
-                }
-                
-                if (fileUri) {
-                    const relativePath = vscode.workspace.asRelativePath(fileUri);
-                    // Replace @file with the relative path
-                    processedMessage = processedMessage.replace(fullMatch, relativePath);
-                    this.logger.info(`Resolved ${fullMatch} to ${relativePath}`);
-                }
-            } catch (error) {
-                this.logger.warn(`Failed to resolve file reference ${fullMatch}: ${error}`);
-            }
-        }
-        
-        return processedMessage;
-    }
 
     public async abortMessage(): Promise<void> {
         if (!this.session) {
@@ -1300,17 +727,8 @@ export class SDKSessionManager {
         this.sessionId = null;
         this.toolExecutions.clear();
         
-        // Cleanup all file snapshots
-        this.fileSnapshots.forEach(snapshot => {
-            try {
-                if (fs.existsSync(snapshot.tempFilePath)) {
-                    fs.unlinkSync(snapshot.tempFilePath);
-                }
-            } catch (error) {
-                this.logger.error(`Failed to cleanup snapshot: ${error}`);
-            }
-        });
-        this.fileSnapshots.clear();
+        // Cleanup all file snapshots via service
+        this.fileSnapshotService.cleanupAllSnapshots();
 
         this.onMessageEmitter.fire({
             type: 'status',
@@ -1393,9 +811,20 @@ export class SDKSessionManager {
         this.logger.info(`[Plan Mode] Step 4/7: Prepare plan session`);
         this.logger.info(`[Plan Mode]   Plan session ID: ${planSessionId}`);
         
-        // Switch to plan mode before getting tools (so getCustomTools returns plan tool)
-        this.logger.info(`[Plan Mode] Step 5/7: Switch mode to 'plan'`);
+        // Switch to plan mode before getting tools (so getCustomTools returns plan tools)
+        this.logger.info(`[Plan Mode] Step 5/7: Initialize PlanModeToolsService and switch mode`);
         const previousMode = this.currentMode;
+        
+        // Create plan mode tools service
+        this.planModeToolsService = new PlanModeToolsService(
+            this.workSessionId!,
+            this.workingDirectory,
+            this.onMessageEmitter,
+            this.logger
+        );
+        await this.planModeToolsService.initialize();
+        this.logger.info(`[Plan Mode]   ✅ PlanModeToolsService initialized`);
+        
         this.currentMode = 'plan';
         this.logger.info(`[Plan Mode]   Mode changed: ${previousMode} → ${this.currentMode}`);
         
@@ -1649,6 +1078,13 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         
         this.logger.info('Disabling plan mode...');
         
+        // Cleanup plan mode tools service
+        if (this.planModeToolsService) {
+            this.planModeToolsService.dispose();
+            this.planModeToolsService = null;
+            this.logger.info('PlanModeToolsService disposed');
+        }
+        
         // Destroy plan session (could keep it for reference if desired)
         if (this.planSession) {
             try {
@@ -1736,7 +1172,8 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         await this.sendMessage(
             `I just finished planning and accepted the plan. The plan is located at: ${planPath}\n\n` +
             `Please read the plan file and begin implementation. Review the tasks and start executing them.`,
-            false
+            undefined, // no attachments
+            false      // isRetry
         );
         this.logger.info('[Plan Mode] Implementation context injected');
         
@@ -1816,10 +1253,93 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
     public getToolExecutions(): ToolExecutionState[] {
         return Array.from(this.toolExecutions.values());
     }
+    
+    /**
+     * Update model capabilities by logging them for current model
+     * Called on session start and model changes
+     */
+    private async updateModelCapabilities(): Promise<void> {
+        try {
+            // Get model ID from config or session
+            this.currentModelId = this.config.model || 'gpt-5'; // Default model
+            
+            // Log capabilities using the service
+            await this.modelCapabilitiesService.logCapabilities(this.currentModelId);
+            
+        } catch (error) {
+            this.logger.error('[Model Capabilities] Failed to fetch model capabilities', error instanceof Error ? error : undefined);
+        }
+    }
+    
+    /**
+     * Check if current model supports vision/image attachments
+     */
+    public async supportsVision(): Promise<boolean> {
+        if (!this.currentModelId) {
+            return false;
+        }
+        return this.modelCapabilitiesService.supportsVision(this.currentModelId);
+    }
+    
+    /**
+     * Get maximum number of images allowed per message for current model
+     */
+    public async getMaxImages(): Promise<number> {
+        if (!this.currentModelId) {
+            return 0;
+        }
+        return this.modelCapabilitiesService.getMaxImages(this.currentModelId);
+    }
+    
+    /**
+     * Get maximum image file size in bytes for current model
+     */
+    public async getMaxImageSize(): Promise<number> {
+        if (!this.currentModelId) {
+            return 0;
+        }
+        return this.modelCapabilitiesService.getMaxImageSize(this.currentModelId);
+    }
+    
+    /**
+     * Get supported media types for images
+     */
+    public async getSupportedMediaTypes(): Promise<string[]> {
+        if (!this.currentModelId) {
+            return [];
+        }
+        return this.modelCapabilitiesService.getSupportedMediaTypes(this.currentModelId);
+    }
+    
+    /**
+     * Get the model capabilities service (for direct access if needed)
+     */
+    public getModelCapabilitiesService(): ModelCapabilitiesService {
+        return this.modelCapabilitiesService;
+    }
+    
+    /**
+     * Validate all attachments (delegates to ModelCapabilitiesService)
+     * Returns first validation error encountered
+     */
+    public async validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }> {
+        if (!this.currentModelId) {
+            return { valid: false, error: 'No model selected' };
+        }
+        return this.modelCapabilitiesService.validateAttachments(this.currentModelId, filePaths);
+    }
 
     public dispose(): void {
         this.stop();
+        
+        // Dispose all services
+        this.messageEnhancementService.dispose();
+        this.fileSnapshotService.dispose();
+        // MCPConfigurationService has no dispose method (no resources to clean up)
+        if (this.planModeToolsService) {
+            this.planModeToolsService.dispose();
+        }
+        
         this.onMessageEmitter.dispose();
-        this.activeEditorDisposable?.dispose();
     }
 }
