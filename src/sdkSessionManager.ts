@@ -173,6 +173,10 @@ export class SDKSessionManager {
                 this.logger.debug(`MCP Server details: ${JSON.stringify(mcpServers, null, 2)}`);
             }
             
+            // Track whether we're resuming an existing session
+            const isResuming = !!this.sessionId;
+            let sessionWasCreatedNew = false;
+            
             if (this.sessionId) {
                 this.logger.info(`Attempting to resume session: ${this.sessionId}`);
                 try {
@@ -189,6 +193,7 @@ export class SDKSessionManager {
                         errorMessage.toLowerCase().includes('invalid session')) {
                         this.logger.warn(`Session ${this.sessionId} not found (likely expired), creating new session`);
                         this.sessionId = null;
+                        sessionWasCreatedNew = true;
                         this.session = await this.client.createSession({
                             model: this.config.model || undefined,
                             tools: this.getCustomTools(),
@@ -209,6 +214,7 @@ export class SDKSessionManager {
                 }
             } else {
                 this.logger.info('Creating new session');
+                sessionWasCreatedNew = true;
                 this.session = await this.client.createSession({
                     model: this.config.model || undefined,
                     tools: this.getCustomTools(),
@@ -223,6 +229,16 @@ export class SDKSessionManager {
             this.workSession = this.session;
             this.workSessionId = this.sessionId;
             this.currentMode = 'work';
+            
+            // Reset session-level metrics for new sessions
+            if (sessionWasCreatedNew) {
+                this.logger.info('[Metrics] Resetting session-level metrics for new session');
+                this.onMessageEmitter.fire({
+                    type: 'status',
+                    data: { resetMetrics: true },
+                    timestamp: Date.now()
+                });
+            }
 
             // Set up event listeners
             this.setupSessionEventHandlers();

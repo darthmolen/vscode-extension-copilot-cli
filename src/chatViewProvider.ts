@@ -1793,8 +1793,10 @@ export class ChatPanelProvider {
 				
 				messageDiv.innerHTML = \`
 					<div class="message-header">\${role === 'user' ? 'You' : 'Assistant'}</div>
-					<div class="message-content">\${content}</div>
-					\${attachmentsHtml}
+					<div class="message-content">
+						\${content}
+						\${attachmentsHtml}
+					</div>
 				\`;
 			}
 			
@@ -2277,10 +2279,28 @@ export class ChatPanelProvider {
 					updatePlanModeUI();
 					swapToRegularControls();
 					break;
+				case 'resetMetrics':
+					// Reset session-level metrics (Window % and Used tokens)
+					// Keep Remaining % as it's account-level
+					usageWindow.textContent = 'Window: 0%';
+					usageWindow.title = 'token usage in current window: 0%';
+					usageUsed.textContent = 'Used: 0';
+					usageUsed.title = 'tokens used this session: 0';
+					break;
 				case 'status':
 					// Handle status updates including plan mode
 					const status = message.data.status;
 					console.log('[STATUS EVENT] Received status:', status, 'Full data:', message.data);
+					
+					// Handle metrics reset
+					if (message.data.resetMetrics) {
+						console.log('[METRICS] Resetting session-level metrics');
+						usageWindow.textContent = 'Window: 0%';
+						usageWindow.title = 'token usage in current window: 0%';
+						usageUsed.textContent = 'Used: 0';
+						usageUsed.title = 'tokens used this session: 0';
+					}
+					
 					if (status === 'plan_mode_enabled') {
 						console.log('[STATUS EVENT] Enabling plan mode UI');
 						planMode = true;
