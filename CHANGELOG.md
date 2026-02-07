@@ -38,6 +38,14 @@ All notable changes to the Copilot CLI Chat extension.
   - Added file existence check - shows helpful message if plan.md doesn't exist yet
   - Prevents confusing "file not found" errors when no plan has been created
 
+#### Session History Loading Race Condition
+- Fixed critical bug where session history wasn't loaded on extension startup
+  - **Root Cause:** Webview was created before history finished loading
+  - **Symptom:** Opening chat showed blank history until switching sessions
+  - **Fix:** Load history into BackendState BEFORE creating webview panel
+  - Now history loads reliably on first open instead of requiring session switch
+  - Prevents 138ms race condition between webview ready and file stream close events
+
 ## [Unreleased]
 
 ### 🧹 Chore

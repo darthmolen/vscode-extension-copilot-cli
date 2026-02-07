@@ -34,21 +34,13 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info(`[DIAGNOSTIC] CLI running: ${cliManager?.isRunning() || false}`);
 		logger.info(`[DIAGNOSTIC] BackendState before createOrShow: ${backendState.getMessages().length} messages`);
 		
-		ChatPanelProvider.createOrShow(context.extensionUri);
-		
-		// Update active file when panel opens
-		updateActiveFile(vscode.window.activeTextEditor);
-		
-		// Update sessions list when panel opens
-		updateSessionsList();
-		
 		// Auto-start CLI session when panel opens (based on setting)
+		let sessionIdToResume: string | undefined = undefined;
 		if (!cliManager || !cliManager.isRunning()) {
 			const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
 			logger.info(`[DIAGNOSTIC] Auto-starting CLI session (resume=${resumeLastSession})...`);
 			
-			// NEW: Determine session ID and load history BEFORE starting CLI
-			let sessionIdToResume: string | undefined = undefined;
+			// NEW: Determine session ID and load history BEFORE creating webview
 			if (resumeLastSession) {
 				const sessionId = await determineSessionToResume(context);
 				if (sessionId) {
@@ -60,7 +52,20 @@ export function activate(context: vscode.ExtensionContext) {
 					logger.info(`[DIAGNOSTIC] No session to resume found`);
 				}
 			}
-			
+		}
+		
+		// Create webview AFTER history is loaded
+		ChatPanelProvider.createOrShow(context.extensionUri);
+		
+		// Update active file when panel opens
+		updateActiveFile(vscode.window.activeTextEditor);
+		
+		// Update sessions list when panel opens
+		updateSessionsList();
+		
+		// Start CLI session if not running
+		if (sessionIdToResume || (!cliManager || !cliManager.isRunning())) {
+			const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
 			await startCLISession(context, resumeLastSession, sessionIdToResume);
 		} else {
 			logger.info(`[DIAGNOSTIC] CLI already running, NOT loading history or starting new session`);
