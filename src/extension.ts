@@ -125,19 +125,30 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Register view plan handler ONCE in activate
-	ChatPanelProvider.onViewPlan(() => {
+	ChatPanelProvider.onViewPlan(async () => {
 		// Get plan.md path from work session state directory
 		const planPath = cliManager?.getPlanFilePath();
-		if (planPath) {
-			const planUri = vscode.Uri.file(planPath);
-			vscode.workspace.openTextDocument(planUri).then(doc => {
-				vscode.window.showTextDocument(doc, { preview: false });
-			}, error => {
-				logger.error(`Failed to open plan.md: ${error.message}`, error);
-				vscode.window.showErrorMessage(`Could not open plan.md: ${error.message}`);
-			});
-		} else {
-			vscode.window.showWarningMessage('No plan.md available for this session');
+		if (!planPath) {
+			vscode.window.showWarningMessage('No active session - cannot view plan.md');
+			return;
+		}
+		
+		// Check if file exists before trying to open
+		const fs = require('fs');
+		if (!fs.existsSync(planPath)) {
+			logger.warn(`Plan file does not exist: ${planPath}`);
+			vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
+			return;
+		}
+		
+		const planUri = vscode.Uri.file(planPath);
+		try {
+			const doc = await vscode.workspace.openTextDocument(planUri);
+			await vscode.window.showTextDocument(doc, { preview: false });
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to open plan.md: ${errorMsg}`, error instanceof Error ? error : undefined);
+			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
 		}
 	});
 

@@ -35,6 +35,8 @@ All notable changes to the Copilot CLI Chat extension.
   - Was using VS Code workspace path instead of session state directory
   - Now uses correct path: `~/.copilot/session-state/{sessionId}/plan.md`
   - Works correctly when in plan mode (uses work session ID, not plan session ID)
+  - Added file existence check - shows helpful message if plan.md doesn't exist yet
+  - Prevents confusing "file not found" errors when no plan has been created
 
 ## [Unreleased]
 
