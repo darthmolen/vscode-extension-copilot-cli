@@ -173,6 +173,9 @@ export class SDKSessionManager {
                 this.logger.debug(`MCP Server details: ${JSON.stringify(mcpServers, null, 2)}`);
             }
             
+            // Track whether we created a new session (vs resumed)
+            let sessionWasCreatedNew = false;
+            
             if (this.sessionId) {
                 this.logger.info(`Attempting to resume session: ${this.sessionId}`);
                 try {
@@ -189,6 +192,7 @@ export class SDKSessionManager {
                         errorMessage.toLowerCase().includes('invalid session')) {
                         this.logger.warn(`Session ${this.sessionId} not found (likely expired), creating new session`);
                         this.sessionId = null;
+                        sessionWasCreatedNew = true;
                         this.session = await this.client.createSession({
                             model: this.config.model || undefined,
                             tools: this.getCustomTools(),
@@ -209,6 +213,7 @@ export class SDKSessionManager {
                 }
             } else {
                 this.logger.info('Creating new session');
+                sessionWasCreatedNew = true;
                 this.session = await this.client.createSession({
                     model: this.config.model || undefined,
                     tools: this.getCustomTools(),
@@ -223,6 +228,16 @@ export class SDKSessionManager {
             this.workSession = this.session;
             this.workSessionId = this.sessionId;
             this.currentMode = 'work';
+            
+            // Reset session-level metrics for new sessions
+            if (sessionWasCreatedNew) {
+                this.logger.info('[Metrics] Resetting session-level metrics for new session');
+                this.onMessageEmitter.fire({
+                    type: 'status',
+                    data: { status: 'reset_metrics', resetMetrics: true },
+                    timestamp: Date.now()
+                });
+            }
 
             // Set up event listeners
             this.setupSessionEventHandlers();
@@ -1274,6 +1289,45 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
             // In plan mode, return work session's workspace
             return this.workSession?.workspacePath;
         }
+    }
+    
+    /**
+     * Get the path to plan.md file in the work session's state directory
+     * Returns the full file path to plan.md, or undefined if no work session
+     */
+    public getPlanFilePath(): string | undefined {
+        if (!this.workSessionId) {
+            return undefined;
+        }
+        const homeDir = require('os').homedir();
+        const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId);
+        return path.join(workSessionPath, 'plan.md');
+    }
+    
+    /**
+     * Get the list of available tools for the current plan session
+     * Used by tests to verify plan mode restrictions
+     * @returns Array of tool names that are whitelisted in plan mode, or undefined if not in plan mode
+     */
+    public getPlanModeAvailableTools(): string[] | undefined {
+        if (this.currentMode !== 'plan') {
+            return undefined;
+        }
+        // Return the same whitelist used in enablePlanMode()
+        return [
+            'plan_bash_explore',
+            'task_agent_type_explore',
+            'edit_plan_file',
+            'create_plan_file',
+            'update_work_plan',
+            'present_plan',
+            'view',
+            'grep',
+            'glob',
+            'web_fetch',
+            'fetch_copilot_cli_documentation',
+            'report_intent'
+        ];
     }
 
     public getToolExecutions(): ToolExecutionState[] {

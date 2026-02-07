@@ -34,21 +34,13 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info(`[DIAGNOSTIC] CLI running: ${cliManager?.isRunning() || false}`);
 		logger.info(`[DIAGNOSTIC] BackendState before createOrShow: ${backendState.getMessages().length} messages`);
 		
-		ChatPanelProvider.createOrShow(context.extensionUri);
-		
-		// Update active file when panel opens
-		updateActiveFile(vscode.window.activeTextEditor);
-		
-		// Update sessions list when panel opens
-		updateSessionsList();
-		
 		// Auto-start CLI session when panel opens (based on setting)
+		let sessionIdToResume: string | undefined = undefined;
 		if (!cliManager || !cliManager.isRunning()) {
 			const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
 			logger.info(`[DIAGNOSTIC] Auto-starting CLI session (resume=${resumeLastSession})...`);
 			
-			// NEW: Determine session ID and load history BEFORE starting CLI
-			let sessionIdToResume: string | undefined = undefined;
+			// NEW: Determine session ID and load history BEFORE creating webview
 			if (resumeLastSession) {
 				const sessionId = await determineSessionToResume(context);
 				if (sessionId) {
@@ -60,7 +52,20 @@ export function activate(context: vscode.ExtensionContext) {
 					logger.info(`[DIAGNOSTIC] No session to resume found`);
 				}
 			}
-			
+		}
+		
+		// Create webview AFTER history is loaded
+		ChatPanelProvider.createOrShow(context.extensionUri);
+		
+		// Update active file when panel opens
+		updateActiveFile(vscode.window.activeTextEditor);
+		
+		// Update sessions list when panel opens
+		updateSessionsList();
+		
+		// Start CLI session if not running
+		if (sessionIdToResume || (!cliManager || !cliManager.isRunning())) {
+			const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
 			await startCLISession(context, resumeLastSession, sessionIdToResume);
 		} else {
 			logger.info(`[DIAGNOSTIC] CLI already running, NOT loading history or starting new session`);
@@ -125,19 +130,30 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Register view plan handler ONCE in activate
-	ChatPanelProvider.onViewPlan(() => {
-		// Always use work session workspace path, even when in plan mode
-		const workspacePath = cliManager?.getWorkSessionWorkspacePath();
-		if (workspacePath) {
-			const planPath = vscode.Uri.file(`${workspacePath}/plan.md`);
-			vscode.workspace.openTextDocument(planPath).then(doc => {
-				vscode.window.showTextDocument(doc, { preview: false });
-			}, error => {
-				logger.error(`Failed to open plan.md: ${error.message}`);
-				vscode.window.showErrorMessage(`Could not open plan.md: ${error.message}`);
-			});
-		} else {
-			vscode.window.showWarningMessage('No plan.md available for this session');
+	ChatPanelProvider.onViewPlan(async () => {
+		// Get plan.md path from work session state directory
+		const planPath = cliManager?.getPlanFilePath();
+		if (!planPath) {
+			vscode.window.showWarningMessage('No active session - cannot view plan.md');
+			return;
+		}
+		
+		// Check if file exists before trying to open
+		const fs = require('fs');
+		if (!fs.existsSync(planPath)) {
+			logger.warn(`Plan file does not exist: ${planPath}`);
+			vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
+			return;
+		}
+		
+		const planUri = vscode.Uri.file(planPath);
+		try {
+			const doc = await vscode.workspace.openTextDocument(planUri);
+			await vscode.window.showTextDocument(doc, { preview: false });
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			logger.error(`Failed to open plan.md: ${errorMsg}`, error instanceof Error ? error : undefined);
+			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
 		}
 	});
 
@@ -439,9 +455,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						message.data.status === 'plan_mode_enabled' ||
 						message.data.status === 'plan_mode_disabled' ||
 						message.data.status === 'plan_accepted' ||
-						message.data.status === 'plan_rejected'
+						message.data.status === 'plan_rejected' ||
+						message.data.status === 'reset_metrics'
 					) {
-						// Forward plan mode status to webview for button updates
+						// Forward plan mode and metrics status to webview
 						ChatPanelProvider.postMessage({ type: 'status', data: message.data });
 					}
 					break;

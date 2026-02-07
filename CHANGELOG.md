@@ -2,6 +2,50 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.2.2] - 2026-02-07
+
+### 🐛 Bug Fixes
+
+#### Active File Display
+- Fixed "Active File" showing output channel name on extension start
+  - Now correctly filters initial `activeTextEditor` by scheme ('file' or 'untitled')
+  - Previously only filtered in change listener, not initial value
+  - Prevents output channels from being displayed as "active file"
+
+#### Metrics Reset on New Session
+- Session-level metrics (Window %, Used tokens) now reset when creating new session
+  - Fixed metrics persisting across session changes
+  - Account-level metric (Remaining %) correctly preserved
+  - Added `resetMetrics` flag to status events
+
+#### Image Thumbnail Positioning
+- Fixed uploaded image thumbnails appearing outside user's message bubble
+  - Attachments now rendered inside `.message-content` div
+  - Properly contained within chat bubble styling
+  - Visual grouping with message text
+
+#### Planning Test Suite
+- Fixed failing test for edit tool restriction in plan mode
+  - Updated test to verify configuration instead of relying on message failures
+  - Test now correctly validates that SDK whitelist excludes 'edit' tool
+  - All 12 plan mode tests passing
+
+#### View Plan Button
+- Fixed "View Plan" button failing to open plan.md file
+  - Was using VS Code workspace path instead of session state directory
+  - Now uses correct path: `~/.copilot/session-state/{sessionId}/plan.md`
+  - Works correctly when in plan mode (uses work session ID, not plan session ID)
+  - Added file existence check - shows helpful message if plan.md doesn't exist yet
+  - Prevents confusing "file not found" errors when no plan has been created
+
+#### Session History Loading Race Condition
+- Fixed critical bug where session history wasn't loaded on extension startup
+  - **Root Cause:** Webview was created before history finished loading
+  - **Symptom:** Opening chat showed blank history until switching sessions
+  - **Fix:** Load history into BackendState BEFORE creating webview panel
+  - Now history loads reliably on first open instead of requiring session switch
+  - Prevents 138ms race condition between webview ready and file stream close events
+
 ## [Unreleased]
 
 ### 🧹 Chore

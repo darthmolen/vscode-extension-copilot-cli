@@ -8,6 +8,37 @@ Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude
 
 ## ✨ Features
 
+### v2.2.2 - Bug Fixes & Polish 🐛
+
+- 🔄 **Session History Loading Fixed** - Chat history now loads immediately
+  - Fixed issue where previous conversation didn't appear until switching sessions
+  - History now loads reliably when opening chat panel
+  - No more workaround of switching away and back to see your messages
+  
+- 🐛 **Active File Display Fixed** - Correct file shown at extension start
+  - No longer shows output channel name as "active file"
+  - Filters initial editor by scheme (file/untitled only)
+  - Cleaner, more accurate status display
+  
+- 📊 **Metrics Reset on New Session** - Fresh metrics for each session
+  - Session-level metrics (Window %, Used tokens) reset when starting new session
+  - Account-level metric (Remaining %) correctly preserved
+  - No more stale metrics from previous sessions
+  
+- 🎨 **Image Thumbnail Positioning** - Better visual grouping
+  - Uploaded image thumbnails now inside user's message bubble
+  - Properly aligned with message text
+  - Consistent styling across all attachments
+  
+- 📋 **View Plan Button Fixed** - Opens plan.md from correct location
+  - Now opens plan files from session state directory
+  - Shows helpful message when no plan exists yet
+  - Works correctly in both work and plan modes
+  
+- ✅ **Test Suite Fixed** - All 12 plan mode tests passing
+  - Corrected edit tool restriction test logic
+  - Verifies SDK whitelist correctly excludes edit tool in plan mode
+
 ### v2.2.1 - Authentication Detection & Enterprise Support 🔐
 
 - 🔍 **Smart Authentication Detection** - Automatic error detection and guidance

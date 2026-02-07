@@ -21,7 +21,11 @@ export class MessageEnhancementService {
         this.logger = Logger.getInstance();
         
         // Track active text editor (needed when webview has focus)
-        this.lastActiveTextEditor = vscode.window.activeTextEditor;
+        // Filter initial value by scheme to avoid output channels
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor && (activeEditor.document.uri.scheme === 'file' || activeEditor.document.uri.scheme === 'untitled')) {
+            this.lastActiveTextEditor = activeEditor;
+        }
         this.activeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor && (editor.document.uri.scheme === 'file' || editor.document.uri.scheme === 'untitled')) {
                 this.lastActiveTextEditor = editor;

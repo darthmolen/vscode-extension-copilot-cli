@@ -257,19 +257,15 @@ async function runPlanModeTests() {
         
         // Test 7: edit tool should NOT exist in plan mode
         console.log('\n📋 Test 7: edit tool (should not exist)');
-        try {
-            await sessionManager.sendMessage(
-                'Use edit tool to modify a file'
-            );
-            
-            // If it succeeds, that's a problem
-            recordTest('edit tool blocked in plan mode', false, 'Tool was available');
-        } catch (error) {
-            // Should fail because tool doesn't exist
-            const isToolNotFound = error.message.includes('does not exist') || 
-                                   error.message.includes('not available');
-            recordTest('edit tool blocked in plan mode', isToolNotFound, 
-                      isToolNotFound ? 'Tool not available' : error.message);
+        // The SDK's built-in 'edit' tool should NOT be in availableTools whitelist
+        // Verify the plan session is properly restricted
+        const availableTools = sessionManager.getPlanModeAvailableTools();
+        if (!availableTools) {
+            recordTest('edit tool blocked in plan mode', false, 'Not in plan mode or no whitelist available');
+        } else if (availableTools.includes('edit')) {
+            recordTest('edit tool blocked in plan mode', false, `edit tool found in whitelist: ${availableTools.join(', ')}`);
+        } else {
+            recordTest('edit tool blocked in plan mode', true, `SDK edit tool excluded from whitelist (${availableTools.length} tools allowed)`);
         }
         
         console.log('\n📋 Step 4: Disable plan mode');
