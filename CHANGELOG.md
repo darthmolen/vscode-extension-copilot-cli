@@ -30,6 +30,12 @@ All notable changes to the Copilot CLI Chat extension.
   - Test now correctly validates that SDK whitelist excludes 'edit' tool
   - All 12 plan mode tests passing
 
+#### View Plan Button
+- Fixed "View Plan" button failing to open plan.md file
+  - Was using VS Code workspace path instead of session state directory
+  - Now uses correct path: `~/.copilot/session-state/{sessionId}/plan.md`
+  - Works correctly when in plan mode (uses work session ID, not plan session ID)
+
 ## [Unreleased]
 
 ### 🧹 Chore

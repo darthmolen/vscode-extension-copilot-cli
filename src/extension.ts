@@ -126,14 +126,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register view plan handler ONCE in activate
 	ChatPanelProvider.onViewPlan(() => {
-		// Always use work session workspace path, even when in plan mode
-		const workspacePath = cliManager?.getWorkSessionWorkspacePath();
-		if (workspacePath) {
-			const planPath = vscode.Uri.file(`${workspacePath}/plan.md`);
-			vscode.workspace.openTextDocument(planPath).then(doc => {
+		// Get plan.md path from work session state directory
+		const planPath = cliManager?.getPlanFilePath();
+		if (planPath) {
+			const planUri = vscode.Uri.file(planPath);
+			vscode.workspace.openTextDocument(planUri).then(doc => {
 				vscode.window.showTextDocument(doc, { preview: false });
 			}, error => {
-				logger.error(`Failed to open plan.md: ${error.message}`);
+				logger.error(`Failed to open plan.md: ${error.message}`, error);
 				vscode.window.showErrorMessage(`Could not open plan.md: ${error.message}`);
 			});
 		} else {

@@ -1291,6 +1291,19 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
             return this.workSession?.workspacePath;
         }
     }
+    
+    /**
+     * Get the path to plan.md file in the work session's state directory
+     * Returns the full file path to plan.md, or undefined if no work session
+     */
+    public getPlanFilePath(): string | undefined {
+        if (!this.workSessionId) {
+            return undefined;
+        }
+        const homeDir = require('os').homedir();
+        const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId);
+        return path.join(workSessionPath, 'plan.md');
+    }
 
     public getToolExecutions(): ToolExecutionState[] {
         return Array.from(this.toolExecutions.values());
