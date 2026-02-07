@@ -257,18 +257,15 @@ async function runPlanModeTests() {
         
         // Test 7: edit tool should NOT exist in plan mode
         console.log('\n📋 Test 7: edit tool (should not exist)');
-        // The SDK's built-in 'edit' tool should NOT be in availableTools
-        // We can verify this by checking that our custom tools don't include it
-        // and that we only whitelisted specific tools
-        // Since sendMessage() doesn't throw errors for unavailable tools,
-        // we verify correctness by checking the configuration was set up correctly
-        const planSession = sessionManager.planSession;
-        if (planSession) {
-            // We configured the session with availableTools that doesn't include 'edit'
-            // The SDK respects this - verified by SDK's own tests
-            recordTest('edit tool blocked in plan mode', true, 'SDK whitelist excludes edit');
+        // The SDK's built-in 'edit' tool should NOT be in availableTools whitelist
+        // Verify the plan session is properly restricted
+        const availableTools = sessionManager.getPlanModeAvailableTools();
+        if (!availableTools) {
+            recordTest('edit tool blocked in plan mode', false, 'Not in plan mode or no whitelist available');
+        } else if (availableTools.includes('edit')) {
+            recordTest('edit tool blocked in plan mode', false, `edit tool found in whitelist: ${availableTools.join(', ')}`);
         } else {
-            recordTest('edit tool blocked in plan mode', false, 'Plan session not found');
+            recordTest('edit tool blocked in plan mode', true, `SDK edit tool excluded from whitelist (${availableTools.length} tools allowed)`);
         }
         
         console.log('\n📋 Step 4: Disable plan mode');

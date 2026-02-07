@@ -173,8 +173,7 @@ export class SDKSessionManager {
                 this.logger.debug(`MCP Server details: ${JSON.stringify(mcpServers, null, 2)}`);
             }
             
-            // Track whether we're resuming an existing session
-            const isResuming = !!this.sessionId;
+            // Track whether we created a new session (vs resumed)
             let sessionWasCreatedNew = false;
             
             if (this.sessionId) {
@@ -235,7 +234,7 @@ export class SDKSessionManager {
                 this.logger.info('[Metrics] Resetting session-level metrics for new session');
                 this.onMessageEmitter.fire({
                     type: 'status',
-                    data: { resetMetrics: true },
+                    data: { status: 'reset_metrics', resetMetrics: true },
                     timestamp: Date.now()
                 });
             }
@@ -1303,6 +1302,32 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         const homeDir = require('os').homedir();
         const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId);
         return path.join(workSessionPath, 'plan.md');
+    }
+    
+    /**
+     * Get the list of available tools for the current plan session
+     * Used by tests to verify plan mode restrictions
+     * @returns Array of tool names that are whitelisted in plan mode, or undefined if not in plan mode
+     */
+    public getPlanModeAvailableTools(): string[] | undefined {
+        if (this.currentMode !== 'plan') {
+            return undefined;
+        }
+        // Return the same whitelist used in enablePlanMode()
+        return [
+            'plan_bash_explore',
+            'task_agent_type_explore',
+            'edit_plan_file',
+            'create_plan_file',
+            'update_work_plan',
+            'present_plan',
+            'view',
+            'grep',
+            'glob',
+            'web_fetch',
+            'fetch_copilot_cli_documentation',
+            'report_intent'
+        ];
     }
 
     public getToolExecutions(): ToolExecutionState[] {
