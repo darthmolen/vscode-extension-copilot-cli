@@ -50,7 +50,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 ### v2.2.3 - Session Resume Resilience 🔄
 
 - 🔁 **Smart Retry Logic** - Automatic recovery from transient failures
-  - Circuit breaker pattern retries up to 3 times with exponential backoff (1s, 2s, 4s)
+  - Circuit breaker pattern retries up to 3 times with exponential backoff (1s, 2s delays)
   - Handles network drops, CLI startup delays, and temporary connection issues
   - No more lost sessions from transient errors
   - Detailed retry timeline in output logs for debugging

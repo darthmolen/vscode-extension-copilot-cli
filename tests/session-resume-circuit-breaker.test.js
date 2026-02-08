@@ -3,6 +3,11 @@
  * 
  * TDD Phase 2: Circuit Breaker Core Logic
  * Tests the retry mechanism with exponential backoff
+ * 
+ * NOTE: These tests use real delays (1s, 2s) to validate backoff timing.
+ * This makes the test suite slower (~14s total) but ensures the retry
+ * logic works correctly in production. Future improvement: make delay
+ * function injectable for faster test execution.
  */
 
 import { describe, it, mock } from 'node:test';

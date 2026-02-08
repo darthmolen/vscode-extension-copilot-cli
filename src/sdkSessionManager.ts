@@ -162,35 +162,38 @@ export class SDKSessionManager {
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
         
-        try {
-            // Attempt resume with retry logic
-            return await attemptSessionResumeWithRetry(
-                sessionId,
-                resumeFn,
-                this.logger
-            );
-        } catch (error) {
-            // All retries failed - classify error and show user dialog
-            const errorType = classifySessionError(error as Error);
-            
-            this.logger.warn(`[Resume] All retries exhausted, showing user dialog (error type: ${errorType})`);
-            
-            const userChoice = await showSessionRecoveryDialog(
-                vscode,
-                sessionId,
-                errorType,
-                3, // Max attempts reached
-                error as Error
-            );
-            
-            if (userChoice === 'retry') {
-                // User wants to try again - recursive retry
-                this.logger.info('[Resume] User chose "Try Again", retrying...');
-                return await this.attemptSessionResumeWithUserRecovery(sessionId, resumeOptions);
-            } else {
-                // User wants new session - throw to trigger creation
-                this.logger.info('[Resume] User chose "Start New Session"');
-                throw error;
+        // Retry loop for user-driven recovery
+        while (true) {
+            try {
+                // Attempt resume with retry logic
+                return await attemptSessionResumeWithRetry(
+                    sessionId,
+                    resumeFn,
+                    this.logger
+                );
+            } catch (error) {
+                // All retries failed - classify error and show user dialog
+                const errorType = classifySessionError(error as Error);
+                
+                this.logger.warn(`[Resume] All retries exhausted, showing user dialog (error type: ${errorType})`);
+                
+                const userChoice = await showSessionRecoveryDialog(
+                    vscode,
+                    sessionId,
+                    errorType,
+                    3, // Max attempts reached
+                    error as Error
+                );
+                
+                if (userChoice === 'retry') {
+                    // User wants to try again - loop will perform another retry cycle
+                    this.logger.info('[Resume] User chose "Try Again", retrying...');
+                    continue; // Loop back to retry
+                } else {
+                    // User wants new session - throw to trigger creation
+                    this.logger.info('[Resume] User chose "Start New Session"');
+                    throw error;
+                }
             }
         }
     }
@@ -247,8 +250,22 @@ export class SDKSessionManager {
                     );
                     this.logger.info('Successfully resumed session');
                 } catch (error) {
-                    // Session could not be resumed - create new session
-                    this.logger.warn(`Failed to resume session ${this.sessionId}, creating new session`);
+                    // Session could not be resumed - classify the error
+                    const errorType = classifySessionError(error as Error);
+                    
+                    // Handle authentication errors differently - fail fast, don't create new session
+                    if (errorType === 'authentication') {
+                        this.logger.error('Authentication failure - cannot resume or create session. User needs to run: gh auth login');
+                        this.onMessageEmitter.fire({
+                            type: 'status',
+                            data: { status: 'authentication_required' },
+                            timestamp: Date.now()
+                        });
+                        throw error; // Propagate auth errors - user must fix
+                    }
+                    
+                    // For other errors, create new session
+                    this.logger.warn(`Failed to resume session ${this.sessionId} (error type: ${errorType}), creating new session`);
                     this.sessionId = null;
                     sessionWasCreatedNew = true;
                     this.session = await this.client.createSession({
@@ -258,10 +275,11 @@ export class SDKSessionManager {
                     });
                     this.sessionId = this.session.sessionId;
                     
-                    // Notify user that a new session was created
+                    // Notify user with appropriate status
+                    const status = errorType === 'session_expired' ? 'session_expired' : 'session_resume_failed';
                     this.onMessageEmitter.fire({
                         type: 'status',
-                        data: { status: 'session_expired', newSessionId: this.sessionId },
+                        data: { status, newSessionId: this.sessionId, reason: errorType },
                         timestamp: Date.now()
                     });
                 }

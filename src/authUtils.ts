@@ -56,7 +56,8 @@ export function classifySessionError(error: Error): ErrorType {
     //    NOT retriable - session is permanently gone
     if ((msg.includes('not found') && msg.includes('session')) || 
         (msg.includes('invalid') && msg.includes('session')) ||
-        msg.includes('session does not exist')) {
+        msg.includes('session does not exist') ||
+        (msg.includes('session') && (msg.includes('expired') || msg.includes('deleted')))) {
         return 'session_expired';
     }
     
@@ -130,7 +131,7 @@ export function checkAuthEnvVars(): EnvVarCheckResult {
  * - Retries up to 3 times for retriable errors
  * - Skips retries for session_expired (session deleted)
  * - Fails fast for authentication errors
- * - Uses exponential backoff: 1s, 2s, 4s
+ * - Uses exponential backoff: 1s, 2s between retries (2 waits for 3 attempts)
  * 
  * @param sessionId - The session ID to resume
  * @param resumeFn - Function that attempts to resume the session

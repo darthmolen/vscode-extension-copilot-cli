@@ -8,7 +8,7 @@ All notable changes to the Copilot CLI Chat extension.
 
 #### Session Resume Retry with Circuit Breaker
 - Added intelligent retry logic for session resume failures
-  - **Circuit Breaker Pattern:** Retries up to 3 times with exponential backoff (1s, 2s, 4s)
+  - **Circuit Breaker Pattern:** Retries up to 3 times with exponential backoff (1s, 2s delays)
   - **Smart Error Classification:** Different strategies for different error types:
     - `session_expired`: Skip retries, create new session immediately
     - `authentication`: Fail fast (requires user to fix auth)
