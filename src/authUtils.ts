@@ -13,6 +13,22 @@ export interface EnvVarCheckResult {
 }
 
 /**
+ * Circuit breaker state for session resume retries
+ */
+export interface CircuitBreakerState {
+    attempts: number;
+    maxAttempts: number;
+    lastError: Error | null;
+}
+
+/**
+ * Helper function to sleep for a specified duration
+ */
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * Classify error type based on error message patterns
  * 
  * This classification drives the circuit breaker retry logic:
@@ -105,4 +121,78 @@ export function checkAuthEnvVars(): EnvVarCheckResult {
     }
     
     return { hasEnvVar: false };
+}
+
+/**
+ * Circuit breaker for session resume with retry logic
+ * 
+ * Implements smart retry with exponential backoff:
+ * - Retries up to 3 times for retriable errors
+ * - Skips retries for session_expired (session deleted)
+ * - Fails fast for authentication errors
+ * - Uses exponential backoff: 1s, 2s, 4s
+ * 
+ * @param sessionId - The session ID to resume
+ * @param resumeFn - Function that attempts to resume the session
+ * @param logger - Optional logger for debug output
+ * @returns The resumed session
+ * @throws Error if all retries fail or non-retriable error occurs
+ */
+export async function attemptSessionResumeWithRetry<T>(
+    sessionId: string,
+    resumeFn: () => Promise<T>,
+    logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void }
+): Promise<T> {
+    const breaker: CircuitBreakerState = {
+        attempts: 0,
+        maxAttempts: 3,
+        lastError: null
+    };
+    
+    while (breaker.attempts < breaker.maxAttempts) {
+        try {
+            breaker.attempts++;
+            logger?.info(`[Resume] Attempt ${breaker.attempts}/${breaker.maxAttempts} for session ${sessionId.substring(0, 8)}...`);
+            
+            const result = await resumeFn();
+            logger?.info('[Resume] ✅ Success');
+            return result;
+            
+        } catch (error) {
+            breaker.lastError = error as Error;
+            const errorType = classifySessionError(error as Error);
+            
+            logger?.warn(`[Resume] Attempt ${breaker.attempts} failed: ${errorType} - ${(error as Error).message}`);
+            
+            // Don't retry if session is expired - it's permanently gone
+            if (errorType === 'session_expired') {
+                logger?.info('[Resume] Session expired, no retries');
+                throw error;
+            }
+            
+            // Don't retry auth errors - requires external action
+            if (errorType === 'authentication') {
+                logger?.error('[Resume] Auth error, failing fast');
+                throw error;
+            }
+            
+            // For retriable errors, wait before retry (if not last attempt)
+            if (breaker.attempts < breaker.maxAttempts) {
+                // Exponential backoff: 2^(attempt-1) * 1000ms
+                // attempt 1: 2^0 * 1000 = 1s
+                // attempt 2: 2^1 * 1000 = 2s
+                // attempt 3: would be 2^2 * 1000 = 4s, but we don't wait after last attempt
+                const backoffMs = Math.pow(2, breaker.attempts - 1) * 1000;
+                logger?.info(`[Resume] Waiting ${backoffMs}ms before retry...`);
+                await sleep(backoffMs);
+            } else {
+                // Max attempts reached
+                logger?.warn(`[Resume] All ${breaker.maxAttempts} attempts failed`);
+                throw error;
+            }
+        }
+    }
+    
+    // Should never reach here, but TypeScript needs this
+    throw breaker.lastError || new Error('Resume failed after max attempts');
 }
