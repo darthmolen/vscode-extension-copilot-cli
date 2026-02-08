@@ -875,3 +875,5 @@ export function deactivate() {
 export { SDKSessionManager } from './sdkSessionManager';
 export { BackendState, getBackendState } from './backendState';
 export { updateSessionsList }; // Exported for testing
+export { ExtensionRpcRouter } from './extension/rpc';
+export { Logger } from './logger';
