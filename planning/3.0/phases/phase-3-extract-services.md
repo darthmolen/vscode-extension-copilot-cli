@@ -1,7 +1,7 @@
 # Phase 3: Extract Backend Services
 
 ## Status
-⏸️ Not Started
+🟢 ~70% Complete
 
 ## Goal
 Decompose monolithic `extension.ts` and `chatViewProvider.ts` into focused, testable services
@@ -16,30 +16,89 @@ This phase extracts distinct concerns into dedicated service classes:
 - Tool permissions
 - Plan mode operations
 
+## Completed Work (v2.2+)
+
+The following services have already been extracted from the monolithic architecture:
+
+### 1. ModelCapabilitiesService (`src/modelCapabilitiesService.ts`)
+- **Size**: ~10.8 KB
+- **Responsibility**: Model information caching and attachment validation
+- **Features**:
+  - Caches model capabilities to avoid repeated API calls
+  - Validates file attachments against model limits
+  - Provides model metadata (context windows, file size limits)
+- **Status**: ✅ Extracted and working
+
+### 2. McpConfigurationService (`src/mcpConfigurationService.ts`)
+- **Size**: ~2.6 KB
+- **Responsibility**: MCP server configuration management
+- **Features**:
+  - Loads MCP server configurations from workspace
+  - Validates MCP configuration schemas
+  - Provides MCP server metadata to SDK
+- **Status**: ✅ Extracted and working
+
+### 3. PlanModeToolsService (`src/planModeToolsService.ts`)
+- **Size**: ~21.5 KB (largest service!)
+- **Responsibility**: Plan mode tool implementations and restrictions
+- **Features**:
+  - Custom tools for plan mode (present_plan, ask_user, etc.)
+  - Tool whitelisting for plan sessions
+  - Restricted bash tool for exploration
+- **Status**: ✅ Extracted and working
+
+### 4. FileSnapshotService (`src/fileSnapshotService.ts`)
+- **Size**: ~5.4 KB
+- **Responsibility**: File snapshot management for tool integration
+- **Features**:
+  - Creates point-in-time file snapshots
+  - Manages snapshot lifecycle
+  - Integrates with SDK tools
+- **Status**: ✅ Extracted and working
+
+### 5. MessageEnhancementService (`src/messageEnhancementService.ts`)
+- **Size**: ~7.2 KB
+- **Responsibility**: Message formatting and enhancement
+- **Features**:
+  - Enhances messages with context
+  - Formats messages for display
+  - Adds metadata to messages
+- **Status**: ✅ Extracted and working
+
+### Organization Notes
+- ℹ️ Services currently live in `src/*.ts` (flat structure)
+- ℹ️ Phase 3 originally proposed `src/extension/services/` directory
+- ℹ️ Moving to subdirectory is optional organizational refactoring
+
 ## Tasks
 
 ### Service Infrastructure
-- [ ] Create `src/extension/services/` directory
+- [ ] Create `src/extension/services/` directory (optional - consider moving existing services)
 - [ ] Define service interfaces/contracts
 - [ ] Set up dependency injection pattern
 
 ### Service Extraction
-- [ ] Create `SessionService.ts`
-- [ ] Create `CopilotService.ts`
-- [ ] Create `CliServerService.ts`
-- [ ] Create `ToolPermissionService.ts`
-- [ ] Create `PlanModeService.ts`
-- [ ] Create `McpService.ts` stub (for Phase 5)
+- [x] ~~Create `ModelCapabilitiesService.ts`~~ ✅ Already exists (src/modelCapabilitiesService.ts)
+- [x] ~~Create `McpConfigurationService.ts`~~ ✅ Already exists (src/mcpConfigurationService.ts)
+- [x] ~~Create `PlanModeToolsService.ts`~~ ✅ Already exists (src/planModeToolsService.ts)
+- [x] ~~Create `FileSnapshotService.ts`~~ ✅ Already exists (src/fileSnapshotService.ts)
+- [x] ~~Create `MessageEnhancementService.ts`~~ ✅ Already exists (src/messageEnhancementService.ts)
+- [ ] Create `SessionService.ts` (session lifecycle management)
+- [ ] Create `CopilotService.ts` (SDK interaction wrapper - if needed)
+- [ ] Create `CliServerService.ts` (CLI server mode - if applicable)
+- [ ] Create `ToolPermissionService.ts` (tool approval workflow - if needed)
+- [ ] Evaluate if additional service extraction is needed from SDKSessionManager
 
-### Refactoring
-- [ ] Refactor `extension.ts` to use services
-- [ ] Simplify `chatViewProvider.ts` to webview + RPC only
-- [ ] Update RPC router to delegate to services
-- [ ] Remove duplicate logic
+### Remaining Refactoring Work
+- [ ] Consider moving existing services to `src/services/` directory
+- [ ] Extract remaining session management logic from `extension.ts`
+- [ ] Consider wrapping SDK interaction in dedicated service
+- [ ] Evaluate if `sdkSessionManager.ts` should be split further
+- [ ] Remove any duplicate logic across existing services
 - [ ] Update tests to use service layer
 
 ### Testing
-- [ ] Add unit tests for each service
+- [ ] Add unit tests for newly extracted services
 - [ ] Add integration tests for service interactions
 - [ ] Verify all functionality still works
 

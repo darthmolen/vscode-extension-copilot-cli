@@ -8,7 +8,13 @@ import { PlanModeToolsService } from './planModeToolsService';
 import { MessageEnhancementService } from './messageEnhancementService';
 import { FileSnapshotService } from './fileSnapshotService';
 import { MCPConfigurationService } from './mcpConfigurationService';
-import { classifySessionError, checkAuthEnvVars, ErrorType } from './authUtils';
+import { 
+    classifySessionError, 
+    checkAuthEnvVars, 
+    ErrorType, 
+    attemptSessionResumeWithRetry,
+    showSessionRecoveryDialog 
+} from './authUtils';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -137,6 +143,61 @@ export class SDKSessionManager {
         }
     }
 
+    /**
+     * Attempt to resume a session with retry logic and user recovery dialog
+     * 
+     * Uses circuit breaker pattern with exponential backoff:
+     * - Retries up to 3 times for retriable errors
+     * - Shows user dialog if all retries fail
+     * - Skips retries for session_expired and authentication errors
+     * 
+     * @param sessionId - The session ID to resume
+     * @param resumeOptions - Options to pass to resumeSession()
+     * @returns The resumed session, or a new session if recovery chose that path
+     */
+    private async attemptSessionResumeWithUserRecovery(
+        sessionId: string,
+        resumeOptions: any
+    ): Promise<any> {
+        // Wrap the SDK's resumeSession in a function
+        const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
+        
+        // Retry loop for user-driven recovery
+        while (true) {
+            try {
+                // Attempt resume with retry logic
+                return await attemptSessionResumeWithRetry(
+                    sessionId,
+                    resumeFn,
+                    this.logger
+                );
+            } catch (error) {
+                // All retries failed - classify error and show user dialog
+                const errorType = classifySessionError(error as Error);
+                
+                this.logger.warn(`[Resume] All retries exhausted, showing user dialog (error type: ${errorType})`);
+                
+                const userChoice = await showSessionRecoveryDialog(
+                    vscode,
+                    sessionId,
+                    errorType,
+                    3, // Max attempts reached
+                    error as Error
+                );
+                
+                if (userChoice === 'retry') {
+                    // User wants to try again - loop will perform another retry cycle
+                    this.logger.info('[Resume] User chose "Try Again", retrying...');
+                    continue; // Loop back to retry
+                } else {
+                    // User wants new session - throw to trigger creation
+                    this.logger.info('[Resume] User chose "Start New Session"');
+                    throw error;
+                }
+            }
+        }
+    }
+
     public async start(): Promise<void> {
         this.logger.info('Starting SDK Session Manager...');
         
@@ -179,37 +240,48 @@ export class SDKSessionManager {
             if (this.sessionId) {
                 this.logger.info(`Attempting to resume session: ${this.sessionId}`);
                 try {
-                    this.session = await this.client.resumeSession(this.sessionId, {
+                    // Use retry logic with user recovery dialog
+                    this.session = await this.attemptSessionResumeWithUserRecovery(
+                        this.sessionId,
+                        {
+                            tools: this.getCustomTools(),
+                            ...(hasMcpServers ? { mcpServers } : {}),
+                        }
+                    );
+                    this.logger.info('Successfully resumed session');
+                } catch (error) {
+                    // Session could not be resumed - classify the error
+                    const errorType = classifySessionError(error as Error);
+                    
+                    // Handle authentication errors differently - fail fast, don't create new session
+                    if (errorType === 'authentication') {
+                        this.logger.error('Authentication failure - cannot resume or create session. User needs to run: gh auth login');
+                        this.onMessageEmitter.fire({
+                            type: 'status',
+                            data: { status: 'authentication_required' },
+                            timestamp: Date.now()
+                        });
+                        throw error; // Propagate auth errors - user must fix
+                    }
+                    
+                    // For other errors, create new session
+                    this.logger.warn(`Failed to resume session ${this.sessionId} (error type: ${errorType}), creating new session`);
+                    this.sessionId = null;
+                    sessionWasCreatedNew = true;
+                    this.session = await this.client.createSession({
+                        model: this.config.model || undefined,
                         tools: this.getCustomTools(),
                         ...(hasMcpServers ? { mcpServers } : {}),
                     });
-                    this.logger.info('Successfully resumed session');
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    // If session not found (expired/invalid), create a new one
-                    if (errorMessage.toLowerCase().includes('session not found') || 
-                        errorMessage.toLowerCase().includes('not found') ||
-                        errorMessage.toLowerCase().includes('invalid session')) {
-                        this.logger.warn(`Session ${this.sessionId} not found (likely expired), creating new session`);
-                        this.sessionId = null;
-                        sessionWasCreatedNew = true;
-                        this.session = await this.client.createSession({
-                            model: this.config.model || undefined,
-                            tools: this.getCustomTools(),
-                            ...(hasMcpServers ? { mcpServers } : {}),
-                        });
-                        this.sessionId = this.session.sessionId;
-                        
-                        // Notify user that a new session was created
-                        this.onMessageEmitter.fire({
-                            type: 'status',
-                            data: { status: 'session_expired', newSessionId: this.sessionId },
-                            timestamp: Date.now()
-                        });
-                    } else {
-                        // Some other error, rethrow
-                        throw error;
-                    }
+                    this.sessionId = this.session.sessionId;
+                    
+                    // Notify user with appropriate status
+                    const status = errorType === 'session_expired' ? 'session_expired' : 'session_resume_failed';
+                    this.onMessageEmitter.fire({
+                        type: 'status',
+                        data: { status, newSessionId: this.sessionId, reason: errorType },
+                        timestamp: Date.now()
+                    });
                 }
             } else {
                 this.logger.info('Creating new session');
@@ -605,12 +677,20 @@ export class SDKSessionManager {
                 errorMessage.includes('session has been deleted') ||
                 errorMessage.includes('session is invalid')) {
                 
-                this.logger.warn('Session no longer exists, recreating...');
+                this.logger.warn('Session appears to have timed out or expired during message sending');
                 
-                // Preserve current mode before destroying session
+                // Get the session ID that failed
+                const failedSessionId = this.sessionId;
+                
+                if (!failedSessionId) {
+                    this.logger.error('No session ID available to resume');
+                    throw error;
+                }
+                
+                // Preserve current mode before attempting recovery
                 const wasPlanMode = this.currentMode === 'plan';
                 
-                // Destroy old session and create a new one (but keep the client alive)
+                // Destroy the stale session object
                 if (this.session) {
                     try {
                         await this.session.destroy();
@@ -621,7 +701,70 @@ export class SDKSessionManager {
                     this.session = null;
                 }
                 
-                // Create new session with same client
+                // Attempt to resume with retry logic and user recovery dialog
+                try {
+                    const mcpServers = this.getEnabledMCPServers();
+                    const hasMcpServers = Object.keys(mcpServers).length > 0;
+                    
+                    const resumeOptions = {
+                        tools: this.getCustomTools(),
+                        ...(wasPlanMode ? {
+                            availableTools: [
+                                'plan_bash_explore',
+                                'task_agent_type_explore',
+                                'edit_plan_file',
+                                'create_plan_file',
+                                'update_work_plan',
+                                'present_plan',
+                                'view',
+                                'grep',
+                                'glob',
+                                'web_fetch',
+                                'fetch_copilot_cli_documentation',
+                                'report_intent'
+                            ]
+                        } : {}),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    };
+                    
+                    this.logger.info(`[Timeout Recovery] Attempting to resume timed-out session ${failedSessionId.substring(0, 8)}...`);
+                    this.session = await this.attemptSessionResumeWithUserRecovery(
+                        failedSessionId,
+                        resumeOptions
+                    );
+                    
+                    // Successfully resumed!
+                    this.logger.info(`[Timeout Recovery] ✅ Session resumed successfully`);
+                    
+                    // Restore session tracking
+                    if (wasPlanMode) {
+                        this.planSession = this.session;
+                        this.sessionId = failedSessionId;
+                        this.currentMode = 'plan';
+                    } else {
+                        this.workSession = this.session;
+                        this.sessionId = this.session.sessionId;
+                        this.workSessionId = this.sessionId;
+                        this.currentMode = 'work';
+                    }
+                    
+                    // Re-setup event handlers for resumed session
+                    this.setupSessionEventHandlers();
+                    
+                    // Retry the original message send
+                    this.logger.info('[Timeout Recovery] Retrying original message send...');
+                    await this.sendMessage(message, attachments, true); // isRetry=true to avoid infinite loop
+                    this.logger.info('[Timeout Recovery] Message sent successfully after resume');
+                    return; // Success!
+                    
+                } catch (resumeError) {
+                    // Resume failed (even after retries and user dialog)
+                    // Fall through to create new session below
+                    const resumeErrorMsg = resumeError instanceof Error ? resumeError.message : String(resumeError);
+                    this.logger.warn('[Timeout Recovery] Resume failed, creating new session: ' + resumeErrorMsg);
+                }
+                
+                // If we get here, resume failed - create new session
                 const mcpServers = this.getEnabledMCPServers();
                 const hasMcpServers = Object.keys(mcpServers).length > 0;
                 

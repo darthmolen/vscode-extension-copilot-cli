@@ -370,6 +370,103 @@ rpcClient.ready();
 - ❌ Do NOT change backend services (already done in Phase 3)
 - ❌ Do NOT add MCP UI yet (that's Phase 5)
 - ❌ Do NOT add fancy UI frameworks (React, Vue, etc.)
+- ❌ Do NOT do sidebar refactor before componentization (see section 4.5 below)
+
+---
+
+## 4.5: WebviewPanel → WebviewViewProvider Migration
+
+**Goal**: Enable sidebar and secondary sidebar support
+
+**Why During This Phase**: Component-based UI makes responsive sidebar layout significantly easier to implement. Doing the sidebar refactor before componentization would mean rewriting the UI twice.
+
+### Integration With Componentization
+
+The sidebar migration should happen **AFTER** the component extraction above is complete, because:
+
+1. **Responsive CSS is cleaner** with component-based structure
+2. **State management** already handles view lifecycle properly (hide/show)
+3. **RPC layer** provides clean separation (backend doesn't care about view type)
+4. **Component testing** ensures everything works before changing view type
+5. **Avoids double refactoring** (panel UI → component UI → sidebar UI)
+
+### Tasks
+
+- [ ] **Review specifications**: Read `../backlog/sidebar-view-refactor.md` for complete details
+- [ ] **Update package.json**: Add viewsContainers and views contributions
+  ```json
+  "viewsContainers": {
+    "activitybar": [{
+      "id": "copilot-cli-sidebar",
+      "title": "Copilot CLI",
+      "icon": "images/sidebar-icon.svg"
+    }]
+  },
+  "views": {
+    "copilot-cli-sidebar": [{
+      "type": "webview",
+      "id": "copilot-cli.chatView",
+      "name": "Chat"
+    }]
+  }
+  ```
+- [ ] **Refactor ChatViewProvider**: Implement `WebviewViewProvider` interface
+  - Change from `createWebviewPanel()` to `registerWebviewViewProvider()`
+  - Update lifecycle from `createOrShow()` to `resolveWebviewView()`
+  - Change property from `panel` to `view`
+- [ ] **Responsive CSS**: Adjust component styles for sidebar widths (200px - 400px)
+  - Chat component adapts to narrow width
+  - Input area stacks properly
+  - Toolbar fits in sidebar
+  - Test at multiple widths
+- [ ] **Update commands**: Change `openChat` to reveal sidebar view instead of creating panel
+- [ ] **Test view lifecycle**: Ensure state persists across view hide/show
+- [ ] **Critical test**: **Verify drag to secondary sidebar works!** ✨
+
+### CSS Considerations
+
+With component-based CSS, sidebar width adaptation becomes easier:
+
+```css
+/* Chat.css - Example responsive adjustments */
+.chat-container {
+  /* Already works, but might need tweaks for narrow widths */
+  min-width: 200px; /* Sidebar minimum */
+  max-width: 100%; /* Fills sidebar width */
+}
+
+/* InputArea.css - Stack buttons on narrow widths */
+@media (max-width: 300px) {
+  .input-area {
+    flex-direction: column;
+  }
+}
+
+/* Toolbar.css - Responsive session selector */
+.session-selector {
+  width: 100%; /* Fill available width */
+  max-width: 350px; /* Cap for wide sidebars */
+}
+```
+
+### Success Criteria
+
+- [ ] Extension appears in activity bar with custom icon
+- [ ] Chat view opens in primary sidebar by default
+- [ ] **Users can drag chat view to secondary sidebar** 🎉
+- [ ] Responsive CSS works smoothly at all sidebar widths (200px - 400px)
+- [ ] All existing features work identically in sidebar view
+- [ ] State persists when sidebar is hidden/shown
+- [ ] No visual regressions compared to panel view
+
+### References
+
+- **Detailed specifications**: `../backlog/sidebar-view-refactor.md`
+- **VS Code API**: [WebviewViewProvider](https://code.visualstudio.com/api/references/vscode-api#WebviewViewProvider)
+- **UX Guidelines**: [Sidebars](https://code.visualstudio.com/api/ux-guidelines/sidebars)
+- **Example**: [webview-view-sample](https://github.com/microsoft/vscode-extension-samples/tree/main/webview-view-sample)
+
+---
 
 ## Validation Checklist
 
@@ -433,3 +530,4 @@ rpcClient.ready();
 ✅ No visual or functional regressions
 ✅ Better developer experience for UI changes
 ✅ Easy to add new UI components
+✅ **Sidebar view migration complete** (extension in activity bar, draggable to secondary sidebar)

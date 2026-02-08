@@ -1,12 +1,73 @@
-# Copilot CLI Chat
+# Copilot CLI Chat for VS Code
 
-Interactive VS Code extension for GitHub Copilot CLI - bringing a smooth, Claude Code-inspired UX to your development workflow. Powered by the **GitHub Copilot SDK 2.0** for a richer, more responsive experience.
+## Why This Extension?
+
+VS Code already ships a native Copilot chat — and it's great as a general-purpose tool. This extension takes a different approach: a focused, session-driven workflow designed to keep you in flow while coding.
+
+Think of it as the difference between a Swiss Army knife and a purpose-built tool. Where the native experience covers everything, this extension is optimized for deep think sessions — rich streaming, plan-vs-implement separation, and a Claude Code-inspired UX that stays out of your way.
+
+Your decisions stay where your focus is. When the agent edits a file, you see the diff right in the chat stream — review it, tell the agent what to change, or click through to edit it yourself. No context-switching to scattered inline annotations. No accept/reject popups pulling you out of your conversation. You're already talking to the agent — that's where your decisions should happen.
+
+And you don't have to choose. Sessions created in this extension appear in the official Copilot extension's session list, so you can switch between both seamlessly. Don't worry, this extension will wait. We know you'll be back for the more focused experience.
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/darthmolen.copilot-cli-extension)](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 
 ## ✨ Features
+
+### 🎯 Focused by Design
+
+- **In-Stream Diffs** — File changes appear right in the chat. Review, approve, or redirect the agent without leaving your conversation.
+- **Plan Mode (ACE-FCA)** — Separate planning and implementation into dual sessions. Explore with read-only tools, then hand off a solid plan to your work session.
+- **Plan Model Selection** — Use different AI models for planning vs. implementation. Think with Opus, build with Sonnet, explore with Haiku.
+- **Reasoning Visibility** — Watch the agent think in real-time with streaming reasoning traces.
+
+### 🔄 Session-First Workflow
+
+- **Session Interop** — Sessions appear in the official Copilot extension's session list. Switch between both experiences freely.
+- **Auto-Resume** — Picks up where you left off. Full conversation history loads from Copilot CLI's event log.
+- **Session Resilience** — Smart retry logic handles transient failures automatically (v2.2.3+).
+- **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
+- **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
+
+### 🛠️ Rich Agent Experience
+
+- **In-Stream Tool Execution** — Collapsible tool groups show exactly what the agent is doing, inline with the conversation.
+- **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
+- **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
+- **@file References** — Reference files directly in your messages.
+- **14 AI Models** — GPT-5, Claude 4.5 Sonnet/Opus, Gemini 3 Pro, and more.
+- **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
+
+### ⚡ Developer Control
+
+- **YOLO Mode** — All permissions enabled for fast iteration (default, recommended).
+- **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
+- **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
+- **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v2.2.3 - Session Resume Resilience 🔄
+
+- 🔁 **Smart Retry Logic** - Automatic recovery from transient failures
+  - Circuit breaker pattern retries up to 3 times with exponential backoff (1s, 2s delays)
+  - Handles network drops, CLI startup delays, and temporary connection issues
+  - No more lost sessions from transient errors
+  - Detailed retry timeline in output logs for debugging
+  
+- 🎯 **Intelligent Error Classification** - Different strategies for different errors
+  - Session expired → Creates new session immediately (no retries)
+  - Authentication errors → Fails fast (requires user to fix auth)
+  - Network timeouts → Retries automatically (transient issue)
+  - CLI not ready → Retries with patience (CLI still starting)
+  - Unknown errors → Retries conservatively (safe default)
+  
+- 💬 **User Recovery Dialog** - You decide what happens after retries
+  - Shows contextual error message based on failure type
+  - "Try Again" button → Retries the resume operation
+  - "Start New Session" button → Creates fresh session
+  - Appears only after automatic retries are exhausted
+  - Never lose conversation history without your decision
 
 ### v2.2.2 - Bug Fixes & Polish 🐛
 

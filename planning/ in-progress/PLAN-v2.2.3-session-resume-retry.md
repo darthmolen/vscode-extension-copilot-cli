@@ -1,8 +1,8 @@
-# Implementation Plan: Version 2.2.3 - Session Resume Circuit Breaker
+co# Implementation Plan: Version 2.2.3 - Session Resume Circuit Breaker
 
 ## Summary
 
-Implement smart retry logic with exponential backoff and user recovery dialogs for session resume failures. This was deferred from v2.2.2 due to complexity but is important for reliability.
+Implement smart retry logic with exponential backoff and user recovery dialogs for session resume failures. This was deferred from v2.2.2 due to complexity but is important for reliability. Implement with using-superpowers and test-driven-development skills. Red-Green ftw!
 
 ## Problem Statement
 
