@@ -1,4 +1,6 @@
 const esbuild = require("esbuild");
+const fs = require('fs');
+const path = require('path');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -24,6 +26,24 @@ const esbuildProblemMatcherPlugin = {
 };
 
 async function main() {
+	// Create dist/webview directory
+	const webviewDistDir = path.join(__dirname, 'dist', 'webview');
+	if (!fs.existsSync(webviewDistDir)) {
+		fs.mkdirSync(webviewDistDir, { recursive: true });
+	}
+
+	// Copy CSS file (no processing needed)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'styles.css'),
+		path.join(webviewDistDir, 'styles.css')
+	);
+
+	// Copy JS file (no processing needed for now - just vanilla JS)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'main.js'),
+		path.join(webviewDistDir, 'main.js')
+	);
+
 	// Extension build context
 	const extensionCtx = await esbuild.context({
 		entryPoints: [
@@ -43,31 +63,11 @@ async function main() {
 		],
 	});
 
-	// Webview build context (placeholder for Phase 1)
-	// Will be used when webview code is extracted to separate files
-	const webviewCtx = await esbuild.context({
-		entryPoints: [],  // Will add 'src/webview/main.js' in Phase 1
-		bundle: true,
-		format: 'iife',
-		minify: production,
-		sourcemap: !production,
-		sourcesContent: false,
-		platform: 'browser',
-		outfile: 'dist/webview/main.js',
-		logLevel: 'silent',
-		plugins: [
-			esbuildProblemMatcherPlugin,
-		],
-	});
-
 	if (watch) {
 		await extensionCtx.watch();
-		await webviewCtx.watch();
 	} else {
 		await extensionCtx.rebuild();
-		await webviewCtx.rebuild();
 		await extensionCtx.dispose();
-		await webviewCtx.dispose();
 	}
 }
 

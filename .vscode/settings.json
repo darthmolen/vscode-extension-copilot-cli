@@ -19,6 +19,13 @@
             "args": ["${workspaceFolder}/tests/mcp-server/hello-mcp/server.py"],
             "tools": ["*"],
             "enabled": true
+        },
+        "vscode-ext-dev": {
+            "type": "local",
+            "command": "node",
+            "args": ["/home/smolen/dev/Mcp/src/servers/vscode-development/dist/index.js"],
+            "tools": ["*"],
+            "enabled": true
         }
     }
 }

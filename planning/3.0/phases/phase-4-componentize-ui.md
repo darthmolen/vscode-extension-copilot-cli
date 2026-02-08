@@ -16,15 +16,28 @@ This phase decomposes the UI into focused components:
 - Plan mode UI
 - Diff viewer
 
+### Framework Research
+
+**Finding**: Most successful VS Code chat extensions use vanilla JavaScript.
+
+**Evidence**:
+- **ChatGPT VSCode extension**: vanilla JS
+- **Genie AI extension**: vanilla JS  
+- **VS Code Webview UI Toolkit**: vanilla JS web components (being deprecated Jan 2025)
+- **Official VS Code docs**: Recommend keeping webviews lightweight
+
+**Conclusion**: Vanilla JS is the proven pattern for chat extensions in VS Code. React/Vue/Angular add unnecessary complexity and bundle size for what is essentially list rendering and markdown display.
+
 ## Tasks
 
-### Component Architecture
+### Phase 4.1: Component Extraction (Vanilla JS)
+
+**Component Architecture**
 - [ ] Create `src/webview/app/components/` directory
 - [ ] Create `src/webview/app/state/` directory
-- [ ] Choose component pattern (Web Components, vanilla modules, or functions)
-- [ ] Design state management approach
+- [ ] Set up vanilla JS module structure
 
-### Component Extraction
+**Component Extraction**
 - [ ] Extract `Chat/` component - message list and rendering
 - [ ] Extract `InputArea/` component - message input and send
 - [ ] Extract `Toolbar/` component - session selector and controls
@@ -32,19 +45,37 @@ This phase decomposes the UI into focused components:
 - [ ] Extract `PlanMode/` component - plan mode UI
 - [ ] Extract `Diff/` component - inline diff display (if applicable)
 
-### State Management
-- [ ] Create centralized state manager
+**State Management**
+- [ ] Create centralized state manager (vanilla pub/sub)
 - [ ] Define state shape and updates
-- [ ] Implement pub/sub or similar pattern
 - [ ] Connect components to state
 
-### Refactoring
+**Refactoring**
 - [ ] Refactor `main.js` to compose components
 - [ ] Remove duplicate rendering logic
 - [ ] Simplify event handlers
 - [ ] Test each component in isolation
 
-### Optional: TypeScript Migration
+### Phase 4.2: Add WebviewView Support (Sidebar)
+
+- [ ] **Review specifications**: Read `../backlog/sidebar-view-refactor.md`
+- [ ] **Update package.json**: Add viewsContainers and views contributions
+- [ ] **Create ChatViewProvider**: Implement `WebviewViewProvider` interface
+- [ ] **Extract shared HTML**: Move to `getWebviewHtml()` shared function
+- [ ] **Responsive CSS**: Adjust component styles for sidebar widths (200px - 400px)
+- [ ] **Update commands**: Add commands to open panel vs sidebar
+- [ ] **Test view lifecycle**: Ensure state persists across view hide/show
+- [ ] **Critical test**: **Verify drag to secondary sidebar works!** ✨
+
+### Phase 4.3: Shared Component Infrastructure
+
+- [ ] Ensure both WebviewPanel and WebviewView use same HTML/CSS/JS
+- [ ] Verify components adapt to width changes
+- [ ] Test panel and sidebar simultaneously
+- [ ] Document architecture for future maintainers
+
+### Phase 4.4: Optional TypeScript Migration
+
 - [ ] Convert `main.js` → `main.ts`
 - [ ] Add types to component props
 - [ ] Set up TypeScript compilation for webview
@@ -73,9 +104,19 @@ App (main.ts)
     └── AbortButton
 ```
 
-### Component Pattern Options
+### Component Architecture - Vanilla JS (Chosen Approach)
 
-#### Option A: Vanilla JS Functions (Simplest)
+**Decision**: Use **Vanilla JS Functions** 
+
+**Rationale** (based on research):
+- ✅ Most successful VS Code chat extensions (ChatGPT, Genie AI) use vanilla JS
+- ✅ Zero dependencies - faster load, smaller bundle
+- ✅ Chat UIs are mostly list rendering + markdown - don't need React's complexity
+- ✅ Easier to debug in webview context
+- ✅ VS Code Webview UI Toolkit (being deprecated Jan 2025) was vanilla JS web components
+- ✅ Official VS Code docs recommend keeping webviews lightweight
+
+**Pattern:**
 ```javascript
 // src/webview/app/components/Chat/Chat.js
 
@@ -104,53 +145,9 @@ export function createChat(container, state) {
 }
 ```
 
-#### Option B: Web Components (More Structured)
-```javascript
-// src/webview/app/components/Chat/Chat.js
-
-class ChatComponent extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
-  connectedCallback() {
-    this.render();
-    this.subscribeToState();
-  }
-
-  render() {
-    this.shadowRoot.innerHTML = `
-      <style>${chatStyles}</style>
-      <div class="chat-container">
-        ${this.messages.map(renderMessage).join('')}
-      </div>
-    `;
-  }
-}
-
-customElements.define('chat-component', ChatComponent);
-```
-
-#### Option C: Lightweight Library (Zustand, Nanostores)
-```javascript
-// Using Zustand-like pattern
-import { create } from './state/createStore';
-
-const useStore = create((set) => ({
-  messages: [],
-  addMessage: (msg) => set((state) => ({ 
-    messages: [...state.messages, msg] 
-  })),
-}));
-
-export function Chat() {
-  const messages = useStore((state) => state.messages);
-  // ... render logic
-}
-```
-
-**Recommendation**: Start with **Option A** (vanilla functions) - it's the simplest and requires no dependencies. Migrate to Option B or C only if complexity grows.
+**Alternatives** (use only if vanilla JS proves insufficient):
+- **Web Components**: If encapsulation becomes critical (Shadow DOM isolation)
+- **Lightweight library** like Zustand: If state management becomes complex
 
 ### State Management
 
@@ -374,20 +371,76 @@ rpcClient.ready();
 
 ---
 
-## 4.5: WebviewPanel → WebviewViewProvider Migration
+## 4.2: Add WebviewView Support (Sidebar)
 
-**Goal**: Enable sidebar and secondary sidebar support
+**Goal**: Enable sidebar and secondary sidebar support while maintaining existing panel functionality.
 
 **Why During This Phase**: Component-based UI makes responsive sidebar layout significantly easier to implement. Doing the sidebar refactor before componentization would mean rewriting the UI twice.
 
+### Dual View Architecture
+
+Both **WebviewPanel** (editor tabs) and **WebviewView** (sidebar) will be supported:
+
+- **WebviewPanel**: Opens in editor area as a tab (existing behavior - keep this!)
+- **WebviewView**: Lives in sidebar or secondary sidebar (new!)
+- **Like Claude/Copilot**: Users choose where they want the chat
+- **Shared code**: Both providers use the exact same HTML/JS/CSS
+
+**Provider Architecture:**
+
+```typescript
+// src/extension/providers/ChatPanelProvider.ts (existing, refactored)
+export class ChatPanelProvider {
+  private static panel: vscode.WebviewPanel | undefined;
+  
+  static createOrShow(context: vscode.ExtensionContext) {
+    // Creates WebviewPanel in editor area
+    this.panel.webview.html = getWebviewHtml(webview, context);
+  }
+}
+
+// src/extension/providers/ChatViewProvider.ts (NEW)
+export class ChatViewProvider implements vscode.WebviewViewProvider {
+  resolveWebviewView(webviewView: vscode.WebviewView) {
+    // Same HTML/JS/CSS as panel!
+    webviewView.webview.html = getWebviewHtml(webview, context);
+  }
+}
+
+// src/extension/providers/webviewHtml.ts (SHARED)
+export function getWebviewHtml(webview: vscode.Webview, context: vscode.ExtensionContext): string {
+  // Returns same HTML for both panel and view
+  // Components adapt to container width via CSS
+}
+```
+
+**package.json configuration:**
+
+```json
+"viewsContainers": {
+  "activitybar": [{
+    "id": "copilot-cli-sidebar",
+    "title": "Copilot CLI",
+    "icon": "images/sidebar-icon.svg"
+  }]
+},
+"views": {
+  "copilot-cli-sidebar": [{
+    "type": "webview",
+    "id": "copilot-cli.chatView",
+    "name": "Chat"
+  }]
+}
+```
+
 ### Integration With Componentization
 
-The sidebar migration should happen **AFTER** the component extraction above is complete, because:
+The sidebar migration should happen **AFTER** the component extraction is complete, because:
 
 1. **Responsive CSS is cleaner** with component-based structure
 2. **State management** already handles view lifecycle properly (hide/show)
 3. **RPC layer** provides clean separation (backend doesn't care about view type)
-4. **Component testing** ensures everything works before changing view type
+4. **Component testing** ensures everything works before adding second view type
 5. **Avoids double refactoring** (panel UI → component UI → sidebar UI)
 
 ### Tasks
@@ -523,11 +576,28 @@ With component-based CSS, sidebar width adaptation becomes easier:
 - Focus on maintainability over cleverness
 
 ## Success Criteria
-✅ Component-based architecture in place
-✅ Each component is focused and testable
-✅ Clean state management
-✅ Main.js is just component composition
+
+### Componentization
+✅ Vanilla JS component architecture in place (no frameworks)
+✅ Each component under 150 lines, single responsibility
+✅ Simple pub/sub state management
+✅ Main.js is just composition (under 200 lines)
 ✅ No visual or functional regressions
-✅ Better developer experience for UI changes
+
+### Dual View Support  
+✅ Extension appears in activity bar with custom icon
+✅ Chat works in editor tabs (WebviewPanel - existing behavior)
+✅ Chat works in sidebar (WebviewView - new!)
+✅ **Users can drag chat to secondary sidebar** 🎉
+✅ Responsive CSS works at all widths (200px - 400px sidebar, flexible in editor)
+✅ Same features work in both views
+✅ State persists across view hide/show
+✅ Both views share the same components (no code duplication)
+
+### Code Quality
+✅ Zero framework dependencies
+✅ Components are independently testable
+✅ No duplicate rendering logic between views
+✅ Clear separation: providers vs components
 ✅ Easy to add new UI components
-✅ **Sidebar view migration complete** (extension in activity bar, draggable to secondary sidebar)
+✅ Better developer experience
