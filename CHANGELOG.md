@@ -2,6 +2,35 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [2.2.3] - 2026-02-08
+
+### ✨ Features
+
+#### Session Resume Retry with Circuit Breaker
+- Added intelligent retry logic for session resume failures
+  - **Circuit Breaker Pattern:** Retries up to 3 times with exponential backoff (1s, 2s, 4s)
+  - **Smart Error Classification:** Different strategies for different error types:
+    - `session_expired`: Skip retries, create new session immediately
+    - `authentication`: Fail fast (requires user to fix auth)
+    - `network_timeout`: Retry with backoff (transient network issues)
+    - `session_not_ready`: Retry with backoff (CLI still starting)
+    - `unknown`: Retry with backoff (conservative approach)
+  - **User Recovery Dialog:** When all retries fail, shows contextual dialog:
+    - "Previous session not found" for expired sessions
+    - "Cannot connect to Copilot CLI" for network errors
+    - "Copilot CLI not ready" for CLI connection issues
+    - User can choose "Try Again" or "Start New Session"
+  - **Comprehensive Logging:** Detailed retry timeline in output channel for debugging
+
+### 🐛 Bug Fixes
+
+#### Session Resume Reliability
+- Fixed session resume giving up immediately on transient errors
+  - Previously: One error = new session (lost conversation history)
+  - Now: Retries transient failures automatically before giving up
+  - Better UX: User has final say on session fate via recovery dialog
+  - No infinite loops: Maximum 3 retry attempts enforced
+
 ## [2.2.2] - 2026-02-07
 
 ### 🐛 Bug Fixes
