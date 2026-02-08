@@ -196,3 +196,56 @@ export async function attemptSessionResumeWithRetry<T>(
     // Should never reach here, but TypeScript needs this
     throw breaker.lastError || new Error('Resume failed after max attempts');
 }
+
+/**
+ * Show a recovery dialog to the user when session resume fails
+ * 
+ * Provides contextual error messages and recovery options based on error type.
+ * Injected vscode dependency for testability.
+ * 
+ * @param vscode - VS Code API (injected for testability)
+ * @param sessionId - The session ID that failed to resume
+ * @param errorType - Classification of the error
+ * @param attemptCount - Number of retry attempts made
+ * @param lastError - The last error encountered
+ * @returns 'retry' if user wants to try again, 'new' otherwise
+ */
+export async function showSessionRecoveryDialog(
+    vscode: any,
+    sessionId: string,
+    errorType: ErrorType,
+    attemptCount: number,
+    lastError: Error
+): Promise<'retry' | 'new'> {
+    let message: string;
+    let detail: string;
+    
+    // Truncate session ID for display (first 8 chars)
+    const shortSessionId = sessionId.substring(0, 8) + '...';
+    
+    // Construct message based on error type
+    if (errorType === 'session_expired') {
+        message = 'Previous session not found';
+        detail = `Session ${shortSessionId} appears to have been deleted or expired.`;
+    } else if (errorType === 'network_timeout') {
+        message = 'Cannot connect to Copilot CLI';
+        detail = `Network error after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
+    } else if (errorType === 'session_not_ready') {
+        message = 'Copilot CLI not ready';
+        detail = `CLI not ready after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
+    } else {
+        message = 'Failed to resume session';
+        detail = `Unknown error after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
+    }
+    
+    const choice = await vscode.window.showWarningMessage(
+        message,
+        { modal: true, detail },
+        'Try Again',
+        'Start New Session'
+    );
+    
+    // User chose "Try Again" -> retry
+    // User chose "Start New Session" or dismissed (undefined) -> new session
+    return choice === 'Try Again' ? 'retry' : 'new';
+}
