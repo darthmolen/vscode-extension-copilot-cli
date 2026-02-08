@@ -659,12 +659,20 @@ export class SDKSessionManager {
                 errorMessage.includes('session has been deleted') ||
                 errorMessage.includes('session is invalid')) {
                 
-                this.logger.warn('Session no longer exists, recreating...');
+                this.logger.warn('Session appears to have timed out or expired during message sending');
                 
-                // Preserve current mode before destroying session
+                // Get the session ID that failed
+                const failedSessionId = this.sessionId;
+                
+                if (!failedSessionId) {
+                    this.logger.error('No session ID available to resume');
+                    throw error;
+                }
+                
+                // Preserve current mode before attempting recovery
                 const wasPlanMode = this.currentMode === 'plan';
                 
-                // Destroy old session and create a new one (but keep the client alive)
+                // Destroy the stale session object
                 if (this.session) {
                     try {
                         await this.session.destroy();
@@ -675,7 +683,70 @@ export class SDKSessionManager {
                     this.session = null;
                 }
                 
-                // Create new session with same client
+                // Attempt to resume with retry logic and user recovery dialog
+                try {
+                    const mcpServers = this.getEnabledMCPServers();
+                    const hasMcpServers = Object.keys(mcpServers).length > 0;
+                    
+                    const resumeOptions = {
+                        tools: this.getCustomTools(),
+                        ...(wasPlanMode ? {
+                            availableTools: [
+                                'plan_bash_explore',
+                                'task_agent_type_explore',
+                                'edit_plan_file',
+                                'create_plan_file',
+                                'update_work_plan',
+                                'present_plan',
+                                'view',
+                                'grep',
+                                'glob',
+                                'web_fetch',
+                                'fetch_copilot_cli_documentation',
+                                'report_intent'
+                            ]
+                        } : {}),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    };
+                    
+                    this.logger.info(`[Timeout Recovery] Attempting to resume timed-out session ${failedSessionId.substring(0, 8)}...`);
+                    this.session = await this.attemptSessionResumeWithUserRecovery(
+                        failedSessionId,
+                        resumeOptions
+                    );
+                    
+                    // Successfully resumed!
+                    this.logger.info(`[Timeout Recovery] ✅ Session resumed successfully`);
+                    
+                    // Restore session tracking
+                    if (wasPlanMode) {
+                        this.planSession = this.session;
+                        this.sessionId = failedSessionId;
+                        this.currentMode = 'plan';
+                    } else {
+                        this.workSession = this.session;
+                        this.sessionId = this.session.sessionId;
+                        this.workSessionId = this.sessionId;
+                        this.currentMode = 'work';
+                    }
+                    
+                    // Re-setup event handlers for resumed session
+                    this.setupSessionEventHandlers();
+                    
+                    // Retry the original message send
+                    this.logger.info('[Timeout Recovery] Retrying original message send...');
+                    await this.sendMessage(message, attachments, true); // isRetry=true to avoid infinite loop
+                    this.logger.info('[Timeout Recovery] Message sent successfully after resume');
+                    return; // Success!
+                    
+                } catch (resumeError) {
+                    // Resume failed (even after retries and user dialog)
+                    // Fall through to create new session below
+                    const resumeErrorMsg = resumeError instanceof Error ? resumeError.message : String(resumeError);
+                    this.logger.warn('[Timeout Recovery] Resume failed, creating new session: ' + resumeErrorMsg);
+                }
+                
+                // If we get here, resume failed - create new session
                 const mcpServers = this.getEnabledMCPServers();
                 const hasMcpServers = Object.keys(mcpServers).length > 0;
                 
