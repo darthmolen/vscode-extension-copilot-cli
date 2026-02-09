@@ -631,6 +631,17 @@ function setSessionActive(active) {
 	}
 }
 
+// ========================================================================
+// Message Handlers (extracted from switch statement)
+// ========================================================================
+
+/**
+ * Handle 'thinking' message - show/hide thinking indicator
+ */
+export function handleThinkingMessage(payload) {
+	setThinking(payload.isThinking);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -721,7 +732,8 @@ window.addEventListener('message', event => {
 			setSessionActive(message.active);
 			break;
 		case 'thinking':
-			setThinking(message.isThinking);
+			// MIGRATED to RPC: handleThinkingMessage
+			// setThinking(message.isThinking);
 			break;
 		case 'clearMessages': {
 			// Clear all messages except empty state
@@ -882,17 +894,8 @@ window.addEventListener('message', event => {
 // RPC Message Handlers (Extension → Webview)
 // ========================================================================
 
-// NOTE: RPC handlers are NOT needed here!
-// The WebviewRpcClient constructor already sets up a window.addEventListener('message')
-// that processes incoming messages from the extension. The old switch statement below
-// handles all message types. We don't need to forward RPC events back to window events
-// because that creates an infinite loop:
-//   1. Extension sends message → window event
-//   2. WebviewRpcClient catches it → calls RPC handler
-//   3. RPC handler simulates window event → back to step 2 (LOOP!)
-//
-// The solution: Keep the OLD window.addEventListener handler below for now.
-// Future refactor: Replace switch statement with direct RPC handler functions.
+// Wire up message handlers to RPC client
+rpc.onThinking((payload) => handleThinkingMessage(payload));
 
 // Notify extension that webview is ready
 rpc.ready();
