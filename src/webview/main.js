@@ -21,6 +21,7 @@ import {
 	handleSendButtonClick,
 	handleMessageKeydown
 } from './app/handlers/message-handlers.js';
+import { handleDiffButtonClick } from './app/handlers/diff-handler.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -759,7 +760,8 @@ export function handleDiffAvailableMessage(payload) {
 		const diffBtn = toolEl.querySelector('.view-diff-btn');
 		if (diffBtn) {
 			diffBtn.addEventListener('click', () => {
-				rpc.viewDiff(data); // Use 'data' which handles both payload formats
+				// CRITICAL: Use extracted handler that sends FULL data
+				handleDiffButtonClick(data, rpc);
 			});
 		}
 	}
