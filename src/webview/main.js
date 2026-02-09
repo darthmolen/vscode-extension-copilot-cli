@@ -751,18 +751,22 @@ export function handleToolUpdateMessage(payload) {
  * Handle 'diffAvailable' message - add diff button to tool
  */
 export function handleDiffAvailableMessage(payload) {
-	const toolEl = messagesContainer.querySelector(`[data-tool-id="${payload.data.toolCallId}"]`);
+	// Defensive: handle both payload formats
+	// Sometimes RPC sends { data: {...} }, sometimes direct payload
+	const data = payload.data || payload;
+	
+	const toolEl = messagesContainer.querySelector(`[data-tool-id="${data.toolCallId}"]`);
 	if (toolEl) {
 		// Get existing state or create new
 		const toolState = toolEl._toolState || {
-			toolCallId: payload.data.toolCallId,
+			toolCallId: data.toolCallId,
 			toolName: 'edit',
 			status: 'complete'
 		};
 		
 		// Add diff data
 		toolState.hasDiff = true;
-		toolState.diffData = payload.data;
+		toolState.diffData = data;
 		toolEl._toolState = toolState;
 		
 		// Re-render with diff button
