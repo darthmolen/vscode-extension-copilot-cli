@@ -26,10 +26,11 @@ const esbuildProblemMatcherPlugin = {
 };
 
 async function main() {
-	// Create dist/webview directory
+	// Create dist/webview directory structure
 	const webviewDistDir = path.join(__dirname, 'dist', 'webview');
-	if (!fs.existsSync(webviewDistDir)) {
-		fs.mkdirSync(webviewDistDir, { recursive: true });
+	const rpcDistDir = path.join(webviewDistDir, 'app', 'rpc');
+	if (!fs.existsSync(rpcDistDir)) {
+		fs.mkdirSync(rpcDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -42,6 +43,12 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'main.js'),
 		path.join(webviewDistDir, 'main.js')
+	);
+
+	// Copy RPC client (for ES6 module import)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'rpc', 'WebviewRpcClient.js'),
+		path.join(rpcDistDir, 'WebviewRpcClient.js')
 	);
 
 	// Extension build context
