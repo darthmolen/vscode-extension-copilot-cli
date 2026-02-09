@@ -291,6 +291,33 @@ async function runTests() {
 			recordTest('handleClearMessagesMessage works', false, error.message);
 		}
 		
+		// Test 10: handleUpdateSessionsMessage - update session dropdown
+		try {
+			const sessionSelect = document.getElementById('sessionSelect');
+			
+			if (!mainModule.handleUpdateSessionsMessage) {
+				throw new Error('handleUpdateSessionsMessage not exported');
+			}
+			
+			// Update with sessions
+			mainModule.handleUpdateSessionsMessage({
+				currentSessionId: 'session2',
+				sessions: [
+					{ id: 'session1', label: 'Session 1' },
+					{ id: 'session2', label: 'Session 2' }
+				]
+			});
+			
+			const options = sessionSelect.querySelectorAll('option');
+			assert.equal(options.length, 2, 'Should have 2 session options');
+			assert.equal(options[1].value, 'session2', 'Should have session2');
+			assert.ok(options[1].selected, 'Session 2 should be selected');
+			
+			recordTest('handleUpdateSessionsMessage works', true);
+		} catch (error) {
+			recordTest('handleUpdateSessionsMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

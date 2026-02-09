@@ -717,6 +717,18 @@ export function handleClearMessagesMessage(payload) {
 	messagesContainer.appendChild(emptyStateDiv);
 }
 
+/**
+ * Handle 'updateSessions' message - update session dropdown
+ */
+export function handleUpdateSessionsMessage(payload) {
+	currentSessionId = payload.currentSessionId;
+	sessionSelect.innerHTML = payload.sessions.map(session => 
+		`<option value="${session.id}" ${session.id === currentSessionId ? 'selected' : ''}>
+			${session.label}
+		</option>`
+	).join('');
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -832,13 +844,13 @@ window.addEventListener('message', event => {
 			break;
 		}
 		case 'updateSessions':
-			// Update session dropdown
-			currentSessionId = message.currentSessionId;
-			sessionSelect.innerHTML = message.sessions.map(session => 
-				`<option value="${session.id}" ${session.id === currentSessionId ? 'selected' : ''}>
-					${session.label}
-				</option>`
-			).join('');
+			// MIGRATED to RPC: handleUpdateSessionsMessage
+			// currentSessionId = message.currentSessionId;
+			// sessionSelect.innerHTML = message.sessions.map(session => 
+			// 	`<option value="${session.id}" ${session.id === currentSessionId ? 'selected' : ''}>
+			// 		${session.label}
+			// 	</option>`
+			// ).join('');
 			break;
 		case 'workspacePath':
 			// MIGRATED to RPC: handleWorkspacePathMessage
@@ -984,6 +996,7 @@ rpc.onReasoningMessage(handleReasoningMessageMessage);
 rpc.onWorkspacePath(handleWorkspacePathMessage);
 rpc.onActiveFileChanged(handleActiveFileChangedMessage);
 rpc.onClearMessages(handleClearMessagesMessage);
+rpc.onUpdateSessions(handleUpdateSessionsMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
