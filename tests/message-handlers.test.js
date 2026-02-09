@@ -245,6 +245,28 @@ async function runTests() {
 			recordTest('handleWorkspacePathMessage works', false, error.message);
 		}
 		
+		// Test 8: handleActiveFileChangedMessage - update active file display
+		try {
+			const focusFileInfo = document.getElementById('focusFileInfo');
+			
+			if (!mainModule.handleActiveFileChangedMessage) {
+				throw new Error('handleActiveFileChangedMessage not exported');
+			}
+			
+			// With file path
+			mainModule.handleActiveFileChangedMessage({ filePath: '/home/user/test.js' });
+			assert.equal(focusFileInfo.textContent, '/home/user/test.js', 'Should show file path');
+			assert.equal(focusFileInfo.style.display, 'inline', 'Should display file info');
+			
+			// Without file path
+			mainModule.handleActiveFileChangedMessage({ filePath: null });
+			assert.equal(focusFileInfo.style.display, 'none', 'Should hide file info');
+			
+			recordTest('handleActiveFileChangedMessage works', true);
+		} catch (error) {
+			recordTest('handleActiveFileChangedMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

@@ -686,6 +686,19 @@ export function handleWorkspacePathMessage(payload) {
 	viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
 }
 
+/**
+ * Handle 'activeFileChanged' message - update active file display
+ */
+export function handleActiveFileChangedMessage(payload) {
+	if (payload.filePath) {
+		focusFileInfo.textContent = payload.filePath;
+		focusFileInfo.title = payload.filePath;
+		focusFileInfo.style.display = 'inline';
+	} else {
+		focusFileInfo.style.display = 'none';
+	}
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -815,14 +828,14 @@ window.addEventListener('message', event => {
 			// viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
 			break;
 		case 'activeFileChanged':
-			// Update active file display - just show/hide the filename, label stays
-			if (message.filePath) {
-				focusFileInfo.textContent = message.filePath;
-				focusFileInfo.title = message.filePath;
-				focusFileInfo.style.display = 'inline';
-			} else {
-				focusFileInfo.style.display = 'none';
-			}
+			// MIGRATED to RPC: handleActiveFileChangedMessage
+			// if (message.filePath) {
+			// 	focusFileInfo.textContent = message.filePath;
+			// 	focusFileInfo.title = message.filePath;
+			// 	focusFileInfo.style.display = 'inline';
+			// } else {
+			// 	focusFileInfo.style.display = 'none';
+			// }
 			break;
 		case 'toolStart':
 			addOrUpdateTool(message.tool);
@@ -951,6 +964,7 @@ rpc.onUserMessage(handleUserMessageMessage);
 rpc.onAssistantMessage(handleAssistantMessageMessage);
 rpc.onReasoningMessage(handleReasoningMessageMessage);
 rpc.onWorkspacePath(handleWorkspacePathMessage);
+rpc.onActiveFileChanged(handleActiveFileChangedMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
