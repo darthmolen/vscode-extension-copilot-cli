@@ -7,7 +7,7 @@
 
 import { expect } from 'chai';
 import { createTestDOM, cleanupTestDOM, createMockRpc } from '../helpers/jsdom-setup.js';
-import { handleReasoningToggle, handleSessionChange } from '../../src/webview/handlers/ui-handlers.js';
+import { handleReasoningToggle, handleSessionChange } from '../../src/webview/app/handlers/ui-handlers.js';
 
 describe('UI Event Handlers', () => {
 	let dom;

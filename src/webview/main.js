@@ -1,7 +1,7 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import extracted event handlers
-import { handleReasoningToggle, handleSessionChange } from './handlers/ui-handlers.js';
+import { handleReasoningToggle, handleSessionChange } from './app/handlers/ui-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
