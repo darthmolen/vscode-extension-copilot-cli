@@ -882,32 +882,17 @@ window.addEventListener('message', event => {
 // RPC Message Handlers (Extension → Webview)
 // ========================================================================
 
-// Forward RPC messages to existing window.addEventListener handler
-// This maintains backwards compatibility during migration
-function simulateMessageEvent(payload) {
-	window.dispatchEvent(new MessageEvent('message', { data: payload }));
-}
-
-rpc.onInit((payload) => simulateMessageEvent(payload));
-rpc.onUserMessage((payload) => simulateMessageEvent(payload));
-rpc.onAssistantMessage((payload) => simulateMessageEvent(payload));
-rpc.onReasoningMessage((payload) => simulateMessageEvent(payload));
-rpc.onToolStart((payload) => simulateMessageEvent(payload));
-rpc.onToolUpdate((payload) => simulateMessageEvent(payload));
-rpc.onStreamChunk((payload) => simulateMessageEvent(payload));
-rpc.onStreamEnd((payload) => simulateMessageEvent(payload));
-rpc.onClearMessages((payload) => simulateMessageEvent(payload));
-rpc.onSessionStatus((payload) => simulateMessageEvent(payload));
-rpc.onUpdateSessions((payload) => simulateMessageEvent(payload));
-rpc.onThinking((payload) => simulateMessageEvent(payload));
-rpc.onResetPlanMode((payload) => simulateMessageEvent(payload));
-rpc.onWorkspacePath((payload) => simulateMessageEvent(payload));
-rpc.onActiveFileChanged((payload) => simulateMessageEvent(payload));
-rpc.onDiffAvailable((payload) => simulateMessageEvent(payload));
-rpc.onAppendMessage((payload) => simulateMessageEvent(payload));
-rpc.onAttachmentValidation((payload) => simulateMessageEvent(payload));
-rpc.onStatus((payload) => simulateMessageEvent(payload));
-rpc.onUsageInfo((payload) => simulateMessageEvent(payload));
+// NOTE: RPC handlers are NOT needed here!
+// The WebviewRpcClient constructor already sets up a window.addEventListener('message')
+// that processes incoming messages from the extension. The old switch statement below
+// handles all message types. We don't need to forward RPC events back to window events
+// because that creates an infinite loop:
+//   1. Extension sends message → window event
+//   2. WebviewRpcClient catches it → calls RPC handler
+//   3. RPC handler simulates window event → back to step 2 (LOOP!)
+//
+// The solution: Keep the OLD window.addEventListener handler below for now.
+// Future refactor: Replace switch statement with direct RPC handler functions.
 
 // Notify extension that webview is ready
 rpc.ready();
