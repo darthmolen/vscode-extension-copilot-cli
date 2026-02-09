@@ -119,6 +119,32 @@ async function runTests() {
 			recordTest('handleSessionStatusMessage works', false, error.message);
 		}
 		
+		// Test 3: handleAppendMessageMessage - append text to last message
+		try {
+			const messagesContainer = document.getElementById('messages');
+			
+			if (!mainModule.handleAppendMessageMessage) {
+				throw new Error('handleAppendMessageMessage not exported');
+			}
+			
+			// Add a message first
+			messagesContainer.innerHTML = `
+				<div class="message assistant">
+					<div class="message-content">Hello</div>
+				</div>
+			`;
+			
+			// Append to it
+			mainModule.handleAppendMessageMessage({ text: ' World' });
+			
+			const messageContent = messagesContainer.querySelector('.message-content');
+			assert.equal(messageContent.textContent, 'Hello World', 'Should append text to last message');
+			
+			recordTest('handleAppendMessageMessage works', true);
+		} catch (error) {
+			recordTest('handleAppendMessageMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

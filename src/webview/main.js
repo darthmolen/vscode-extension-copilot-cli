@@ -649,6 +649,13 @@ export function handleSessionStatusMessage(payload) {
 	setSessionActive(payload.active);
 }
 
+/**
+ * Handle 'appendMessage' message - append text to last message
+ */
+export function handleAppendMessageMessage(payload) {
+	appendToLastMessage(payload.text);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -733,7 +740,8 @@ window.addEventListener('message', event => {
 			addMessage('reasoning', message.text);
 			break;
 		case 'appendMessage':
-			appendToLastMessage(message.text);
+			// MIGRATED to RPC: handleAppendMessageMessage
+			// appendToLastMessage(message.text);
 			break;
 		case 'sessionStatus':
 			// MIGRATED to RPC: handleSessionStatusMessage
@@ -905,6 +913,7 @@ window.addEventListener('message', event => {
 // Wire up message handlers to RPC client
 rpc.onThinking(handleThinkingMessage);
 rpc.onSessionStatus(handleSessionStatusMessage);
+rpc.onAppendMessage(handleAppendMessageMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
