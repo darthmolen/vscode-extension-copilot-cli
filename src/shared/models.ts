@@ -59,8 +59,9 @@ export interface PlanModeStatus {
  * Diff data for showing file differences
  */
 export interface DiffData {
-	originalPath: string;
-	modifiedPath: string;
+	toolCallId?: string;
+	beforeUri: string;
+	afterUri: string;
 	title?: string;
 }
 
