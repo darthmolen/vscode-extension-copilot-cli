@@ -642,6 +642,13 @@ export function handleThinkingMessage(payload) {
 	setThinking(payload.isThinking);
 }
 
+/**
+ * Handle 'sessionStatus' message - set session active state
+ */
+export function handleSessionStatusMessage(payload) {
+	setSessionActive(payload.active);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -729,7 +736,8 @@ window.addEventListener('message', event => {
 			appendToLastMessage(message.text);
 			break;
 		case 'sessionStatus':
-			setSessionActive(message.active);
+			// MIGRATED to RPC: handleSessionStatusMessage
+			// setSessionActive(message.active);
 			break;
 		case 'thinking':
 			// MIGRATED to RPC: handleThinkingMessage
@@ -895,7 +903,8 @@ window.addEventListener('message', event => {
 // ========================================================================
 
 // Wire up message handlers to RPC client
-rpc.onThinking((payload) => handleThinkingMessage(payload));
+rpc.onThinking(handleThinkingMessage);
+rpc.onSessionStatus(handleSessionStatusMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

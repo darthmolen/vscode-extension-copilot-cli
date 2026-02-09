@@ -95,6 +95,30 @@ async function runTests() {
 			recordTest('handleThinkingMessage works', false, error.message);
 		}
 		
+		// Test 2: handleSessionStatusMessage - set session active state
+		try {
+			const sendButton = document.getElementById('sendButton');
+			const messageInput = document.getElementById('messageInput');
+			
+			if (!mainModule.handleSessionStatusMessage) {
+				throw new Error('handleSessionStatusMessage not exported');
+			}
+			
+			// Test active session
+			mainModule.handleSessionStatusMessage({ active: true });
+			assert.equal(sendButton.disabled, false, 'Send button should be enabled when active');
+			assert.equal(messageInput.disabled, false, 'Input should be enabled when active');
+			
+			// Test inactive session
+			mainModule.handleSessionStatusMessage({ active: false });
+			assert.equal(sendButton.disabled, true, 'Send button should be disabled when inactive');
+			assert.equal(messageInput.disabled, true, 'Input should be disabled when inactive');
+			
+			recordTest('handleSessionStatusMessage works', true);
+		} catch (error) {
+			recordTest('handleSessionStatusMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
