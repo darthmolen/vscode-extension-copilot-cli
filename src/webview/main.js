@@ -1,5 +1,5 @@
 // Import RPC client for type-safe messaging
-import { WebviewRpcClient } from '../app/rpc/WebviewRpcClient.js';
+import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
