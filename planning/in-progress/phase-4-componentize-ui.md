@@ -2,7 +2,14 @@
 
 ## Status
 ✅ **Sub-Phase 0 (4.0) COMPLETE** - Refactoring for Testability DONE!
+✅ **Extension Bug Fixed** - RED-GREEN-REFACTOR applied successfully!
 🔄 **Ready for Sub-Phase 1** - Component Extraction (on hold for manual testing)
+
+**Latest Achievement (2026-02-09)**: Fixed extension-side diff bug using proper TDD:
+- Reverted fix to restore bug (RED phase)
+- Wrote 3 tests that FAILED against buggy code
+- Applied fix and watched tests PASS (GREEN phase)
+- **Total: 62 tests, all verified by breaking code**
 
 ## Goal
 Break monolithic webview JavaScript into reusable, testable components
@@ -61,9 +68,15 @@ This phase decomposes the UI into focused, **testable** components:
 
 ## Tasks
 
-### Phase 4.0: Refactor for Testability (PREREQUISITE)
+### Phase 4.0: Refactor for Testability ✅ COMPLETE
 
 **Goal**: Separate initialization from business logic so functions can be tested in isolation.
+
+**Status**: ✅ COMPLETE with TDD victory!
+- 16 handlers extracted
+- 62 tests passing (all verified by breaking code)
+- Extension-side diff bug fixed with RED-GREEN-REFACTOR
+- See: `planning/in-progress/TDD-VICTORY.md` for detailed documentation
 
 **The Problem**:
 - `main.js` executes code at module load time
@@ -131,9 +144,10 @@ function initReasoningToggle() {
 - [x] All business logic is in exported functions (16 handlers extracted)
 - [x] All DOM element access is parameterized (dependency injection pattern used)
 - [x] Initialization code remains in main.js (init() deferred to Phase 4.8)
-- [x] Tests can import and call functions without TypeErrors (59 tests passing)
+- [x] Tests can import and call functions without TypeErrors (62 tests passing)
 - [x] Tests fail when run against pre-fix code (EVERY test verified by breaking code)
 - [x] Extension still works after refactoring (manual testing in progress)
+- [x] **BONUS**: Applied RED-GREEN-REFACTOR to extension bug fix (3 new RPC tests)
 
 #### Example Test (After Refactoring)
 
