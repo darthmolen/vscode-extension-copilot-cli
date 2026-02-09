@@ -145,6 +145,29 @@ async function runTests() {
 			recordTest('handleAppendMessageMessage works', false, error.message);
 		}
 		
+		// Test 4: handleUserMessageMessage - add user message
+		try {
+			const messagesContainer = document.getElementById('messages');
+			const emptyState = document.getElementById('emptyState');
+			
+			if (!mainModule.handleUserMessageMessage) {
+				throw new Error('handleUserMessageMessage not exported');
+			}
+			
+			// Clear and add message
+			messagesContainer.innerHTML = '';
+			mainModule.handleUserMessageMessage({ text: 'Hello AI', attachments: [] });
+			
+			const messages = messagesContainer.querySelectorAll('.message.user');
+			assert.equal(messages.length, 1, 'Should add one user message');
+			assert.ok(messagesContainer.textContent.includes('Hello AI'), 'Should contain message text');
+			assert.ok(emptyState.classList.contains('hidden'), 'Should hide empty state');
+			
+			recordTest('handleUserMessageMessage works', true);
+		} catch (error) {
+			recordTest('handleUserMessageMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
