@@ -1,5 +1,7 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
+// Import extracted event handlers
+import { handleReasoningToggle } from './handlers/ui-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -51,11 +53,7 @@ let toolGroupExpanded = false;
 
 // Show reasoning checkbox handler
 showReasoningCheckbox.addEventListener('change', (e) => {
-	showReasoning = e.target.checked;
-	// Toggle visibility of existing reasoning messages
-	document.querySelectorAll('.message.reasoning').forEach(msg => {
-		msg.style.display = showReasoning ? 'block' : 'none';
-	});
+	showReasoning = handleReasoningToggle(e.target.checked, messagesContainer);
 });
 
 // Session selector change handler
