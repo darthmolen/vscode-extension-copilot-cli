@@ -15,6 +15,12 @@ import {
 	handleKeepPlanning,
 	handleAcceptanceKeydown
 } from './app/handlers/acceptance-handlers.js';
+import {
+	handleInputChange,
+	handleAttachFiles,
+	handleSendButtonClick,
+	handleMessageKeydown
+} from './app/handlers/message-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -156,39 +162,23 @@ function updatePlanModeUI() {
 
 // Auto-resize textarea
 messageInput.addEventListener('input', () => {
-	messageInput.style.height = 'auto';
-	messageInput.style.height = messageInput.scrollHeight + 'px';
+	handleInputChange(messageInput);
 });
 
 // Send message on button click (or abort if thinking)
 sendButton.addEventListener('click', () => {
-	if (sendButton.classList.contains('stop-button')) {
-		// Abort current generation
-		rpc.abortMessage();
-	} else {
-		// Send message
-		sendMessage();
-	}
+	handleSendButtonClick(sendButton.classList.contains('stop-button'), rpc, sendMessage);
 });
 
 // Attach button click handler
 attachButton.addEventListener('click', () => {
-	rpc.pickFiles();
+	handleAttachFiles(rpc);
 });
 
 // Send message on Enter (Shift+Enter for newline)
 // Arrow keys for history navigation
 messageInput.addEventListener('keydown', (e) => {
-	if (e.key === 'Enter' && !e.shiftKey) {
-		e.preventDefault();
-		sendMessage();
-	} else if (e.key === 'ArrowUp') {
-		e.preventDefault();
-		navigateHistory('up');
-	} else if (e.key === 'ArrowDown') {
-		e.preventDefault();
-		navigateHistory('down');
-	}
+	handleMessageKeydown(e, sendMessage, navigateHistory);
 });
 
 function sendMessage() {

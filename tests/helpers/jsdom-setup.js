@@ -63,6 +63,8 @@ export function createMockRpc() {
 		// Message methods
 		sendMessage: (msg) => calls.push({ method: 'sendMessage', msg }),
 		selectFiles: () => calls.push({ method: 'selectFiles' }),
+		pickFiles: () => calls.push({ method: 'selectFiles' }), // Alias
+		abortMessage: () => calls.push({ method: 'abortMessage' }),
 		
 		// Diff methods
 		viewDiff: (data) => calls.push({ method: 'viewDiff', data }),
