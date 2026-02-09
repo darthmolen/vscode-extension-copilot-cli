@@ -673,6 +673,12 @@ function updateSessionsList() {
 		const workspaceFolders = vscode.workspace.workspaceFolders;
 		const workspaceFolder = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : null;
 		
+		// DEBUG: Log workspace context to catch Process Explorer window bug
+		logger.info(`[WORKSPACE DEBUG] updateSessionsList called`);
+		logger.info(`[WORKSPACE DEBUG] workspaceFolders count: ${workspaceFolders?.length || 0}`);
+		logger.info(`[WORKSPACE DEBUG] workspaceFolder: ${workspaceFolder || 'null'}`);
+		logger.info(`[WORKSPACE DEBUG] filterByFolder setting: ${filterByFolder}`);
+		
 		// Use sessionUtils to get all sessions with metadata
 		let sessions = getAllSessions();
 		
