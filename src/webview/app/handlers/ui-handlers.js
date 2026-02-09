@@ -36,3 +36,55 @@ export function handleSessionChange(selectedId, currentId, rpc) {
 	return currentId;
 }
 
+/**
+ * Handles new session button click
+ * 
+ * @param {Object} rpc - RPC client
+ */
+export function handleNewSession(rpc) {
+	rpc.newSession();
+}
+
+/**
+ * Handles view plan button click
+ * 
+ * @param {Object} rpc - RPC client
+ */
+export function handleViewPlan(rpc) {
+	rpc.viewPlan();
+}
+
+/**
+ * Handles accept plan button click
+ * 
+ * @param {Object} rpc - RPC client
+ */
+export function handleAcceptPlan(rpc) {
+	console.log('[Plan Mode] Accepting plan');
+	rpc.acceptPlan();
+}
+
+/**
+ * Handles reject plan button click
+ * 
+ * @param {Object} rpc - RPC client
+ */
+export function handleRejectPlan(rpc) {
+	console.log('[Plan Mode] Rejecting plan');
+	rpc.rejectPlan();
+}
+
+/**
+ * Handles enter plan mode button click
+ * 
+ * @param {Object} rpc - RPC client
+ * @param {Function} updateUICallback - Function to call to update plan mode UI
+ * @returns {boolean} - The new plan mode state (true)
+ */
+export function handleEnterPlanMode(rpc, updateUICallback) {
+	console.log('[Plan Mode] Entering plan mode');
+	rpc.togglePlanMode(true);
+	updateUICallback();
+	return true;
+}
+

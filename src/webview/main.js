@@ -1,7 +1,15 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import extracted event handlers
-import { handleReasoningToggle, handleSessionChange } from './app/handlers/ui-handlers.js';
+import {
+	handleReasoningToggle,
+	handleSessionChange,
+	handleNewSession,
+	handleViewPlan,
+	handleEnterPlanMode,
+	handleAcceptPlan,
+	handleRejectPlan
+} from './app/handlers/ui-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -63,30 +71,25 @@ sessionSelect.addEventListener('change', (e) => {
 
 // New session button handler
 newSessionBtn.addEventListener('click', () => {
-	rpc.newSession();
+	handleNewSession(rpc);
 });
 
 // View plan button handler
 viewPlanBtn.addEventListener('click', () => {
-	rpc.viewPlan();
+	handleViewPlan(rpc);
 });
 
 // Plan mode button handlers
 enterPlanModeBtn.addEventListener('click', () => {
-	console.log('[Plan Mode] Entering plan mode');
-	planMode = true;
-	rpc.togglePlanMode(true);
-	updatePlanModeUI();
+	planMode = handleEnterPlanMode(rpc, updatePlanModeUI);
 });
 
 acceptPlanBtn.addEventListener('click', () => {
-	console.log('[Plan Mode] Accepting plan');
-	rpc.acceptPlan();
+	handleAcceptPlan(rpc);
 });
 
 rejectPlanBtn.addEventListener('click', () => {
-	console.log('[Plan Mode] Rejecting plan');
-	rpc.rejectPlan();
+	handleRejectPlan(rpc);
 });
 
 // Acceptance control handlers

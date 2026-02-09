@@ -7,7 +7,15 @@
 
 import { expect } from 'chai';
 import { createTestDOM, cleanupTestDOM, createMockRpc } from '../helpers/jsdom-setup.js';
-import { handleReasoningToggle, handleSessionChange } from '../../src/webview/app/handlers/ui-handlers.js';
+import {
+	handleReasoningToggle,
+	handleSessionChange,
+	handleNewSession,
+	handleViewPlan,
+	handleEnterPlanMode,
+	handleAcceptPlan,
+	handleRejectPlan
+} from '../../src/webview/app/handlers/ui-handlers.js';
 
 describe('UI Event Handlers', () => {
 	let dom;
@@ -154,6 +162,72 @@ describe('UI Event Handlers', () => {
 			
 			// Verify return value is current session
 			expect(result).to.equal('current-session');
+		});
+	});
+	
+	describe('handleNewSession', () => {
+		it('should call rpc.newSession', () => {
+			const rpc = createMockRpc();
+			handleNewSession(rpc);
+			
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('newSession');
+		});
+	});
+	
+	describe('handleViewPlan', () => {
+		it('should call rpc.viewPlan', () => {
+			const rpc = createMockRpc();
+			handleViewPlan(rpc);
+			
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('viewPlan');
+		});
+	});
+	
+	describe('handleAcceptPlan', () => {
+		it('should call rpc.acceptPlan', () => {
+			const rpc = createMockRpc();
+			handleAcceptPlan(rpc);
+			
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('acceptPlan');
+		});
+	});
+	
+	describe('handleRejectPlan', () => {
+		it('should call rpc.rejectPlan', () => {
+			const rpc = createMockRpc();
+			handleRejectPlan(rpc);
+			
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('rejectPlan');
+		});
+	});
+	
+	describe('handleEnterPlanMode', () => {
+		it('should call rpc.togglePlanMode with true', () => {
+			const rpc = createMockRpc();
+			let uiUpdateCalled = false;
+			const updateUI = () => { uiUpdateCalled = true; };
+			
+			const result = handleEnterPlanMode(rpc, updateUI);
+			
+			// Verify RPC call
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('togglePlanMode');
+			expect(calls[0].enabled).to.equal(true);
+			
+			// Verify UI update callback was called
+			expect(uiUpdateCalled).to.equal(true);
+			
+			// Verify return value
+			expect(result).to.equal(true);
 		});
 	});
 });
