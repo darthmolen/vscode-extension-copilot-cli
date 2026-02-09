@@ -650,7 +650,7 @@ export function handleReasoningMessageMessage(payload) {
  * Handle 'workspacePath' message - show/hide view plan button based on workspace
  */
 export function handleWorkspacePathMessage(payload) {
-	workspacePath = payload.workspacePath;
+	workspacePath = payload.path; // FIX: payload has 'path' not 'workspacePath'
 	viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
 }
 
