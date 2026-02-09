@@ -6,31 +6,236 @@ This document provides context and guidelines for AI agents helping to develop t
 
 ## 🚨 MANDATORY DEVELOPMENT PRACTICES
 
-### 1. Always Use `using-superpowers` and `test-first` Skill
+### 1. Always Use `using-superpowers` and `test-driven-development` Skill
 
-**Before starting ANY work**, invoke the `using-superpowers` and `test-first` skill:
+**Before starting ANY work**, invoke the `using-superpowers` and `test-driven-development` skill:
 - This ensures you follow established workflows
 - It activates necessary context and guidelines
 - It prevents common mistakes and rework
 
-**Example**: User asks to fix a bug → First call `using-superpowers` and `test-first`, then proceed
+**Example**: User asks to fix a bug → First call `using-superpowers` and `test-driven-development`, then proceed
 
-### 2. Test-First Development (ALWAYS)
+### 2. Test-Driven Development: The Iron Laws (2026-02-09 Lessons)
 
-**Never write production code without a test first!**
+**CRITICAL FAILURE CASE STUDY**: Phase 0.2 (diff button bug) - we wrote 5 "comprehensive" tests that all passed, but the code was still broken in production.
 
-When fixing bugs or adding features:
-1. **Find or create a failing test** that demonstrates the issue
-2. **Run the test** to confirm it fails
-3. **Make the minimal fix** to make the test pass
-4. **Run the test again** to verify the fix
-5. **Only then** consider the work complete
+#### The Fundamental Rule
 
-**Why**: Tests in this project exist but were ignored, leading to bugs. The `tests/sdk-plan-mode-tools.test.mjs` had the correct implementation, but production code diverged.
+> **"If you didn't watch the test fail, you don't know if it tests the right thing."**
+
+#### What We Did WRONG (Never Do This)
+
+```javascript
+// ❌ WRONG - Testing a mock, not production code
+it('should send full data', () => {
+    const mockRpcRouter = {
+        sendDiffAvailable(data) {
+            receivedData = data;  // Mock always works
+        }
+    };
+    mockRpcRouter.sendDiffAvailable(fullData);
+    expect(receivedData).to.deep.equal(fullData); // Always passes!
+});
+```
+
+**Result**: All 5 tests passed ✅, but production code crashed ❌
+
+**Why**: We tested mocks, not reality. Tests never executed actual production code.
+
+#### What We Should Do RIGHT (Mandatory From Now On)
+
+```javascript
+// ✅ RIGHT - Import and test actual production code
+import { handleDiffAvailableMessage } from '../src/webview/main.js';
+
+it('should send full data when button clicked', () => {
+    // Setup real DOM (use JSDOM)
+    document.body.innerHTML = '<div data-tool-id="test-123"></div>';
+    
+    // Call actual function with real data
+    handleDiffAvailableMessage({
+        toolCallId: 'test-123',
+        beforeUri: '/tmp/before',
+        afterUri: '/workspace/after',
+        title: 'Test'
+    });
+    
+    // Verify real button exists in real DOM
+    const btn = document.querySelector('.view-diff-btn');
+    expect(btn).to.exist;
+    
+    // Verify clicking real button sends correct data
+    let sentData = null;
+    global.rpc = { viewDiff: (data) => sentData = data };
+    btn.click();
+    
+    expect(sentData.beforeUri).to.equal('/tmp/before');
+});
+```
+
+#### The Three Iron Laws (Non-Negotiable)
+
+**Law 1: Tests Must Import Production Code**
+- ❌ Mock-only tests are documentation, not verification
+- ✅ Import actual functions and test them
+- ✅ Use JSDOM for webview code
+- ✅ Test with real DOM, real data, real behavior
+
+**Law 2: Tests Must Fail Against Broken Code**
+1. Write test that imports actual code
+2. Run test against current (buggy) code
+3. **Verify test fails with SAME error users see** ⚠️
+4. Only then write the fix
+5. Verify test passes
+
+**If test doesn't fail first, it's not testing anything real.**
+
+**Law 3: Production Code → Test Exists and Failed First**
+- If you wrote code before watching test fail → NOT TDD
+- If test passed immediately → NOT TDD
+- If test only tests mocks → NOT TDD
+- **Delete the code and start over with proper TDD**
+
+#### Special Rules for Webview Code (JavaScript)
+
+The webview is JavaScript (not TypeScript), so type checking doesn't help.
+
+**Mandatory for ALL webview fixes**:
+1. Import actual `main.js` functions
+2. Use JSDOM for DOM manipulation
+3. Test user interactions (clicks, input)
+4. Test message flow end-to-end
+5. Test with actual RPC client
+
+**Example Integration Test**:
+```javascript
+import { JSDOM } from 'jsdom';
+import { handleDiffAvailableMessage } from '../src/webview/main.js';
+
+describe('Diff Button Integration', () => {
+    let dom, sentMessages;
+    
+    beforeEach(() => {
+        // Setup real DOM environment
+        dom = new JSDOM(`<!DOCTYPE html><div id="messages"></div>`);
+        global.document = dom.window.document;
+        global.window = dom.window;
+        
+        // Mock RPC with tracking
+        sentMessages = [];
+        global.rpc = {
+            viewDiff: (data) => sentMessages.push(data)
+        };
+    });
+    
+    it('sends correct data when diff button clicked', () => {
+        // 1. Receive diffAvailable message
+        handleDiffAvailableMessage({
+            toolCallId: 'test-123',
+            beforeUri: '/tmp/before.ts',
+            afterUri: '/workspace/after.ts',
+            title: 'Test File'
+        });
+        
+        // 2. Verify button added
+        const btn = document.querySelector('.view-diff-btn');
+        expect(btn, 'Diff button must exist').to.exist;
+        
+        // 3. Click button
+        btn.click();
+        
+        // 4. Verify correct RPC call
+        expect(sentMessages).to.have.length(1);
+        expect(sentMessages[0]).to.deep.equal({
+            toolCallId: 'test-123',
+            beforeUri: '/tmp/before.ts',
+            afterUri: '/workspace/after.ts',
+            title: 'Test File'
+        });
+    });
+});
+```
+
+#### Checklist: Before Claiming Any Fix is Complete
+
+**Phase 1: Understand**
+- [ ] Reproduce bug manually
+- [ ] Find exact error message
+- [ ] Identify exact line that fails
+- [ ] Understand why it fails
+
+**Phase 2: RED - Write Failing Test**
+- [ ] Import actual production code (not mocks!)
+- [ ] Use JSDOM for webview tests
+- [ ] Run test → **VERIFY IT FAILS WITH SAME ERROR** ⚠️
+- [ ] Commit failing test
+
+**Phase 3: GREEN - Fix Code**
+- [ ] Make minimal fix
+- [ ] Run test → verify passes
+- [ ] Run ALL tests → no regressions
+
+**Phase 4: Integration**
+- [ ] Test message flow (extension ↔ webview)
+- [ ] Test user interaction (clicks, input)
+- [ ] Test with actual DOM
+
+**Phase 5: Manual Verification**
+- [ ] Build and install VSIX
+- [ ] Manually test exact scenario
+- [ ] Verify in VS Code Output logs
+
+**Phase 6: Reflect**
+- [ ] Could types have caught this?
+- [ ] Do type definitions match reality?
+- [ ] What prevents this bug class?
+
+#### Type Definitions Must Match Reality
+
+**FAILURE CASE**: Our DiffData interface said `originalPath/modifiedPath` but code used `beforeUri/afterUri`.
+
+**Rules**:
+1. Type definitions must match actual code usage
+2. Generate types from code (don't write manually)
+3. OR: Add runtime validation (zod, io-ts)
+4. OR: Integration tests verify types match usage
+
+```typescript
+// Runtime validation catches mismatches
+import { z } from 'zod';
+
+const DiffDataSchema = z.object({
+    beforeUri: z.string(),
+    afterUri: z.string(),
+    toolCallId: z.string().optional(),
+    title: z.string().optional()
+});
+
+// This catches type/code mismatches at runtime
+const diffData = DiffDataSchema.parse(receivedData);
+```
+
+#### Standards for Webview PRs
+
+**Every webview PR MUST include**:
+1. Integration test importing actual `main.js`
+2. JSDOM test for DOM manipulation
+3. Screenshot/log showing test failed before fix
+4. Screenshot/log showing test passes after fix
+5. Manual verification in installed extension
+
+**NO EXCEPTIONS.**
+
+#### Quote to Remember
+
+> **"We watched our tests pass. We never watched them fail. Therefore, they tested nothing."**
+
+This was a failure of test discipline, not coding skill. **Never skip the RED phase.**
 
 **Test locations**:
-- `tests/*.test.js` - Integration tests
+- `tests/*.test.js` - Integration tests (must import production code)
 - `tests/*.test.mjs` - SDK-specific tests (ESM modules)
+- Webview tests: Must use JSDOM, test actual DOM
 
 ## Project Overview
 
