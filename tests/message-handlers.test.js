@@ -318,6 +318,66 @@ async function runTests() {
 			recordTest('handleUpdateSessionsMessage works', false, error.message);
 		}
 		
+		// Test 11: handleToolStartMessage - add tool execution display
+		try {
+			const messagesContainer = document.getElementById('messages');
+			
+			if (!mainModule.handleToolStartMessage) {
+				throw new Error('handleToolStartMessage not exported');
+			}
+			
+			// Clear messages
+			messagesContainer.innerHTML = '';
+			
+			// Start a tool with realistic ToolState shape
+			mainModule.handleToolStartMessage({
+				toolState: {
+					toolCallId: 'tool1',
+					toolName: 'test_tool',
+					status: 'running',
+					arguments: { test: 'arg' },
+					startTime: Date.now()
+				}
+			});
+			
+			const toolEl = messagesContainer.querySelector('[data-tool-id="tool1"]');
+			assert.ok(toolEl, 'Should add tool element');
+			assert.ok(messagesContainer.textContent.includes('test_tool'), 'Should show tool name');
+			
+			recordTest('handleToolStartMessage works', true);
+		} catch (error) {
+			recordTest('handleToolStartMessage works', false, error.message);
+		}
+		
+		// Test 12: handleToolUpdateMessage - update tool execution display
+		try {
+			const messagesContainer = document.getElementById('messages');
+			
+			if (!mainModule.handleToolUpdateMessage) {
+				throw new Error('handleToolUpdateMessage not exported');
+			}
+			
+			// Update existing tool
+			mainModule.handleToolUpdateMessage({
+				toolState: {
+					toolCallId: 'tool1',
+					toolName: 'test_tool',
+					status: 'complete',
+					arguments: { test: 'arg' },
+					startTime: Date.now() - 1000,
+					endTime: Date.now(),
+					result: 'Success'
+				}
+			});
+			
+			const toolEl = messagesContainer.querySelector('[data-tool-id="tool1"]');
+			assert.ok(toolEl, 'Tool should still exist');
+			
+			recordTest('handleToolUpdateMessage works', true);
+		} catch (error) {
+			recordTest('handleToolUpdateMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

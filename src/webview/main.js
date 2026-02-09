@@ -729,6 +729,20 @@ export function handleUpdateSessionsMessage(payload) {
 	).join('');
 }
 
+/**
+ * Handle 'toolStart' message - add or update tool execution display
+ */
+export function handleToolStartMessage(payload) {
+	addOrUpdateTool(payload.toolState);
+}
+
+/**
+ * Handle 'toolUpdate' message - update tool execution display
+ */
+export function handleToolUpdateMessage(payload) {
+	addOrUpdateTool(payload.toolState);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -868,10 +882,12 @@ window.addEventListener('message', event => {
 			// }
 			break;
 		case 'toolStart':
-			addOrUpdateTool(message.tool);
+			// MIGRATED to RPC: handleToolStartMessage
+			// addOrUpdateTool(message.tool);
 			break;
 		case 'toolUpdate':
-			addOrUpdateTool(message.tool);
+			// MIGRATED to RPC: handleToolUpdateMessage
+			// addOrUpdateTool(message.tool);
 			break;
 		case 'diffAvailable':
 			// Update the tool to show diff button
@@ -997,6 +1013,8 @@ rpc.onWorkspacePath(handleWorkspacePathMessage);
 rpc.onActiveFileChanged(handleActiveFileChangedMessage);
 rpc.onClearMessages(handleClearMessagesMessage);
 rpc.onUpdateSessions(handleUpdateSessionsMessage);
+rpc.onToolStart(handleToolStartMessage);
+rpc.onToolUpdate(handleToolUpdateMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
