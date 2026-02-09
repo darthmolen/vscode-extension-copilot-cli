@@ -650,12 +650,6 @@ function setThinking(isThinking) {
 	}
 }
 
-function escapeHtml(text) {
-	const div = document.createElement('div');
-	div.textContent = text;
-	return div.innerHTML;
-}
-
 function formatCompactNumber(num) {
 	if (num >= 1000000000) {
 		return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'b';
