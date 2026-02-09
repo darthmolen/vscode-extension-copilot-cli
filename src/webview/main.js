@@ -775,6 +775,33 @@ export function handleDiffAvailableMessage(payload) {
 	}
 }
 
+/**
+ * Handle 'usage_info' message - update usage info display
+ */
+export function handleUsageInfoMessage(payload) {
+	// Token usage from session.usage_info
+	if (payload.data.currentTokens !== undefined && payload.data.tokenLimit !== undefined) {
+		const used = payload.data.currentTokens;
+		const limit = payload.data.tokenLimit;
+		const usedCompact = formatCompactNumber(used);
+		const windowPct = Math.round((used / limit) * 100);
+		
+		// Update Window percentage
+		usageWindow.textContent = `Window: ${windowPct}%`;
+		usageWindow.title = `context window usage: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens`;
+		
+		// Update Used count
+		usageUsed.textContent = `Used: ${usedCompact}`;
+		usageUsed.title = `tokens used this session: ${used.toLocaleString()}`;
+	}
+	// Quota percentage from assistant.usage
+	if (payload.data.remainingPercentage !== undefined) {
+		const pct = Math.round(payload.data.remainingPercentage);
+		usageRemaining.textContent = `Remaining: ${pct}%`;
+		usageRemaining.title = `remaining requests for account: ${pct}%`;
+	}
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -944,29 +971,22 @@ window.addEventListener('message', event => {
 			// }
 			break;
 		case 'usage_info':
-			// Update usage info display
-			// This can come from session.usage_info (tokens) or assistant.usage (quota %)
-			if (message.data.currentTokens !== undefined && message.data.tokenLimit !== undefined) {
-				// Token usage from session.usage_info
-				const used = message.data.currentTokens;
-				const limit = message.data.tokenLimit;
-				const usedCompact = formatCompactNumber(used);
-				const windowPct = Math.round((used / limit) * 100);
-				
-				// Update Window percentage
-				usageWindow.textContent = `Window: ${windowPct}%`;
-				usageWindow.title = `context window usage: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens`;
-				
-				// Update Used count
-				usageUsed.textContent = `Used: ${usedCompact}`;
-				usageUsed.title = `tokens used this session: ${used.toLocaleString()}`;
-			}
-			if (message.data.remainingPercentage !== undefined) {
-				// Quota percentage from assistant.usage
-				const pct = Math.round(message.data.remainingPercentage);
-				usageRemaining.textContent = `Remaining: ${pct}%`;
-				usageRemaining.title = `remaining requests for account: ${pct}%`;
-			}
+			// MIGRATED to RPC: handleUsageInfoMessage
+			// if (message.data.currentTokens !== undefined && message.data.tokenLimit !== undefined) {
+			// 	const used = message.data.currentTokens;
+			// 	const limit = message.data.tokenLimit;
+			// 	const usedCompact = formatCompactNumber(used);
+			// 	const windowPct = Math.round((used / limit) * 100);
+			// 	usageWindow.textContent = `Window: ${windowPct}%`;
+			// 	usageWindow.title = `context window usage: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens`;
+			// 	usageUsed.textContent = `Used: ${usedCompact}`;
+			// 	usageUsed.title = `tokens used this session: ${used.toLocaleString()}`;
+			// }
+			// if (message.data.remainingPercentage !== undefined) {
+			// 	const pct = Math.round(message.data.remainingPercentage);
+			// 	usageRemaining.textContent = `Remaining: ${pct}%`;
+			// 	usageRemaining.title = `remaining requests for account: ${pct}%`;
+			// }
 			break;
 		case 'resetPlanMode':
 			// Force reset plan mode to false
@@ -1041,6 +1061,7 @@ rpc.onUpdateSessions(handleUpdateSessionsMessage);
 rpc.onToolStart(handleToolStartMessage);
 rpc.onToolUpdate(handleToolUpdateMessage);
 rpc.onDiffAvailable(handleDiffAvailableMessage);
+rpc.onUsageInfo(handleUsageInfoMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

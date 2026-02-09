@@ -413,6 +413,32 @@ async function runTests() {
 			recordTest('handleDiffAvailableMessage works', false, error.message);
 		}
 		
+		// Test 14: handleUsageInfoMessage - update usage info display
+		try {
+			const usageWindow = document.getElementById('usageWindow');
+			const usageRemaining = document.getElementById('usageRemaining');
+			
+			if (!mainModule.handleUsageInfoMessage) {
+				throw new Error('handleUsageInfoMessage not exported');
+			}
+			
+			// Update with usage data
+			mainModule.handleUsageInfoMessage({
+				data: {
+					currentTokens: 50000,
+					tokenLimit: 100000,
+					remainingPercentage: 75
+				}
+			});
+			
+			assert.ok(usageWindow.textContent.includes('50%'), 'Should show window percentage');
+			assert.ok(usageRemaining.textContent.includes('75%'), 'Should show remaining percentage');
+			
+			recordTest('handleUsageInfoMessage works', true);
+		} catch (error) {
+			recordTest('handleUsageInfoMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
