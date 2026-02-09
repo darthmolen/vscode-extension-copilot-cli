@@ -60,6 +60,11 @@ async function runTests() {
 	global.window = dom.window;
 	global.document = dom.window.document;
 	
+	// Mock marked library (needed for rendering assistant messages)
+	global.marked = {
+		parse: (text) => text // Simple pass-through for tests
+	};
+	
 	// Mock acquireVsCodeApi (needed by main.js)
 	global.acquireVsCodeApi = () => ({
 		postMessage: () => {},
@@ -166,6 +171,32 @@ async function runTests() {
 			recordTest('handleUserMessageMessage works', true);
 		} catch (error) {
 			recordTest('handleUserMessageMessage works', false, error.message);
+		}
+		
+		// Test 5: handleAssistantMessageMessage - add assistant message
+		try {
+			const messagesContainer = document.getElementById('messages');
+			const thinking = document.getElementById('thinking');
+			
+			if (!mainModule.handleAssistantMessageMessage) {
+				throw new Error('handleAssistantMessageMessage not exported');
+			}
+			
+			// Set thinking active first
+			thinking.classList.add('active');
+			
+			// Clear and add message
+			messagesContainer.innerHTML = '';
+			mainModule.handleAssistantMessageMessage({ text: 'Hello human' });
+			
+			const messages = messagesContainer.querySelectorAll('.message.assistant');
+			assert.equal(messages.length, 1, 'Should add one assistant message');
+			assert.ok(messagesContainer.textContent.includes('Hello human'), 'Should contain message text');
+			assert.ok(!thinking.classList.contains('active'), 'Should hide thinking indicator');
+			
+			recordTest('handleAssistantMessageMessage works', true);
+		} catch (error) {
+			recordTest('handleAssistantMessageMessage works', false, error.message);
 		}
 		
 	} catch (error) {

@@ -663,6 +663,14 @@ export function handleUserMessageMessage(payload) {
 	addMessage('user', payload.text, payload.attachments);
 }
 
+/**
+ * Handle 'assistantMessage' message - add assistant message to chat
+ */
+export function handleAssistantMessageMessage(payload) {
+	addMessage('assistant', payload.text);
+	setThinking(false);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -741,8 +749,9 @@ window.addEventListener('message', event => {
 			// addMessage('user', message.text, message.attachments);
 			break;
 		case 'assistantMessage':
-			addMessage('assistant', message.text);
-			setThinking(false);
+			// MIGRATED to RPC: handleAssistantMessageMessage
+			// addMessage('assistant', message.text);
+			// setThinking(false);
 			break;
 		case 'reasoningMessage':
 			addMessage('reasoning', message.text);
@@ -923,6 +932,7 @@ rpc.onThinking(handleThinkingMessage);
 rpc.onSessionStatus(handleSessionStatusMessage);
 rpc.onAppendMessage(handleAppendMessageMessage);
 rpc.onUserMessage(handleUserMessageMessage);
+rpc.onAssistantMessage(handleAssistantMessageMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
