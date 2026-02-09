@@ -50,6 +50,26 @@ export class ChatPanelProvider {
 			}
 		);
 
+		// Listen for panel location/visibility changes
+		const disposables: vscode.Disposable[] = [];
+		ChatPanelProvider.panel.onDidChangeViewState(
+			e => {
+				// DEBUG: Log when panel moves or visibility changes
+				this.logger.info(`[WORKSPACE DEBUG] Panel viewState changed`);
+				this.logger.info(`[WORKSPACE DEBUG] Panel active: ${e.webviewPanel.active}`);
+				this.logger.info(`[WORKSPACE DEBUG] Panel visible: ${e.webviewPanel.visible}`);
+				this.logger.info(`[WORKSPACE DEBUG] Panel viewColumn: ${e.webviewPanel.viewColumn}`);
+				
+				const workspaceFolders = vscode.workspace.workspaceFolders;
+				this.logger.info(`[WORKSPACE DEBUG] Current workspaceFolders: ${workspaceFolders?.length || 0}`);
+				if (workspaceFolders && workspaceFolders.length > 0) {
+					this.logger.info(`[WORKSPACE DEBUG] Current workspace: ${workspaceFolders[0].uri.fsPath}`);
+				}
+			},
+			null,
+			disposables
+		);
+
 		// Handle panel disposal (X button)
 		ChatPanelProvider.panel.onDidDispose(() => {
 			this.logger.info('='.repeat(60));
