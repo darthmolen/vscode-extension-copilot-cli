@@ -811,6 +811,55 @@ export function handleResetPlanModeMessage(payload) {
 	swapToRegularControls();
 }
 
+/**
+ * Handle 'status' message - handle status updates including plan mode
+ */
+export function handleStatusMessage(payload) {
+	const status = payload.data.status;
+	console.log('[STATUS EVENT] Received status:', status, 'Full data:', payload.data);
+	
+	// Handle metrics reset
+	if (payload.data.resetMetrics) {
+		console.log('[METRICS] Resetting session-level metrics');
+		usageWindow.textContent = 'Window: 0%';
+		usageWindow.title = 'token usage in current window: 0%';
+		usageUsed.textContent = 'Used: 0';
+		usageUsed.title = 'tokens used this session: 0';
+	}
+	
+	if (status === 'plan_mode_enabled') {
+		console.log('[STATUS EVENT] Enabling plan mode UI');
+		planMode = true;
+		updatePlanModeUI();
+	} else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
+		console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
+		planMode = false;
+		updatePlanModeUI();
+		swapToRegularControls();
+		
+		// Show notification
+		if (status === 'plan_accepted') {
+			console.log('✅ Plan accepted! Ready to implement.');
+		} else if (status === 'plan_rejected') {
+			console.log('❌ Plan rejected. Changes discarded.');
+		}
+	} else if (status === 'thinking') {
+		isReasoning = true;
+		if (reasoningIndicator) {
+			reasoningIndicator.style.display = 'inline';
+		}
+	} else if (status === 'ready') {
+		isReasoning = false;
+		if (reasoningIndicator) {
+			reasoningIndicator.style.display = 'none';
+		}
+	} else if (status === 'plan_ready') {
+		// Plan is ready for user review - show acceptance controls
+		console.log('[Plan Ready] Swapping to acceptance controls');
+		swapToAcceptanceControls();
+	}
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -1004,50 +1053,44 @@ window.addEventListener('message', event => {
 			// swapToRegularControls();
 			break;
 		case 'status':
-			// Handle status updates including plan mode
-			const status = message.data.status;
-			console.log('[STATUS EVENT] Received status:', status, 'Full data:', message.data);
-			
-			// Handle metrics reset
-			if (message.data.resetMetrics) {
-				console.log('[METRICS] Resetting session-level metrics');
-				usageWindow.textContent = 'Window: 0%';
-				usageWindow.title = 'token usage in current window: 0%';
-				usageUsed.textContent = 'Used: 0';
-				usageUsed.title = 'tokens used this session: 0';
-			}
-			
-			if (status === 'plan_mode_enabled') {
-				console.log('[STATUS EVENT] Enabling plan mode UI');
-				planMode = true;
-				updatePlanModeUI();
-			} else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
-				console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
-				planMode = false;
-				updatePlanModeUI();
-				swapToRegularControls();
-				
-				// Show notification
-				if (status === 'plan_accepted') {
-					console.log('✅ Plan accepted! Ready to implement.');
-				} else if (status === 'plan_rejected') {
-					console.log('❌ Plan rejected. Changes discarded.');
-				}
-			} else if (status === 'thinking') {
-				isReasoning = true;
-				if (reasoningIndicator) {
-					reasoningIndicator.style.display = 'inline';
-				}
-			} else if (status === 'ready') {
-				isReasoning = false;
-				if (reasoningIndicator) {
-					reasoningIndicator.style.display = 'none';
-				}
-			} else if (status === 'plan_ready') {
-				// Plan is ready for user review - show acceptance controls
-				console.log('[Plan Ready] Swapping to acceptance controls');
-				swapToAcceptanceControls();
-			}
+			// MIGRATED to RPC: handleStatusMessage
+			// const status = message.data.status;
+			// console.log('[STATUS EVENT] Received status:', status, 'Full data:', message.data);
+			// if (message.data.resetMetrics) {
+			// 	console.log('[METRICS] Resetting session-level metrics');
+			// 	usageWindow.textContent = 'Window: 0%';
+			// 	usageWindow.title = 'token usage in current window: 0%';
+			// 	usageUsed.textContent = 'Used: 0';
+			// 	usageUsed.title = 'tokens used this session: 0';
+			// }
+			// if (status === 'plan_mode_enabled') {
+			// 	console.log('[STATUS EVENT] Enabling plan mode UI');
+			// 	planMode = true;
+			// 	updatePlanModeUI();
+			// } else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
+			// 	console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
+			// 	planMode = false;
+			// 	updatePlanModeUI();
+			// 	swapToRegularControls();
+			// 	if (status === 'plan_accepted') {
+			// 		console.log('✅ Plan accepted! Ready to implement.');
+			// 	} else if (status === 'plan_rejected') {
+			// 		console.log('❌ Plan rejected. Changes discarded.');
+			// 	}
+			// } else if (status === 'thinking') {
+			// 	isReasoning = true;
+			// 	if (reasoningIndicator) {
+			// 		reasoningIndicator.style.display = 'inline';
+			// 	}
+			// } else if (status === 'ready') {
+			// 	isReasoning = false;
+			// 	if (reasoningIndicator) {
+			// 		reasoningIndicator.style.display = 'none';
+			// 	}
+			// } else if (status === 'plan_ready') {
+			// 	console.log('[Plan Ready] Swapping to acceptance controls');
+			// 	swapToAcceptanceControls();
+			// }
 			break;
 	}
 });
@@ -1072,6 +1115,7 @@ rpc.onToolUpdate(handleToolUpdateMessage);
 rpc.onDiffAvailable(handleDiffAvailableMessage);
 rpc.onUsageInfo(handleUsageInfoMessage);
 rpc.onResetPlanMode(handleResetPlanModeMessage);
+rpc.onStatus(handleStatusMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

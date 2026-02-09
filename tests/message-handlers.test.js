@@ -454,6 +454,26 @@ async function runTests() {
 			recordTest('handleResetPlanModeMessage works', false, error.message);
 		}
 		
+		// Test 16: handleStatusMessage - handle various status updates
+		try {
+			const reasoningIndicator = document.getElementById('reasoningIndicator');
+			
+			if (!mainModule.handleStatusMessage) {
+				throw new Error('handleStatusMessage not exported');
+			}
+			
+			// Test status update (simple case)
+			mainModule.handleStatusMessage({
+				data: { status: 'ready' }
+			});
+			
+			assert.equal(reasoningIndicator.style.display, 'none', 'Should hide reasoning indicator');
+			
+			recordTest('handleStatusMessage works', true);
+		} catch (error) {
+			recordTest('handleStatusMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
