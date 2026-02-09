@@ -198,6 +198,7 @@ class SessionManager extends EventEmitter {
 ## Design Patterns By Layer
 
 ### Server Side (Extension Host)
+
 Use **backend patterns**:
 - ✅ Singleton services (`Logger.getInstance()`)
 - ✅ Dependency injection

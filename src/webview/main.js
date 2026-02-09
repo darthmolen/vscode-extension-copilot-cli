@@ -733,6 +733,8 @@ export function handleUpdateSessionsMessage(payload) {
  * Handle 'toolStart' message - add or update tool execution display
  */
 export function handleToolStartMessage(payload) {
+	console.log('[Tool Start] Received payload:', payload);
+	console.log('[Tool Start] payload.toolState:', payload.toolState);
 	addOrUpdateTool(payload.toolState);
 }
 
@@ -740,6 +742,8 @@ export function handleToolStartMessage(payload) {
  * Handle 'toolUpdate' message - update tool execution display
  */
 export function handleToolUpdateMessage(payload) {
+	console.log('[Tool Update] Received payload:', payload);
+	console.log('[Tool Update] payload.toolState:', payload.toolState);
 	addOrUpdateTool(payload.toolState);
 }
 
