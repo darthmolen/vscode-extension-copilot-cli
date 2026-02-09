@@ -777,7 +777,7 @@ export function handleDiffAvailableMessage(payload) {
 		const diffBtn = toolEl.querySelector('.view-diff-btn');
 		if (diffBtn) {
 			diffBtn.addEventListener('click', () => {
-				rpc.viewDiff(payload.data);
+				rpc.viewDiff(data); // Use 'data' which handles both payload formats
 			});
 		}
 	}
