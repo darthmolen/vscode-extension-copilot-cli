@@ -474,6 +474,24 @@ async function runTests() {
 			recordTest('handleStatusMessage works', false, error.message);
 		}
 		
+		// Test 17: handleFilesSelectedMessage - add files to pending attachments
+		try {
+			if (!mainModule.handleFilesSelectedMessage) {
+				throw new Error('handleFilesSelectedMessage not exported');
+			}
+			
+			// Should execute without error (modifies internal state)
+			mainModule.handleFilesSelectedMessage({
+				attachments: [
+					{ displayName: 'test.js', webviewUri: 'file://test.js' }
+				]
+			});
+			
+			recordTest('handleFilesSelectedMessage works', true);
+		} catch (error) {
+			recordTest('handleFilesSelectedMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

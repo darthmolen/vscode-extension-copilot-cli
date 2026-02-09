@@ -860,6 +860,18 @@ export function handleStatusMessage(payload) {
 	}
 }
 
+/**
+ * Handle 'filesSelected' message - add files to pending attachments
+ */
+export function handleFilesSelectedMessage(payload) {
+	console.log('[ATTACH] Received filesSelected, attachments:', payload.attachments.length);
+	if (payload.attachments && payload.attachments.length > 0) {
+		pendingAttachments.push(...payload.attachments);
+		updateAttachmentsPreview();
+		updateAttachCount();
+	}
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -924,13 +936,13 @@ window.addEventListener('message', event => {
 			break;
 		}
 		case 'filesSelected': {
-			// Add selected files to pending attachments
-			console.log('[ATTACH] Received filesSelected, attachments:', message.attachments.length);
-			if (message.attachments && message.attachments.length > 0) {
-				pendingAttachments.push(...message.attachments);
-				updateAttachmentsPreview();
-				updateAttachCount();
-			}
+			// MIGRATED to RPC: handleFilesSelectedMessage
+			// console.log('[ATTACH] Received filesSelected, attachments:', message.attachments.length);
+			// if (message.attachments && message.attachments.length > 0) {
+			// 	pendingAttachments.push(...message.attachments);
+			// 	updateAttachmentsPreview();
+			// 	updateAttachCount();
+			// }
 			break;
 		}
 		case 'userMessage':
@@ -1116,6 +1128,7 @@ rpc.onDiffAvailable(handleDiffAvailableMessage);
 rpc.onUsageInfo(handleUsageInfoMessage);
 rpc.onResetPlanMode(handleResetPlanModeMessage);
 rpc.onStatus(handleStatusMessage);
+rpc.onFilesSelected(handleFilesSelectedMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
