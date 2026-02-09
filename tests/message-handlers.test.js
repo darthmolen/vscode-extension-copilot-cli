@@ -267,6 +267,30 @@ async function runTests() {
 			recordTest('handleActiveFileChangedMessage works', false, error.message);
 		}
 		
+		// Test 9: handleClearMessagesMessage - clear all messages and show empty state
+		try {
+			const messagesContainer = document.getElementById('messages');
+			
+			if (!mainModule.handleClearMessagesMessage) {
+				throw new Error('handleClearMessagesMessage not exported');
+			}
+			
+			// Add some messages first
+			messagesContainer.innerHTML = '<div class="message">Test</div>';
+			
+			// Clear messages
+			mainModule.handleClearMessagesMessage({});
+			
+			const emptyState = messagesContainer.querySelector('.empty-state');
+			assert.ok(emptyState, 'Should show empty state');
+			assert.ok(emptyState.textContent.includes('Start a chat session'), 'Should have empty state text');
+			assert.equal(messagesContainer.querySelectorAll('.message').length, 0, 'Should clear all messages');
+			
+			recordTest('handleClearMessagesMessage works', true);
+		} catch (error) {
+			recordTest('handleClearMessagesMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

@@ -699,6 +699,24 @@ export function handleActiveFileChangedMessage(payload) {
 	}
 }
 
+/**
+ * Handle 'clearMessages' message - clear all messages and show empty state
+ */
+export function handleClearMessagesMessage(payload) {
+	messagesContainer.innerHTML = '';
+	const emptyStateDiv = document.createElement('div');
+	emptyStateDiv.className = 'empty-state';
+	emptyStateDiv.id = 'emptyState';
+	emptyStateDiv.innerHTML = `
+		<div class="empty-state-icon" aria-hidden="true">💬</div>
+		<div class="empty-state-text">
+			Start a chat session to begin<br>
+			Use the command palette to start the CLI
+		</div>
+	`;
+	messagesContainer.appendChild(emptyStateDiv);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -798,19 +816,19 @@ window.addEventListener('message', event => {
 			// setThinking(message.isThinking);
 			break;
 		case 'clearMessages': {
-			// Clear all messages except empty state
-			messagesContainer.innerHTML = '';
-			const emptyStateDiv = document.createElement('div');
-			emptyStateDiv.className = 'empty-state';
-			emptyStateDiv.id = 'emptyState';
-			emptyStateDiv.innerHTML = `
-				<div class="empty-state-icon" aria-hidden="true">💬</div>
-				<div class="empty-state-text">
-					Start a chat session to begin<br>
-					Use the command palette to start the CLI
-				</div>
-			`;
-			messagesContainer.appendChild(emptyStateDiv);
+			// MIGRATED to RPC: handleClearMessagesMessage
+			// messagesContainer.innerHTML = '';
+			// const emptyStateDiv = document.createElement('div');
+			// emptyStateDiv.className = 'empty-state';
+			// emptyStateDiv.id = 'emptyState';
+			// emptyStateDiv.innerHTML = `
+			// 	<div class="empty-state-icon" aria-hidden="true">💬</div>
+			// 	<div class="empty-state-text">
+			// 		Start a chat session to begin<br>
+			// 		Use the command palette to start the CLI
+			// 	</div>
+			// `;
+			// messagesContainer.appendChild(emptyStateDiv);
 			break;
 		}
 		case 'updateSessions':
@@ -965,6 +983,7 @@ rpc.onAssistantMessage(handleAssistantMessageMessage);
 rpc.onReasoningMessage(handleReasoningMessageMessage);
 rpc.onWorkspacePath(handleWorkspacePathMessage);
 rpc.onActiveFileChanged(handleActiveFileChangedMessage);
+rpc.onClearMessages(handleClearMessagesMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
