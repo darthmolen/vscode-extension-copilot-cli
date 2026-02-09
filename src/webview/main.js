@@ -906,6 +906,15 @@ export function handleInitMessage(payload) {
 		}
 	}
 	
+	// Set workspace path and show/hide View Plan button
+	if (payload.workspacePath) {
+		workspacePath = payload.workspacePath;
+		viewPlanBtn.style.display = 'inline-block';
+	} else {
+		workspacePath = null;
+		viewPlanBtn.style.display = 'none';
+	}
+	
 	setSessionActive(payload.sessionActive);
 }
 
