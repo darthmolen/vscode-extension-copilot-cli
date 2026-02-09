@@ -378,6 +378,41 @@ async function runTests() {
 			recordTest('handleToolUpdateMessage works', false, error.message);
 		}
 		
+		// Test 13: handleDiffAvailableMessage - add diff button to tool
+		try {
+			const messagesContainer = document.getElementById('messages');
+			
+			if (!mainModule.handleDiffAvailableMessage) {
+				throw new Error('handleDiffAvailableMessage not exported');
+			}
+			
+			// Create a tool element first
+			const toolDiv = document.createElement('div');
+			toolDiv.setAttribute('data-tool-id', 'tool-diff');
+			toolDiv._toolState = {
+				toolCallId: 'tool-diff',
+				toolName: 'edit',
+				status: 'complete'
+			};
+			messagesContainer.appendChild(toolDiv);
+			
+			// Add diff availability
+			mainModule.handleDiffAvailableMessage({
+				data: {
+					toolCallId: 'tool-diff',
+					filePath: '/test.js'
+				}
+			});
+			
+			// Tool should still exist (might be re-rendered)
+			const updatedTool = messagesContainer.querySelector('[data-tool-id="tool-diff"]');
+			assert.ok(updatedTool, 'Tool should exist after diff update');
+			
+			recordTest('handleDiffAvailableMessage works', true);
+		} catch (error) {
+			recordTest('handleDiffAvailableMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

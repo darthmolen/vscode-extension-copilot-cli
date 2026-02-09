@@ -743,6 +743,38 @@ export function handleToolUpdateMessage(payload) {
 	addOrUpdateTool(payload.toolState);
 }
 
+/**
+ * Handle 'diffAvailable' message - add diff button to tool
+ */
+export function handleDiffAvailableMessage(payload) {
+	const toolEl = messagesContainer.querySelector(`[data-tool-id="${payload.data.toolCallId}"]`);
+	if (toolEl) {
+		// Get existing state or create new
+		const toolState = toolEl._toolState || {
+			toolCallId: payload.data.toolCallId,
+			toolName: 'edit',
+			status: 'complete'
+		};
+		
+		// Add diff data
+		toolState.hasDiff = true;
+		toolState.diffData = payload.data;
+		toolEl._toolState = toolState;
+		
+		// Re-render with diff button
+		const toolHtml = buildToolHtml(toolState);
+		toolEl.innerHTML = toolHtml;
+		
+		// Attach event listener to diff button
+		const diffBtn = toolEl.querySelector('.view-diff-btn');
+		if (diffBtn) {
+			diffBtn.addEventListener('click', () => {
+				rpc.viewDiff(payload.data);
+			});
+		}
+	}
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -890,33 +922,26 @@ window.addEventListener('message', event => {
 			// addOrUpdateTool(message.tool);
 			break;
 		case 'diffAvailable':
-			// Update the tool to show diff button
-			const toolEl = messagesContainer.querySelector(`[data-tool-id="${message.data.toolCallId}"]`);
-			if (toolEl) {
-				// Get existing state or create new
-				const toolState = toolEl._toolState || {
-					toolCallId: message.data.toolCallId,
-					toolName: 'edit',
-					status: 'complete'
-				};
-				
-				// Add diff data
-				toolState.hasDiff = true;
-				toolState.diffData = message.data;
-				toolEl._toolState = toolState;
-				
-				// Re-render with diff button
-				const toolHtml = buildToolHtml(toolState);
-				toolEl.innerHTML = toolHtml;
-				
-				// Attach event listener to diff button
-				const diffBtn = toolEl.querySelector('.view-diff-btn');
-				if (diffBtn) {
-					diffBtn.addEventListener('click', () => {
-						rpc.viewDiff(message.data);
-					});
-				}
-			}
+			// MIGRATED to RPC: handleDiffAvailableMessage
+			// const toolEl = messagesContainer.querySelector(`[data-tool-id="${message.data.toolCallId}"]`);
+			// if (toolEl) {
+			// 	const toolState = toolEl._toolState || {
+			// 		toolCallId: message.data.toolCallId,
+			// 		toolName: 'edit',
+			// 		status: 'complete'
+			// 	};
+			// 	toolState.hasDiff = true;
+			// 	toolState.diffData = message.data;
+			// 	toolEl._toolState = toolState;
+			// 	const toolHtml = buildToolHtml(toolState);
+			// 	toolEl.innerHTML = toolHtml;
+			// 	const diffBtn = toolEl.querySelector('.view-diff-btn');
+			// 	if (diffBtn) {
+			// 		diffBtn.addEventListener('click', () => {
+			// 			rpc.viewDiff(message.data);
+			// 		});
+			// 	}
+			// }
 			break;
 		case 'usage_info':
 			// Update usage info display
@@ -1015,6 +1040,7 @@ rpc.onClearMessages(handleClearMessagesMessage);
 rpc.onUpdateSessions(handleUpdateSessionsMessage);
 rpc.onToolStart(handleToolStartMessage);
 rpc.onToolUpdate(handleToolUpdateMessage);
+rpc.onDiffAvailable(handleDiffAvailableMessage);
 
 // Notify extension that webview is ready
 rpc.ready();
