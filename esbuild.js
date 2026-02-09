@@ -30,11 +30,15 @@ async function main() {
 	const webviewDistDir = path.join(__dirname, 'dist', 'webview');
 	const rpcDistDir = path.join(webviewDistDir, 'app', 'rpc');
 	const handlersDistDir = path.join(webviewDistDir, 'app', 'handlers');
+	const utilsDistDir = path.join(webviewDistDir, 'app', 'utils');
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
 	}
 	if (!fs.existsSync(handlersDistDir)) {
 		fs.mkdirSync(handlersDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(utilsDistDir)) {
+		fs.mkdirSync(utilsDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -60,12 +64,24 @@ async function main() {
 		'ui-handlers.js',
 		'acceptance-handlers.js',
 		'message-handlers.js',
-		'diff-handler.js'
+		'diff-handler.js',
+		'tool-group-handler.js'
 	];
 	for (const handler of handlers) {
 		fs.copyFileSync(
 			path.join(__dirname, 'src', 'webview', 'app', 'handlers', handler),
 			path.join(handlersDistDir, handler)
+		);
+	}
+
+	// Copy utility files (Phase 4.0 refactor)
+	const utils = [
+		'webview-utils.js'
+	];
+	for (const util of utils) {
+		fs.copyFileSync(
+			path.join(__dirname, 'src', 'webview', 'app', 'utils', util),
+			path.join(utilsDistDir, util)
 		);
 	}
 

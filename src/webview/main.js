@@ -22,6 +22,8 @@ import {
 	handleMessageKeydown
 } from './app/handlers/message-handlers.js';
 import { handleDiffButtonClick } from './app/handlers/diff-handler.js';
+import { handleToolGroupToggle } from './app/handlers/tool-group-handler.js';
+import { escapeHtml } from './app/utils/webview-utils.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -215,15 +217,6 @@ function clearAttachments() {
 	updateAttachCount();
 }
 
-function escapeHtml(unsafe) {
-	return unsafe
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#039;");
-}
-
 function updateAttachmentsPreview() {
 	console.log('[ATTACH] updateAttachmentsPreview called with', pendingAttachments.length, 'attachments');
 	
@@ -412,15 +405,7 @@ function updateToolGroupToggle() {
 		
 		toggle.textContent = toolGroupExpanded ? 'Contract' : `Expand (${displayCount} more)`;
 		toggle.addEventListener('click', () => {
-			toolGroupExpanded = !toolGroupExpanded;
-			if (toolGroupExpanded) {
-				container.classList.add('expanded');
-				toggle.textContent = 'Contract';
-			} else {
-				container.classList.remove('expanded');
-				const hiddenCount = element.querySelectorAll('.tool-execution').length - Math.floor(200 / 70);
-				toggle.textContent = `Expand (${Math.max(1, hiddenCount)} more)`;
-			}
+			toolGroupExpanded = handleToolGroupToggle(toolGroupExpanded, container, toggle, element);
 		});
 		
 		element.appendChild(toggle);
