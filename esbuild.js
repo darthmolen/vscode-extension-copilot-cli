@@ -29,8 +29,12 @@ async function main() {
 	// Create dist/webview directory structure
 	const webviewDistDir = path.join(__dirname, 'dist', 'webview');
 	const rpcDistDir = path.join(webviewDistDir, 'app', 'rpc');
+	const handlersDistDir = path.join(webviewDistDir, 'app', 'handlers');
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(handlersDistDir)) {
+		fs.mkdirSync(handlersDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -50,6 +54,20 @@ async function main() {
 		path.join(__dirname, 'src', 'webview', 'app', 'rpc', 'WebviewRpcClient.js'),
 		path.join(rpcDistDir, 'WebviewRpcClient.js')
 	);
+
+	// Copy handler files (Phase 4.0 refactor)
+	const handlers = [
+		'ui-handlers.js',
+		'acceptance-handlers.js',
+		'message-handlers.js',
+		'diff-handler.js'
+	];
+	for (const handler of handlers) {
+		fs.copyFileSync(
+			path.join(__dirname, 'src', 'webview', 'app', 'handlers', handler),
+			path.join(handlersDistDir, handler)
+		);
+	}
 
 	// Extension build context
 	const extensionCtx = await esbuild.context({
