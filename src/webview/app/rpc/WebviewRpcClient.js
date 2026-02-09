@@ -390,8 +390,5 @@ class WebviewRpcClient {
 	}
 }
 
-// Export for use in webview
-// @ts-ignore - Module pattern for webview context
-if (typeof module !== 'undefined' && module.exports) {
-	module.exports = { WebviewRpcClient };
-}
+// ES6 export for use in webview modules
+export { WebviewRpcClient };
