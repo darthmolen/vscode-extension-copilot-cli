@@ -251,7 +251,9 @@ export class ChatPanelProvider {
 	}
 	
 	public static notifyDiffAvailable(data: any) {
-		ChatPanelProvider.rpcRouter?.setDiffAvailable(data.available || false);
+		// Pass complete diff data to webview (toolCallId, beforeUri, afterUri, title)
+		// Webview needs toolCallId to find the tool element and add diff button
+		ChatPanelProvider.rpcRouter?.sendDiffAvailable(data);
 	}
 
 

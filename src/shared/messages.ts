@@ -295,10 +295,16 @@ export interface ActiveFileChangedPayload extends BaseMessage {
 
 /**
  * Diff is available
+ * 
+ * Sent when a tool execution creates file snapshots for comparison.
+ * Webview uses toolCallId to find the tool element and add a diff button.
  */
 export interface DiffAvailablePayload extends BaseMessage {
 	type: 'diffAvailable';
-	available: boolean;
+	toolCallId: string;
+	beforeUri: string;
+	afterUri: string;
+	title: string;
 }
 
 /**

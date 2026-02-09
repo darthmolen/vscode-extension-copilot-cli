@@ -241,12 +241,18 @@ export class ExtensionRpcRouter {
 	}
 	
 	/**
-	 * Diff is available
+	 * Send diff available data to webview
+	 * 
+	 * Forwards complete diff information including tool ID and file paths.
+	 * Webview uses toolCallId to locate the tool element and add diff button.
 	 */
-	setDiffAvailable(available: boolean): void {
+	sendDiffAvailable(diffData: { toolCallId: string; beforeUri: string; afterUri: string; title: string }): void {
 		const message: DiffAvailablePayload = {
 			type: 'diffAvailable',
-			available
+			toolCallId: diffData.toolCallId,
+			beforeUri: diffData.beforeUri,
+			afterUri: diffData.afterUri,
+			title: diffData.title
 		};
 		this.send(message);
 	}
