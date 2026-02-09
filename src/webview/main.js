@@ -1,7 +1,7 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import extracted event handlers
-import { handleReasoningToggle } from './handlers/ui-handlers.js';
+import { handleReasoningToggle, handleSessionChange } from './handlers/ui-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -58,10 +58,7 @@ showReasoningCheckbox.addEventListener('change', (e) => {
 
 // Session selector change handler
 sessionSelect.addEventListener('change', (e) => {
-	const selectedSessionId = e.target.value;
-	if (selectedSessionId && selectedSessionId !== currentSessionId) {
-		rpc.switchSession(selectedSessionId);
-	}
+	currentSessionId = handleSessionChange(e.target.value, currentSessionId, rpc);
 });
 
 // New session button handler

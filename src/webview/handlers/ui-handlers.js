@@ -18,3 +18,21 @@ export function handleReasoningToggle(checked, container) {
 	});
 	return checked;
 }
+
+/**
+ * Handles session selector change
+ * Only switches if the selected ID is different from current
+ * 
+ * @param {string} selectedId - The selected session ID
+ * @param {string} currentId - The current session ID
+ * @param {Object} rpc - RPC client to call switchSession on
+ * @returns {string} - The new session ID (or current if no change)
+ */
+export function handleSessionChange(selectedId, currentId, rpc) {
+	if (selectedId && selectedId !== currentId) {
+		rpc.switchSession(selectedId);
+		return selectedId;
+	}
+	return currentId;
+}
+

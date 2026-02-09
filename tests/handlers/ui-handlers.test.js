@@ -6,8 +6,8 @@
  */
 
 import { expect } from 'chai';
-import { createTestDOM, cleanupTestDOM } from '../helpers/jsdom-setup.js';
-import { handleReasoningToggle } from '../../src/webview/handlers/ui-handlers.js';
+import { createTestDOM, cleanupTestDOM, createMockRpc } from '../helpers/jsdom-setup.js';
+import { handleReasoningToggle, handleSessionChange } from '../../src/webview/handlers/ui-handlers.js';
 
 describe('UI Event Handlers', () => {
 	let dom;
@@ -93,6 +93,67 @@ describe('UI Event Handlers', () => {
 			// Should not throw
 			const result = handleReasoningToggle(true, container);
 			expect(result).to.equal(true);
+		});
+	});
+	
+	describe('handleSessionChange', () => {
+		it('should switch session when ID changes', () => {
+			const rpc = createMockRpc();
+			const result = handleSessionChange('new-session-123', 'old-session-456', rpc);
+			
+			// Verify RPC was called
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(1);
+			expect(calls[0].method).to.equal('switchSession');
+			expect(calls[0].id).to.equal('new-session-123');
+			
+			// Verify return value is new session
+			expect(result).to.equal('new-session-123');
+		});
+		
+		it('should NOT switch when ID is the same', () => {
+			const rpc = createMockRpc();
+			const result = handleSessionChange('same-id', 'same-id', rpc);
+			
+			// Verify NO RPC call was made
+			const calls = rpc.getCalls();
+			expect(calls).to.have.length(0);
+			
+			// Verify return value is current session
+			expect(result).to.equal('same-id');
+		});
+		
+		it('should NOT switch when selected ID is empty string', () => {
+			const rpc = createMockRpc();
+			const result = handleSessionChange('', 'current-session', rpc);
+			
+			// Verify NO RPC call
+			expect(rpc.getCalls()).to.have.length(0);
+			
+			// Verify return value is current session
+			expect(result).to.equal('current-session');
+		});
+		
+		it('should NOT switch when selected ID is null', () => {
+			const rpc = createMockRpc();
+			const result = handleSessionChange(null, 'current-session', rpc);
+			
+			// Verify NO RPC call
+			expect(rpc.getCalls()).to.have.length(0);
+			
+			// Verify return value is current session
+			expect(result).to.equal('current-session');
+		});
+		
+		it('should NOT switch when selected ID is undefined', () => {
+			const rpc = createMockRpc();
+			const result = handleSessionChange(undefined, 'current-session', rpc);
+			
+			// Verify NO RPC call
+			expect(rpc.getCalls()).to.have.length(0);
+			
+			// Verify return value is current session
+			expect(result).to.equal('current-session');
 		});
 	});
 });
