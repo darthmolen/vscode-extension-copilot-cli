@@ -492,6 +492,33 @@ async function runTests() {
 			recordTest('handleFilesSelectedMessage works', false, error.message);
 		}
 		
+		// Test 18: handleInitMessage - initialize webview with history
+		try {
+			const messagesContainer = document.getElementById('messages');
+			const sendButton = document.getElementById('sendButton');
+			
+			if (!mainModule.handleInitMessage) {
+				throw new Error('handleInitMessage not exported');
+			}
+			
+			// Init with messages
+			mainModule.handleInitMessage({
+				messages: [
+					{ type: 'user', content: 'Hello' },
+					{ type: 'assistant', content: 'Hi there!' }
+				],
+				sessionActive: true
+			});
+			
+			const messages = messagesContainer.querySelectorAll('.message');
+			assert.equal(messages.length, 2, 'Should load 2 messages from init');
+			assert.equal(sendButton.disabled, false, 'Should activate session');
+			
+			recordTest('handleInitMessage works', true);
+		} catch (error) {
+			recordTest('handleInitMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);

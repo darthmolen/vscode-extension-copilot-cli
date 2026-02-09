@@ -872,6 +872,35 @@ export function handleFilesSelectedMessage(payload) {
 	}
 }
 
+/**
+ * Handle 'init' message - initialize webview with session state
+ */
+export function handleInitMessage(payload) {
+	// Clear existing messages
+	messagesContainer.innerHTML = '';
+	const emptyStateDiv = document.createElement('div');
+	emptyStateDiv.className = 'empty-state';
+	emptyStateDiv.id = 'emptyState';
+	emptyStateDiv.innerHTML = `
+		<div class="empty-state-icon" aria-hidden="true">💬</div>
+		<div class="empty-state-text">
+			Start a chat session to begin<br>
+			Use the command palette to start the CLI
+		</div>
+	`;
+	messagesContainer.appendChild(emptyStateDiv);
+	
+	// Add messages from init
+	if (payload.messages && payload.messages.length > 0) {
+		for (const msg of payload.messages) {
+			const role = msg.type || msg.role;
+			addMessage(role, msg.content);
+		}
+	}
+	
+	setSessionActive(payload.sessionActive);
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -910,29 +939,26 @@ window.addEventListener('message', event => {
 	
 	switch (message.type) {
 		case 'init': {
-			// Clear existing messages
-			messagesContainer.innerHTML = '';
-			const emptyStateDiv = document.createElement('div');
-			emptyStateDiv.className = 'empty-state';
-			emptyStateDiv.id = 'emptyState';
-			emptyStateDiv.innerHTML = `
-				<div class="empty-state-icon" aria-hidden="true">💬</div>
-				<div class="empty-state-text">
-					Start a chat session to begin<br>
-					Use the command palette to start the CLI
-				</div>
-			`;
-			messagesContainer.appendChild(emptyStateDiv);
-			
-			// Add messages from init
-			if (message.messages && message.messages.length > 0) {
-				for (const msg of message.messages) {
-					const role = msg.type || msg.role;
-					addMessage(role, msg.content);
-				}
-			}
-			
-			setSessionActive(message.sessionActive);
+			// MIGRATED to RPC: handleInitMessage
+			// messagesContainer.innerHTML = '';
+			// const emptyStateDiv = document.createElement('div');
+			// emptyStateDiv.className = 'empty-state';
+			// emptyStateDiv.id = 'emptyState';
+			// emptyStateDiv.innerHTML = `
+			// 	<div class="empty-state-icon" aria-hidden="true">💬</div>
+			// 	<div class="empty-state-text">
+			// 		Start a chat session to begin<br>
+			// 		Use the command palette to start the CLI
+			// 	</div>
+			// `;
+			// messagesContainer.appendChild(emptyStateDiv);
+			// if (message.messages && message.messages.length > 0) {
+			// 	for (const msg of message.messages) {
+			// 		const role = msg.type || msg.role;
+			// 		addMessage(role, msg.content);
+			// 	}
+			// }
+			// setSessionActive(message.sessionActive);
 			break;
 		}
 		case 'filesSelected': {
@@ -1129,6 +1155,7 @@ rpc.onUsageInfo(handleUsageInfoMessage);
 rpc.onResetPlanMode(handleResetPlanModeMessage);
 rpc.onStatus(handleStatusMessage);
 rpc.onFilesSelected(handleFilesSelectedMessage);
+rpc.onInit(handleInitMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

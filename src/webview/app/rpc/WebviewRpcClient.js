@@ -317,6 +317,15 @@ class WebviewRpcClient {
 	}
 	
 	/**
+	 * Register handler for filesSelected
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onFilesSelected(handler) {
+		return this._registerHandler('filesSelected', handler);
+	}
+	
+	/**
 	 * Register handler for usage_info
 	 * @param {Function} handler - Handler function
 	 * @returns {{dispose: Function}} Disposable subscription
