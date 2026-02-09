@@ -1,4 +1,8 @@
-const vscode = acquireVsCodeApi();
+// Import RPC client for type-safe messaging
+import { WebviewRpcClient } from '../app/rpc/WebviewRpcClient.js';
+
+// Initialize RPC client
+const rpc = new WebviewRpcClient();
 const messagesContainer = document.getElementById('messages');
 const emptyState = document.getElementById('emptyState');
 const thinking = document.getElementById('thinking');
@@ -58,58 +62,42 @@ showReasoningCheckbox.addEventListener('change', (e) => {
 sessionSelect.addEventListener('change', (e) => {
 	const selectedSessionId = e.target.value;
 	if (selectedSessionId && selectedSessionId !== currentSessionId) {
-		vscode.postMessage({
-			type: 'switchSession',
-			sessionId: selectedSessionId
-		});
+		rpc.switchSession(selectedSessionId);
 	}
 });
 
 // New session button handler
 newSessionBtn.addEventListener('click', () => {
-	vscode.postMessage({
-		type: 'newSession'
-	});
+	rpc.newSession();
 });
 
 // View plan button handler
 viewPlanBtn.addEventListener('click', () => {
-	vscode.postMessage({
-		type: 'viewPlan'
-	});
+	rpc.viewPlan();
 });
 
 // Plan mode button handlers
 enterPlanModeBtn.addEventListener('click', () => {
 	console.log('[Plan Mode] Entering plan mode');
 	planMode = true;
-	vscode.postMessage({
-		type: 'togglePlanMode',
-		enabled: true
-	});
+	rpc.togglePlanMode(true);
 	updatePlanModeUI();
 });
 
 acceptPlanBtn.addEventListener('click', () => {
 	console.log('[Plan Mode] Accepting plan');
-	vscode.postMessage({
-		type: 'acceptPlan'
-	});
+	rpc.acceptPlan();
 });
 
 rejectPlanBtn.addEventListener('click', () => {
 	console.log('[Plan Mode] Rejecting plan');
-	vscode.postMessage({
-		type: 'rejectPlan'
-	});
+	rpc.rejectPlan();
 });
 
 // Acceptance control handlers
 acceptAndWorkBtn.addEventListener('click', () => {
 	console.log('[Acceptance] Accept and work');
-	vscode.postMessage({
-		type: 'acceptPlan'
-	});
+	rpc.acceptPlan();
 	swapToRegularControls();
 });
 
@@ -124,10 +112,7 @@ acceptanceInput.addEventListener('keydown', (e) => {
 		const instructions = acceptanceInput.value.trim();
 		if (instructions) {
 			console.log('[Acceptance] Sending alternative instructions:', instructions);
-			vscode.postMessage({
-				type: 'sendMessage',
-				value: instructions
-			});
+			rpc.sendMessage(instructions);
 			acceptanceInput.value = '';
 			swapToRegularControls();
 		}
@@ -187,7 +172,7 @@ messageInput.addEventListener('input', () => {
 sendButton.addEventListener('click', () => {
 	if (sendButton.classList.contains('stop-button')) {
 		// Abort current generation
-		vscode.postMessage({ type: 'abortMessage' });
+		rpc.abortMessage();
 	} else {
 		// Send message
 		sendMessage();
@@ -196,7 +181,7 @@ sendButton.addEventListener('click', () => {
 
 // Attach button click handler
 attachButton.addEventListener('click', () => {
-	vscode.postMessage({ type: 'pickFiles' });
+	rpc.pickFiles();
 });
 
 // Send message on Enter (Shift+Enter for newline)
@@ -232,11 +217,7 @@ function sendMessage() {
 	currentDraft = '';
 
 	console.log('[SEND] Posting message to extension:', text.substring(0, 50));
-	vscode.postMessage({
-		type: 'sendMessage',
-		text: text,
-		attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined
-	});
+	rpc.sendMessage(text, pendingAttachments.length > 0 ? pendingAttachments : undefined);
 
 	messageInput.value = '';
 	messageInput.style.height = 'auto';
@@ -482,10 +463,7 @@ function addOrUpdateTool(toolState) {
 		const diffBtn = toolDiv.querySelector('.view-diff-btn');
 		if (diffBtn) {
 			diffBtn.addEventListener('click', () => {
-				vscode.postMessage({
-					type: 'viewDiff',
-					value: toolState.diffData || {}
-				});
+				rpc.viewDiff(toolState.diffData || {});
 			});
 		}
 		
@@ -507,10 +485,7 @@ function addOrUpdateTool(toolState) {
 		const diffBtn = toolExecution.querySelector('.view-diff-btn');
 		if (diffBtn) {
 			diffBtn.addEventListener('click', () => {
-				vscode.postMessage({
-					type: 'viewDiff',
-					value: toolState.diffData || {}
-				});
+				rpc.viewDiff(toolState.diffData || {});
 			});
 		}
 		
@@ -824,10 +799,7 @@ window.addEventListener('message', event => {
 				const diffBtn = toolEl.querySelector('.view-diff-btn');
 				if (diffBtn) {
 					diffBtn.addEventListener('click', () => {
-						vscode.postMessage({
-							type: 'viewDiff',
-							value: message.data
-						});
+						rpc.viewDiff(message.data);
 					});
 				}
 			}
@@ -912,5 +884,36 @@ window.addEventListener('message', event => {
 	}
 });
 
+// ========================================================================
+// RPC Message Handlers (Extension → Webview)
+// ========================================================================
+
+// Forward RPC messages to existing window.addEventListener handler
+// This maintains backwards compatibility during migration
+function simulateMessageEvent(payload) {
+	window.dispatchEvent(new MessageEvent('message', { data: payload }));
+}
+
+rpc.onInit((payload) => simulateMessageEvent(payload));
+rpc.onUserMessage((payload) => simulateMessageEvent(payload));
+rpc.onAssistantMessage((payload) => simulateMessageEvent(payload));
+rpc.onReasoningMessage((payload) => simulateMessageEvent(payload));
+rpc.onToolStart((payload) => simulateMessageEvent(payload));
+rpc.onToolUpdate((payload) => simulateMessageEvent(payload));
+rpc.onStreamChunk((payload) => simulateMessageEvent(payload));
+rpc.onStreamEnd((payload) => simulateMessageEvent(payload));
+rpc.onClearMessages((payload) => simulateMessageEvent(payload));
+rpc.onSessionStatus((payload) => simulateMessageEvent(payload));
+rpc.onUpdateSessions((payload) => simulateMessageEvent(payload));
+rpc.onThinking((payload) => simulateMessageEvent(payload));
+rpc.onResetPlanMode((payload) => simulateMessageEvent(payload));
+rpc.onWorkspacePath((payload) => simulateMessageEvent(payload));
+rpc.onActiveFileChanged((payload) => simulateMessageEvent(payload));
+rpc.onDiffAvailable((payload) => simulateMessageEvent(payload));
+rpc.onAppendMessage((payload) => simulateMessageEvent(payload));
+rpc.onAttachmentValidation((payload) => simulateMessageEvent(payload));
+rpc.onStatus((payload) => simulateMessageEvent(payload));
+rpc.onUsageInfo((payload) => simulateMessageEvent(payload));
+
 // Notify extension that webview is ready
-vscode.postMessage({ type: 'ready' });
+rpc.ready();

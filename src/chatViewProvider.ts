@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { Logger } from './logger';
 import { getBackendState } from './backendState';
+import { ExtensionRpcRouter } from './extension/rpc';
 
 export class ChatPanelProvider {
 	private static panel: vscode.WebviewPanel | undefined;
 	private static logger: Logger;
 	private static extensionUri: vscode.Uri;
+	private static rpcRouter: ExtensionRpcRouter | undefined;
 	private static messageHandlers: Set<(data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => void> = new Set();
 	private static abortHandlers: Set<() => void> = new Set();
 	private static onViewOpenedHandlers: Set<() => void> = new Set();
@@ -59,102 +61,112 @@ export class ChatPanelProvider {
 			this.logger.info('[DIAGNOSTIC] Panel will be set to undefined');
 			this.logger.info('='.repeat(60));
 			ChatPanelProvider.panel = undefined;
+			ChatPanelProvider.rpcRouter = undefined;
 		});
 
-		// CRITICAL FIX: Register message handler BEFORE setting HTML
-		// This ensures we catch the 'ready' message that fires immediately when HTML loads
-		ChatPanelProvider.panel.webview.onDidReceiveMessage(data => {
-			this.logger.debug(`[Webview Message] ${data.type}`);
-			switch (data.type) {
-				case 'sendMessage':
-					// Prevent duplicate sends (same message within 1 second)
-					const now = Date.now();
-					if (ChatPanelProvider.lastSentMessage === data.text && 
-					    now - ChatPanelProvider.lastSentTime < 1000) {
-						this.logger.warn(`Ignoring duplicate message send: ${data.text.substring(0, 50)}...`);
-						return;
-					}
-					ChatPanelProvider.lastSentMessage = data.text;
-					ChatPanelProvider.lastSentTime = now;
-					
-					this.logger.info(`User sent message: ${data.text.substring(0, 100)}...`);
-					if (data.attachments && data.attachments.length > 0) {
-						this.logger.info(`  with ${data.attachments.length} attachment(s)`);
-					}
-					this.messageHandlers.forEach(handler => handler({
-						text: data.text,
-						attachments: data.attachments
-					}));
-					break;
-				case 'pickFiles':
-					this.logger.info('File picker requested from UI');
-					this.handleFilePicker();
-					break;
-				case 'abortMessage':
-					this.logger.info('Abort requested from UI');
-					this.abortHandlers.forEach(handler => handler());
-					break;
-				case 'ready':
-					this.logger.info('Webview is ready');
-					
-					// Get full state from backend and send to webview
-					// History should already be loaded by this point
-					const backendState = getBackendState();
-					const fullState = backendState.getFullState();
-					
-					// DIAGNOSTIC: Log BackendState contents
-					this.logger.info(`[DIAGNOSTIC] BackendState when ready: ${fullState.messages.length} messages, sessionId=${fullState.sessionId}, sessionActive=${fullState.sessionActive}`);
-					if (fullState.messages.length > 0) {
-						this.logger.info(`[DIAGNOSTIC] First message: ${JSON.stringify(fullState.messages[0]).substring(0, 100)}`);
-						this.logger.info(`[DIAGNOSTIC] Last message: ${JSON.stringify(fullState.messages[fullState.messages.length - 1]).substring(0, 100)}`);
-					} else {
-						this.logger.warn(`[DIAGNOSTIC] BackendState is EMPTY when webview ready - history not loaded!`);
-					}
-					
-					ChatPanelProvider.postMessage({ 
-						type: 'init', 
-						sessionId: fullState.sessionId,
-						sessionActive: fullState.sessionActive,
-						messages: fullState.messages,
-						planModeStatus: fullState.planModeStatus,
-						workspacePath: fullState.workspacePath,
-						activeFilePath: fullState.activeFilePath
-					});
-					
-					this.logger.info(`[DIAGNOSTIC] Sent init message to webview with ${fullState.messages.length} messages`);
-					this.logger.info(`[DIAGNOSTIC] Firing ${this.onViewOpenedHandlers.size} onViewOpened handlers`);
-					this.onViewOpenedHandlers.forEach(handler => handler());
-					break;
-				case 'switchSession':
-					this.logger.info(`[DIAGNOSTIC] Switch session requested from dropdown: ${data.sessionId}`);
-					vscode.commands.executeCommand('copilot-cli-extension.switchSession', data.sessionId);
-					break;
-				case 'newSession':
-					this.logger.info('New session requested from UI');
-					vscode.commands.executeCommand('copilot-cli-extension.newSession');
-					break;
-				case 'viewPlan':
-					this.logger.info('View plan requested from UI');
-					this.viewPlanHandlers.forEach(handler => handler());
-					break;
-				case 'viewDiff':
-					this.logger.info(`View diff requested from UI: ${JSON.stringify(data)}`);
-					vscode.commands.executeCommand('copilot-cli-extension.viewDiff', data);
-					break;
-				case 'togglePlanMode':
-					this.logger.info(`Plan mode toggle requested: ${data.enabled}`);
-					vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', data.enabled);
-					break;
-				case 'acceptPlan':
-					this.logger.info('Accept plan requested from UI');
-					vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
-					break;
-				case 'rejectPlan':
-					this.logger.info('Reject plan requested from UI');
-					vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
-					break;
+		// Create RPC router for type-safe messaging
+		ChatPanelProvider.rpcRouter = new ExtensionRpcRouter(ChatPanelProvider.panel.webview);
+
+		// Register RPC handlers (REPLACES old onDidReceiveMessage switch statement)
+		ChatPanelProvider.rpcRouter.onReady(() => {
+			this.logger.info('Webview is ready');
+			
+			// Get full state from backend and send to webview
+			// History should already be loaded by this point
+			const backendState = getBackendState();
+			const fullState = backendState.getFullState();
+			
+			// DIAGNOSTIC: Log BackendState contents
+			this.logger.info(`[DIAGNOSTIC] BackendState when ready: ${fullState.messages.length} messages, sessionId=${fullState.sessionId}, sessionActive=${fullState.sessionActive}`);
+			if (fullState.messages.length > 0) {
+				this.logger.info(`[DIAGNOSTIC] First message: ${JSON.stringify(fullState.messages[0]).substring(0, 100)}`);
+				this.logger.info(`[DIAGNOSTIC] Last message: ${JSON.stringify(fullState.messages[fullState.messages.length - 1]).substring(0, 100)}`);
+			} else {
+				this.logger.warn(`[DIAGNOSTIC] BackendState is EMPTY when webview ready - history not loaded!`);
 			}
+			
+			ChatPanelProvider.rpcRouter!.sendInit({
+				sessionId: fullState.sessionId,
+				sessionActive: fullState.sessionActive,
+				messages: fullState.messages as any, // Type compat: backendState.Message vs shared.Message
+				planModeStatus: fullState.planModeStatus,
+				workspacePath: fullState.workspacePath,
+				activeFilePath: fullState.activeFilePath
+			});
+			
+			this.logger.info(`[DIAGNOSTIC] Sent init message to webview with ${fullState.messages.length} messages`);
+			this.logger.info(`[DIAGNOSTIC] Firing ${this.onViewOpenedHandlers.size} onViewOpened handlers`);
+			this.onViewOpenedHandlers.forEach(handler => handler());
 		});
+
+		ChatPanelProvider.rpcRouter.onSendMessage((payload) => {
+			// Prevent duplicate sends (same message within 1 second)
+			const now = Date.now();
+			if (ChatPanelProvider.lastSentMessage === payload.text && 
+			    now - ChatPanelProvider.lastSentTime < 1000) {
+				this.logger.warn(`Ignoring duplicate message send: ${payload.text.substring(0, 50)}...`);
+				return;
+			}
+			ChatPanelProvider.lastSentMessage = payload.text;
+			ChatPanelProvider.lastSentTime = now;
+			
+			this.logger.info(`User sent message: ${payload.text.substring(0, 100)}...`);
+			if (payload.attachments && payload.attachments.length > 0) {
+				this.logger.info(`  with ${payload.attachments.length} attachment(s)`);
+			}
+			this.messageHandlers.forEach(handler => handler({
+				text: payload.text,
+				attachments: payload.attachments
+			}));
+		});
+
+		ChatPanelProvider.rpcRouter.onPickFiles(() => {
+			this.logger.info('File picker requested from UI');
+			this.handleFilePicker();
+		});
+
+		ChatPanelProvider.rpcRouter.onAbortMessage(() => {
+			this.logger.info('Abort requested from UI');
+			this.abortHandlers.forEach(handler => handler());
+		});
+
+		ChatPanelProvider.rpcRouter.onSwitchSession((payload) => {
+			this.logger.info(`[DIAGNOSTIC] Switch session requested from dropdown: ${payload.sessionId}`);
+			vscode.commands.executeCommand('copilot-cli-extension.switchSession', payload.sessionId);
+		});
+
+		ChatPanelProvider.rpcRouter.onNewSession(() => {
+			this.logger.info('New session requested from UI');
+			vscode.commands.executeCommand('copilot-cli-extension.newSession');
+		});
+
+		ChatPanelProvider.rpcRouter.onViewPlan(() => {
+			this.logger.info('View plan requested from UI');
+			this.viewPlanHandlers.forEach(handler => handler());
+		});
+
+		ChatPanelProvider.rpcRouter.onViewDiff((payload) => {
+			this.logger.info(`View diff requested from UI: ${JSON.stringify(payload)}`);
+			vscode.commands.executeCommand('copilot-cli-extension.viewDiff', payload);
+		});
+
+		ChatPanelProvider.rpcRouter.onTogglePlanMode((payload) => {
+			this.logger.info(`Plan mode toggle requested: ${payload.enabled}`);
+			vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);
+		});
+
+		ChatPanelProvider.rpcRouter.onAcceptPlan(() => {
+			this.logger.info('Accept plan requested from UI');
+			vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
+		});
+
+		ChatPanelProvider.rpcRouter.onRejectPlan(() => {
+			this.logger.info('Reject plan requested from UI');
+			vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
+		});
+
+		// Start listening for messages from webview
+		ChatPanelProvider.rpcRouter.listen();
 
 		// NOW set HTML - webview will load and send 'ready' which we can now catch
 		ChatPanelProvider.panel.webview.html = ChatPanelProvider.getHtmlForWebview(ChatPanelProvider.panel.webview);
@@ -181,11 +193,7 @@ export class ChatPanelProvider {
 		}
 		
 		// Send to webview with attachments
-		ChatPanelProvider.postMessage({ 
-			type: 'userMessage', 
-			text,
-			attachments 
-		});
+		ChatPanelProvider.rpcRouter?.addUserMessage(text, attachments as any); // Type compat: different Attachment shapes
 	}
 
 	public static addAssistantMessage(text: string, storeInBackend: boolean = true) {
@@ -201,7 +209,7 @@ export class ChatPanelProvider {
 		}
 		
 		// Send to webview
-		ChatPanelProvider.postMessage({ type: 'assistantMessage', text });
+		ChatPanelProvider.rpcRouter?.addAssistantMessage(text);
 	}
 
 	public static addReasoningMessage(text: string, storeInBackend: boolean = true) {
@@ -217,7 +225,7 @@ export class ChatPanelProvider {
 		}
 		
 		// Send to webview
-		ChatPanelProvider.postMessage({ type: 'reasoningMessage', text });
+		ChatPanelProvider.rpcRouter?.addReasoningMessage(text);
 	}
 
 	public static addToolExecution(toolState: any, storeInBackend: boolean = true) {
@@ -235,37 +243,37 @@ export class ChatPanelProvider {
 		}
 		
 		// Send to webview
-		ChatPanelProvider.postMessage({ type: 'toolStart', tool: toolState });
+		ChatPanelProvider.rpcRouter?.toolStart(toolState);
 	}
 
 	public static updateToolExecution(toolState: any) {
-		ChatPanelProvider.postMessage({ type: 'toolUpdate', tool: toolState });
+		ChatPanelProvider.rpcRouter?.toolUpdate(toolState);
 	}
 	
 	public static notifyDiffAvailable(data: any) {
-		ChatPanelProvider.postMessage({ type: 'diffAvailable', data });
+		ChatPanelProvider.rpcRouter?.setDiffAvailable(data.available || false);
 	}
 
 
 	public static appendToLastMessage(text: string) {
-		ChatPanelProvider.postMessage({ type: 'appendMessage', text });
+		ChatPanelProvider.rpcRouter?.appendMessage(text);
 	}
 
 	public static setSessionActive(active: boolean) {
 		ChatPanelProvider.isSessionActive = active;
-		ChatPanelProvider.postMessage({ type: 'sessionStatus', active });
+		ChatPanelProvider.rpcRouter?.setSessionActive(active);
 	}
 
 	public static setThinking(isThinking: boolean) {
-		ChatPanelProvider.postMessage({ type: 'thinking', isThinking });
+		ChatPanelProvider.rpcRouter?.setThinking(isThinking);
 	}
 
 	public static clearMessages() {
-		ChatPanelProvider.postMessage({ type: 'clearMessages' });
+		ChatPanelProvider.rpcRouter?.clearMessages();
 	}
 	
 	public static resetPlanMode() {
-		ChatPanelProvider.postMessage({ type: 'resetPlanMode' });
+		ChatPanelProvider.rpcRouter?.resetPlanMode();
 	}
 
 	public static updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
@@ -275,20 +283,16 @@ export class ChatPanelProvider {
 			const selectedIndex = sessions.findIndex(s => s.id === currentSessionId);
 			this.logger?.info(`[DIAGNOSTIC] Selected session index: ${selectedIndex} (${selectedIndex >= 0 ? sessions[selectedIndex].id : 'NOT FOUND'})`);
 		}
-		ChatPanelProvider.postMessage({ 
-			type: 'updateSessions', 
-			sessions,
-			currentSessionId 
-		});
+		ChatPanelProvider.rpcRouter?.updateSessions(sessions as any, currentSessionId); // Type compat: different Session shapes
 	}
 
 	public static setWorkspacePath(workspacePath: string | undefined) {
 		ChatPanelProvider.currentWorkspacePath = workspacePath;
-		ChatPanelProvider.postMessage({ type: 'workspacePath', workspacePath });
+		ChatPanelProvider.rpcRouter?.setWorkspacePath(workspacePath || null);
 	}
 
 	public static updateActiveFile(filePath: string | null) {
-		ChatPanelProvider.postMessage({ type: 'activeFileChanged', filePath });
+		ChatPanelProvider.rpcRouter?.setActiveFile(filePath);
 	}
 
 	public static onUserMessage(handler: (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => void) {
