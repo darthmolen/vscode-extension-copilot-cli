@@ -267,9 +267,8 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info(`View diff command triggered: ${JSON.stringify(message)}`);
 		
 		try {
-			// Extract the actual diff data from the RPC message
-			// Message structure: { type: 'viewDiff', data: { beforeUri, afterUri, ... } }
-			const diffData = message.data || message;
+			// Extract the actual diff data from the message wrapper
+			const diffData = message.value || message;
 			const beforeUri = vscode.Uri.file(diffData.beforeUri);
 			const afterUri = vscode.Uri.file(diffData.afterUri);
 			const title = diffData.title || 'File Diff';
