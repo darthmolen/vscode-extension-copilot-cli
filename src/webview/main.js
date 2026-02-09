@@ -802,6 +802,15 @@ export function handleUsageInfoMessage(payload) {
 	}
 }
 
+/**
+ * Handle 'resetPlanMode' message - force reset plan mode to false
+ */
+export function handleResetPlanModeMessage(payload) {
+	planMode = false;
+	updatePlanModeUI();
+	swapToRegularControls();
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -989,10 +998,10 @@ window.addEventListener('message', event => {
 			// }
 			break;
 		case 'resetPlanMode':
-			// Force reset plan mode to false
-			planMode = false;
-			updatePlanModeUI();
-			swapToRegularControls();
+			// MIGRATED to RPC: handleResetPlanModeMessage
+			// planMode = false;
+			// updatePlanModeUI();
+			// swapToRegularControls();
 			break;
 		case 'status':
 			// Handle status updates including plan mode
@@ -1062,6 +1071,7 @@ rpc.onToolStart(handleToolStartMessage);
 rpc.onToolUpdate(handleToolUpdateMessage);
 rpc.onDiffAvailable(handleDiffAvailableMessage);
 rpc.onUsageInfo(handleUsageInfoMessage);
+rpc.onResetPlanMode(handleResetPlanModeMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

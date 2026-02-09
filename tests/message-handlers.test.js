@@ -49,6 +49,7 @@ async function runTests() {
 			<button id="attachButton"></button>
 			<div id="attachmentsPreview"></div>
 			<span id="attachCount"></span>
+			<div class="input-controls" style="display: flex;"></div>
 		</body>
 		</html>
 	`, {
@@ -437,6 +438,20 @@ async function runTests() {
 			recordTest('handleUsageInfoMessage works', true);
 		} catch (error) {
 			recordTest('handleUsageInfoMessage works', false, error.message);
+		}
+		
+		// Test 15: handleResetPlanModeMessage - reset plan mode
+		try {
+			if (!mainModule.handleResetPlanModeMessage) {
+				throw new Error('handleResetPlanModeMessage not exported');
+			}
+			
+			// Should execute without error
+			mainModule.handleResetPlanModeMessage({});
+			
+			recordTest('handleResetPlanModeMessage works', true);
+		} catch (error) {
+			recordTest('handleResetPlanModeMessage works', false, error.message);
 		}
 		
 	} catch (error) {
