@@ -678,6 +678,14 @@ export function handleReasoningMessageMessage(payload) {
 	addMessage('reasoning', payload.text);
 }
 
+/**
+ * Handle 'workspacePath' message - show/hide view plan button based on workspace
+ */
+export function handleWorkspacePathMessage(payload) {
+	workspacePath = payload.workspacePath;
+	viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
+}
+
 function setThinking(isThinking) {
 	thinking.setAttribute('aria-busy', isThinking ? 'true' : 'false');
 	
@@ -802,9 +810,9 @@ window.addEventListener('message', event => {
 			).join('');
 			break;
 		case 'workspacePath':
-			// Show/hide view plan button based on workspace path availability
-			workspacePath = message.workspacePath;
-			viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
+			// MIGRATED to RPC: handleWorkspacePathMessage
+			// workspacePath = message.workspacePath;
+			// viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
 			break;
 		case 'activeFileChanged':
 			// Update active file display - just show/hide the filename, label stays
@@ -942,6 +950,7 @@ rpc.onAppendMessage(handleAppendMessageMessage);
 rpc.onUserMessage(handleUserMessageMessage);
 rpc.onAssistantMessage(handleAssistantMessageMessage);
 rpc.onReasoningMessage(handleReasoningMessageMessage);
+rpc.onWorkspacePath(handleWorkspacePathMessage);
 
 // Notify extension that webview is ready
 rpc.ready();

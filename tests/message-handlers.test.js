@@ -224,6 +224,27 @@ async function runTests() {
 			recordTest('handleReasoningMessageMessage works', false, error.message);
 		}
 		
+		// Test 7: handleWorkspacePathMessage - show/hide view plan button
+		try {
+			const viewPlanBtn = document.getElementById('viewPlanBtn');
+			
+			if (!mainModule.handleWorkspacePathMessage) {
+				throw new Error('handleWorkspacePathMessage not exported');
+			}
+			
+			// With workspace path
+			mainModule.handleWorkspacePathMessage({ workspacePath: '/home/user/project' });
+			assert.equal(viewPlanBtn.style.display, 'inline-block', 'Should show view plan button with workspace');
+			
+			// Without workspace path
+			mainModule.handleWorkspacePathMessage({ workspacePath: null });
+			assert.equal(viewPlanBtn.style.display, 'none', 'Should hide view plan button without workspace');
+			
+			recordTest('handleWorkspacePathMessage works', true);
+		} catch (error) {
+			recordTest('handleWorkspacePathMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
