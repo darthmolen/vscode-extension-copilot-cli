@@ -199,6 +199,31 @@ async function runTests() {
 			recordTest('handleAssistantMessageMessage works', false, error.message);
 		}
 		
+		// Test 6: handleReasoningMessageMessage - add reasoning message
+		try {
+			const messagesContainer = document.getElementById('messages');
+			const showReasoningCheckbox = document.getElementById('showReasoningCheckbox');
+			
+			if (!mainModule.handleReasoningMessageMessage) {
+				throw new Error('handleReasoningMessageMessage not exported');
+			}
+			
+			// Enable reasoning visibility
+			showReasoningCheckbox.checked = true;
+			
+			// Clear and add message
+			messagesContainer.innerHTML = '';
+			mainModule.handleReasoningMessageMessage({ text: 'Let me think...' });
+			
+			const messages = messagesContainer.querySelectorAll('.message.reasoning');
+			assert.equal(messages.length, 1, 'Should add one reasoning message');
+			assert.ok(messagesContainer.textContent.includes('Let me think'), 'Should contain reasoning text');
+			
+			recordTest('handleReasoningMessageMessage works', true);
+		} catch (error) {
+			recordTest('handleReasoningMessageMessage works', false, error.message);
+		}
+		
 	} catch (error) {
 		recordTest('Test setup', false, error.message);
 		console.error(error);
