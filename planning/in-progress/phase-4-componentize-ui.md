@@ -1,7 +1,7 @@
 # Phase 4: Componentize Webview UI
 
 ## Status
-⏸️ Not Started
+🔄 In Progress - Starting with Sub-Phase 0
 
 ## Goal
 Break monolithic webview JavaScript into reusable, testable components
@@ -9,7 +9,37 @@ Break monolithic webview JavaScript into reusable, testable components
 ## Context
 After Phase 1, the webview code is in separate files, but it's still one monolithic `main.js` file with all UI logic mixed together.
 
-This phase decomposes the UI into focused components:
+**CRITICAL DISCOVERY (2026-02-09)**: During Phase 0.2 bug fixes, we discovered that **`main.js` is completely untestable**. It executes initialization code at module load time (attaching event listeners to DOM elements), making it impossible to import for testing without a full browser environment.
+
+This phase must START with refactoring for testability BEFORE componentization.
+
+### The Testability Crisis
+
+**What We Learned**:
+- Phase 0.2 had 3 bugs: RPC data flow, click handler, type definitions
+- We wrote 5 "comprehensive" tests - all passed ✅
+- But production code was still broken ❌
+- **Root cause**: Tests only tested mocks, never imported actual code
+
+**Why We Couldn't Test Properly**:
+```javascript
+// main.js line 53 - Runs IMMEDIATELY when module loads
+showReasoningCheckbox.addEventListener('change', (e) => { ... });
+```
+
+When we try to `require('../src/webview/main.js')` in tests:
+1. Module loads
+2. Tries to access `showReasoningCheckbox` (doesn't exist)
+3. TypeError: Cannot read properties of null
+
+**The Lesson**: Code must be designed for testing. No amount of "comprehensive" tests helps if they can't import production code.
+
+### Phase 4 Now Has Two Goals
+
+1. **Make code testable** (Sub-Phase 0)
+2. **Componentize UI** (Sub-Phases 1-4)
+
+This phase decomposes the UI into focused, **testable** components:
 - Chat message display
 - Input area
 - Session selector
@@ -29,6 +59,119 @@ This phase decomposes the UI into focused components:
 **Conclusion**: Vanilla JS is the proven pattern for chat extensions in VS Code. React/Vue/Angular add unnecessary complexity and bundle size for what is essentially list rendering and markdown display.
 
 ## Tasks
+
+### Phase 4.0: Refactor for Testability (PREREQUISITE)
+
+**Goal**: Separate initialization from business logic so functions can be tested in isolation.
+
+**The Problem**:
+- `main.js` executes code at module load time
+- Tries to access DOM elements immediately
+- Cannot be imported in test environment
+- Makes TDD impossible
+
+**The Solution**: Extract testable functions from initialization code.
+
+#### Refactoring Pattern
+
+```javascript
+// BEFORE (untestable):
+// Runs immediately when module loads
+showReasoningCheckbox.addEventListener('change', (e) => {
+    showReasoning = e.target.checked;
+    document.querySelectorAll('.message.reasoning').forEach(msg => {
+        msg.style.display = showReasoning ? 'block' : 'none';
+    });
+});
+
+// AFTER (testable):
+// Pure function - can be tested in isolation
+export function handleReasoningToggle(checked, messagesContainer) {
+    const reasoningMessages = messagesContainer.querySelectorAll('.message.reasoning');
+    reasoningMessages.forEach(msg => {
+        msg.style.display = checked ? 'block' : 'none';
+    });
+    return checked; // State update
+}
+
+// Initialization - separate from logic
+function initReasoningToggle() {
+    const checkbox = document.getElementById('show-reasoning');
+    checkbox.addEventListener('change', (e) => {
+        showReasoning = handleReasoningToggle(e.target.checked, messagesContainer);
+    });
+}
+```
+
+#### Tasks
+
+- [ ] **Audit main.js**: Identify all initialization code (event listeners, DOM queries)
+- [ ] **Extract handleDiffAvailableMessage**: Pure function with DOM dependency injection
+  ```javascript
+  export function handleDiffAvailableMessage(payload, container, rpc) {
+      const data = payload.data || payload;
+      // Business logic here
+      return toolElement; // Return for testing
+  }
+  ```
+- [ ] **Extract buildToolHtml**: Pure function (no DOM access)
+- [ ] **Extract handleReasoningToggle**: Pure function with container parameter
+- [ ] **Extract handleMessageSend**: Pure function with RPC dependency injection
+- [ ] **Create init() function**: All event listener setup happens here
+- [ ] **Export testable functions**: Add proper ES module exports
+- [ ] **Test extraction**: Write JSDOM tests that import extracted functions
+- [ ] **Verify with broken code**: Run tests against pre-fix code to ensure they fail
+
+#### Success Criteria
+
+- [ ] All business logic is in exported functions
+- [ ] All DOM element access is parameterized (dependency injection)
+- [ ] Initialization code is isolated in `init()` function
+- [ ] Tests can import and call functions without TypeErrors
+- [ ] Tests fail when run against pre-fix code (proves they work)
+- [ ] Extension still works after refactoring (no regressions)
+
+#### Example Test (After Refactoring)
+
+```javascript
+// tests/diff-button-integration.test.js
+const { JSDOM } = require('jsdom');
+const { handleDiffAvailableMessage } = require('../src/webview/main.js');
+
+describe('Diff Button', () => {
+    it('should create button with correct data', () => {
+        const dom = new JSDOM(`<div id="container"></div>`);
+        const container = dom.window.document.getElementById('container');
+        
+        const mockRpc = { viewDiff: (data) => sentData = data };
+        let sentData = null;
+        
+        // Call actual production function
+        const element = handleDiffAvailableMessage({
+            toolCallId: 'test-123',
+            beforeUri: '/tmp/before.ts',
+            afterUri: '/workspace/after.ts'
+        }, container, mockRpc);
+        
+        // Verify button exists
+        const btn = element.querySelector('.view-diff-btn');
+        expect(btn).to.exist;
+        
+        // Click and verify data
+        btn.click();
+        expect(sentData.beforeUri).to.equal('/tmp/before.ts');
+    });
+});
+```
+
+#### Why This Matters
+
+**From Phase 0.2 Post-Mortem**:
+> "We watched our tests pass. We never watched them fail. Therefore, they tested nothing."
+
+We can't follow TDD without testable code. This sub-phase is **mandatory** before any other work.
+
+---
 
 ### Phase 4.1: Component Extraction (Vanilla JS)
 
