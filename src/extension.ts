@@ -517,6 +517,11 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('✅ CLI process started successfully');
 		ChatPanelProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
 		
+		// Update session dropdown with the now-active session
+		// FIX: Dropdown was updated before session started (currentSessionId=null)
+		// Now update again so the active session is selected
+		updateSessionsList();
+		
 		// Show the output channel so user can see logs
 		logger.show();
 		
