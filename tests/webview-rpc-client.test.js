@@ -35,12 +35,11 @@ async function runTests() {
 	global.acquireVsCodeApi = () => mockVsCodeApi;
 	
 	try {
-		// Import WebviewRpcClient
+		// Import WebviewRpcClient using ES6 dynamic import
+		// This tests that ES6 export syntax works correctly (matches browser behavior)
 		const clientPath = '../src/webview/app/rpc/WebviewRpcClient.js';
-		
-		// Clear require cache to get fresh instance
-		delete require.cache[require.resolve(clientPath)];
-		const { WebviewRpcClient } = require(clientPath);
+		const module = await import(clientPath);
+		const { WebviewRpcClient } = module;
 		
 		if (!WebviewRpcClient) {
 			recordTest('Import WebviewRpcClient', false, 'Not exported');
