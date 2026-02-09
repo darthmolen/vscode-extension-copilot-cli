@@ -10,6 +10,11 @@ import {
 	handleAcceptPlan,
 	handleRejectPlan
 } from './app/handlers/ui-handlers.js';
+import {
+	handleAcceptAndWork,
+	handleKeepPlanning,
+	handleAcceptanceKeydown
+} from './app/handlers/acceptance-handlers.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
@@ -94,29 +99,18 @@ rejectPlanBtn.addEventListener('click', () => {
 
 // Acceptance control handlers
 acceptAndWorkBtn.addEventListener('click', () => {
-	console.log('[Acceptance] Accept and work');
-	rpc.acceptPlan();
-	swapToRegularControls();
+	handleAcceptAndWork(rpc, swapToRegularControls);
 });
 
 keepPlanningBtn.addEventListener('click', () => {
-	console.log('[Acceptance] Keep planning');
-	swapToRegularControls();
+	handleKeepPlanning(swapToRegularControls);
 });
 
 acceptanceInput.addEventListener('keydown', (e) => {
-	if (e.key === 'Enter' && !e.shiftKey) {
-		e.preventDefault();
-		const instructions = acceptanceInput.value.trim();
-		if (instructions) {
-			console.log('[Acceptance] Sending alternative instructions:', instructions);
-			rpc.sendMessage(instructions);
-			acceptanceInput.value = '';
-			swapToRegularControls();
-		}
-	} else if (e.key === 'Escape') {
-		swapToRegularControls();
-	}
+	handleAcceptanceKeydown(e, acceptanceInput.value, rpc, {
+		clearInput: () => { acceptanceInput.value = ''; },
+		swapControls: swapToRegularControls
+	});
 });
 
 function swapToAcceptanceControls() {
