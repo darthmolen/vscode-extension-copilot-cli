@@ -40,23 +40,7 @@ const emptyState = document.getElementById('emptyState');
 const thinking = document.getElementById('thinking');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
-const statusIndicator = document.getElementById('statusIndicator');
-const sessionSelect = document.getElementById('sessionSelect');
-const newSessionBtn = document.getElementById('newSessionBtn');
-const viewPlanBtn = document.getElementById('viewPlanBtn');
-const showReasoningCheckbox = document.getElementById('showReasoningCheckbox');
-const enterPlanModeBtn = document.getElementById('enterPlanModeBtn');
-const acceptPlanBtn = document.getElementById('acceptPlanBtn');
-const rejectPlanBtn = document.getElementById('rejectPlanBtn');
-const reasoningIndicator = document.getElementById('reasoningIndicator');
-const usageWindow = document.getElementById('usageWindow');
-const usageUsed = document.getElementById('usageUsed');
-const usageRemaining = document.getElementById('usageRemaining');
 const focusFileInfo = document.getElementById('focusFileInfo');
-const acceptanceControls = document.getElementById('acceptanceControls');
-const acceptanceInput = document.getElementById('acceptanceInput');
-const keepPlanningBtn = document.getElementById('keepPlanningBtn');
-const acceptAndWorkBtn = document.getElementById('acceptAndWorkBtn');
 const attachButton = document.getElementById('attachButton');
 const attachmentsPreview = document.getElementById('attachmentsPreview');
 const attachCount = document.getElementById('attachCount');
@@ -94,6 +78,61 @@ const acceptanceControls = new AcceptanceControls(acceptanceControlsContainer);
 const statusBarContainer = document.querySelector('.status-bar, .input-controls') || document.createElement('div');
 const statusBar = new StatusBar(statusBarContainer);
 
+// ============================================================================
+// Component Event Wiring
+// ============================================================================
+
+// SessionToolbar events
+sessionToolbar.on('switchSession', (sessionId) => {
+	currentSessionId = handleSessionChange(sessionId, currentSessionId, rpc);
+});
+
+sessionToolbar.on('newSession', () => {
+	handleNewSession(rpc);
+});
+
+sessionToolbar.on('viewPlan', () => {
+	handleViewPlan(rpc);
+});
+
+sessionToolbar.on('togglePlanMode', () => {
+	planMode = handleEnterPlanMode(rpc, updatePlanModeUI);
+});
+
+sessionToolbar.on('acceptPlan', () => {
+	handleAcceptPlan(rpc);
+});
+
+sessionToolbar.on('rejectPlan', () => {
+	handleRejectPlan(rpc);
+});
+
+// AcceptanceControls events
+acceptanceControls.on('accept', (value) => {
+	handleAcceptAndWork(rpc, () => {
+		acceptanceControls.hide();
+		acceptanceControls.clear();
+	});
+});
+
+acceptanceControls.on('reject', (value) => {
+	handleKeepPlanning(() => {
+		acceptanceControls.hide();
+		acceptanceControls.clear();
+	});
+});
+
+acceptanceControls.on('swap', () => {
+	// Swap logic - emit to RPC if needed
+	console.log('[Swap] Swap original/modified requested');
+});
+
+// StatusBar events
+statusBar.on('reasoningToggle', (checked) => {
+	showReasoning = handleReasoningToggle(checked, messagesContainer);
+	eventBus.emit('reasoning:toggle', checked);
+});
+
 // Listen for viewDiff events from ToolExecution component
 eventBus.on('viewDiff', (diffData) => {
 	rpc.viewDiff(diffData);
@@ -117,100 +156,12 @@ eventBus.on('input:attachFiles', () => {
 	rpc.requestAttachFiles();
 });
 
-// Show reasoning checkbox handler
-showReasoningCheckbox.addEventListener('change', (e) => {
-	showReasoning = handleReasoningToggle(e.target.checked, messagesContainer);
-	eventBus.emit('reasoning:toggle', e.target.checked);
-});
+// Listen for viewDiff events from ToolExecution component (duplicate removed)
 
-// Listen for viewDiff events from ToolExecution component
-eventBus.on('viewDiff', (diffData) => {
-	rpc.viewDiff(diffData);
-});
-
-// Session selector change handler
-sessionSelect.addEventListener('change', (e) => {
-	currentSessionId = handleSessionChange(e.target.value, currentSessionId, rpc);
-});
-
-// New session button handler
-newSessionBtn.addEventListener('click', () => {
-	handleNewSession(rpc);
-});
-
-// View plan button handler
-viewPlanBtn.addEventListener('click', () => {
-	handleViewPlan(rpc);
-});
-
-// Plan mode button handlers
-enterPlanModeBtn.addEventListener('click', () => {
-	planMode = handleEnterPlanMode(rpc, updatePlanModeUI);
-});
-
-acceptPlanBtn.addEventListener('click', () => {
-	handleAcceptPlan(rpc);
-});
-
-rejectPlanBtn.addEventListener('click', () => {
-	handleRejectPlan(rpc);
-});
-
-// Acceptance control handlers
-acceptAndWorkBtn.addEventListener('click', () => {
-	handleAcceptAndWork(rpc, swapToRegularControls);
-});
-
-keepPlanningBtn.addEventListener('click', () => {
-	handleKeepPlanning(swapToRegularControls);
-});
-
-acceptanceInput.addEventListener('keydown', (e) => {
-	handleAcceptanceKeydown(e, acceptanceInput.value, rpc, {
-		clearInput: () => { acceptanceInput.value = ''; },
-		swapControls: swapToRegularControls
-	});
-});
-
-function swapToAcceptanceControls() {
-	console.log('[Control Surface] Swapping to acceptance controls');
-	document.querySelector('.input-controls').style.display = 'none';
-	acceptanceControls.classList.add('active');
-	acceptanceInput.focus();
-}
-
-function swapToRegularControls() {
-	console.log('[Control Surface] Swapping to regular controls');
-	acceptanceControls.classList.remove('active');
-	document.querySelector('.input-controls').style.display = 'flex';
-	acceptanceInput.value = '';
-}
-
+// UI update functions (now using components)
 function updatePlanModeUI() {
 	console.log('[updatePlanModeUI] Called with planMode =', planMode);
-	if (planMode) {
-		// In plan mode: hide enter button, show accept/reject
-		console.log('[updatePlanModeUI] PLAN MODE - hiding enter, showing accept/reject');
-		enterPlanModeBtn.style.display = 'none';
-		acceptPlanBtn.style.display = 'inline-block';
-		rejectPlanBtn.style.display = 'inline-block';
-		console.log('[updatePlanModeUI] Button states:', {
-			enter: enterPlanModeBtn.style.display,
-			accept: acceptPlanBtn.style.display,
-			reject: rejectPlanBtn.style.display
-		});
-	} else {
-		// In work mode: show enter button, hide accept/reject
-		console.log('[updatePlanModeUI] WORK MODE - showing enter, hiding accept/reject');
-		enterPlanModeBtn.style.display = 'inline-block';
-		acceptPlanBtn.style.display = 'none';
-		rejectPlanBtn.style.display = 'none';
-		console.log('[updatePlanModeUI] Button states:', {
-			enter: enterPlanModeBtn.style.display,
-			accept: acceptPlanBtn.style.display,
-			reject: rejectPlanBtn.style.display
-		});
-	}
+	sessionToolbar.setPlanMode(planMode);
 }
 
 
@@ -310,8 +261,8 @@ export function handleWorkspacePathMessage(payload) {
 	console.log(`[VIEW PLAN DEBUG] workspacePath message received:`, payload);
 	workspacePath = payload.path; // FIX: payload has 'path' not 'workspacePath'
 	console.log(`[VIEW PLAN DEBUG] Extracted path: ${workspacePath}`);
-	viewPlanBtn.style.display = workspacePath ? 'inline-block' : 'none';
-	console.log(`[VIEW PLAN DEBUG] Button display set to: ${viewPlanBtn.style.display}`);
+	sessionToolbar.setWorkspacePath(workspacePath);
+	console.log(`[VIEW PLAN DEBUG] SessionToolbar workspace path set`);
 }
 
 /**
@@ -350,11 +301,7 @@ export function handleClearMessagesMessage(payload) {
  */
 export function handleUpdateSessionsMessage(payload) {
 	currentSessionId = payload.currentSessionId;
-	sessionSelect.innerHTML = payload.sessions.map(session => 
-		`<option value="${session.id}" ${session.id === currentSessionId ? 'selected' : ''}>
-			${session.label}
-		</option>`
-	).join('');
+	sessionToolbar.updateSessions(payload.sessions, currentSessionId);
 }
 
 /**
@@ -406,22 +353,15 @@ export function handleUsageInfoMessage(payload) {
 	if (payload.data.currentTokens !== undefined && payload.data.tokenLimit !== undefined) {
 		const used = payload.data.currentTokens;
 		const limit = payload.data.tokenLimit;
-		const usedCompact = formatCompactNumber(used);
 		const windowPct = Math.round((used / limit) * 100);
 		
-		// Update Window percentage
-		usageWindow.textContent = `Window: ${windowPct}%`;
-		usageWindow.title = `context window usage: ${used.toLocaleString()} / ${limit.toLocaleString()} tokens`;
-		
-		// Update Used count
-		usageUsed.textContent = `Used: ${usedCompact}`;
-		usageUsed.title = `tokens used this session: ${used.toLocaleString()}`;
+		statusBar.updateUsageWindow(windowPct, used, limit);
+		statusBar.updateUsageUsed(used);
 	}
 	// Quota percentage from assistant.usage
 	if (payload.data.remainingPercentage !== undefined) {
 		const pct = Math.round(payload.data.remainingPercentage);
-		usageRemaining.textContent = `Remaining: ${pct}%`;
-		usageRemaining.title = `remaining requests for account: ${pct}%`;
+		statusBar.updateUsageRemaining(pct);
 	}
 }
 
@@ -431,7 +371,8 @@ export function handleUsageInfoMessage(payload) {
 export function handleResetPlanModeMessage(payload) {
 	planMode = false;
 	updatePlanModeUI();
-	swapToRegularControls();
+	acceptanceControls.hide();
+	acceptanceControls.clear();
 }
 
 /**
@@ -444,10 +385,8 @@ export function handleStatusMessage(payload) {
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
 		console.log('[METRICS] Resetting session-level metrics');
-		usageWindow.textContent = 'Window: 0%';
-		usageWindow.title = 'token usage in current window: 0%';
-		usageUsed.textContent = 'Used: 0';
-		usageUsed.title = 'tokens used this session: 0';
+		statusBar.updateUsageWindow(0, 0, 1);
+		statusBar.updateUsageUsed(0);
 	}
 	
 	if (status === 'plan_mode_enabled') {
@@ -458,7 +397,8 @@ export function handleStatusMessage(payload) {
 		console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
 		planMode = false;
 		updatePlanModeUI();
-		swapToRegularControls();
+		acceptanceControls.hide();
+		acceptanceControls.clear();
 		
 		// Show notification
 		if (status === 'plan_accepted') {
@@ -468,18 +408,15 @@ export function handleStatusMessage(payload) {
 		}
 	} else if (status === 'thinking') {
 		isReasoning = true;
-		if (reasoningIndicator) {
-			reasoningIndicator.style.display = 'inline';
-		}
+		statusBar.showReasoning();
 	} else if (status === 'ready') {
 		isReasoning = false;
-		if (reasoningIndicator) {
-			reasoningIndicator.style.display = 'none';
-		}
+		statusBar.hideReasoning();
 	} else if (status === 'plan_ready') {
 		// Plan is ready for user review - show acceptance controls
-		console.log('[Plan Ready] Swapping to acceptance controls');
-		swapToAcceptanceControls();
+		console.log('[Plan Ready] Showing acceptance controls');
+		acceptanceControls.show();
+		acceptanceControls.focus();
 	}
 }
 
@@ -529,10 +466,10 @@ export function handleInitMessage(payload) {
 	// Set workspace path and show/hide View Plan button
 	if (payload.workspacePath) {
 		workspacePath = payload.workspacePath;
-		viewPlanBtn.style.display = 'inline-block';
+		sessionToolbar.setWorkspacePath(workspacePath);
 	} else {
 		workspacePath = null;
-		viewPlanBtn.style.display = 'none';
+		sessionToolbar.setWorkspacePath(null);
 	}
 	
 	setSessionActive(payload.sessionActive);
@@ -550,19 +487,6 @@ function setThinking(isThinking) {
 
 	// Emit event for InputArea component to update send/stop button
 	eventBus.emit('session:thinking', isThinking);
-}
-
-function formatCompactNumber(num) {
-	if (num >= 1000000000) {
-		return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'b';
-	}
-	if (num >= 1000000) {
-		return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
-	}
-	if (num >= 1000) {
-		return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-	}
-	return num.toString();
 }
 
 // Handle messages from extension
