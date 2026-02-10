@@ -304,60 +304,6 @@ function navigateHistory(direction) {
 	}
 }
 
-function addMessage(role, text, attachments) {
-	emptyState.classList.add('hidden');
-	
-	// Close current tool group when user sends a message OR when assistant responds
-	if (role === 'user' || role === 'assistant') {
-		closeCurrentToolGroup();
-	}
-	
-	const messageDiv = document.createElement('div');
-	messageDiv.className = `message ${role}`;
-	messageDiv.setAttribute('role', 'article');
-	
-	// Handle different message types
-	if (role === 'reasoning') {
-		messageDiv.setAttribute('aria-label', 'Assistant reasoning');
-		messageDiv.style.display = showReasoning ? 'block' : 'none';
-		messageDiv.innerHTML = `
-			<div class="message-header" style="font-style: italic;">Assistant Reasoning</div>
-			<div class="message-content" style="font-style: italic;">${escapeHtml(text)}</div>
-		`;
-	} else {
-		messageDiv.setAttribute('aria-label', `${role === 'user' ? 'Your' : 'Assistant'} message`);
-		// Use marked for assistant messages, plain text for user
-		const content = role === 'assistant' ? marked.parse(text) : escapeHtml(text);
-		
-		// Build attachments HTML if present
-		let attachmentsHtml = '';
-		if (attachments && attachments.length > 0) {
-			attachmentsHtml = '<div class="message-attachments">' + 
-				attachments.map(att => `
-					<div class="message-attachment">
-						${att.webviewUri ? `<img src="${att.webviewUri}" alt="${att.displayName}" class="message-attachment-image" />` : ''}
-						<div class="message-attachment-name">📎 ${att.displayName}</div>
-					</div>
-				`).join('') +
-				'</div>';
-		}
-		
-		messageDiv.innerHTML = `
-			<div class="message-header">${role === 'user' ? 'You' : 'Assistant'}</div>
-			<div class="message-content">
-				${content}
-				${attachmentsHtml}
-			</div>
-		`;
-	}
-	
-	messagesContainer.appendChild(messageDiv);
-	messagesContainer.scrollTop = messagesContainer.scrollHeight;
-	
-	// Announce new message to screen readers
-	messageInput.focus();
-}
-
 function closeCurrentToolGroup() {
 	if (currentToolGroup) {
 		updateToolGroupToggle();
@@ -638,14 +584,27 @@ export function handleAppendMessageMessage(payload) {
  * Handle 'userMessage' message - add user message to chat
  */
 export function handleUserMessageMessage(payload) {
-	addMessage('user', payload.text, payload.attachments);
+	emptyState.classList.add('hidden');
+	closeCurrentToolGroup();
+	eventBus.emit('message:add', {
+		role: 'user',
+		content: payload.text,
+		attachments: payload.attachments,
+		timestamp: Date.now()
+	});
 }
 
 /**
  * Handle 'assistantMessage' message - add assistant message to chat
  */
 export function handleAssistantMessageMessage(payload) {
-	addMessage('assistant', payload.text);
+	emptyState.classList.add('hidden');
+	closeCurrentToolGroup();
+	eventBus.emit('message:add', {
+		role: 'assistant',
+		content: payload.text,
+		timestamp: Date.now()
+	});
 	setThinking(false);
 }
 
@@ -653,7 +612,12 @@ export function handleAssistantMessageMessage(payload) {
  * Handle 'reasoningMessage' message - add reasoning message to chat
  */
 export function handleReasoningMessageMessage(payload) {
-	addMessage('reasoning', payload.text);
+	emptyState.classList.add('hidden');
+	eventBus.emit('message:add', {
+		role: 'reasoning',
+		content: payload.text,
+		timestamp: Date.now()
+	});
 }
 
 /**
@@ -882,9 +846,14 @@ export function handleInitMessage(payload) {
 	
 	// Add messages from init
 	if (payload.messages && payload.messages.length > 0) {
+		emptyState.classList.add('hidden');
 		for (const msg of payload.messages) {
 			const role = msg.type || msg.role;
-			addMessage(role, msg.content);
+			eventBus.emit('message:add', {
+				role: role,
+				content: msg.content,
+				timestamp: Date.now()
+			});
 		}
 	}
 	
