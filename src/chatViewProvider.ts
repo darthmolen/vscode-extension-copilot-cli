@@ -65,6 +65,10 @@ export class ChatPanelProvider {
 				if (workspaceFolders && workspaceFolders.length > 0) {
 					this.logger.info(`[WORKSPACE DEBUG] Current workspace: ${workspaceFolders[0].uri.fsPath}`);
 				}
+				
+				// Fix: Update session list when panel moves (workspace context may have changed)
+				const { updateSessionsList } = require('./extension');
+				updateSessionsList();
 			},
 			null,
 			disposables
