@@ -5,6 +5,9 @@ import { EventBus } from './app/state/EventBus.js';
 import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
 import { ToolExecution } from './app/components/ToolExecution/ToolExecution.js';
 import { InputArea } from './app/components/InputArea/InputArea.js';
+import { SessionToolbar } from './app/components/SessionToolbar/SessionToolbar.js';
+import { AcceptanceControls } from './app/components/AcceptanceControls/AcceptanceControls.js';
+import { StatusBar } from './app/components/StatusBar/StatusBar.js';
 // Import extracted event handlers
 import {
 	handleReasoningToggle,
@@ -78,6 +81,18 @@ const inputArea = new InputArea({
 	attachmentsPreview: document.getElementById('attachmentsPreview'),
 	attachCount: document.getElementById('attachCount')
 }, eventBus);
+
+// Initialize SessionToolbar component
+const sessionToolbarContainer = document.querySelector('.session-toolbar') || document.createElement('div');
+const sessionToolbar = new SessionToolbar(sessionToolbarContainer);
+
+// Initialize AcceptanceControls component
+const acceptanceControlsContainer = document.querySelector('.acceptance-controls') || document.createElement('div');
+const acceptanceControls = new AcceptanceControls(acceptanceControlsContainer);
+
+// Initialize StatusBar component
+const statusBarContainer = document.querySelector('.status-bar, .input-controls') || document.createElement('div');
+const statusBar = new StatusBar(statusBarContainer);
 
 // Listen for viewDiff events from ToolExecution component
 eventBus.on('viewDiff', (diffData) => {
