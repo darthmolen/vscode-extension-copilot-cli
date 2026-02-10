@@ -525,5 +525,8 @@ export const __testExports = {
 	eventBus,
 	messageDisplay,
 	toolExecution,
-	inputArea
+	inputArea,
+	sessionToolbar,
+	acceptanceControls,
+	statusBar
 };
