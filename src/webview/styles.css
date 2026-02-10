@@ -1,3 +1,24 @@
+/**
+ * VS Code Copilot CLI Extension - Styles
+ * 
+ * BEM (Block Element Modifier) Naming Convention:
+ * - Block: .block (e.g. .message-display, .input-area)
+ * - Element: .block__element (e.g. .message-display__item, .input-area__textarea)
+ * - Modifier: .block__element--modifier (e.g. .message-display__item--user)
+ * 
+ * Component Blocks:
+ * 1. .session-toolbar - Session selector and plan mode controls
+ * 2. .message-display - Chat messages and tool execution
+ * 3. .tool-execution - Tool group rendering (nested under message-display)
+ * 4. .input-area - Message input, attachments, usage info
+ * 5. .acceptance-controls - Plan acceptance UI
+ * 
+ * Migration Status:
+ * - HTML: BEM classes added alongside existing classes/IDs (backward compatible)
+ * - CSS: Still using legacy selectors (.header, .messages, etc.)
+ * - Next: Gradually migrate CSS rules to BEM as components are extracted
+ */
+
 * {
 	box-sizing: border-box;
 	margin: 0;
