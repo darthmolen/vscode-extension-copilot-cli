@@ -1,5 +1,8 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
+// Import EventBus and MessageDisplay component
+import { EventBus } from './app/state/EventBus.js';
+import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
 // Import extracted event handlers
 import {
 	handleReasoningToggle,
@@ -60,6 +63,12 @@ let planMode = false;
 let workspacePath = null;
 let isReasoning = false;
 
+// Create EventBus for component communication
+const eventBus = new EventBus();
+
+// Initialize MessageDisplay component
+const messageDisplay = new MessageDisplay(messagesContainer, eventBus);
+
 // Attachments state
 let pendingAttachments = [];
 
@@ -76,6 +85,7 @@ let toolGroupExpanded = false;
 // Show reasoning checkbox handler
 showReasoningCheckbox.addEventListener('change', (e) => {
 	showReasoning = handleReasoningToggle(e.target.checked, messagesContainer);
+	eventBus.emit('reasoning:toggle', e.target.checked);
 });
 
 // Session selector change handler
