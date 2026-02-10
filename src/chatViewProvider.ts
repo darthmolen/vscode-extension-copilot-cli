@@ -447,45 +447,48 @@ export class ChatPanelProvider {
 	<link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
-	<div class="header" role="banner">
-		<div class="status-indicator" id="statusIndicator" role="status" aria-live="polite" aria-label="Connection status"></div>
-		<h2>Copilot CLI</h2>
-		<div class="session-selector">
-			<label for="sessionSelect">Session:</label>
-			<select id="sessionSelect" aria-label="Select session">
+	<!-- Session Toolbar Component -->
+	<div class="header session-toolbar" role="banner">
+		<div class="status-indicator session-toolbar__status" id="statusIndicator" role="status" aria-live="polite" aria-label="Connection status"></div>
+		<h2 class="session-toolbar__title">Copilot CLI</h2>
+		<div class="session-selector session-toolbar__selector-group">
+			<label for="sessionSelect" class="session-toolbar__label">Session:</label>
+			<select id="sessionSelect" class="session-toolbar__select" aria-label="Select session">
 				<option value="">No session</option>
 			</select>
-			<button id="newSessionBtn" class="new-session-btn" title="New Session" aria-label="Create new session">+</button>
+			<button id="newSessionBtn" class="new-session-btn session-toolbar__btn session-toolbar__btn--new" title="New Session" aria-label="Create new session">+</button>
 		</div>
 	</div>
 
 	<main role="main">
-		<div class="messages" id="messages" role="log" aria-live="polite" aria-label="Chat messages">
-			<div class="empty-state" id="emptyState">
-				<div class="empty-state-icon" aria-hidden="true">💬</div>
-				<div class="empty-state-text">
+		<!-- Message Display Component -->
+		<div class="messages message-display" id="messages" role="log" aria-live="polite" aria-label="Chat messages">
+			<div class="empty-state message-display__empty" id="emptyState">
+				<div class="empty-state-icon message-display__empty-icon" aria-hidden="true">💬</div>
+				<div class="empty-state-text message-display__empty-text">
 					Start a chat session to begin<br>
 					Use the command palette to start the CLI
 				</div>
 			</div>
 		</div>
 
-		<div class="thinking" id="thinking" role="status" aria-live="polite">Thinking...</div>
+		<div class="thinking message-display__thinking" id="thinking" role="status" aria-live="polite">Thinking...</div>
 
-		<div class="input-container">
-			<div class="input-controls">
-				<div class="top-controls-row">
-					<div class="focus-file-group">
-						<div class="focus-file-title">Active File:</div>
-						<span class="focus-file-info" id="focusFileInfo" aria-live="polite"></span>
+		<!-- Input Area Component -->
+		<div class="input-container input-area">
+			<div class="input-controls input-area__controls">
+				<div class="top-controls-row input-area__top-row">
+					<div class="focus-file-group input-area__focus-file">
+						<div class="focus-file-title input-area__focus-title">Active File:</div>
+						<span class="focus-file-info input-area__focus-info" id="focusFileInfo" aria-live="polite"></span>
 					</div>
 					<span style="flex: 1;"></span>
 					<div class="planning-header-spacer">
 						<div class="plan-mode-title-top">Planning</div>
 					</div>
 				</div>
-				<div class="usage-group">
-					<span class="usage-info">
+				<div class="usage-group input-area__usage">
+					<span class="usage-info input-area__usage-text">
 						<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
 						<span> | </span>
 						<span id="usageUsed" title="tokens used this session">Used: 0</span>
@@ -493,56 +496,58 @@ export class ChatPanelProvider {
 						<span id="usageRemaining" title="remaining requests for account">Remaining: --</span>
 					</span>
 				</div>
-				<span id="reasoningIndicator" class="reasoning-indicator" style="display: none; margin-left: 8px;">
+				<span id="reasoningIndicator" class="reasoning-indicator input-area__reasoning" style="display: none; margin-left: 8px;">
 					🧠 <span id="reasoningText">Reasoning...</span>
 				</span>
 				<span style="flex: 1;"></span>
-				<label class="reasoning-toggle">
+				<label class="reasoning-toggle input-area__reasoning-toggle">
 					<input type="checkbox" id="showReasoningCheckbox" />
 					<span>Show Reasoning</span>
 				</label>
 				<span class="control-separator">|</span>
-				<div class="plan-mode-group">
-					<div id="planModeControls" class="plan-mode-controls">
-					<button id="enterPlanModeBtn" class="plan-btn primary" title="Enter planning mode to analyze and design">📝</button>
-					<button id="acceptPlanBtn" class="plan-btn accept" title="Accept the plan and return to work mode" style="display: none;">✅</button>
-					<button id="rejectPlanBtn" class="plan-btn reject" title="Reject the plan and discard changes" style="display: none;">❌</button>
-					<button id="viewPlanBtn" class="plan-btn" title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
+				<div class="plan-mode-group input-area__plan-mode">
+					<div id="planModeControls" class="plan-mode-controls session-toolbar__plan-controls">
+					<button id="enterPlanModeBtn" class="plan-btn primary session-toolbar__btn--plan" title="Enter planning mode to analyze and design">📝</button>
+					<button id="acceptPlanBtn" class="plan-btn accept session-toolbar__btn--accept" title="Accept the plan and return to work mode" style="display: none;">✅</button>
+					<button id="rejectPlanBtn" class="plan-btn reject session-toolbar__btn--reject" title="Reject the plan and discard changes" style="display: none;">❌</button>
+					<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan" title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
 					</div>
 				</div>
 			</div>
+			<!-- Acceptance Controls Component -->
 			<div class="acceptance-controls" id="acceptanceControls" role="region" aria-label="Plan acceptance controls">
-				<span class="acceptance-title" id="acceptanceTitle">Accept this plan?</span>
+				<span class="acceptance-title acceptance-controls__title" id="acceptanceTitle">Accept this plan?</span>
 				<input 
 					type="text" 
-					class="acceptance-input" 
+					class="acceptance-input acceptance-controls__input" 
 					id="acceptanceInput" 
 					placeholder="Tell copilot what to do instead"
 					aria-label="Alternative instructions for the plan"
 					aria-describedby="acceptanceTitle"
 				/>
-				<button class="acceptance-btn secondary" id="keepPlanningBtn" aria-label="Keep planning without accepting">No, Keep Planning</button>
-				<button class="acceptance-btn" id="acceptAndWorkBtn" aria-label="Accept plan and switch to work mode">Accept and change to work mode</button>
+				<button class="acceptance-btn secondary acceptance-controls__btn acceptance-controls__btn--keep" id="keepPlanningBtn" aria-label="Keep planning without accepting">No, Keep Planning</button>
+				<button class="acceptance-btn acceptance-controls__btn acceptance-controls__btn--accept" id="acceptAndWorkBtn" aria-label="Accept plan and switch to work mode">Accept and change to work mode</button>
 			</div>
 			<!-- Attachment preview area -->
-			<div class="attachments-preview" id="attachmentsPreview" style="display: none;"></div>
+			<div class="attachments-preview input-area__attachments" id="attachmentsPreview" style="display: none;"></div>
 			
-			<div class="input-wrapper">
-				<button id="attachButton" class="attach-btn" aria-label="Attach images" title="Attach images">
+			<div class="input-wrapper input-area__wrapper">
+				<button id="attachButton" class="attach-btn input-area__attach-btn" aria-label="Attach images" title="Attach images">
 					<svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
 						<path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a3.5 3.5 0 1 1-7 0V5a.5.5 0 0 1 1 0v7a2.5 2.5 0 0 0 5 0V3a1.5 1.5 0 1 0-3 0v9a.5.5 0 0 0 1 0V5a.5.5 0 0 1 1 0v7a1.5 1.5 0 1 1-3 0V3z"/>
 					</svg>
-					<span class="attach-count" id="attachCount" style="display: none;"></span>
+					<span class="attach-count input-area__attach-count" id="attachCount" style="display: none;"></span>
 				</button>
 				<textarea 
 					id="messageInput" 
+					class="input-area__textarea"
 					placeholder="Type a message..."
 					rows="1"
 					disabled
 					aria-label="Message input"
 					aria-describedby="inputHelp"
 				></textarea>
-				<button id="sendButton" disabled aria-label="Send message">Send</button>
+				<button id="sendButton" class="input-area__send-btn" disabled aria-label="Send message">Send</button>
 			</div>
 			<span id="inputHelp" style="display:none;">Type your message and press Enter or click Send</span>
 		</div>
