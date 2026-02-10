@@ -1,8 +1,10 @@
 // Import RPC client for type-safe messaging
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
-// Import EventBus and MessageDisplay component
+// Import EventBus and components
 import { EventBus } from './app/state/EventBus.js';
 import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
+import { ToolExecution } from './app/components/ToolExecution/ToolExecution.js';
+import { InputArea } from './app/components/InputArea/InputArea.js';
 // Import extracted event handlers
 import {
 	handleReasoningToggle,
@@ -66,26 +68,49 @@ let isReasoning = false;
 // Create EventBus for component communication
 const eventBus = new EventBus();
 
-// Initialize MessageDisplay component
+// Initialize components
 const messageDisplay = new MessageDisplay(messagesContainer, eventBus);
+const toolExecution = new ToolExecution(messagesContainer, eventBus);
+const inputArea = new InputArea({
+	messageInput: document.getElementById('messageInput'),
+	sendButton: document.getElementById('sendButton'),
+	attachButton: document.getElementById('attachButton'),
+	attachmentsPreview: document.getElementById('attachmentsPreview'),
+	attachCount: document.getElementById('attachCount')
+}, eventBus);
 
-// Attachments state
-let pendingAttachments = [];
+// Listen for viewDiff events from ToolExecution component
+eventBus.on('viewDiff', (diffData) => {
+	rpc.viewDiff(diffData);
+});
 
-// Prompt history
-const messageHistory = [];
-const MAX_HISTORY = 20;
-let historyIndex = -1; // -1 means current draft (not in history)
-let currentDraft = ''; // Stores unsent message when navigating history
+// Listen for input:sendMessage events from InputArea component
+eventBus.on('input:sendMessage', (data) => {
+	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));
+	rpc.sendMessage(data.text, data.attachments.length > 0 ? data.attachments : undefined);
+});
 
-// Tool grouping state
-let currentToolGroup = null;
-let toolGroupExpanded = false;
+// Listen for input:abort events from InputArea component
+eventBus.on('input:abort', () => {
+	console.log('[ABORT] Aborting current generation');
+	rpc.abort();
+});
+
+// Listen for input:attachFiles events from InputArea component
+eventBus.on('input:attachFiles', () => {
+	console.log('[ATTACH] Attach files requested');
+	rpc.requestAttachFiles();
+});
 
 // Show reasoning checkbox handler
 showReasoningCheckbox.addEventListener('change', (e) => {
 	showReasoning = handleReasoningToggle(e.target.checked, messagesContainer);
 	eventBus.emit('reasoning:toggle', e.target.checked);
+});
+
+// Listen for viewDiff events from ToolExecution component
+eventBus.on('viewDiff', (diffData) => {
+	rpc.viewDiff(diffData);
 });
 
 // Session selector change handler
@@ -173,359 +198,6 @@ function updatePlanModeUI() {
 	}
 }
 
-// Auto-resize textarea
-messageInput.addEventListener('input', () => {
-	handleInputChange(messageInput);
-});
-
-// Send message on button click (or abort if thinking)
-sendButton.addEventListener('click', () => {
-	handleSendButtonClick(sendButton.classList.contains('stop-button'), rpc, sendMessage);
-});
-
-// Attach button click handler
-attachButton.addEventListener('click', () => {
-	handleAttachFiles(rpc);
-});
-
-// Send message on Enter (Shift+Enter for newline)
-// Arrow keys for history navigation
-messageInput.addEventListener('keydown', (e) => {
-	handleMessageKeydown(e, sendMessage, navigateHistory);
-});
-
-function sendMessage() {
-	const text = messageInput.value.trim();
-	if (!text || !sessionActive) return;
-
-	console.log('[SEND] sendMessage() called, text:', text.substring(0, 50));
-	console.log('[SEND] Pending attachments:', pendingAttachments.length);
-	
-	// Save to history (without [[PLAN]] prefix - save what user typed)
-	messageHistory.push(text);
-	if (messageHistory.length > MAX_HISTORY) {
-		messageHistory.shift(); // Remove oldest
-	}
-	
-	// Reset history navigation
-	historyIndex = -1;
-	currentDraft = '';
-
-	console.log('[SEND] Posting message to extension:', text.substring(0, 50));
-	rpc.sendMessage(text, pendingAttachments.length > 0 ? pendingAttachments : undefined);
-
-	messageInput.value = '';
-	messageInput.style.height = 'auto';
-	
-	// Clear attachments after sending
-	clearAttachments();
-}
-
-function clearAttachments() {
-	pendingAttachments = [];
-	updateAttachmentsPreview();
-	updateAttachCount();
-}
-
-function updateAttachmentsPreview() {
-	console.log('[ATTACH] updateAttachmentsPreview called with', pendingAttachments.length, 'attachments');
-	
-	if (pendingAttachments.length === 0) {
-		attachmentsPreview.style.display = 'none';
-		attachmentsPreview.innerHTML = '';
-		return;
-	}
-	
-	attachmentsPreview.style.display = 'flex';
-	
-	attachmentsPreview.innerHTML = pendingAttachments.map((att, index) => {
-		const imgSrc = att.webviewUri || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect fill='%23ccc' width='80' height='80'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23666' font-size='12'%3EImage%3C/text%3E%3C/svg%3E";
-		const safeName = escapeHtml(att.displayName);
-		
-		return `
-			<div class="attachment-item">
-				<button class="attachment-remove" onclick="removeAttachment(${index})" title="Remove">&times;</button>
-				<img class="attachment-thumbnail" src="${imgSrc}" alt="${safeName}" />
-				<div class="attachment-name" title="${safeName}">${safeName}</div>
-			</div>
-		`;
-	}).join('');
-}
-
-function updateAttachCount() {
-	if (pendingAttachments.length > 0) {
-		attachCount.textContent = pendingAttachments.length;
-		attachCount.style.display = 'block';
-	} else {
-		attachCount.style.display = 'none';
-	}
-}
-
-window.removeAttachment = function(index) {
-	pendingAttachments.splice(index, 1);
-	updateAttachmentsPreview();
-	updateAttachCount();
-};
-
-function navigateHistory(direction) {
-	if (messageHistory.length === 0) return;
-	
-	// Save current draft when first navigating away
-	if (historyIndex === -1 && direction === 'up') {
-		currentDraft = messageInput.value;
-	}
-	
-	if (direction === 'up') {
-		// Navigate to older messages
-		if (historyIndex < messageHistory.length - 1) {
-			historyIndex++;
-			const historyMessage = messageHistory[messageHistory.length - 1 - historyIndex];
-			messageInput.value = historyMessage;
-			messageInput.style.height = 'auto';
-			messageInput.style.height = messageInput.scrollHeight + 'px';
-		}
-		// If already at oldest, do nothing (stay at oldest)
-	} else if (direction === 'down') {
-		// Navigate to newer messages
-		if (historyIndex > 0) {
-			historyIndex--;
-			const historyMessage = messageHistory[messageHistory.length - 1 - historyIndex];
-			messageInput.value = historyMessage;
-			messageInput.style.height = 'auto';
-			messageInput.style.height = messageInput.scrollHeight + 'px';
-		} else if (historyIndex === 0) {
-			// Return to current draft
-			historyIndex = -1;
-			messageInput.value = currentDraft;
-			messageInput.style.height = 'auto';
-			messageInput.style.height = messageInput.scrollHeight + 'px';
-		}
-		// If already at current (historyIndex === -1), do nothing
-	}
-}
-
-function closeCurrentToolGroup() {
-	if (currentToolGroup) {
-		updateToolGroupToggle();
-		currentToolGroup = null;
-		toolGroupExpanded = false;
-	}
-}
-
-function getOrCreateToolGroup() {
-	if (!currentToolGroup) {
-		// Create new tool group
-		const toolGroup = document.createElement('div');
-		toolGroup.className = 'tool-group';
-		
-		const container = document.createElement('div');
-		container.className = 'tool-group-container';
-		
-		toolGroup.appendChild(container);
-		messagesContainer.appendChild(toolGroup);
-		
-		currentToolGroup = {
-			element: toolGroup,
-			container: container,
-			toolCount: 0
-		};
-	}
-	return currentToolGroup;
-}
-
-function updateToolGroupToggle() {
-	if (!currentToolGroup) return;
-	
-	const { element, container } = currentToolGroup;
-	
-	// Remove existing toggle if present
-	const existingToggle = element.querySelector('.tool-group-toggle');
-	if (existingToggle) {
-		existingToggle.remove();
-	}
-	
-	// Check if content overflows
-	const isOverflowing = container.scrollHeight > 200;
-	
-	if (isOverflowing) {
-		// Ensure container starts collapsed
-		if (!toolGroupExpanded) {
-			container.classList.remove('expanded');
-		}
-		
-		const toggle = document.createElement('div');
-		toggle.className = 'tool-group-toggle';
-		
-		const hiddenTools = element.querySelectorAll('.tool-execution').length - Math.floor(200 / 70); // Rough estimate
-		const displayCount = Math.max(1, hiddenTools);
-		
-		toggle.textContent = toolGroupExpanded ? 'Contract' : `Expand (${displayCount} more)`;
-		toggle.addEventListener('click', () => {
-			toolGroupExpanded = handleToolGroupToggle(toolGroupExpanded, container, toggle, element);
-		});
-		
-		element.appendChild(toggle);
-	} else {
-		// Not overflowing - remove height restriction so details can expand fully
-		container.classList.add('expanded');
-	}
-}
-
-function addOrUpdateTool(toolState) {
-	// Check if this tool already exists anywhere in the DOM
-	let toolDiv = messagesContainer.querySelector(`[data-tool-id="${toolState.toolCallId}"]`);
-	
-	const toolHtml = buildToolHtml(toolState);
-	
-	if (toolDiv) {
-		// Update existing tool (status change)
-		toolDiv.innerHTML = toolHtml;
-		// Store state for future updates
-		toolDiv._toolState = toolState;
-		
-		// Re-attach diff button listener if present
-		const diffBtn = toolDiv.querySelector('.view-diff-btn');
-		if (diffBtn) {
-			diffBtn.addEventListener('click', () => {
-				rpc.viewDiff(toolState.diffData || {});
-			});
-		}
-		
-		// Update toggle if this tool group is current
-		if (currentToolGroup && currentToolGroup.container.contains(toolDiv)) {
-			updateToolGroupToggle();
-		}
-	} else {
-		// Add to current tool group
-		const group = getOrCreateToolGroup();
-		
-		const toolExecution = document.createElement('div');
-		toolExecution.className = 'tool-execution';
-		toolExecution.setAttribute('data-tool-id', toolState.toolCallId);
-		toolExecution.innerHTML = toolHtml;
-		toolExecution._toolState = toolState;
-		
-		// Attach diff button listener if present
-		const diffBtn = toolExecution.querySelector('.view-diff-btn');
-		if (diffBtn) {
-			diffBtn.addEventListener('click', () => {
-				rpc.viewDiff(toolState.diffData || {});
-			});
-		}
-		
-		group.container.appendChild(toolExecution);
-		group.toolCount++;
-		
-		// Update toggle after adding tool
-		updateToolGroupToggle();
-	}
-	
-	// Scroll to show new tool
-	messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-function buildToolHtml(toolState) {
-	const statusIcon = toolState.status === 'complete' ? '✅' : 
-	                    toolState.status === 'failed' ? '❌' : 
-	                    toolState.status === 'running' ? '⏳' : '⏸️';
-	
-	const duration = toolState.endTime ? 
-		`${((toolState.endTime - toolState.startTime) / 1000).toFixed(2)}s` : '';
-	
-	const argsPreview = formatArgumentsPreview(toolState.toolName, toolState.arguments);
-	const hasDetails = toolState.arguments || toolState.result || toolState.error;
-	
-	let html = `
-		<div class="tool-header">
-			<span class="tool-icon">${statusIcon}</span>
-			<span class="tool-name">${escapeHtml(toolState.toolName)}</span>
-			${toolState.intent ? `<span class="tool-intent">${escapeHtml(toolState.intent)}</span>` : ''}
-			${duration ? `<span class="tool-duration">${duration}</span>` : ''}
-			${toolState.hasDiff ? `<button class="view-diff-btn" data-tool-id="${toolState.toolCallId}">📄 View Diff</button>` : ''}
-		</div>
-	`;
-	
-	if (argsPreview) {
-		html += `<div class="tool-args-preview">${escapeHtml(argsPreview)}</div>`;
-	}
-	
-	if (toolState.progress) {
-		html += `<div class="tool-progress">${escapeHtml(toolState.progress)}</div>`;
-	}
-	
-	if (hasDetails) {
-		const detailsId = 'details-' + toolState.toolCallId;
-		html += `
-			<details class="tool-details">
-				<summary>Show Details</summary>
-				<div class="tool-details-content">
-		`;
-		
-		if (toolState.arguments) {
-			html += `
-				<div class="tool-detail-section">
-					<strong>Arguments:</strong>
-					<pre>${escapeHtml(JSON.stringify(toolState.arguments, null, 2))}</pre>
-				</div>
-			`;
-		}
-		
-		if (toolState.result) {
-			html += `
-				<div class="tool-detail-section">
-					<strong>Result:</strong>
-					<pre>${escapeHtml(toolState.result)}</pre>
-				</div>
-			`;
-		}
-		
-		if (toolState.error) {
-			html += `
-				<div class="tool-detail-section error">
-					<strong>Error:</strong>
-					<pre>${escapeHtml(toolState.error.message)}</pre>
-					${toolState.error.code ? `<div>Code: ${escapeHtml(toolState.error.code)}</div>` : ''}
-				</div>
-			`;
-		}
-		
-		html += `
-				</div>
-			</details>
-		`;
-	}
-	
-	return html;
-}
-
-function formatArgumentsPreview(toolName, args) {
-	if (!args) return null;
-	
-	try {
-		// Format based on tool type
-		if (toolName === 'bash' || toolName.startsWith('shell')) {
-			return `$ ${args.command || JSON.stringify(args)}`;
-		} else if (toolName === 'grep') {
-			return `pattern: "${args.pattern}"${args.path ? ` in ${args.path}` : ''}`;
-		} else if (toolName === 'edit' || toolName === 'create') {
-			return `${args.path || 'unknown file'}`;
-		} else if (toolName === 'view') {
-			return `${args.path || 'unknown path'}`;
-		} else if (toolName === 'web_fetch') {
-			return `${args.url || JSON.stringify(args)}`;
-		} else if (toolName === 'glob') {
-			return `pattern: "${args.pattern}"`;
-		} else {
-			// Generic preview - show first property or count
-			const keys = Object.keys(args);
-			if (keys.length === 0) return null;
-			if (keys.length === 1) return `${keys[0]}: ${JSON.stringify(args[keys[0]])}`;
-			return `${keys.length} parameters`;
-		}
-	} catch (e) {
-		return null;
-	}
-}
 
 function appendToLastMessage(text) {
 	const messages = messagesContainer.querySelectorAll('.message');
@@ -539,20 +211,18 @@ function appendToLastMessage(text) {
 
 function setSessionActive(active) {
 	sessionActive = active;
-	messageInput.disabled = !active;
-	sendButton.disabled = !active;
 	
 	const statusText = active ? 'Connected to Copilot CLI' : 'Disconnected';
 	statusIndicator.setAttribute('aria-label', statusText);
 	
 	if (active) {
 		statusIndicator.classList.add('active');
-		messageInput.placeholder = 'Type a message...';
-		messageInput.focus();
 	} else {
 		statusIndicator.classList.remove('active');
-		messageInput.placeholder = 'Start a session to chat';
 	}
+
+	// Emit event for InputArea component
+	eventBus.emit('session:active', active);
 }
 
 // ========================================================================
@@ -585,7 +255,6 @@ export function handleAppendMessageMessage(payload) {
  */
 export function handleUserMessageMessage(payload) {
 	emptyState.classList.add('hidden');
-	closeCurrentToolGroup();
 	eventBus.emit('message:add', {
 		role: 'user',
 		content: payload.text,
@@ -599,7 +268,6 @@ export function handleUserMessageMessage(payload) {
  */
 export function handleAssistantMessageMessage(payload) {
 	emptyState.classList.add('hidden');
-	closeCurrentToolGroup();
 	eventBus.emit('message:add', {
 		role: 'assistant',
 		content: payload.text,
@@ -680,7 +348,7 @@ export function handleUpdateSessionsMessage(payload) {
 export function handleToolStartMessage(payload) {
 	console.log('[Tool Start] Received payload:', payload);
 	console.log('[Tool Start] payload.toolState:', payload.toolState);
-	addOrUpdateTool(payload.toolState);
+	eventBus.emit('tool:start', payload.toolState);
 }
 
 /**
@@ -689,44 +357,30 @@ export function handleToolStartMessage(payload) {
 export function handleToolUpdateMessage(payload) {
 	console.log('[Tool Update] Received payload:', payload);
 	console.log('[Tool Update] payload.toolState:', payload.toolState);
-	addOrUpdateTool(payload.toolState);
+	
+	// Emit appropriate event based on status
+	if (payload.toolState.status === 'complete' || payload.toolState.status === 'failed') {
+		eventBus.emit('tool:complete', payload.toolState);
+	} else if (payload.toolState.progress) {
+		eventBus.emit('tool:progress', payload.toolState);
+	} else {
+		eventBus.emit('tool:start', payload.toolState);
+	}
 }
 
 /**
- * Handle 'diffAvailable' message - add diff button to tool
+ * Handle 'diffAvailable' message - notify ToolExecution component
  */
 export function handleDiffAvailableMessage(payload) {
 	// Defensive: handle both payload formats
-	// Sometimes RPC sends { data: {...} }, sometimes direct payload
 	const data = payload.data || payload;
 	
-	const toolEl = messagesContainer.querySelector(`[data-tool-id="${data.toolCallId}"]`);
-	if (toolEl) {
-		// Get existing state or create new
-		const toolState = toolEl._toolState || {
-			toolCallId: data.toolCallId,
-			toolName: 'edit',
-			status: 'complete'
-		};
-		
-		// Add diff data
-		toolState.hasDiff = true;
-		toolState.diffData = data;
-		toolEl._toolState = toolState;
-		
-		// Re-render with diff button
-		const toolHtml = buildToolHtml(toolState);
-		toolEl.innerHTML = toolHtml;
-		
-		// Attach event listener to diff button
-		const diffBtn = toolEl.querySelector('.view-diff-btn');
-		if (diffBtn) {
-			diffBtn.addEventListener('click', () => {
-				// CRITICAL: Use extracted handler that sends FULL data
-				handleDiffButtonClick(data, rpc);
-			});
-		}
-	}
+	// Emit event to update existing tool with diff button
+	eventBus.emit('tool:complete', {
+		toolCallId: data.toolCallId,
+		hasDiff: true,
+		diffData: data
+	});
 }
 
 /**
@@ -875,17 +529,12 @@ function setThinking(isThinking) {
 	if (isThinking) {
 		thinking.classList.add('active');
 		messagesContainer.scrollTop = messagesContainer.scrollHeight;
-		// Change Send button to Stop button
-		sendButton.textContent = 'Stop';
-		sendButton.setAttribute('aria-label', 'Stop generation');
-		sendButton.classList.add('stop-button');
 	} else {
 		thinking.classList.remove('active');
-		// Change Stop button back to Send button
-		sendButton.textContent = 'Send';
-		sendButton.setAttribute('aria-label', 'Send message');
-		sendButton.classList.remove('stop-button');
 	}
+
+	// Emit event for InputArea component to update send/stop button
+	eventBus.emit('session:thinking', isThinking);
 }
 
 function formatCompactNumber(num) {
@@ -927,5 +576,15 @@ rpc.onStatus(handleStatusMessage);
 rpc.onFilesSelected(handleFilesSelectedMessage);
 rpc.onInit(handleInitMessage);
 
-// Notify extension that webview is ready
-rpc.ready();
+// Notify extension that webview is ready (skip in test mode)
+if (typeof window !== 'undefined' && !window.__TESTING__) {
+	rpc.ready();
+}
+
+// Export instances for testing
+export const __testExports = {
+	eventBus,
+	messageDisplay,
+	toolExecution,
+	inputArea
+};

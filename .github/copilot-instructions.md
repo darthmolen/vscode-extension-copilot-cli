@@ -304,6 +304,39 @@ npm run compile && code --install-extension copilot-cli-extension-latest.vsix --
 
 **Note:** The `tsconfig.json` excludes `tests/` directory to avoid compilation errors. Tests are JavaScript/ESM and don't need TypeScript compilation.
 
+### ⚠️ CRITICAL: Adding New Webview Component Files
+
+**When adding new component files to `src/webview/app/`, you MUST update `esbuild.js`:**
+
+The build process **copies** webview files (not bundles them). If you add a new component:
+
+1. **Create the component**: `src/webview/app/components/MyComponent/MyComponent.js`
+2. **Import in main.js**: `import { MyComponent } from './app/components/MyComponent/MyComponent.js';`
+3. **Update esbuild.js**: Add directory creation and file copy
+
+```javascript
+// In esbuild.js main() function:
+const myComponentDistDir = path.join(componentsDistDir, 'MyComponent');
+if (!fs.existsSync(myComponentDistDir)) {
+    fs.mkdirSync(myComponentDistDir, { recursive: true });
+}
+
+// Later in the copy section:
+fs.copyFileSync(
+    path.join(__dirname, 'src', 'webview', 'app', 'components', 'MyComponent', 'MyComponent.js'),
+    path.join(myComponentDistDir, 'MyComponent.js')
+);
+```
+
+**Why:** VS Code webview loads modules separately from `dist/webview/`. Missing files = runtime errors in production.
+
+**Verification:** After `./test-extension.sh`, check VSIX contents include your component:
+```bash
+npx @vscode/vsce ls copilot-cli-extension-3.0.0.vsix | grep MyComponent
+```
+
+**Failure symptom:** `ERR Webview.loadLocalResource - Error using fileReader` in VS Code logs.
+
 **Never suggest:**
 - "Press F5 to test"
 - "Launch Extension Development Host"

@@ -17,6 +17,15 @@ export class ChatPanelProvider {
 	private static lastSentMessage: string | undefined;
 	private static lastSentTime: number = 0;
 	private static validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;
+	
+	// Track viewState changes for loop detection and spam reduction
+	private static viewStateChangeCount = 0;
+	private static lastViewStateChange = 0;
+	private static updateSessionsListDebounceTimer: NodeJS.Timeout | undefined;
+	private static readonly UPDATE_SESSIONS_DEBOUNCE_MS = 500; // Wait 500ms before updating
+	private static lastActiveState: boolean = false;
+	private static lastVisibleState: boolean = true;
+	private static lastViewColumn: vscode.ViewColumn | undefined;
 
 	public static createOrShow(extensionUri: vscode.Uri) {
 		this.logger = Logger.getInstance();
@@ -54,21 +63,63 @@ export class ChatPanelProvider {
 		const disposables: vscode.Disposable[] = [];
 		ChatPanelProvider.panel.onDidChangeViewState(
 			e => {
-				// DEBUG: Log when panel moves or visibility changes
-				this.logger.info(`[WORKSPACE DEBUG] Panel viewState changed`);
-				this.logger.info(`[WORKSPACE DEBUG] Panel active: ${e.webviewPanel.active}`);
-				this.logger.info(`[WORKSPACE DEBUG] Panel visible: ${e.webviewPanel.visible}`);
-				this.logger.info(`[WORKSPACE DEBUG] Panel viewColumn: ${e.webviewPanel.viewColumn}`);
+				// Track for loop detection
+				const now = Date.now();
+				const timeSinceLastChange = now - ChatPanelProvider.lastViewStateChange;
+				ChatPanelProvider.viewStateChangeCount++;
+				ChatPanelProvider.lastViewStateChange = now;
 				
-				const workspaceFolders = vscode.workspace.workspaceFolders;
-				this.logger.info(`[WORKSPACE DEBUG] Current workspaceFolders: ${workspaceFolders?.length || 0}`);
-				if (workspaceFolders && workspaceFolders.length > 0) {
-					this.logger.info(`[WORKSPACE DEBUG] Current workspace: ${workspaceFolders[0].uri.fsPath}`);
+				// WARN if firing too frequently (potential loop)
+				if (timeSinceLastChange < 100) {
+					this.logger.warn(`⚠️ [FOCUS LOOP?] viewState changed ${ChatPanelProvider.viewStateChangeCount} times, ${timeSinceLastChange}ms since last`);
 				}
 				
-				// Fix: Update session list when panel moves (workspace context may have changed)
-				const { updateSessionsList } = require('./extension');
-				updateSessionsList();
+				// Detect what actually changed
+				const activeChanged = ChatPanelProvider.lastActiveState !== e.webviewPanel.active;
+				const visibleChanged = ChatPanelProvider.lastVisibleState !== e.webviewPanel.visible;
+				const viewColumnChanged = ChatPanelProvider.lastViewColumn !== e.webviewPanel.viewColumn;
+				
+				// EARLY EXIT: If ONLY active state changed (routine focus change), don't log spam
+				if (activeChanged && !visibleChanged && !viewColumnChanged) {
+					ChatPanelProvider.lastActiveState = e.webviewPanel.active;
+					this.logger.debug(`[Focus] Panel ${e.webviewPanel.active ? 'gained' : 'lost'} focus`);
+					return; // Silent at INFO level - no spam!
+				}
+				
+				// Log detailed state at DEBUG level (hidden by default)
+				this.logger.debug(`[ViewState] Change #${ChatPanelProvider.viewStateChangeCount}: active=${e.webviewPanel.active}, visible=${e.webviewPanel.visible}, column=${e.webviewPanel.viewColumn}`);
+				
+				// Log meaningful changes at INFO level (one line per change)
+				if (viewColumnChanged) {
+					this.logger.info(`[Panel Move] Column ${ChatPanelProvider.lastViewColumn} → ${e.webviewPanel.viewColumn}`);
+					ChatPanelProvider.lastViewColumn = e.webviewPanel.viewColumn;
+				}
+				
+				if (visibleChanged) {
+					this.logger.info(`[Visibility] Panel ${e.webviewPanel.visible ? 'shown' : 'hidden'}`);
+					ChatPanelProvider.lastVisibleState = e.webviewPanel.visible;
+				}
+				
+				// Update active state tracking
+				ChatPanelProvider.lastActiveState = e.webviewPanel.active;
+				
+				// Only update session list if viewColumn changed (panel moved to different workspace)
+				if (!viewColumnChanged) {
+					this.logger.debug(`[ViewState] Skipping session update - viewColumn unchanged`);
+					return;
+				}
+				
+				// Debounce session list updates to prevent spam
+				if (ChatPanelProvider.updateSessionsListDebounceTimer) {
+					clearTimeout(ChatPanelProvider.updateSessionsListDebounceTimer);
+				}
+				
+				// Schedule new update (only runs if user stops moving panel for 500ms)
+				ChatPanelProvider.updateSessionsListDebounceTimer = setTimeout(() => {
+					this.logger.info(`[Session Update] Updating session list after panel move`);
+					const { updateSessionsList } = require('./extension');
+					updateSessionsList();
+				}, ChatPanelProvider.UPDATE_SESSIONS_DEBOUNCE_MS);
 			},
 			null,
 			disposables

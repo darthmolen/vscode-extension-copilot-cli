@@ -31,6 +31,15 @@ async function main() {
 	const rpcDistDir = path.join(webviewDistDir, 'app', 'rpc');
 	const handlersDistDir = path.join(webviewDistDir, 'app', 'handlers');
 	const utilsDistDir = path.join(webviewDistDir, 'app', 'utils');
+	const stateDistDir = path.join(webviewDistDir, 'app', 'state');
+	const componentsDistDir = path.join(webviewDistDir, 'app', 'components');
+	const messageDisplayDistDir = path.join(componentsDistDir, 'MessageDisplay');
+	const toolExecutionDistDir = path.join(componentsDistDir, 'ToolExecution');
+	const inputAreaDistDir = path.join(componentsDistDir, 'InputArea');
+	const sessionToolbarDistDir = path.join(componentsDistDir, 'SessionToolbar');
+	const acceptanceControlsDistDir = path.join(componentsDistDir, 'AcceptanceControls');
+	const statusBarDistDir = path.join(componentsDistDir, 'StatusBar');
+	
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
 	}
@@ -39,6 +48,27 @@ async function main() {
 	}
 	if (!fs.existsSync(utilsDistDir)) {
 		fs.mkdirSync(utilsDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(stateDistDir)) {
+		fs.mkdirSync(stateDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(messageDisplayDistDir)) {
+		fs.mkdirSync(messageDisplayDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(toolExecutionDistDir)) {
+		fs.mkdirSync(toolExecutionDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(inputAreaDistDir)) {
+		fs.mkdirSync(inputAreaDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(sessionToolbarDistDir)) {
+		fs.mkdirSync(sessionToolbarDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(acceptanceControlsDistDir)) {
+		fs.mkdirSync(acceptanceControlsDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(statusBarDistDir)) {
+		fs.mkdirSync(statusBarDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -84,6 +114,42 @@ async function main() {
 			path.join(utilsDistDir, util)
 		);
 	}
+
+	// Copy state files (Phase 4.1)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'state', 'EventBus.js'),
+		path.join(stateDistDir, 'EventBus.js')
+	);
+
+	// Copy component files (Phase 4.2, 4.3)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'MessageDisplay', 'MessageDisplay.js'),
+		path.join(messageDisplayDistDir, 'MessageDisplay.js')
+	);
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'ToolExecution', 'ToolExecution.js'),
+		path.join(toolExecutionDistDir, 'ToolExecution.js')
+	);
+	// Phase 4.4 - InputArea component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'InputArea', 'InputArea.js'),
+		path.join(inputAreaDistDir, 'InputArea.js')
+	);
+	// Phase 4.5 - SessionToolbar component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'SessionToolbar', 'SessionToolbar.js'),
+		path.join(sessionToolbarDistDir, 'SessionToolbar.js')
+	);
+	// Phase 4.6 - AcceptanceControls component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'AcceptanceControls', 'AcceptanceControls.js'),
+		path.join(acceptanceControlsDistDir, 'AcceptanceControls.js')
+	);
+	// Phase 4.7 - StatusBar component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'StatusBar', 'StatusBar.js'),
+		path.join(statusBarDistDir, 'StatusBar.js')
+	);
 
 	// Extension build context
 	const extensionCtx = await esbuild.context({

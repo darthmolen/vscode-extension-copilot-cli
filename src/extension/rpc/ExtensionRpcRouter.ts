@@ -68,6 +68,13 @@ interface Disposable {
 export class ExtensionRpcRouter {
 	private handlers = new Map<WebviewMessageType, MessageHandler<any>>();
 	
+	// Message tracking for debugging
+	private incomingMessageCount = 0;
+	private outgoingMessageCount = 0;
+	private messageCountByType = new Map<string, number>();
+	private lastReportedAt = 0;
+	private readonly REPORT_INTERVAL = 100; // Log every 100 messages
+	
 	constructor(
 		private webview: vscode.Webview
 	) {}
@@ -391,6 +398,15 @@ export class ExtensionRpcRouter {
 	 * Route incoming webview message to registered handler
 	 */
 	route(message: WebviewMessage): void {
+		// Track incoming messages
+		this.incomingMessageCount++;
+		this.trackMessageType(`IN:${message.type}`);
+		
+		// Report periodically
+		if (this.incomingMessageCount % this.REPORT_INTERVAL === 0) {
+			this.reportMessageStats('INCOMING');
+		}
+		
 		const handler = this.handlers.get(message.type as WebviewMessageType);
 		
 		if (handler) {
@@ -422,6 +438,15 @@ export class ExtensionRpcRouter {
 	 * Send message to webview
 	 */
 	private send(message: ExtensionMessage): void {
+		// Track outgoing messages
+		this.outgoingMessageCount++;
+		this.trackMessageType(`OUT:${message.type}`);
+		
+		// Report periodically
+		if (this.outgoingMessageCount % this.REPORT_INTERVAL === 0) {
+			this.reportMessageStats('OUTGOING');
+		}
+		
 		this.webview.postMessage(message);
 	}
 	
@@ -441,6 +466,51 @@ export class ExtensionRpcRouter {
 					this.handlers.delete(type);
 				}
 			}
+		};
+	}
+	
+	/**
+	 * Track message type count
+	 */
+	private trackMessageType(type: string): void {
+		const count = this.messageCountByType.get(type) || 0;
+		this.messageCountByType.set(type, count + 1);
+	}
+	
+	/**
+	 * Report message statistics
+	 */
+	private reportMessageStats(direction: 'INCOMING' | 'OUTGOING'): void {
+		const now = Date.now();
+		const timeSinceLastReport = now - this.lastReportedAt;
+		
+		console.log('='.repeat(80));
+		console.log(`[MESSAGE DEBUG] ${direction} Message Stats`);
+		console.log(`Total incoming: ${this.incomingMessageCount}`);
+		console.log(`Total outgoing: ${this.outgoingMessageCount}`);
+		console.log(`Time since last report: ${timeSinceLastReport}ms`);
+		console.log('Breakdown by type:');
+		
+		// Sort by count descending
+		const sortedTypes = Array.from(this.messageCountByType.entries())
+			.sort((a, b) => b[1] - a[1]);
+		
+		for (const [type, count] of sortedTypes) {
+			console.log(`  ${type}: ${count}`);
+		}
+		
+		console.log('='.repeat(80));
+		this.lastReportedAt = now;
+	}
+	
+	/**
+	 * Get current message statistics (useful for manual inspection)
+	 */
+	public getMessageStats(): { incoming: number; outgoing: number; byType: Map<string, number> } {
+		return {
+			incoming: this.incomingMessageCount,
+			outgoing: this.outgoingMessageCount,
+			byType: new Map(this.messageCountByType)
 		};
 	}
 }

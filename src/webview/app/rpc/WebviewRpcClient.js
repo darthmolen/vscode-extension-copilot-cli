@@ -21,6 +21,13 @@ class WebviewRpcClient {
 		// Handler registry
 		this.handlers = new Map();
 		
+		// Message tracking for debugging
+		this.incomingMessageCount = 0;
+		this.outgoingMessageCount = 0;
+		this.messageCountByType = new Map();
+		this.lastReportedAt = 0;
+		this.REPORT_INTERVAL = 100; // Log every 100 messages
+		
 		// Set up message listener
 		window.addEventListener('message', (event) => {
 			const message = event.data;
@@ -344,6 +351,15 @@ class WebviewRpcClient {
 	 * @param {Object} message - Message to send
 	 */
 	_send(message) {
+		// Track outgoing messages
+		this.outgoingMessageCount++;
+		this._trackMessageType(`OUT:${message.type}`);
+		
+		// Report periodically
+		if (this.outgoingMessageCount % this.REPORT_INTERVAL === 0) {
+			this._reportMessageStats('OUTGOING');
+		}
+		
 		this.vscode.postMessage(message);
 	}
 	
@@ -386,6 +402,15 @@ class WebviewRpcClient {
 			return;
 		}
 		
+		// Track incoming messages
+		this.incomingMessageCount++;
+		this._trackMessageType(`IN:${message.type}`);
+		
+		// Report periodically
+		if (this.incomingMessageCount % this.REPORT_INTERVAL === 0) {
+			this._reportMessageStats('INCOMING');
+		}
+		
 		const handlers = this.handlers.get(message.type);
 		if (handlers && handlers.length > 0) {
 			for (const handler of handlers) {
@@ -396,6 +421,56 @@ class WebviewRpcClient {
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Track message type count
+	 * @private
+	 * @param {string} type - Message type
+	 */
+	_trackMessageType(type) {
+		const count = this.messageCountByType.get(type) || 0;
+		this.messageCountByType.set(type, count + 1);
+	}
+	
+	/**
+	 * Report message statistics
+	 * @private
+	 * @param {'INCOMING' | 'OUTGOING'} direction - Direction of messages
+	 */
+	_reportMessageStats(direction) {
+		const now = Date.now();
+		const timeSinceLastReport = now - this.lastReportedAt;
+		
+		console.log('='.repeat(80));
+		console.log(`[MESSAGE DEBUG - WEBVIEW] ${direction} Message Stats`);
+		console.log(`Total incoming: ${this.incomingMessageCount}`);
+		console.log(`Total outgoing: ${this.outgoingMessageCount}`);
+		console.log(`Time since last report: ${timeSinceLastReport}ms`);
+		console.log('Breakdown by type:');
+		
+		// Sort by count descending
+		const sortedTypes = Array.from(this.messageCountByType.entries())
+			.sort((a, b) => b[1] - a[1]);
+		
+		for (const [type, count] of sortedTypes) {
+			console.log(`  ${type}: ${count}`);
+		}
+		
+		console.log('='.repeat(80));
+		this.lastReportedAt = now;
+	}
+	
+	/**
+	 * Get current message statistics (useful for manual inspection)
+	 * @returns {{incoming: number, outgoing: number, byType: Map<string, number>}}
+	 */
+	getMessageStats() {
+		return {
+			incoming: this.incomingMessageCount,
+			outgoing: this.outgoingMessageCount,
+			byType: new Map(this.messageCountByType)
+		};
 	}
 }
 

@@ -333,7 +333,9 @@ main {
 	max-width: 600px;
 }
 
-.tool-group {
+/* Tool execution: Groups (BEM + legacy) */
+.tool-group,
+.tool-execution__group {
 	padding: 8px 12px;
 	margin: 8px 0;
 	background: var(--vscode-editorWidget-background);
@@ -342,17 +344,20 @@ main {
 	max-width: 600px;
 }
 
-.tool-group-container {
+.tool-group-container,
+.tool-execution__container {
 	max-height: 200px;
 	overflow: hidden;
 	transition: max-height 0.3s ease;
 }
 
-.tool-group-container.expanded {
+.tool-group-container.expanded,
+.tool-execution__container.expanded {
 	max-height: none;
 }
 
-.tool-group-toggle {
+.tool-group-toggle,
+.tool-execution__toggle {
 	text-align: center;
 	padding: 8px;
 	margin-top: 8px;
@@ -363,32 +368,40 @@ main {
 	user-select: none;
 }
 
-.tool-group-toggle:hover {
+.tool-group-toggle:hover,
+.tool-execution__toggle:hover {
 	background: var(--vscode-list-hoverBackground);
 	text-decoration: underline;
 }
 
-.tool-execution {
+/* Tool execution: Individual tools (BEM + legacy) */
+.tool-execution,
+.tool-execution__item {
 	padding: 6px 0;
 	border-bottom: 1px solid var(--vscode-widget-border);
 }
 
-.tool-message .tool-execution {
+.tool-message .tool-execution,
+.tool-message .tool-execution__item {
 	padding: 0;
 	border-bottom: none;
 }
 
-.tool-group .tool-execution {
+.tool-group .tool-execution,
+.tool-group .tool-execution__item,
+.tool-execution__group .tool-execution__item {
 	padding: 6px 0;
 	border-bottom: 1px solid var(--vscode-widget-border);
 }
 
-.tool-execution:last-child {
+.tool-execution:last-child,
+.tool-execution__item:last-child {
 	border-bottom: none;
 	padding-bottom: 0;
 }
 
-.tool-header {
+.tool-header,
+.tool-execution__header {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -396,18 +409,21 @@ main {
 	flex-wrap: wrap;
 }
 
-.tool-icon {
+.tool-icon,
+.tool-execution__icon {
 	font-size: 14px;
 	flex-shrink: 0;
 }
 
-.tool-name {
+.tool-name,
+.tool-execution__name {
 	font-weight: 500;
 	color: var(--vscode-foreground);
 	font-family: var(--vscode-editor-font-family);
 }
 
-.view-diff-btn {
+.view-diff-btn,
+.tool-execution__diff-btn {
 	margin-left: auto;
 	padding: 4px 10px;
 	height: auto;
@@ -417,11 +433,13 @@ main {
 	border: 1px solid var(--vscode-button-border);
 }
 
-.view-diff-btn:hover {
+.view-diff-btn:hover,
+.tool-execution__diff-btn:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
-.tool-intent {
+.tool-intent,
+.tool-execution__intent {
 	flex: 1;
 	color: var(--vscode-descriptionForeground);
 	font-size: 0.85em;
@@ -432,14 +450,16 @@ main {
 	white-space: nowrap;
 }
 
-.tool-duration {
+.tool-duration,
+.tool-execution__duration {
 	margin-left: auto;
 	color: var(--vscode-descriptionForeground);
 	font-size: 0.9em;
 	white-space: nowrap;
 }
 
-.tool-progress {
+.tool-progress,
+.tool-execution__progress {
 	margin-top: 4px;
 	padding-left: 20px;
 	color: var(--vscode-descriptionForeground);
@@ -447,7 +467,8 @@ main {
 	font-style: italic;
 }
 
-.tool-args-preview {
+.tool-args-preview,
+.tool-execution__args {
 	margin-top: 4px;
 	padding-left: 20px;
 	color: var(--vscode-textPreformat-foreground);
@@ -459,13 +480,16 @@ main {
 	overflow-x: auto;
 }
 
-.tool-details {
+/* Tool execution: Details (BEM + legacy) */
+.tool-details,
+.tool-execution__details {
 	margin-top: 8px;
 	border-top: 1px solid var(--vscode-panel-border);
 	padding-top: 8px;
 }
 
-.tool-details summary {
+.tool-details summary,
+.tool-execution__details summary {
 	cursor: pointer;
 	padding: 4px 8px;
 	color: var(--vscode-textLink-foreground);
@@ -473,11 +497,13 @@ main {
 	user-select: none;
 }
 
-.tool-details summary:hover {
+.tool-details summary:hover,
+.tool-execution__details summary:hover {
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.tool-details-content {
+.tool-details-content,
+.tool-execution__details-content {
 	margin-top: 8px;
 	padding: 8px;
 	background: var(--vscode-textCodeBlock-background);
