@@ -1,12 +1,18 @@
+import { escapeHtml } from '../../utils/webview-utils.js';
+import { ToolExecution } from '../ToolExecution/ToolExecution.js';
+
 /**
- * MessageDisplay Component
+ * MessageDisplay Component (Parent)
  * 
  * Renders chat messages including user messages, assistant messages, and reasoning.
  * Handles markdown rendering for assistant messages and attachments display.
+ * Self-rendering component - creates its own DOM structure
+ * 
+ * Children: ToolExecution (created internally)
  * 
  * Usage:
  *   const display = new MessageDisplay(container, eventBus);
- *   display.addMessage({ role: 'user', content: 'Hello', timestamp: Date.now() });
+ *   // ToolExecution is created automatically as child component
  */
 
 export class MessageDisplay {
@@ -15,34 +21,35 @@ export class MessageDisplay {
         this.eventBus = eventBus;
         this.messagesContainer = null;
         this.emptyState = null;
+        this.thinking = null;
         this.showReasoning = false;
         
         this.render();
+        
+        // Create ToolExecution as child component - owns tool rendering
+        this.toolExecution = new ToolExecution(this.messagesContainer, eventBus);
+        
         this.attachListeners();
     }
 
     render() {
-        // Wrap existing container content with message-display class
-        this.container.classList.add('message-display');
-        
-        // Find or create empty state
-        this.emptyState = this.container.querySelector('#emptyState');
-        if (!this.emptyState) {
-            this.emptyState = document.createElement('div');
-            this.emptyState.id = 'emptyState';
-            this.emptyState.className = 'empty-state message-display__empty';
-            this.emptyState.innerHTML = `
-                <div class="empty-state-icon message-display__empty-icon" aria-hidden="true">💬</div>
-                <div class="empty-state-text message-display__empty-text">
-                    Start a chat session to begin<br>
-                    Use the command palette to start the CLI
+        this.container.innerHTML = `
+            <div class="messages message-display" id="messages" role="log" aria-live="polite" aria-label="Chat messages">
+                <div class="empty-state message-display__empty" id="emptyState">
+                    <div class="empty-state-icon message-display__empty-icon" aria-hidden="true">💬</div>
+                    <div class="empty-state-text message-display__empty-text">
+                        Start a chat session to begin<br>
+                        Use the command palette to start the CLI
+                    </div>
                 </div>
-            `;
-            this.container.appendChild(this.emptyState);
-        }
-        
-        // Container is already the messages div
-        this.messagesContainer = this.container;
+            </div>
+            <div class="thinking message-display__thinking" id="thinking" role="status" aria-live="polite">Thinking...</div>
+        `;
+
+        // Get element references
+        this.messagesContainer = this.container.querySelector('#messages');
+        this.emptyState = this.container.querySelector('#emptyState');
+        this.thinking = this.container.querySelector('#thinking');
     }
 
     attachListeners() {
@@ -114,6 +121,7 @@ export class MessageDisplay {
     }
 
     scrollToBottom() {
+        console.log('[SCROLL DEBUG] scrollToBottom() called, scrollHeight:', this.messagesContainer.scrollHeight);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 

@@ -29,25 +29,17 @@ class SessionToolbar {
 	
 	render() {
 		this.container.innerHTML = `
-			<div class="session-toolbar">
-				<select id="sessionDropdown" class="session-dropdown" aria-label="Select session">
-					<!-- Sessions populated dynamically -->
-				</select>
-				
-				<button id="newSessionBtn" class="new-session-btn session-toolbar__btn session-toolbar__btn--new" 
-						title="New Session" aria-label="Create new session">+</button>
-				
-				<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan" 
-						title="View Plan" aria-label="View plan.md file" style="display: none;">📋</button>
-				
-				<button id="enterPlanModeBtn" class="plan-mode-btn session-toolbar__btn--plan" 
-						title="Enter Plan Mode" aria-label="Enter plan mode" style="display: inline-block;">📝 Plan</button>
-				
-				<button id="acceptPlanBtn" class="plan-mode-btn session-toolbar__btn--accept" 
-						title="Accept Plan" aria-label="Accept plan and resume work" style="display: none;">✅ Accept</button>
-				
-				<button id="rejectPlanBtn" class="plan-mode-btn session-toolbar__btn--reject" 
-						title="Reject Plan" aria-label="Reject plan and keep planning" style="display: none;">❌ Reject</button>
+			<div class="header session-toolbar" role="banner">
+				<div class="status-indicator session-toolbar__status" id="statusIndicator" role="status" aria-live="polite" aria-label="Connection status"></div>
+				<h2 class="session-toolbar__title">Copilot CLI</h2>
+				<div class="session-selector session-toolbar__selector-group">
+					<label for="sessionDropdown" class="session-toolbar__label">Session:</label>
+					<select id="sessionDropdown" class="session-toolbar__select" aria-label="Select session">
+						<option value="">No session</option>
+					</select>
+					<button id="newSessionBtn" class="new-session-btn session-toolbar__btn session-toolbar__btn--new" title="New Session" aria-label="Create new session">+</button>
+				</div>
+				<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan disabled" title="View Plan" aria-label="View plan.md file" disabled>📋</button>
 			</div>
 		`;
 	}
@@ -67,27 +59,11 @@ class SessionToolbar {
 		
 		// View plan button
 		const viewPlanBtn = this.container.querySelector('#viewPlanBtn');
-		viewPlanBtn.addEventListener('click', () => {
-			this.emit('viewPlan');
-		});
-		
-		// Enter plan mode button
-		const enterBtn = this.container.querySelector('#enterPlanModeBtn');
-		enterBtn.addEventListener('click', () => {
-			this.emit('togglePlanMode', true);
-		});
-		
-		// Accept plan button
-		const acceptBtn = this.container.querySelector('#acceptPlanBtn');
-		acceptBtn.addEventListener('click', () => {
-			this.emit('acceptPlan');
-		});
-		
-		// Reject plan button
-		const rejectBtn = this.container.querySelector('#rejectPlanBtn');
-		rejectBtn.addEventListener('click', () => {
-			this.emit('rejectPlan');
-		});
+		if (viewPlanBtn) {
+			viewPlanBtn.addEventListener('click', () => {
+				this.emit('viewPlan');
+			});
+		}
 	}
 	
 	updateSessions(sessions, currentSessionId) {
@@ -103,29 +79,14 @@ class SessionToolbar {
 		});
 	}
 	
-	setWorkspacePath(path) {
-		this.workspacePath = path;
+	setPlanFileExists(exists) {
 		const viewPlanBtn = this.container.querySelector('#viewPlanBtn');
-		viewPlanBtn.style.display = path ? 'inline-block' : 'none';
-	}
-	
-	setPlanMode(enabled) {
-		this.planMode = enabled;
-		
-		const enterBtn = this.container.querySelector('#enterPlanModeBtn');
-		const acceptBtn = this.container.querySelector('#acceptPlanBtn');
-		const rejectBtn = this.container.querySelector('#rejectPlanBtn');
-		
-		if (enabled) {
-			// Plan mode: hide enter, show accept/reject
-			enterBtn.style.display = 'none';
-			acceptBtn.style.display = 'inline-block';
-			rejectBtn.style.display = 'inline-block';
+		if (exists) {
+			viewPlanBtn.disabled = false;
+			viewPlanBtn.classList.remove('disabled');
 		} else {
-			// Work mode: show enter, hide accept/reject
-			enterBtn.style.display = 'inline-block';
-			acceptBtn.style.display = 'none';
-			rejectBtn.style.display = 'none';
+			viewPlanBtn.disabled = true;
+			viewPlanBtn.classList.add('disabled');
 		}
 	}
 	

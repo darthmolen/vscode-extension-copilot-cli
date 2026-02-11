@@ -82,28 +82,28 @@ describe('SessionToolbar Integration', () => {
 		// The component renders its own dropdown, so we check it exists
 	});
 
-	it('should toggle plan mode when setPlanMode called', () => {
+	it('should toggle plan file availability', () => {
 		const { sessionToolbar } = mainModule.__testExports;
 
-		sessionToolbar.setPlanMode(true);
-		// Verify plan mode buttons are shown (component internal state)
+		sessionToolbar.setPlanFileExists(true);
+		// View Plan button should be enabled
 		
-		sessionToolbar.setPlanMode(false);
-		// Verify plan mode buttons are hidden
+		sessionToolbar.setPlanFileExists(false);
+		// View Plan button should be disabled
 		
-		assert.ok(true, 'setPlanMode should not throw');
+		assert.ok(true, 'setPlanFileExists should not throw');
 	});
 
-	it('should set workspace path', () => {
+	it('should set plan file exists to enable view plan button', () => {
 		const { sessionToolbar } = mainModule.__testExports;
 
-		sessionToolbar.setWorkspacePath('/home/user/workspace');
-		// View Plan button should be visible
+		sessionToolbar.setPlanFileExists(true);
+		// View Plan button should be enabled
 		
-		sessionToolbar.setWorkspacePath(null);
-		// View Plan button should be hidden
+		sessionToolbar.setPlanFileExists(false);
+		// View Plan button should be disabled
 		
-		assert.ok(true, 'setWorkspacePath should not throw');
+		assert.ok(true, 'setPlanFileExists should not throw');
 	});
 
 	it('should emit events when buttons clicked', () => {

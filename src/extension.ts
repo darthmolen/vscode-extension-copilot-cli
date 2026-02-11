@@ -406,11 +406,13 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		cliManager.onMessage((message) => {
 			switch (message.type) {
 				case 'output':
+					logger.info(`[EVENT ORDER] 1️⃣ assistant.message at ${Date.now()}`);
 					logger.debug(`[CLI Output] ${message.data}`);
 					ChatPanelProvider.addAssistantMessage(message.data);
 					ChatPanelProvider.setThinking(false);
 					break;
 				case 'reasoning':
+					logger.info(`[EVENT ORDER] 🧠 assistant.reasoning at ${Date.now()}`);
 					logger.debug(`[Assistant Reasoning] ${message.data.substring(0, 100)}...`);
 					ChatPanelProvider.addReasoningMessage(message.data);
 					break;

@@ -120,6 +120,26 @@ main {
 	min-height: 0;
 }
 
+/* Mount points - allow components to control layout */
+#session-toolbar-mount {
+	flex-shrink: 0; /* Toolbar never shrinks */
+}
+
+#messages-mount {
+	flex: 1; /* Messages take available space */
+	min-height: 0; /* Allow scrolling */
+	display: flex; /* Pass flex to child */
+	flex-direction: column;
+}
+
+#acceptance-mount {
+	flex-shrink: 0; /* Acceptance controls never shrink */
+}
+
+#input-mount {
+	flex-shrink: 0; /* Input area never shrinks */
+}
+
 .messages {
 	flex: 1;
 	overflow-y: auto;
@@ -565,6 +585,7 @@ main {
 	padding: 12px 16px;
 	border-top: 1px solid var(--vscode-panel-border);
 	background-color: var(--vscode-sideBar-background);
+	flex-shrink: 0; /* Prevent input area from being squeezed out */
 }
 
 .top-controls-row {
@@ -891,8 +912,14 @@ button.stop-button:hover {
 	font-size: 18px;
 }
 
-.plan-btn:hover {
+.plan-btn:hover:not(:disabled) {
 	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.plan-btn:disabled,
+.plan-btn.disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
 }
 
 .plan-mode-group {

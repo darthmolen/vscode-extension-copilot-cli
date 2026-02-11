@@ -75,7 +75,8 @@ export class ToolExecution {
 
     closeCurrentToolGroup() {
         if (this.currentToolGroup) {
-            this.updateToolGroupToggle();
+            // Don't update toggle - just mark as closed
+            // The toggle's closure already has the right container reference
             this.currentToolGroup = null;
             this.toolGroupExpanded = false;
         }
@@ -287,8 +288,10 @@ export class ToolExecution {
             const displayCount = Math.max(1, hiddenTools);
             
             toggle.textContent = this.toolGroupExpanded ? 'Contract' : `Expand (${displayCount} more)`;
+            
+            // Store container reference in closure so toggle works after group is closed
             toggle.addEventListener('click', () => {
-                this.handleToolGroupToggle(toggle);
+                this.handleToolGroupToggle(toggle, container, element);
             });
             
             element.appendChild(toggle);
@@ -298,20 +301,21 @@ export class ToolExecution {
         }
     }
 
-    handleToolGroupToggle(toggle) {
-        if (!this.currentToolGroup) return;
+    handleToolGroupToggle(toggle, container, element) {
+        // Check if container is currently expanded
+        const isExpanded = container.classList.contains('expanded');
         
-        const { container } = this.currentToolGroup;
-        this.toolGroupExpanded = !this.toolGroupExpanded;
-        
-        if (this.toolGroupExpanded) {
-            container.classList.add('expanded');
-            toggle.textContent = 'Contract';
-        } else {
+        if (isExpanded) {
+            // Contract
             container.classList.remove('expanded');
-            const hiddenTools = this.currentToolGroup.element.querySelectorAll('.tool-execution__item').length - Math.floor(200 / 70);
+            const toolCount = element.querySelectorAll('.tool-execution__item').length;
+            const hiddenTools = toolCount - Math.floor(200 / 70);
             const displayCount = Math.max(1, hiddenTools);
             toggle.textContent = `Expand (${displayCount} more)`;
+        } else {
+            // Expand
+            container.classList.add('expanded');
+            toggle.textContent = 'Contract';
         }
     }
 

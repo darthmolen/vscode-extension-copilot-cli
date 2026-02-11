@@ -138,29 +138,44 @@ describe('SessionToolbar Component', () => {
 			assert.ok(btn.textContent.includes('📋'), 'Button should show plan icon');
 		});
 		
-		it('should hide view plan button by default', async () => {
+		it('should be disabled by default when no plan file exists', async () => {
 			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
 			
 			sessionToolbar = new SessionToolbar(container);
 			
 			const btn = container.querySelector('#viewPlanBtn');
-			assert.equal(btn.style.display, 'none', 'Button should be hidden initially');
+			assert.ok(btn.disabled, 'Button should be disabled initially');
+			assert.ok(btn.classList.contains('disabled'), 'Button should have disabled class');
 		});
 		
-		it('should show view plan button when workspace path is set', async () => {
+		it('should be enabled when plan file exists', async () => {
 			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
 			
 			sessionToolbar = new SessionToolbar(container);
-			sessionToolbar.setWorkspacePath('/path/to/workspace');
+			sessionToolbar.setPlanFileExists(true);
 			
 			const btn = container.querySelector('#viewPlanBtn');
-			assert.notEqual(btn.style.display, 'none', 'Button should be visible');
+			assert.ok(!btn.disabled, 'Button should be enabled');
+			assert.ok(!btn.classList.contains('disabled'), 'Button should not have disabled class');
 		});
 		
-		it('should emit viewPlan event when clicked', async () => {
+		it('should be disabled when plan file does not exist', async () => {
 			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
 			
 			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setPlanFileExists(true);
+			sessionToolbar.setPlanFileExists(false);
+			
+			const btn = container.querySelector('#viewPlanBtn');
+			assert.ok(btn.disabled, 'Button should be disabled');
+			assert.ok(btn.classList.contains('disabled'), 'Button should have disabled class');
+		});
+		
+		it('should emit viewPlan event when clicked (if enabled)', async () => {
+			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+			
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setPlanFileExists(true);
 			
 			let eventEmitted = false;
 			sessionToolbar.on('viewPlan', () => {
@@ -171,115 +186,6 @@ describe('SessionToolbar Component', () => {
 			btn.click();
 			
 			assert.ok(eventEmitted, 'Should emit viewPlan event');
-		});
-	});
-	
-	describe('Plan Mode Buttons', () => {
-		it('should create enter plan mode button', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			
-			const btn = container.querySelector('#enterPlanModeBtn');
-			assert.ok(btn, 'Enter plan mode button should exist');
-		});
-		
-		it('should create accept plan button', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			
-			const btn = container.querySelector('#acceptPlanBtn');
-			assert.ok(btn, 'Accept plan button should exist');
-		});
-		
-		it('should create reject plan button', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			
-			const btn = container.querySelector('#rejectPlanBtn');
-			assert.ok(btn, 'Reject plan button should exist');
-		});
-		
-		it('should show enter button and hide accept/reject in work mode', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			sessionToolbar.setPlanMode(false);
-			
-			const enterBtn = container.querySelector('#enterPlanModeBtn');
-			const acceptBtn = container.querySelector('#acceptPlanBtn');
-			const rejectBtn = container.querySelector('#rejectPlanBtn');
-			
-			assert.equal(enterBtn.style.display, 'inline-block', 'Enter button should be visible');
-			assert.equal(acceptBtn.style.display, 'none', 'Accept button should be hidden');
-			assert.equal(rejectBtn.style.display, 'none', 'Reject button should be hidden');
-		});
-		
-		it('should hide enter button and show accept/reject in plan mode', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			sessionToolbar.setPlanMode(true);
-			
-			const enterBtn = container.querySelector('#enterPlanModeBtn');
-			const acceptBtn = container.querySelector('#acceptPlanBtn');
-			const rejectBtn = container.querySelector('#rejectPlanBtn');
-			
-			assert.equal(enterBtn.style.display, 'none', 'Enter button should be hidden');
-			assert.equal(acceptBtn.style.display, 'inline-block', 'Accept button should be visible');
-			assert.equal(rejectBtn.style.display, 'inline-block', 'Reject button should be visible');
-		});
-		
-		it('should emit togglePlanMode event when enter button clicked', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			
-			let emittedValue = null;
-			sessionToolbar.on('togglePlanMode', (enabled) => {
-				emittedValue = enabled;
-			});
-			
-			const btn = container.querySelector('#enterPlanModeBtn');
-			btn.click();
-			
-			assert.equal(emittedValue, true, 'Should emit togglePlanMode with true');
-		});
-		
-		it('should emit acceptPlan event when accept button clicked', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			sessionToolbar.setPlanMode(true);
-			
-			let eventEmitted = false;
-			sessionToolbar.on('acceptPlan', () => {
-				eventEmitted = true;
-			});
-			
-			const btn = container.querySelector('#acceptPlanBtn');
-			btn.click();
-			
-			assert.ok(eventEmitted, 'Should emit acceptPlan event');
-		});
-		
-		it('should emit rejectPlan event when reject button clicked', async () => {
-			const { SessionToolbar } = await import('../src/webview/app/components/SessionToolbar/SessionToolbar.js');
-			
-			sessionToolbar = new SessionToolbar(container);
-			sessionToolbar.setPlanMode(true);
-			
-			let eventEmitted = false;
-			sessionToolbar.on('rejectPlan', () => {
-				eventEmitted = true;
-			});
-			
-			const btn = container.querySelector('#rejectPlanBtn');
-			btn.click();
-			
-			assert.ok(eventEmitted, 'Should emit rejectPlan event');
 		});
 	});
 	

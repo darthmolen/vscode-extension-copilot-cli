@@ -237,9 +237,48 @@ This was a failure of test discipline, not coding skill. **Never skip the RED ph
 - `tests/*.test.mjs` - SDK-specific tests (ESM modules)
 - Webview tests: Must use JSDOM, test actual DOM
 
-## Project Overview
+### Component Architecture
 
-This is a **VS Code extension** that provides a chat panel for GitHub Copilot CLI, built on the official `@github/copilot-sdk`.
+#### MessageDisplay (Parent Component)
+- **Location:** `src/webview/app/components/MessageDisplay/MessageDisplay.js`
+- **Purpose:** Owns the entire conversation flow
+- **Responsibilities:**
+  - Renders user messages, assistant messages, reasoning
+  - Creates ToolExecution as internal child component
+  - Manages `.messages` scrollable container
+  - Auto-scrolls to bottom on new content
+- **Children:** ToolExecution (created automatically)
+- **Usage:**
+  ```javascript
+  const display = new MessageDisplay(container, eventBus);
+  // ToolExecution created internally - don't create separately!
+  ```
+
+#### ToolExecution (Child Component)
+- **Location:** `src/webview/app/components/ToolExecution/ToolExecution.js`
+- **Purpose:** Renders tool execution groups within message flow
+- **Responsibilities:**
+  - Renders tool groups inside `.messages` container
+  - Manages expand/collapse of tool groups
+  - Handles diff button rendering
+- **Parent:** MessageDisplay (creates this component)
+- **Communication:** EventBus for cross-component events
+  - Listens: `tool:start`, `tool:complete`, `tool:progress`, `message:add`
+  - Emits: `viewDiff`
+- **Important:** NOT created directly in main.js - MessageDisplay handles this
+
+#### Component Hierarchy
+
+```
+main.js
+├─ SessionToolbar (top toolbar)
+├─ MessageDisplay (parent - owns message flow)
+│  └─ ToolExecution (child - renders tools)
+├─ AcceptanceControls (plan acceptance UI)
+└─ InputArea (bottom input area)
+```
+
+**Key Rule:** ToolExecution is NEVER initialized in main.js. MessageDisplay creates it internally to ensure tools render inside the scrollable `.messages` container.
 
 **Architecture Components**:
 1. **Backend (TypeScript)**: SDK session management, event handling, custom tools
