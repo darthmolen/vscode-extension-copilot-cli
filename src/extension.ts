@@ -459,7 +459,8 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 						message.data.status === 'plan_mode_disabled' ||
 						message.data.status === 'plan_accepted' ||
 						message.data.status === 'plan_rejected' ||
-						message.data.status === 'reset_metrics'
+						message.data.status === 'reset_metrics' ||
+						message.data.status === 'plan_ready'
 					) {
 						// Forward plan mode and metrics status to webview
 						ChatPanelProvider.postMessage({ type: 'status', data: message.data });

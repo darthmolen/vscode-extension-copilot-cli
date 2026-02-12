@@ -610,13 +610,7 @@ main {
 	white-space: nowrap;
 }
 
-.focus-file-info {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
+/* Removed - now uses .active-file-row inside grid */
 
 .planning-header-spacer {
 	display: inline-flex;
@@ -637,6 +631,23 @@ main {
 	display: flex;
 	gap: 8px;
 	align-items: flex-end;
+}
+
+.attach-button {
+	background: transparent;
+	border: none;
+	padding: 8px;
+	cursor: pointer;
+	font-size: 20px;
+	line-height: 1;
+	opacity: 0.7;
+	transition: opacity 0.2s;
+}
+
+.attach-button:hover {
+	opacity: 1;
+	background: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px;
 }
 
 #messageInput {
@@ -813,14 +824,49 @@ button.stop-button:hover {
 }
 
 .input-controls {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12px;
-	padding: 8px 12px;
-	align-items: center;
-	justify-content: flex-end;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	grid-template-rows: auto auto;
+	gap: 4px 12px;
+	padding: 4px 12px;
 	border-top: 1px solid var(--vscode-panel-border);
 	background: var(--vscode-editor-background);
+	min-height: 32px;
+}
+
+.active-file-row {
+	grid-column: 1;
+	grid-row: 1;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.planning-header-row {
+	grid-column: 2;
+	grid-row: 1;
+	/* Empty - used to show "Planning" before View Plan moved to SessionToolbar */
+}
+
+.usage-window {
+	grid-column: 1;
+	grid-row: 2;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	padding-top: 15px;
+}
+
+.controls-group-right {
+	grid-column: 2;
+	grid-row: 2;
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	justify-self: end;
+	padding-top: 15px;
 }
 
 .acceptance-controls {
@@ -891,15 +937,66 @@ button.stop-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }
 
+.controls-group-right {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	margin-left: auto;
+}
+
 .controls-group {
 	display: flex;
 	gap: 12px;
 	align-items: center;
 }
 
+.plan-mode-buttons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.usage-window {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.reasoning-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.reasoning-checkbox {
+	cursor: pointer;
+}
+
 .control-separator {
-	color: var(--vscode-panel-border);
-	font-size: 14px;
+	width: 1px;
+	height: 20px;
+	background: var(--vscode-panel-border);
+	margin: 0 4px;
+}
+
+.control-btn {
+	padding: 6px 8px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 16px;
+	line-height: 1;
+	white-space: nowrap;
+	min-width: auto;
+}
+
+.control-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .plan-btn {

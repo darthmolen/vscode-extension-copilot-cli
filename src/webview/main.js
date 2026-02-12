@@ -35,15 +35,6 @@ import { escapeHtml } from './app/utils/webview-utils.js';
 
 // Initialize RPC client
 const rpc = new WebviewRpcClient();
-const messagesContainer = document.getElementById('messages');
-const emptyState = document.getElementById('emptyState');
-const thinking = document.getElementById('thinking');
-const messageInput = document.getElementById('messageInput');
-const sendButton = document.getElementById('sendButton');
-const focusFileInfo = document.getElementById('focusFileInfo');
-const attachButton = document.getElementById('attachButton');
-const attachmentsPreview = document.getElementById('attachmentsPreview');
-const attachCount = document.getElementById('attachCount');
 
 let sessionActive = false;
 let currentSessionId = null;
@@ -56,27 +47,23 @@ let isReasoning = false;
 const eventBus = new EventBus();
 
 // Initialize components
+const messagesContainer = document.getElementById('messages-mount');
 const messageDisplay = new MessageDisplay(messagesContainer, eventBus);
 const toolExecution = new ToolExecution(messagesContainer, eventBus);
-const inputArea = new InputArea({
-	messageInput: document.getElementById('messageInput'),
-	sendButton: document.getElementById('sendButton'),
-	attachButton: document.getElementById('attachButton'),
-	attachmentsPreview: document.getElementById('attachmentsPreview'),
-	attachCount: document.getElementById('attachCount')
-}, eventBus);
+const inputAreaContainer = document.getElementById('input-mount');
+const inputArea = new InputArea(inputAreaContainer, eventBus);
 
 // Initialize SessionToolbar component
-const sessionToolbarContainer = document.querySelector('.session-toolbar') || document.createElement('div');
+const sessionToolbarContainer = document.getElementById('session-toolbar-mount');
 const sessionToolbar = new SessionToolbar(sessionToolbarContainer);
 
 // Initialize AcceptanceControls component
-const acceptanceControlsContainer = document.querySelector('.acceptance-controls') || document.createElement('div');
+const acceptanceControlsContainer = document.getElementById('acceptance-mount');
 const acceptanceControls = new AcceptanceControls(acceptanceControlsContainer);
 
-// Initialize StatusBar component
-const statusBarContainer = document.querySelector('.status-bar, .input-controls') || document.createElement('div');
-const statusBar = new StatusBar(statusBarContainer);
+// StatusBar component REMOVED - functionality moved to InputArea
+// const statusBarContainer = document.querySelector('.status-bar, .input-controls') || document.createElement('div');
+// const statusBar = new StatusBar(statusBarContainer);
 
 // ============================================================================
 // Component Event Wiring
@@ -127,15 +114,37 @@ acceptanceControls.on('swap', () => {
 	console.log('[Swap] Swap original/modified requested');
 });
 
-// StatusBar events
-statusBar.on('reasoningToggle', (checked) => {
-	showReasoning = handleReasoningToggle(checked, messagesContainer);
-	eventBus.emit('reasoning:toggle', checked);
-});
+// StatusBar events (commented out - StatusBar doesn't have reasoning toggle yet)
+// statusBar.on('reasoningToggle', (checked) => {
+// 	showReasoning = handleReasoningToggle(checked, messagesContainer);
+// 	eventBus.emit('reasoning:toggle', checked);
+// });
 
 // Listen for viewDiff events from ToolExecution component
 eventBus.on('viewDiff', (diffData) => {
 	rpc.viewDiff(diffData);
+});
+
+// Listen for plan mode events from InputArea component
+eventBus.on('enterPlanMode', () => {
+	console.log('[Plan Mode] Enter plan mode from InputArea');
+	planMode = handleEnterPlanMode(rpc, updatePlanModeUI);
+});
+
+eventBus.on('acceptPlan', () => {
+	console.log('[Plan Mode] Accept plan from InputArea');
+	handleAcceptPlan(rpc);
+});
+
+eventBus.on('rejectPlan', () => {
+	console.log('[Plan Mode] Reject plan from InputArea');
+	handleRejectPlan(rpc);
+});
+
+eventBus.on('exitPlanMode', () => {
+	console.log('[Plan Mode] Exit plan mode (silent)');
+	// Silent exit - just toggle plan mode off, no message sent
+	rpc.togglePlanMode();
 });
 
 // Listen for input:sendMessage events from InputArea component
@@ -147,13 +156,13 @@ eventBus.on('input:sendMessage', (data) => {
 // Listen for input:abort events from InputArea component
 eventBus.on('input:abort', () => {
 	console.log('[ABORT] Aborting current generation');
-	rpc.abort();
+	rpc.abortMessage();
 });
 
 // Listen for input:attachFiles events from InputArea component
 eventBus.on('input:attachFiles', () => {
 	console.log('[ATTACH] Attach files requested');
-	rpc.requestAttachFiles();
+	rpc.pickFiles();
 });
 
 // Listen for viewDiff events from ToolExecution component (duplicate removed)
@@ -220,7 +229,7 @@ export function handleAppendMessageMessage(payload) {
  * Handle 'userMessage' message - add user message to chat
  */
 export function handleUserMessageMessage(payload) {
-	emptyState.classList.add('hidden');
+	// MessageDisplay handles empty state via EventBus
 	eventBus.emit('message:add', {
 		role: 'user',
 		content: payload.text,
@@ -233,7 +242,7 @@ export function handleUserMessageMessage(payload) {
  * Handle 'assistantMessage' message - add assistant message to chat
  */
 export function handleAssistantMessageMessage(payload) {
-	emptyState.classList.add('hidden');
+	// MessageDisplay handles empty state via EventBus
 	eventBus.emit('message:add', {
 		role: 'assistant',
 		content: payload.text,
@@ -246,7 +255,7 @@ export function handleAssistantMessageMessage(payload) {
  * Handle 'reasoningMessage' message - add reasoning message to chat
  */
 export function handleReasoningMessageMessage(payload) {
-	emptyState.classList.add('hidden');
+	// MessageDisplay handles empty state via EventBus
 	eventBus.emit('message:add', {
 		role: 'reasoning',
 		content: payload.text,
@@ -261,39 +270,24 @@ export function handleWorkspacePathMessage(payload) {
 	console.log(`[VIEW PLAN DEBUG] workspacePath message received:`, payload);
 	workspacePath = payload.path; // FIX: payload has 'path' not 'workspacePath'
 	console.log(`[VIEW PLAN DEBUG] Extracted path: ${workspacePath}`);
-	sessionToolbar.setWorkspacePath(workspacePath);
-	console.log(`[VIEW PLAN DEBUG] SessionToolbar workspace path set`);
+	sessionToolbar.setPlanFileExists(workspacePath);
+	console.log(`[VIEW PLAN DEBUG] SessionToolbar plan file state set: ${!!workspacePath}`);
 }
 
 /**
  * Handle 'activeFileChanged' message - update active file display
  */
 export function handleActiveFileChangedMessage(payload) {
-	if (payload.filePath) {
-		focusFileInfo.textContent = payload.filePath;
-		focusFileInfo.title = payload.filePath;
-		focusFileInfo.style.display = 'inline';
-	} else {
-		focusFileInfo.style.display = 'none';
-	}
+	// Delegate to InputArea component
+	inputArea.updateFocusFile(payload.filePath);
 }
 
 /**
  * Handle 'clearMessages' message - clear all messages and show empty state
  */
 export function handleClearMessagesMessage(payload) {
-	messagesContainer.innerHTML = '';
-	const emptyStateDiv = document.createElement('div');
-	emptyStateDiv.className = 'empty-state';
-	emptyStateDiv.id = 'emptyState';
-	emptyStateDiv.innerHTML = `
-		<div class="empty-state-icon" aria-hidden="true">💬</div>
-		<div class="empty-state-text">
-			Start a chat session to begin<br>
-			Use the command palette to start the CLI
-		</div>
-	`;
-	messagesContainer.appendChild(emptyStateDiv);
+	// Delegate to MessageDisplay component
+	messageDisplay.clearMessages();
 }
 
 /**
@@ -355,13 +349,13 @@ export function handleUsageInfoMessage(payload) {
 		const limit = payload.data.tokenLimit;
 		const windowPct = Math.round((used / limit) * 100);
 		
-		statusBar.updateUsageWindow(windowPct, used, limit);
-		statusBar.updateUsageUsed(used);
+		// statusBar.updateUsageWindow(windowPct, used, limit);
+		// statusBar.updateUsageUsed(used);
 	}
 	// Quota percentage from assistant.usage
 	if (payload.data.remainingPercentage !== undefined) {
 		const pct = Math.round(payload.data.remainingPercentage);
-		statusBar.updateUsageRemaining(pct);
+		// statusBar.updateUsageRemaining(pct);
 	}
 }
 
@@ -385,8 +379,8 @@ export function handleStatusMessage(payload) {
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
 		console.log('[METRICS] Resetting session-level metrics');
-		statusBar.updateUsageWindow(0, 0, 1);
-		statusBar.updateUsageUsed(0);
+		// statusBar.updateUsageWindow(0, 0, 1);
+		// statusBar.updateUsageUsed(0);
 	}
 	
 	if (status === 'plan_mode_enabled') {
@@ -408,10 +402,10 @@ export function handleStatusMessage(payload) {
 		}
 	} else if (status === 'thinking') {
 		isReasoning = true;
-		statusBar.showReasoning();
+		// statusBar.showReasoning();
 	} else if (status === 'ready') {
 		isReasoning = false;
-		statusBar.hideReasoning();
+		// statusBar.hideReasoning();
 	} else if (status === 'plan_ready') {
 		// Plan is ready for user review - show acceptance controls
 		console.log('[Plan Ready] Showing acceptance controls');
@@ -425,34 +419,20 @@ export function handleStatusMessage(payload) {
  */
 export function handleFilesSelectedMessage(payload) {
 	console.log('[ATTACH] Received filesSelected, attachments:', payload.attachments.length);
-	if (payload.attachments && payload.attachments.length > 0) {
-		pendingAttachments.push(...payload.attachments);
-		updateAttachmentsPreview();
-		updateAttachCount();
-	}
+	// Delegate to InputArea component
+	inputArea.addAttachments(payload.attachments);
 }
 
 /**
  * Handle 'init' message - initialize webview with session state
  */
 export function handleInitMessage(payload) {
-	// Clear existing messages
-	messagesContainer.innerHTML = '';
-	const emptyStateDiv = document.createElement('div');
-	emptyStateDiv.className = 'empty-state';
-	emptyStateDiv.id = 'emptyState';
-	emptyStateDiv.innerHTML = `
-		<div class="empty-state-icon" aria-hidden="true">💬</div>
-		<div class="empty-state-text">
-			Start a chat session to begin<br>
-			Use the command palette to start the CLI
-		</div>
-	`;
-	messagesContainer.appendChild(emptyStateDiv);
+	// Clear messages via MessageDisplay
+	messageDisplay.clearMessages();
 	
 	// Add messages from init
 	if (payload.messages && payload.messages.length > 0) {
-		emptyState.classList.add('hidden');
+		// MessageDisplay handles hiding empty state via EventBus
 		for (const msg of payload.messages) {
 			const role = msg.type || msg.role;
 			eventBus.emit('message:add', {
@@ -466,10 +446,10 @@ export function handleInitMessage(payload) {
 	// Set workspace path and show/hide View Plan button
 	if (payload.workspacePath) {
 		workspacePath = payload.workspacePath;
-		sessionToolbar.setWorkspacePath(workspacePath);
+		sessionToolbar.setPlanFileExists(workspacePath);
 	} else {
 		workspacePath = null;
-		sessionToolbar.setWorkspacePath(null);
+		sessionToolbar.setPlanFileExists(null);
 	}
 	
 	setSessionActive(payload.sessionActive);
@@ -527,6 +507,5 @@ export const __testExports = {
 	toolExecution,
 	inputArea,
 	sessionToolbar,
-	acceptanceControls,
-	statusBar
+	acceptanceControls
 };

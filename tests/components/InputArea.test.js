@@ -33,32 +33,16 @@ describe('InputArea Component', () => {
 	});
 
 	beforeEach(() => {
-		// Create fresh container for each test
+		// Create fresh container for each test (empty mount point)
 		container = document.getElementById('container');
-		container.innerHTML = `
-			<div class="input-area">
-				<div id="attachmentsPreview" class="attachments-preview"></div>
-				<div class="input-wrapper">
-					<button id="attachButton" class="attach-button">📎</button>
-					<textarea id="messageInput" class="message-input" placeholder="Type a message..."></textarea>
-					<button id="sendButton" class="send-button">Send</button>
-					<span id="attachCount" class="attach-count" style="display: none;">0</span>
-				</div>
-			</div>
-		`;
+		container.innerHTML = '<div id="input-mount"></div>';
 
 		// Create fresh EventBus
 		eventBus = new EventBus();
 
-		// Create InputArea instance
-		const elements = {
-			messageInput: document.getElementById('messageInput'),
-			sendButton: document.getElementById('sendButton'),
-			attachButton: document.getElementById('attachButton'),
-			attachmentsPreview: document.getElementById('attachmentsPreview'),
-			attachCount: document.getElementById('attachCount')
-		};
-		inputArea = new InputArea(elements, eventBus);
+		// Create InputArea instance with STANDARD PATTERN (container, eventBus)
+		const mountPoint = container.querySelector('#input-mount');
+		inputArea = new InputArea(mountPoint, eventBus);
 	});
 
 	afterEach(() => {
@@ -69,7 +53,22 @@ describe('InputArea Component', () => {
 	});
 
 	describe('Initialization', () => {
-		it('should initialize with provided elements', () => {
+		it('should accept container and eventBus parameters', () => {
+			expect(inputArea.container).to.exist;
+			expect(inputArea.eventBus).to.exist;
+		});
+
+		it('should create DOM elements via render()', () => {
+			const messageInput = inputArea.container.querySelector('#messageInput');
+			const sendButton = inputArea.container.querySelector('#sendButton');
+			const attachButton = inputArea.container.querySelector('#attachButton');
+			
+			expect(messageInput, 'messageInput should be created').to.exist;
+			expect(sendButton, 'sendButton should be created').to.exist;
+			expect(attachButton, 'attachButton should be created').to.exist;
+		});
+
+		it('should store references to created elements', () => {
 			expect(inputArea.messageInput).to.exist;
 			expect(inputArea.sendButton).to.exist;
 			expect(inputArea.attachButton).to.exist;

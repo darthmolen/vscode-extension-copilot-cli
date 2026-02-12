@@ -1,28 +1,13 @@
 import { escapeHtml } from '../../utils/webview-utils.js';
-import { ActiveFileDisplay } from '../ActiveFileDisplay/ActiveFileDisplay.js';
-import { StatusBar } from '../StatusBar/StatusBar.js';
-import { PlanModeControls } from '../PlanModeControls/PlanModeControls.js';
-import { CommandParser } from '../../services/CommandParser.js';
 
 /**
- * InputArea Component - Container Pattern
- * Manages message input core functionality and child components
- * 
- * Children:
- * - ActiveFileDisplay: Shows active file path
- * - StatusBar: Metrics and reasoning toggle
- * - PlanModeControls: Plan mode buttons
- * 
- * Services:
- * - CommandParser: Parses and validates slash commands
+ * InputArea Component
+ * Manages message input, send/abort buttons, attachments, history navigation, and auto-resize
  */
 export class InputArea {
 	constructor(container, eventBus) {
 		this.container = container;
 		this.eventBus = eventBus;
-		
-		// Services
-		this.commandParser = new CommandParser();
 		
 		// Element references (created in render)
 		this.messageInput = null;
@@ -30,6 +15,12 @@ export class InputArea {
 		this.attachButton = null;
 		this.attachmentsPreview = null;
 		this.attachCount = null;
+		this.focusFileInfo = null;
+		this.usageWindow = null;
+		this.reasoningCheckbox = null;
+		this.enterPlanModeBtn = null;
+		this.acceptPlanBtn = null;
+		this.rejectPlanBtn = null;
 
 		// State
 		this.pendingAttachments = [];
@@ -38,8 +29,6 @@ export class InputArea {
 		this.historyIndex = -1; // -1 means current draft (not in history)
 		this.currentDraft = ''; // Stores unsent message when navigating history
 		this.sessionActive = false;
-		this.planMode = false;
-		this.planReady = false;
 
 		// Bind methods to preserve 'this' context
 		this.handleInput = this.handleInput.bind(this);
@@ -51,19 +40,29 @@ export class InputArea {
 		this.handleSessionThinking = this.handleSessionThinking.bind(this);
 
 		this.render();
-		this.createChildComponents();
 		this.attachListeners();
 	}
 	
 	render() {
 		this.container.innerHTML = `
 			<div class="input-controls">
-				<div class="controls-left">
-					<div id="active-file-mount"></div>
-					<div id="status-bar-mount"></div>
-				</div>
-				<div class="controls-right">
-					<div id="plan-controls-mount"></div>
+				<!-- Row 1: Active File | Empty (was planning header) -->
+				<div id="focusFileInfo" class="active-file-row" style="display: none;"></div>
+				<div class="planning-header-row"></div>
+				
+				<!-- Row 2: Metrics | Controls (reasoning + plan buttons) -->
+				<span id="usageWindow" class="usage-window">Window: 0% | Used: 0 | Remaining: --</span>
+				<div class="controls-group-right">
+					<label class="reasoning-label">
+						<input type="checkbox" id="reasoningCheckbox" class="reasoning-checkbox">
+						<span>Show Reasoning</span>
+					</label>
+					<div class="control-separator"></div>
+					<div class="plan-mode-buttons">
+						<button id="enterPlanModeBtn" class="control-btn enter-plan-btn" title="Enter Planning">💡</button>
+						<button id="acceptPlanBtn" class="control-btn accept-plan-btn" style="display: none;" title="Accept Plan">✅</button>
+						<button id="rejectPlanBtn" class="control-btn reject-plan-btn" style="display: none;" title="Reject Plan">❌</button>
+					</div>
 				</div>
 			</div>
 			<div class="input-area">
@@ -84,28 +83,16 @@ export class InputArea {
 		this.attachButton = this.container.querySelector('#attachButton');
 		this.attachmentsPreview = this.container.querySelector('#attachmentsPreview');
 		this.attachCount = this.container.querySelector('#attachCount');
-	}
-
-	/**
-	 * Create child components and mount them
-	 */
-	createChildComponents() {
-		console.log('[InputArea] Creating child components');
+		this.focusFileInfo = this.container.querySelector('#focusFileInfo');
+		this.usageWindow = this.container.querySelector('#usageWindow');
+		this.reasoningCheckbox = this.container.querySelector('#reasoningCheckbox');
+		this.enterPlanModeBtn = this.container.querySelector('#enterPlanModeBtn');
+		this.acceptPlanBtn = this.container.querySelector('#acceptPlanBtn');
+		this.rejectPlanBtn = this.container.querySelector('#rejectPlanBtn');
 		
-		const activeFileMount = this.container.querySelector('#active-file-mount');
-		const statusBarMount = this.container.querySelector('#status-bar-mount');
-		const planControlsMount = this.container.querySelector('#plan-controls-mount');
-		
-		this.activeFileDisplay = new ActiveFileDisplay(activeFileMount, this.eventBus);
-		this.statusBar = new StatusBar(statusBarMount);
-		this.planModeControls = new PlanModeControls(planControlsMount, this.eventBus);
-		
-		// Forward StatusBar reasoningToggle events to main event bus
-		this.statusBar.on('reasoningToggle', (checked) => {
-			this.eventBus.emit('reasoning:toggle', checked);
-		});
-		
-		console.log('[InputArea] Child components created');
+		console.log('[InputArea] enterPlanModeBtn reference:', this.enterPlanModeBtn ? 'FOUND' : 'NULL');
+		console.log('[InputArea] acceptPlanBtn reference:', this.acceptPlanBtn ? 'FOUND' : 'NULL');
+		console.log('[InputArea] rejectPlanBtn reference:', this.rejectPlanBtn ? 'FOUND' : 'NULL');
 	}
 
 	attachListeners() {
@@ -116,6 +103,39 @@ export class InputArea {
 		// Button events
 		this.sendButton.addEventListener('click', this.handleSendClick);
 		this.attachButton.addEventListener('click', this.handleAttachClick);
+		
+		// Plan mode button events
+		if (this.enterPlanModeBtn) {
+			console.log('[InputArea] Attaching click listener to Enter Plan Mode button');
+			this.enterPlanModeBtn.addEventListener('click', () => {
+				console.log('[InputArea] Enter Plan Mode button clicked');
+				this.eventBus.emit('enterPlanMode');
+			});
+		} else {
+			console.warn('[InputArea] enterPlanModeBtn not found in DOM!');
+		}
+		
+		if (this.acceptPlanBtn) {
+			this.acceptPlanBtn.addEventListener('click', () => {
+				console.log('[InputArea] Accept Plan button clicked');
+				this.eventBus.emit('acceptPlan');
+			});
+		}
+		
+		if (this.rejectPlanBtn) {
+			this.rejectPlanBtn.addEventListener('click', () => {
+				console.log('[InputArea] Reject Plan button clicked');
+				this.eventBus.emit('rejectPlan');
+			});
+		}
+		
+		// Reasoning checkbox event
+		if (this.reasoningCheckbox) {
+			this.reasoningCheckbox.addEventListener('change', (e) => {
+				console.log('[InputArea] Reasoning checkbox changed:', e.target.checked);
+				this.eventBus.emit('reasoning:toggle', e.target.checked);
+			});
+		}
 
 		// EventBus events
 		this.eventBus.on('session:active', this.handleSessionActive);
@@ -165,47 +185,9 @@ export class InputArea {
 		}
 	}
 
-	/**
-	 * Parse slash command from text (delegates to CommandParser)
-	 * @param {string} text
-	 * @returns {Object|null} { command: string, args: string[] } or null
-	 */
-	parseCommand(text) {
-		return this.commandParser.parse(text);
-	}
-
 	sendMessage() {
 		const text = this.messageInput.value.trim();
-		if (!text) return;
-
-		// Check for slash command first
-		const cmd = this.commandParser.parse(text);
-		if (cmd) {
-			console.log('[InputArea] Detected slash command:', cmd.command);
-			
-			// Validate command in current context
-			const context = {
-				planMode: this.planMode,
-				planReady: this.planReady
-			};
-			
-			if (!this.commandParser.isValid(cmd, context)) {
-				console.warn('[InputArea] Command not valid in current context:', cmd.command, context);
-				// Could show user feedback here
-				return;
-			}
-			
-			// Execute command
-			this.commandParser.execute(cmd, this.eventBus);
-			
-			// Clear input after command
-			this.messageInput.value = '';
-			this.messageInput.style.height = 'auto';
-			return;
-		}
-
-		// Regular message - needs active session
-		if (!this.sessionActive) return;
+		if (!text || !this.sessionActive) return;
 
 		console.log('[InputArea] sendMessage() called, text:', text.substring(0, 50));
 		console.log('[InputArea] Pending attachments:', this.pendingAttachments.length);
@@ -358,67 +340,19 @@ export class InputArea {
 	
 	/**
 	 * Update active file display in focus file info
-	 * Delegate to ActiveFileDisplay child component
 	 * @param {string|null} filePath - Path to active file or null to hide
 	 */
 	updateFocusFile(filePath) {
-		if (this.activeFileDisplay) {
-			this.activeFileDisplay.setFile(filePath);
-		}
-	}
-
-	/**
-	 * Alias for backward compatibility
-	 * @param {string|null} filePath
-	 */
-	setFile(filePath) {
-		this.updateFocusFile(filePath);
-	}
-
-	/**
-	 * Delegate to PlanModeControls child component
-	 * @param {boolean} planMode
-	 * @param {boolean} planReady
-	 */
-	setPlanMode(planMode, planReady) {
-		// Track state for command validation
-		this.planMode = planMode;
-		this.planReady = planReady;
+		if (!this.focusFileInfo) return;
 		
-		if (this.planModeControls) {
-			this.planModeControls.setPlanMode(planMode, planReady);
-		}
-	}
-
-	/**
-	 * Delegate to StatusBar child component
-	 * @param {number} percentage
-	 * @param {number} used
-	 * @param {number} limit
-	 */
-	updateUsageWindow(percentage, used, limit) {
-		if (this.statusBar) {
-			this.statusBar.updateUsageWindow(percentage, used, limit);
-		}
-	}
-
-	/**
-	 * Delegate to StatusBar child component
-	 * @param {number} tokens
-	 */
-	updateUsageUsed(tokens) {
-		if (this.statusBar) {
-			this.statusBar.updateUsageUsed(tokens);
-		}
-	}
-
-	/**
-	 * Delegate to StatusBar child component
-	 * @param {number|null} remaining
-	 */
-	updateUsageRemaining(remaining) {
-		if (this.statusBar) {
-			this.statusBar.updateUsageRemaining(remaining);
+		if (filePath) {
+			// Show file name (not full path)
+			const fileName = filePath.split('/').pop() || filePath;
+			this.focusFileInfo.textContent = `📄 ${fileName}`;
+			this.focusFileInfo.style.display = 'block';
+		} else {
+			this.focusFileInfo.textContent = '';
+			this.focusFileInfo.style.display = 'none';
 		}
 	}
 	

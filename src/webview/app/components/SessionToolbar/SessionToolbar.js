@@ -90,6 +90,10 @@ class SessionToolbar {
 		}
 	}
 	
+	setPlanMode(planMode) {
+		this.planMode = planMode;
+	}
+	
 	// Event emitter interface
 	on(eventName, handler) {
 		if (!this.listeners.has(eventName)) {

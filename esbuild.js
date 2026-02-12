@@ -32,6 +32,7 @@ async function main() {
 	const handlersDistDir = path.join(webviewDistDir, 'app', 'handlers');
 	const utilsDistDir = path.join(webviewDistDir, 'app', 'utils');
 	const stateDistDir = path.join(webviewDistDir, 'app', 'state');
+	const servicesDistDir = path.join(webviewDistDir, 'app', 'services');
 	const componentsDistDir = path.join(webviewDistDir, 'app', 'components');
 	const messageDisplayDistDir = path.join(componentsDistDir, 'MessageDisplay');
 	const toolExecutionDistDir = path.join(componentsDistDir, 'ToolExecution');
@@ -39,6 +40,8 @@ async function main() {
 	const sessionToolbarDistDir = path.join(componentsDistDir, 'SessionToolbar');
 	const acceptanceControlsDistDir = path.join(componentsDistDir, 'AcceptanceControls');
 	const statusBarDistDir = path.join(componentsDistDir, 'StatusBar');
+	const activeFileDisplayDistDir = path.join(componentsDistDir, 'ActiveFileDisplay');
+	const planModeControlsDistDir = path.join(componentsDistDir, 'PlanModeControls');
 	
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
@@ -51,6 +54,9 @@ async function main() {
 	}
 	if (!fs.existsSync(stateDistDir)) {
 		fs.mkdirSync(stateDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(servicesDistDir)) {
+		fs.mkdirSync(servicesDistDir, { recursive: true });
 	}
 	if (!fs.existsSync(messageDisplayDistDir)) {
 		fs.mkdirSync(messageDisplayDistDir, { recursive: true });
@@ -69,6 +75,12 @@ async function main() {
 	}
 	if (!fs.existsSync(statusBarDistDir)) {
 		fs.mkdirSync(statusBarDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(activeFileDisplayDistDir)) {
+		fs.mkdirSync(activeFileDisplayDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(planModeControlsDistDir)) {
+		fs.mkdirSync(planModeControlsDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -121,6 +133,12 @@ async function main() {
 		path.join(stateDistDir, 'EventBus.js')
 	);
 
+	// Copy service files (Phase 5.2)
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'services', 'CommandParser.js'),
+		path.join(servicesDistDir, 'CommandParser.js')
+	);
+
 	// Copy component files (Phase 4.2, 4.3)
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'MessageDisplay', 'MessageDisplay.js'),
@@ -149,6 +167,16 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'StatusBar', 'StatusBar.js'),
 		path.join(statusBarDistDir, 'StatusBar.js')
+	);
+	// Phase 5.0 - ActiveFileDisplay component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'ActiveFileDisplay', 'ActiveFileDisplay.js'),
+		path.join(activeFileDisplayDistDir, 'ActiveFileDisplay.js')
+	);
+	// Phase 5.1 - PlanModeControls component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'PlanModeControls', 'PlanModeControls.js'),
+		path.join(planModeControlsDistDir, 'PlanModeControls.js')
 	);
 
 	// Extension build context
