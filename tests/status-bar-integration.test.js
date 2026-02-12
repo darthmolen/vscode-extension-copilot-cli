@@ -88,46 +88,4 @@ describe('StatusBar - Component Integration - TDD RED Phase', () => {
       expect(reasoningText.textContent).to.equal('Analyzing code...');
     });
   });
-
-  describe('Reasoning Toggle Event', () => {
-    it('should emit reasoningToggle event when checkbox changed to true', (done) => {
-      const statusBar = new StatusBar(container);
-      
-      statusBar.on('reasoningToggle', (checked) => {
-        expect(checked).to.be.true;
-        done();
-      });
-      
-      const checkbox = container.querySelector('#showReasoningCheckbox');
-      checkbox.checked = true;
-      checkbox.dispatchEvent(new window.Event('change'));
-    });
-
-    it('should emit reasoningToggle event when checkbox changed to false', (done) => {
-      const statusBar = new StatusBar(container);
-      
-      statusBar.on('reasoningToggle', (checked) => {
-        expect(checked).to.be.false;
-        done();
-      });
-      
-      const checkbox = container.querySelector('#showReasoningCheckbox');
-      checkbox.checked = false;
-      checkbox.dispatchEvent(new window.Event('change'));
-    });
-
-    it('should emit event with current checkbox state', (done) => {
-      const statusBar = new StatusBar(container);
-      
-      const checkbox = container.querySelector('#showReasoningCheckbox');
-      checkbox.checked = true;
-      
-      statusBar.on('reasoningToggle', (checked) => {
-        expect(checked).to.equal(checkbox.checked);
-        done();
-      });
-      
-      checkbox.dispatchEvent(new window.Event('change'));
-    });
-  });
 });

@@ -72,7 +72,17 @@ export class FileSnapshotService {
                 
                 this.logger.info(`[FileSnapshot] Captured snapshot: ${filePath} -> ${tempFilePath}`);
             } else {
+                // File doesn't exist yet - create empty temp file to represent "before" state
+                // This allows VS Code diff to show the file as "created" instead of failing
+                const fileName = path.basename(filePath);
+                const timestamp = Date.now();
+                tempFilePath = path.join(this.tempDir, `${toolCallId}-${timestamp}-${fileName}-empty`);
+                
+                // Create empty file to represent "no content before"
+                fs.writeFileSync(tempFilePath, '', 'utf8');
+                
                 this.logger.info(`[FileSnapshot] File will be created (didn't exist before): ${filePath}`);
+                this.logger.info(`[FileSnapshot] Created empty temp file for diff: ${tempFilePath}`);
             }
             
             // Store snapshot info

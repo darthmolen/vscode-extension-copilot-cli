@@ -60,10 +60,17 @@ export class InputArea {
 			<div class="input-controls">
 				<div class="controls-left">
 					<div id="active-file-mount"></div>
-					<div id="status-bar-mount"></div>
+					<div id="metrics-mount"></div>
 				</div>
 				<div class="controls-right">
-					<div id="plan-controls-mount"></div>
+					<div class="controls-spacer"></div>
+					<div class="controls-row">
+						<label class="reasoning-toggle">
+							<input type="checkbox" id="reasoningCheckbox" />
+							<span>Show Reasoning</span>
+						</label>
+						<div id="plan-controls-mount"></div>
+					</div>
 				</div>
 			</div>
 			<div class="input-area">
@@ -84,6 +91,7 @@ export class InputArea {
 		this.attachButton = this.container.querySelector('#attachButton');
 		this.attachmentsPreview = this.container.querySelector('#attachmentsPreview');
 		this.attachCount = this.container.querySelector('#attachCount');
+		this.reasoningCheckbox = this.container.querySelector('#reasoningCheckbox');
 	}
 
 	/**
@@ -93,17 +101,12 @@ export class InputArea {
 		console.log('[InputArea] Creating child components');
 		
 		const activeFileMount = this.container.querySelector('#active-file-mount');
-		const statusBarMount = this.container.querySelector('#status-bar-mount');
+		const metricsMount = this.container.querySelector('#metrics-mount');
 		const planControlsMount = this.container.querySelector('#plan-controls-mount');
 		
 		this.activeFileDisplay = new ActiveFileDisplay(activeFileMount, this.eventBus);
-		this.statusBar = new StatusBar(statusBarMount);
+		this.statusBar = new StatusBar(metricsMount);
 		this.planModeControls = new PlanModeControls(planControlsMount, this.eventBus);
-		
-		// Forward StatusBar reasoningToggle events to main event bus
-		this.statusBar.on('reasoningToggle', (checked) => {
-			this.eventBus.emit('reasoning:toggle', checked);
-		});
 		
 		console.log('[InputArea] Child components created');
 	}
@@ -116,6 +119,14 @@ export class InputArea {
 		// Button events
 		this.sendButton.addEventListener('click', this.handleSendClick);
 		this.attachButton.addEventListener('click', this.handleAttachClick);
+		
+		// Reasoning checkbox event
+		if (this.reasoningCheckbox) {
+			this.reasoningCheckbox.addEventListener('change', (e) => {
+				console.log('[InputArea] Reasoning checkbox changed:', e.target.checked);
+				this.eventBus.emit('reasoning:toggle', e.target.checked);
+			});
+		}
 
 		// EventBus events
 		this.eventBus.on('session:active', this.handleSessionActive);

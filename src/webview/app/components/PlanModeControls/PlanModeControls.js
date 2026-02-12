@@ -20,10 +20,10 @@ export class PlanModeControls {
   render() {
     this.container.innerHTML = `
       <div class="plan-mode-controls">
-        <button id="enterPlanModeBtn" class="control-btn" title="Enter Planning">💡 Enter Plan Mode</button>
-        <button id="exitPlanModeBtn" class="control-btn" style="display: none;" title="Exit Planning">❌ Exit</button>
-        <button id="acceptPlanBtn" class="control-btn" style="display: none;" title="Accept Plan">✅ Accept</button>
-        <button id="rejectPlanBtn" class="control-btn" style="display: none;" title="Reject Plan">❌ Reject</button>
+        <button id="enterPlanModeBtn" class="control-btn" title="Enter Planning">💡</button>
+        <button id="exitPlanModeBtn" class="control-btn" style="display: none;" title="Exit Planning">❌</button>
+        <button id="acceptPlanBtn" class="control-btn" style="display: none;" title="Accept Plan">✅</button>
+        <button id="rejectPlanBtn" class="control-btn" style="display: none;" title="Reject Plan">🚫</button>
       </div>
     `;
 
@@ -59,9 +59,9 @@ export class PlanModeControls {
       this.acceptBtn.style.display = 'none';
       this.rejectBtn.style.display = 'none';
     } else if (planReady) {
-      // Plan mode - ready
+      // Plan mode - ready (show all three: accept, reject, exit)
       this.enterBtn.style.display = 'none';
-      this.exitBtn.style.display = 'none';
+      this.exitBtn.style.display = '';  // ✅ Keep exit visible!
       this.acceptBtn.style.display = '';
       this.rejectBtn.style.display = '';
     } else {

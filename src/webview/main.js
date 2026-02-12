@@ -40,6 +40,7 @@ let sessionActive = false;
 let currentSessionId = null;
 let showReasoning = false;
 let planMode = false;
+let planReady = false;
 let workspacePath = null;
 let isReasoning = false;
 
@@ -171,6 +172,7 @@ eventBus.on('input:attachFiles', () => {
 function updatePlanModeUI() {
 	console.log('[updatePlanModeUI] Called with planMode =', planMode);
 	sessionToolbar.setPlanMode(planMode);
+	inputArea.setPlanMode(planMode, planReady);
 }
 
 
@@ -349,13 +351,14 @@ export function handleUsageInfoMessage(payload) {
 		const limit = payload.data.tokenLimit;
 		const windowPct = Math.round((used / limit) * 100);
 		
-		// statusBar.updateUsageWindow(windowPct, used, limit);
-		// statusBar.updateUsageUsed(used);
+		// Update metrics via InputArea (which contains StatusBar)
+		inputArea.updateUsageWindow(windowPct, used, limit);
+		inputArea.updateUsageUsed(used);
 	}
 	// Quota percentage from assistant.usage
 	if (payload.data.remainingPercentage !== undefined) {
 		const pct = Math.round(payload.data.remainingPercentage);
-		// statusBar.updateUsageRemaining(pct);
+		inputArea.updateUsageRemaining(pct);
 	}
 }
 
@@ -386,10 +389,14 @@ export function handleStatusMessage(payload) {
 	if (status === 'plan_mode_enabled') {
 		console.log('[STATUS EVENT] Enabling plan mode UI');
 		planMode = true;
+		planReady = false;
 		updatePlanModeUI();
+		// Show acceptance controls when entering plan mode
+		acceptanceControls.show();
 	} else if (status === 'plan_mode_disabled' || status === 'plan_accepted' || status === 'plan_rejected') {
 		console.log('[STATUS EVENT] Disabling plan mode UI, reason:', status);
 		planMode = false;
+		planReady = false;
 		updatePlanModeUI();
 		acceptanceControls.hide();
 		acceptanceControls.clear();
@@ -409,6 +416,8 @@ export function handleStatusMessage(payload) {
 	} else if (status === 'plan_ready') {
 		// Plan is ready for user review - show acceptance controls
 		console.log('[Plan Ready] Showing acceptance controls');
+		planReady = true;
+		inputArea.setPlanMode(planMode, true);
 		acceptanceControls.show();
 		acceptanceControls.focus();
 	}
@@ -507,5 +516,7 @@ export const __testExports = {
 	toolExecution,
 	inputArea,
 	sessionToolbar,
-	acceptanceControls
+	acceptanceControls,
+	handleStatusMessage,
+	handleUsageInfoMessage
 };

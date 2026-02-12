@@ -26,12 +26,7 @@ export class StatusBar {
 				<span id="reasoningIndicator" class="reasoning-indicator" style="display: none;">
 					🧠 <span id="reasoningText">Reasoning...</span>
 				</span>
-				<span style="flex: 1;"></span>
-				<label class="reasoning-toggle">
-					<input type="checkbox" id="showReasoningCheckbox" />
-					<span>Show Reasoning</span>
-				</label>
-				<span class="control-separator">|</span>
+				<span id="reasoningSeparator" class="control-separator" style="display: none;">|</span>
 				<div class="usage-group">
 					<span class="usage-info">
 						<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
@@ -47,8 +42,8 @@ export class StatusBar {
 		// Cache element references
 		this.statusBarEl = this.container.querySelector('.status-bar');
 		this.reasoningIndicator = this.container.querySelector('.reasoning-indicator');
+		this.reasoningSeparator = this.container.querySelector('#reasoningSeparator');
 		this.reasoningText = this.container.querySelector('#reasoningText');
-		this.reasoningCheckbox = this.container.querySelector('#showReasoningCheckbox');
 		this.usageWindow = this.container.querySelector('#usageWindow');
 		this.usageUsed = this.container.querySelector('#usageUsed');
 		this.usageRemaining = this.container.querySelector('#usageRemaining');
@@ -58,9 +53,7 @@ export class StatusBar {
 	 * Attach event listeners
 	 */
 	attachEventListeners() {
-		this.reasoningCheckbox.addEventListener('change', (e) => {
-			this.emit('reasoningToggle', e.target.checked);
-		});
+		// No event listeners needed - reasoning checkbox moved to InputArea
 	}
 
 	/**
@@ -68,6 +61,7 @@ export class StatusBar {
 	 */
 	showReasoning() {
 		this.reasoningIndicator.style.display = '';
+		this.reasoningSeparator.style.display = '';
 	}
 
 	/**
@@ -75,6 +69,7 @@ export class StatusBar {
 	 */
 	hideReasoning() {
 		this.reasoningIndicator.style.display = 'none';
+		this.reasoningSeparator.style.display = 'none';
 	}
 
 	/**

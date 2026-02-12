@@ -92,6 +92,8 @@ class SessionToolbar {
 	
 	setPlanMode(planMode) {
 		this.planMode = planMode;
+		// View Plan button (📋) should never change - it only shows plan.md viewer
+		// Plan mode controls are handled by PlanModeControls component in InputArea
 	}
 	
 	// Event emitter interface

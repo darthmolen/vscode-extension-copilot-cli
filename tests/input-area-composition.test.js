@@ -48,11 +48,11 @@ describe('InputArea - Component Composition - TDD RED Phase', () => {
       const inputArea = new InputArea(container, eventBus);
       
       const activeFileMount = container.querySelector('#active-file-mount');
-      const statusBarMount = container.querySelector('#status-bar-mount');
+      const metricsMount = container.querySelector('#metrics-mount');
       const planControlsMount = container.querySelector('#plan-controls-mount');
       
       expect(activeFileMount).to.exist;
-      expect(statusBarMount).to.exist;
+      expect(metricsMount).to.exist;
       expect(planControlsMount).to.exist;
     });
 
@@ -68,8 +68,8 @@ describe('InputArea - Component Composition - TDD RED Phase', () => {
     it('should mount StatusBar in correct container', () => {
       const inputArea = new InputArea(container, eventBus);
       
-      const statusBarMount = container.querySelector('#status-bar-mount');
-      const statusBar = statusBarMount.querySelector('.status-bar');
+      const metricsMount = container.querySelector('#metrics-mount');
+      const statusBar = metricsMount.querySelector('.status-bar');
       
       expect(statusBar).to.exist;
     });
@@ -118,7 +118,7 @@ describe('InputArea - Component Composition - TDD RED Phase', () => {
   });
 
   describe('Event Coordination', () => {
-    it('should relay reasoningToggle events from StatusBar', (done) => {
+    it('should emit reasoningToggle events from InputArea checkbox', (done) => {
       const inputArea = new InputArea(container, eventBus);
       
       eventBus.on('reasoning:toggle', (checked) => {
@@ -126,7 +126,7 @@ describe('InputArea - Component Composition - TDD RED Phase', () => {
         done();
       });
       
-      const reasoningCheckbox = container.querySelector('#showReasoningCheckbox');
+      const reasoningCheckbox = container.querySelector('#reasoningCheckbox');
       reasoningCheckbox.checked = true;
       reasoningCheckbox.dispatchEvent(new window.Event('change'));
     });

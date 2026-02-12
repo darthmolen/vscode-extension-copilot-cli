@@ -869,6 +869,34 @@ button.stop-button:hover {
 	padding-top: 15px;
 }
 
+/* Component refactor - new layout */
+.controls-left {
+	grid-column: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.controls-right {
+	grid-column: 2;
+	grid-row: 1 / 3;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	align-items: flex-end;
+}
+
+.controls-spacer {
+	flex: 1;
+}
+
+.controls-row {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	padding-top: 15px;
+}
+
 .acceptance-controls {
 	display: none;
 	gap: 12px;
