@@ -33,7 +33,7 @@ export class PlanModeToolsService {
     constructor(
         private readonly workSessionId: string,
         private readonly workingDirectory: string,
-        private readonly onMessageEmitter: vscode.EventEmitter<any>,
+        private readonly onDidChangeStatus: vscode.EventEmitter<any>,
         logger?: Logger
     ) {
         this.logger = logger || Logger.getInstance();
@@ -131,13 +131,9 @@ export class PlanModeToolsService {
                     this.logger.info(`[Plan Mode] Presenting plan to user: ${summary || 'No summary provided'}`);
                     
                     // Emit a message to notify the UI to show acceptance controls
-                    this.onMessageEmitter.fire({
-                        type: 'status',
-                        data: { 
-                            status: 'plan_ready',
-                            summary: summary || null
-                        },
-                        timestamp: Date.now()
+                    this.onDidChangeStatus.fire({ 
+                        status: 'plan_ready' as any,
+                        summary: summary || null
                     });
                     
                     return `Plan presented to user. They can now review it and choose to accept, continue planning, or provide new instructions.`;

@@ -10,10 +10,15 @@ let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
+let chatProvider: ChatPanelProvider;
 
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
 	backendState = getBackendState();
+	
+	// Create chat provider instance
+	chatProvider = new ChatPanelProvider(context.extensionUri);
+	context.subscriptions.push(chatProvider);
 	
 	logger.info('='.repeat(60));
 	logger.info('Copilot CLI Extension activating...');
@@ -55,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Create webview AFTER history is loaded
-		ChatPanelProvider.createOrShow(context.extensionUri);
+		chatProvider.createOrShow();
 		
 		// Update active file when panel opens
 		updateActiveFile(vscode.window.activeTextEditor);
@@ -85,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('Status bar item created');
 
 	// Register message handler ONCE in activate, not in startCLISession
-	ChatPanelProvider.onUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string; webviewUri?: string}>}) => {
+	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {
 		logger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);
 		if (data.attachments && data.attachments.length > 0) {
 			logger.info(`  with ${data.attachments.length} attachment(s):`);
@@ -97,23 +102,23 @@ export function activate(context: vscode.ExtensionContext) {
 		// Convert attachments to display format (with webviewUri for thumbnails)
 		const displayAttachments = data.attachments?.map(att => ({
 			displayName: att.displayName || att.path.split(/[/\\]/).pop() || 'unknown',
-			webviewUri: att.webviewUri // Keep webviewUri for displaying in message history
+			webviewUri: undefined // webviewUri is not in the event data
 		}));
 		
-		ChatPanelProvider.addUserMessage(data.text, displayAttachments);
-		ChatPanelProvider.setThinking(true);
+		chatProvider.addUserMessage(data.text, displayAttachments);
+		chatProvider.setThinking(true);
 		
 		if (cliManager && cliManager.isRunning()) {
 			cliManager.sendMessage(data.text, data.attachments);
 		} else {
 			logger.error('Cannot send message: CLI not running');
-			ChatPanelProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
-			ChatPanelProvider.setThinking(false);
+			chatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
+			chatProvider.setThinking(false);
 		}
-	});
+	}));
 
 	// Register abort handler ONCE in activate
-	ChatPanelProvider.onAbort(async () => {
+	context.subscriptions.push(chatProvider.onDidRequestAbort(async () => {
 		logger.info('Abort requested by user');
 		
 		if (cliManager && cliManager.isRunning()) {
@@ -127,10 +132,10 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			logger.warn('Cannot abort: CLI not running');
 		}
-	});
+	}));
 
 	// Register view plan handler ONCE in activate
-	ChatPanelProvider.onViewPlan(async () => {
+	context.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {
 		// Get plan.md path from work session state directory
 		const planPath = cliManager?.getPlanFilePath();
 		if (!planPath) {
@@ -155,7 +160,7 @@ export function activate(context: vscode.ExtensionContext) {
 			logger.error(`Failed to open plan.md: ${errorMsg}`, error instanceof Error ? error : undefined);
 			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
 		}
-	});
+	}));
 
 	logger.info('Message and view plan handlers registered');
 
@@ -164,7 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info('Start Chat command triggered');
 		
 		// Open the panel first
-		ChatPanelProvider.createOrShow(context.extensionUri);
+		chatProvider.createOrShow();
 		
 		if (cliManager && cliManager.isRunning()) {
 			vscode.window.showInformationMessage('Copilot CLI session is already running');
@@ -187,11 +192,11 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Open the panel
-		ChatPanelProvider.createOrShow(context.extensionUri);
+		chatProvider.createOrShow();
 		
 		// Clear messages and reset plan mode state
-		ChatPanelProvider.clearMessages();
-		ChatPanelProvider.resetPlanMode();
+		chatProvider.clearMessages();
+		chatProvider.resetPlanMode();
 		await startCLISession(context, false); // false = new session
 		updateSessionsList();
 		vscode.window.showInformationMessage('New Copilot CLI session started!');
@@ -209,13 +214,13 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Clear messages and reset plan mode state
-		ChatPanelProvider.resetPlanMode();
+		chatProvider.resetPlanMode();
 		await startCLISession(context, true, sessionId);
 		await loadSessionHistory(sessionId);
 		
 		// Send init message with full state
 		const fullState = backendState.getFullState();
-		ChatPanelProvider.postMessage({
+		chatProvider.postMessage({
 			type: 'init',
 			sessionId: fullState.sessionId,
 			sessionActive: fullState.sessionActive,
@@ -245,8 +250,8 @@ export function activate(context: vscode.ExtensionContext) {
 			
 			statusBarItem.text = "$(comment-discussion) Copilot CLI";
 			statusBarItem.tooltip = "Open Copilot CLI Chat";
-			ChatPanelProvider.setSessionActive(false);
-			ChatPanelProvider.addAssistantMessage('Session ended.');
+			chatProvider.setSessionActive(false);
+			chatProvider.addAssistantMessage('Session ended.');
 			
 			logger.info('✅ CLI process stopped successfully');
 			vscode.window.showInformationMessage('Copilot CLI session stopped');
@@ -259,7 +264,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const refreshPanelCommand = vscode.commands.registerCommand('copilot-cli-extension.refreshPanel', () => {
 		logger.info('Refresh Panel command triggered - forcing recreation');
-		ChatPanelProvider.forceRecreate(context.extensionUri);
+		chatProvider.forceRecreate();
 		vscode.window.showInformationMessage('Chat panel refreshed');
 	});
 	
@@ -402,95 +407,93 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		
 		cliManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
 
-		// Listen to CLI messages
-		cliManager.onMessage((message) => {
-			switch (message.type) {
-				case 'output':
-					logger.info(`[EVENT ORDER] 1️⃣ assistant.message at ${Date.now()}`);
-					logger.debug(`[CLI Output] ${message.data}`);
-					ChatPanelProvider.addAssistantMessage(message.data);
-					ChatPanelProvider.setThinking(false);
+		// Subscribe to granular events (replaces monolithic switch statement)
+		context.subscriptions.push(cliManager.onDidReceiveOutput((content) => {
+			logger.info(`[EVENT ORDER] 1️⃣ assistant.message at ${Date.now()}`);
+			logger.debug(`[CLI Output] ${content}`);
+			chatProvider.addAssistantMessage(content);
+			chatProvider.setThinking(false);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidReceiveReasoning((content) => {
+			logger.info(`[EVENT ORDER] 🧠 assistant.reasoning at ${Date.now()}`);
+			logger.debug(`[Assistant Reasoning] ${content.substring(0, 100)}...`);
+			chatProvider.addReasoningMessage(content);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidReceiveError((errorMsg) => {
+			logger.error(`[CLI Error] ${errorMsg}`);
+			chatProvider.addAssistantMessage(`Error: ${errorMsg}`);
+			chatProvider.setThinking(false);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidChangeStatus((statusData) => {
+			logger.info(`[CLI Status] ${JSON.stringify(statusData)}`);
+			
+			switch (statusData.status) {
+				case 'thinking':
+					chatProvider.setThinking(true);
 					break;
-				case 'reasoning':
-					logger.info(`[EVENT ORDER] 🧠 assistant.reasoning at ${Date.now()}`);
-					logger.debug(`[Assistant Reasoning] ${message.data.substring(0, 100)}...`);
-					ChatPanelProvider.addReasoningMessage(message.data);
+				case 'ready':
+					// Assistant finished turn - don't turn off thinking, wait for actual message
 					break;
-				case 'error':
-					logger.error(`[CLI Error] ${message.data}`);
-					ChatPanelProvider.addAssistantMessage(`Error: ${message.data}`);
-					ChatPanelProvider.setThinking(false);
+				case 'exited':
+				case 'stopped':
+					backendState.setSessionActive(false);
+					statusBarItem.text = "$(comment-discussion) CLI Exited";
+					statusBarItem.tooltip = "Copilot CLI ended";
+					chatProvider.setSessionActive(false);
+					vscode.window.showWarningMessage('Copilot CLI session ended');
 					break;
-				case 'status':
-					logger.info(`[CLI Status] ${JSON.stringify(message.data)}`);
-					if (message.data.status === 'exited' || message.data.status === 'stopped') {
-						backendState.setSessionActive(false);
-						statusBarItem.text = "$(comment-discussion) CLI Exited";
-						statusBarItem.tooltip = "Copilot CLI ended";
-						ChatPanelProvider.setSessionActive(false);
-						vscode.window.showWarningMessage('Copilot CLI session ended');
-					} else if (message.data.status === 'aborted') {
-						// Message was aborted by user
-						ChatPanelProvider.addAssistantMessage('_Generation stopped by user._');
-						ChatPanelProvider.setThinking(false);
-					} else if (message.data.status === 'session_expired') {
-						// Old session expired, new one created
-						logger.info(`Session expired, new session created: ${message.data.newSessionId}`);
-						
-						// Update backend state with new session
-						backendState.setSessionId(message.data.newSessionId);
-						backendState.setSessionActive(true);
-						
-						// Set session active to turn indicator green
-						ChatPanelProvider.setSessionActive(true);
-						
-						// Add a clear visual separator showing the session boundary
-						ChatPanelProvider.addAssistantMessage('---\n\n⚠️ **Previous session expired after inactivity**\n\nThe conversation above is from an expired session and cannot be continued. A new session has been started below.\n\n---');
-						ChatPanelProvider.addAssistantMessage('New session started! How can I help you?');
-						updateSessionsList();
-					} else if (message.data.status === 'thinking') {
-						// Assistant is thinking/generating response
-						ChatPanelProvider.setThinking(true);
-					} else if (message.data.status === 'ready') {
-						// Assistant finished turn (might have more coming though)
-						// Don't turn off thinking here - wait for actual message
-					} else if (
-						message.data.status === 'plan_mode_enabled' ||
-						message.data.status === 'plan_mode_disabled' ||
-						message.data.status === 'plan_accepted' ||
-						message.data.status === 'plan_rejected' ||
-						message.data.status === 'reset_metrics' ||
-						message.data.status === 'plan_ready'
-					) {
-						// Forward plan mode and metrics status to webview
-						ChatPanelProvider.postMessage({ type: 'status', data: message.data });
-					}
+				case 'aborted':
+					chatProvider.addAssistantMessage('_Generation stopped by user._');
+					chatProvider.setThinking(false);
 					break;
-				case 'tool_start':
-					logger.info(`[Tool Start] ${message.data.toolName}`);
-					ChatPanelProvider.addToolExecution(message.data);
+				case 'session_expired':
+					logger.info(`Session expired, new session created: ${statusData.newSessionId}`);
+					backendState.setSessionId(statusData.newSessionId || '');
+					vscode.window.showInformationMessage(`Session expired. New session started: ${statusData.newSessionId}`);
 					break;
-				case 'tool_progress':
-					logger.debug(`[Tool Progress] ${message.data.toolName}: ${message.data.progress}`);
-					ChatPanelProvider.updateToolExecution(message.data);
-					break;
-				case 'tool_complete':
-					logger.info(`[Tool Complete] ${message.data.toolName} - ${message.data.status}`);
-					ChatPanelProvider.updateToolExecution(message.data);
-					break;
-				case 'file_change':
-					logger.info(`[File Change] ${JSON.stringify(message.data)}`);
-					break;
-				case 'diff_available':
-					logger.info(`[Diff Available] ${JSON.stringify(message.data)}`);
-					ChatPanelProvider.notifyDiffAvailable(message.data);
-					break;
-				case 'usage_info':
-					logger.debug(`[Usage Info] ${message.data.currentTokens}/${message.data.tokenLimit}`);
-					ChatPanelProvider.postMessage({ type: 'usage_info', data: message.data });
+				case 'plan_mode_enabled':
+				case 'plan_mode_disabled':
+				case 'plan_accepted':
+				case 'plan_rejected':
+				case 'plan_ready':
+				case 'reset_metrics':
+					// Forward plan mode and metrics events to webview
+					chatProvider.postMessage({ type: 'status', data: statusData });
 					break;
 			}
-		});
+		}));
+		
+		context.subscriptions.push(cliManager.onDidStartTool((toolState) => {
+			logger.info(`[Tool Start] ${toolState.toolName}`);
+			chatProvider.addToolExecution(toolState);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidUpdateTool((toolState) => {
+			logger.debug(`[Tool Progress] ${toolState.toolName}: ${toolState.progress}`);
+			chatProvider.updateToolExecution(toolState);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidCompleteTool((toolState) => {
+			logger.info(`[Tool Complete] ${toolState.toolName} - ${toolState.status}`);
+			chatProvider.updateToolExecution(toolState);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidChangeFile((fileChange) => {
+			logger.info(`[File Change] ${fileChange.path} (${fileChange.type})`);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidProduceDiff((diffData) => {
+			logger.info(`[Diff Available] ${JSON.stringify(diffData)}`);
+			chatProvider.notifyDiffAvailable(diffData);
+		}));
+		
+		context.subscriptions.push(cliManager.onDidUpdateUsage((usageData) => {
+			logger.debug(`[Usage Info] ${usageData.currentTokens}/${usageData.tokenLimit}`);
+			chatProvider.postMessage({ type: 'usage_info', data: usageData });
+		}));
 
 		logger.info('Starting CLI process...');
 		await cliManager.start();
@@ -502,15 +505,15 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		
 		statusBarItem.text = "$(debug-start) CLI Running";
 		statusBarItem.tooltip = "Copilot CLI is active";
-		ChatPanelProvider.setSessionActive(true);
+		chatProvider.setSessionActive(true);
 		
 		// Send workspace path to UI
 		const workspacePath = cliManager.getWorkspacePath();
 		backendState.setWorkspacePath(workspacePath || null);
-		ChatPanelProvider.setWorkspacePath(workspacePath);
+		chatProvider.setWorkspacePath(workspacePath);
 		
 		// Register attachment validation callback
-		ChatPanelProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
+		chatProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
 			if (!cliManager) {
 				return { valid: false, error: 'Session not active' };
 			}
@@ -518,7 +521,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		});
 		
 		logger.info('✅ CLI process started successfully');
-		ChatPanelProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
+		chatProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
 		
 		// Update session dropdown with the now-active session
 		// FIX: Dropdown was updated before session started (currentSessionId=null)
@@ -549,7 +552,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				logger.info(`[Auth Handler] Invalid/expired token in ${envVarSource}`);
 				
 				// Add message to chat panel
-				ChatPanelProvider.addAssistantMessage(
+				chatProvider.addAssistantMessage(
 					`🔐 **Authentication Failed**\n\n` +
 					`Your \`${envVarSource}\` environment variable appears to be invalid or expired.\n\n` +
 					`**To fix this:**\n` +
@@ -574,7 +577,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					// Open terminal for user to manually fix
 					const terminal = vscode.window.createTerminal('Copilot Auth');
 					terminal.show();
-					ChatPanelProvider.addAssistantMessage(`Terminal opened. Update your \`${envVarSource}\` or unset it, then restart VS Code.`);
+					chatProvider.addAssistantMessage(`Terminal opened. Update your \`${envVarSource}\` or unset it, then restart VS Code.`);
 				} else if (action === 'Start New Session') {
 					await startCLISession(context, false, undefined);
 				}
@@ -609,7 +612,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					terminal.show();
 					
 					// Add message to chat panel with clear instructions
-					ChatPanelProvider.addAssistantMessage(
+					chatProvider.addAssistantMessage(
 						'🔐 **Authentication Required**\n\n' +
 						'A terminal has been opened with the `copilot login` command. Please:\n\n' +
 						'1. Complete the device code flow in your browser\n' +
@@ -711,7 +714,7 @@ function updateSessionsList() {
 		
 		// If no sessions found, send empty list
 		if (sessions.length === 0) {
-			ChatPanelProvider.updateSessions([], null);
+			chatProvider.updateSessions([], null);
 			return;
 		}
 		
@@ -724,7 +727,7 @@ function updateSessionsList() {
 			label: formatSessionLabel(session.id, path.join(os.homedir(), '.copilot', 'session-state', session.id))
 		}));
 		
-		ChatPanelProvider.updateSessions(sessionList, currentSessionId);
+		chatProvider.updateSessions(sessionList, currentSessionId);
 	} catch (error) {
 		logger.error('Failed to update sessions list', error instanceof Error ? error : undefined);
 	}
@@ -848,7 +851,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 		if (vscode.window.visibleTextEditors.length === 0) {
 			// All files are closed, clear active file
 			backendState.setActiveFilePath(null);
-			ChatPanelProvider.updateActiveFile(null);
+			chatProvider.updateActiveFile(null);
 			lastKnownTextEditor = undefined;
 		}
 		// Otherwise, keep the last known active file (focus moved to webview)
@@ -858,7 +861,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	const includeActiveFile = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true);
 	if (!includeActiveFile) {
 		backendState.setActiveFilePath(null);
-		ChatPanelProvider.updateActiveFile(null);
+		chatProvider.updateActiveFile(null);
 		return;
 	}
 	
@@ -874,7 +877,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	}
 	
 	backendState.setActiveFilePath(relativePath);
-	ChatPanelProvider.updateActiveFile(relativePath);
+	chatProvider.updateActiveFile(relativePath);
 }
 
 export function deactivate() {
