@@ -6,6 +6,7 @@ import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
+import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
 
 let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
@@ -446,8 +447,30 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	})));
 
 	context.subscriptions.push(manager.onDidProduceDiff(safeHandler('onDidProduceDiff', (diffData) => {
-		logger.info(`[Diff Available] ${JSON.stringify(diffData)}`);
-		chatProvider.notifyDiffAvailable(diffData);
+		logger.info(`[Diff Available] ${diffData.title}`);
+
+		// Compute inline diff lines from before/after files
+		let diffLines: DiffLine[] = [];
+		let diffTruncated = false;
+		let diffTotalLines = 0;
+		try {
+			const fs = require('fs');
+			const beforeContent = fs.existsSync(diffData.beforeUri) ? fs.readFileSync(diffData.beforeUri, 'utf-8') : '';
+			const afterContent = fs.existsSync(diffData.afterUri) ? fs.readFileSync(diffData.afterUri, 'utf-8') : '';
+			const inlineDiff = computeInlineDiff(beforeContent, afterContent);
+			diffLines = inlineDiff.lines;
+			diffTruncated = inlineDiff.truncated;
+			diffTotalLines = inlineDiff.totalLines;
+		} catch (error) {
+			logger.warn(`[Diff] Failed to compute inline diff: ${error instanceof Error ? error.message : error}`);
+		}
+
+		chatProvider.notifyDiffAvailable({
+			...diffData,
+			diffLines,
+			diffTruncated,
+			diffTotalLines
+		});
 	})));
 
 	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {

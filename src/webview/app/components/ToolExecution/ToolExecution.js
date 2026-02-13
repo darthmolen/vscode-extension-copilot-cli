@@ -184,7 +184,23 @@ export class ToolExecution {
         if (toolState.progress) {
             html += `<div class="tool-progress tool-execution__progress">${this.escapeHtml(toolState.progress)}</div>`;
         }
-        
+
+        if (toolState.diffLines && toolState.diffLines.length > 0) {
+            html += '<div class="inline-diff">';
+            for (const line of toolState.diffLines) {
+                const typeClass = line.type === 'add' ? 'diff-add' :
+                                  line.type === 'remove' ? 'diff-remove' : 'diff-context';
+                const prefix = line.type === 'add' ? '+ ' :
+                               line.type === 'remove' ? '- ' : '  ';
+                html += `<div class="diff-line ${typeClass}">${prefix}${this.escapeHtml(line.text)}</div>`;
+            }
+            if (toolState.diffTruncated) {
+                const remaining = toolState.diffTotalLines - toolState.diffLines.length;
+                html += `<div class="diff-truncated">... ${remaining} more lines</div>`;
+            }
+            html += '</div>';
+        }
+
         if (hasDetails) {
             html += `
                 <details class="tool-details tool-execution__details">

@@ -332,12 +332,15 @@ export function handleToolUpdateMessage(payload) {
 export function handleDiffAvailableMessage(payload) {
 	// Defensive: handle both payload formats
 	const data = payload.data || payload;
-	
-	// Emit event to update existing tool with diff button
+
+	// Emit event to update existing tool with diff button + inline diff lines
 	eventBus.emit('tool:complete', {
 		toolCallId: data.toolCallId,
 		hasDiff: true,
-		diffData: data
+		diffData: data,
+		diffLines: data.diffLines,
+		diffTruncated: data.diffTruncated,
+		diffTotalLines: data.diffTotalLines
 	});
 }
 

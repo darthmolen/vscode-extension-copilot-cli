@@ -305,6 +305,9 @@ export interface DiffAvailablePayload extends BaseMessage {
 	beforeUri: string;
 	afterUri: string;
 	title: string;
+	diffLines?: Array<{ type: 'add' | 'remove' | 'context'; text: string }>;
+	diffTruncated?: boolean;
+	diffTotalLines?: number;
 }
 
 /**

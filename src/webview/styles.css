@@ -458,6 +458,43 @@ main {
 	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
+/* Inline diff display inside tool cards */
+.inline-diff {
+	margin: 4px 0 2px 0;
+	padding: 4px 8px;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+	line-height: 1.5;
+	border-radius: 3px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-panel-border);
+	overflow-x: auto;
+}
+
+.diff-line {
+	white-space: pre;
+}
+
+.diff-add {
+	color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043);
+	background-color: rgba(46, 160, 67, 0.1);
+}
+
+.diff-remove {
+	color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
+	background-color: rgba(248, 81, 73, 0.1);
+}
+
+.diff-context {
+	color: var(--vscode-descriptionForeground);
+}
+
+.diff-truncated {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	padding-top: 2px;
+}
+
 .tool-intent,
 .tool-execution__intent {
 	flex: 1;
