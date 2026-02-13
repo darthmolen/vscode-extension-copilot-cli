@@ -10,24 +10,32 @@
 import { expect } from 'chai';
 import { JSDOM } from 'jsdom';
 
-// Setup DOM environment
-const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-global.window = dom.window;
-global.document = dom.window.document;
-
 describe('ToolExecution Component', () => {
+    let dom;
     let ToolExecution;
     let EventBus;
     let container;
     let eventBus;
 
     before(async () => {
-        // Dynamic import of ToolExecution (will fail until created)
+        // Setup DOM environment inside describe to avoid conflicts with other test files
+        dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+        global.window = dom.window;
+        global.document = dom.window.document;
+
         const execModule = await import('../../src/webview/app/components/ToolExecution/ToolExecution.js');
         ToolExecution = execModule.ToolExecution;
-        
+
         const busModule = await import('../../src/webview/app/state/EventBus.js');
         EventBus = busModule.EventBus;
+    });
+
+    after(() => {
+        delete global.window;
+        delete global.document;
+        if (dom && dom.window) {
+            dom.window.close();
+        }
     });
 
     beforeEach(() => {

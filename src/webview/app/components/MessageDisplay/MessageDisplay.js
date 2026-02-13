@@ -3,17 +3,22 @@ import { ToolExecution } from '../ToolExecution/ToolExecution.js';
 
 /**
  * MessageDisplay Component (Parent)
- * 
+ *
  * Renders chat messages including user messages, assistant messages, and reasoning.
  * Handles markdown rendering for assistant messages and attachments display.
  * Self-rendering component - creates its own DOM structure
- * 
+ *
  * Children: ToolExecution (created internally)
- * 
+ *
  * Usage:
  *   const display = new MessageDisplay(container, eventBus);
  *   // ToolExecution is created automatically as child component
  */
+
+const DEBUG_SCROLL = false;
+function scrollLog(...args) {
+    if (DEBUG_SCROLL) console.log('[Scroll]', ...args);
+}
 
 export class MessageDisplay {
     constructor(container, eventBus) {
@@ -23,18 +28,18 @@ export class MessageDisplay {
         this.emptyState = null;
         this.thinking = null;
         this.showReasoning = false;
-        
-        // ResizeObserver for auto-scroll
+
+        // MutationObserver for auto-scroll
         this.scrollTimeout = null;
-        this.resizeObserver = null;
+        this.mutationObserver = null;
         this.userHasScrolled = false; // Track if user manually scrolled
         this.isProgrammaticScroll = false; // Flag to ignore our own scrolls
-        
+
         this.render();
-        
+
         // Create ToolExecution as child component - owns tool rendering
         this.toolExecution = new ToolExecution(this.messagesContainer, eventBus);
-        
+
         this.attachListeners();
         this.setupAutoScroll();
     }
@@ -64,135 +69,138 @@ export class MessageDisplay {
         this.eventBus.on('message:add', (message) => {
             this.addMessage(message);
         });
-        
+
         // Subscribe to reasoning:toggle event
         this.eventBus.on('reasoning:toggle', (enabled) => {
             this.showReasoning = enabled;
             this.updateReasoningVisibility();
         });
-        
+
         // Track user manual scrolling
         if (this.messagesContainer) {
             this.messagesContainer.addEventListener('scroll', () => {
                 // Ignore scroll events we triggered programmatically
                 if (this.isProgrammaticScroll) {
-                    console.log('[Scroll] Ignoring programmatic scroll');
+                    scrollLog('Ignoring programmatic scroll');
                     return;
                 }
-                
+
                 // Only set userHasScrolled if they scroll away from bottom
                 if (!this.isNearBottomRaw()) {
-                    console.log('[Scroll] User manually scrolled away from bottom');
+                    scrollLog('User manually scrolled away from bottom');
                     this.userHasScrolled = true;
                 } else {
-                    console.log('[Scroll] User scrolled to bottom, resuming auto-scroll');
+                    scrollLog('User scrolled to bottom, resuming auto-scroll');
                     this.userHasScrolled = false;
                 }
             });
         }
     }
-    
+
     /**
-     * Setup ResizeObserver for auto-scroll on content/layout changes
+     * Setup MutationObserver for auto-scroll on new message additions.
+     * Only triggers when children are added (new messages), not on
+     * unrelated layout changes like input area resize.
      */
     setupAutoScroll() {
-        // Observe parent <main> element for both message content and input area expansion
-        const mainElement = document.querySelector('main');
-        if (!mainElement) {
-            console.warn('[MessageDisplay] Could not find <main> element for ResizeObserver');
-            return;
-        }
-        
-        console.log('[ResizeObserver] Setting up observer on <main> element');
-        
-        this.resizeObserver = new ResizeObserver(() => {
-            console.log('[ResizeObserver] Resize detected, debouncing scroll...');
-            // Debounce: wait 50ms after last resize before scrolling
-            clearTimeout(this.scrollTimeout);
-            this.scrollTimeout = setTimeout(() => {
-                console.log('[ResizeObserver] Debounce complete, calling autoScroll()');
-                this.autoScroll();
-            }, 50);
+        if (!this.messagesContainer) return;
+
+        scrollLog('Setting up MutationObserver on messagesContainer');
+
+        this.mutationObserver = new MutationObserver((mutations) => {
+            const hasNewChildren = mutations.some(m => m.addedNodes.length > 0);
+            if (hasNewChildren) {
+                scrollLog('Mutation detected: new children added, debouncing scroll...');
+                clearTimeout(this.scrollTimeout);
+                this.scrollTimeout = setTimeout(() => {
+                    scrollLog('Debounce complete, calling autoScroll()');
+                    this.autoScroll();
+                }, 50);
+            }
         });
-        
-        this.resizeObserver.observe(mainElement);
-        console.log('[ResizeObserver] Observer active');
+
+        this.mutationObserver.observe(this.messagesContainer, {
+            childList: true,
+            subtree: false
+        });
+
+        scrollLog('MutationObserver active');
     }
-    
+
     /**
      * Raw check if near bottom (without initial load special case)
      */
     isNearBottomRaw() {
         if (!this.messagesContainer) return true;
-        
+
         const threshold = 100;
         const { scrollTop, scrollHeight, clientHeight } = this.messagesContainer;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        
+
         return distanceFromBottom < threshold;
     }
-    
+
     /**
      * Check if user is near the bottom of messages (within 100px threshold)
      * Special case: If user hasn't manually scrolled yet, always return true (initial load)
      */
     isNearBottom() {
         if (!this.messagesContainer) return true;
-        
+
         // If user hasn't manually scrolled away, always auto-scroll (initial load behavior)
         if (!this.userHasScrolled) {
-            console.log('[isNearBottom] User has not manually scrolled, auto-scrolling');
+            scrollLog('User has not manually scrolled, auto-scrolling');
             return true;
         }
-        
+
         const threshold = 100; // px from bottom
         const { scrollTop, scrollHeight, clientHeight } = this.messagesContainer;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        
-        console.log('[isNearBottom] scrollTop:', scrollTop, 'scrollHeight:', scrollHeight, 'clientHeight:', clientHeight, 'distance:', distanceFromBottom, 'threshold:', threshold);
-        
+
+        scrollLog('scrollTop:', scrollTop, 'scrollHeight:', scrollHeight, 'clientHeight:', clientHeight, 'distance:', distanceFromBottom);
+
         return distanceFromBottom < threshold;
     }
-    
+
     /**
      * Auto-scroll to bottom only if user is near bottom
      */
     autoScroll() {
         const nearBottom = this.isNearBottom();
-        console.log('[ResizeObserver] autoScroll() called, nearBottom:', nearBottom);
+        scrollLog('autoScroll() called, nearBottom:', nearBottom);
         if (nearBottom) {
             this.scrollToBottom();
         } else {
-            console.log('[ResizeObserver] User scrolled up, skipping auto-scroll');
+            scrollLog('User scrolled up, skipping auto-scroll');
         }
     }
-    
+
     /**
      * Scroll messages to bottom
      */
     scrollToBottom() {
         if (this.messagesContainer) {
-            console.log('[SCROLL] scrollToBottom() called, scrollHeight:', this.messagesContainer.scrollHeight);
-            
+            scrollLog('scrollToBottom() called, scrollHeight:', this.messagesContainer.scrollHeight);
+
             // Set flag to ignore the scroll event we're about to trigger
             this.isProgrammaticScroll = true;
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            
-            // Reset flag after scroll completes (next tick)
-            setTimeout(() => {
+
+            // Reset flag after scroll completes (next frame, not next tick)
+            requestAnimationFrame(() => {
                 this.isProgrammaticScroll = false;
                 this.userHasScrolled = false; // We're at bottom now
-            }, 0);
+            });
         }
     }
-    
+
     /**
      * Cleanup resources
      */
     dispose() {
-        if (this.resizeObserver) {
-            this.resizeObserver.disconnect();
-            this.resizeObserver = null;
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+            this.mutationObserver = null;
         }
         if (this.scrollTimeout) {
             clearTimeout(this.scrollTimeout);
@@ -200,50 +208,39 @@ export class MessageDisplay {
         }
     }
 
-    clearMessages() {
-        // Clear all messages and show empty state
-        const messagesDiv = this.container.querySelector('#messages');
-        if (messagesDiv) {
-            messagesDiv.innerHTML = '';
-        }
-        if (this.emptyState) {
-            this.emptyState.style.display = 'flex';
-        }
-    }
-
     addMessage(message) {
         const { role, content, attachments, timestamp } = message;
-        
+
         // Hide empty state after first message
         if (this.emptyState) {
             this.emptyState.style.display = 'none';
         }
-        
+
         const messageDiv = document.createElement('div');
         messageDiv.className = `message message-display__item message-display__item--${role}`;
         messageDiv.setAttribute('role', 'article');
         messageDiv.dataset.timestamp = timestamp || Date.now();
-        
+
         // Handle different message types
         if (role === 'reasoning') {
             messageDiv.setAttribute('aria-label', 'Assistant reasoning');
             messageDiv.style.display = this.showReasoning ? 'block' : 'none';
             messageDiv.innerHTML = `
                 <div class="message-header message-display__header" style="font-style: italic;">Assistant Reasoning</div>
-                <div class="message-content message-display__content" style="font-style: italic;">${this.escapeHtml(content)}</div>
+                <div class="message-content message-display__content" style="font-style: italic;">${escapeHtml(content)}</div>
             `;
         } else {
             messageDiv.setAttribute('aria-label', `${role === 'user' ? 'Your' : 'Assistant'} message`);
-            
+
             // Use marked for assistant messages, plain text for user
-            const renderedContent = role === 'assistant' 
+            const renderedContent = role === 'assistant'
                 ? (typeof marked !== 'undefined' ? marked.parse(content) : content)
-                : this.escapeHtml(content);
-            
+                : escapeHtml(content);
+
             // Build attachments HTML if present
             let attachmentsHtml = '';
             if (attachments && attachments.length > 0) {
-                attachmentsHtml = '<div class="message-attachments message-display__attachments">' + 
+                attachmentsHtml = '<div class="message-attachments message-display__attachments">' +
                     attachments.map(att => `
                         <div class="message-attachment message-display__attachment">
                             ${att.webviewUri ? `<img src="${att.webviewUri}" alt="${att.displayName}" class="message-attachment-image" />` : ''}
@@ -252,7 +249,7 @@ export class MessageDisplay {
                     `).join('') +
                     '</div>';
             }
-            
+
             messageDiv.innerHTML = `
                 <div class="message-header message-display__header">${role === 'user' ? 'You' : 'Assistant'}</div>
                 <div class="message-content message-display__content">
@@ -261,9 +258,9 @@ export class MessageDisplay {
                 </div>
             `;
         }
-        
+
         this.messagesContainer.appendChild(messageDiv);
-        // ResizeObserver handles scrolling automatically
+        // MutationObserver handles scrolling automatically
     }
 
     updateReasoningVisibility() {
@@ -273,20 +270,22 @@ export class MessageDisplay {
         });
     }
 
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
     clear() {
         // Remove all messages except empty state
         const messages = this.messagesContainer.querySelectorAll('.message-display__item');
         messages.forEach(msg => msg.remove());
-        
+
+        // Clear tool executions (if ToolExecution supports it)
+        if (this.toolExecution && typeof this.toolExecution.clear === 'function') {
+            this.toolExecution.clear();
+        }
+
         // Show empty state
         if (this.emptyState) {
-            this.emptyState.style.display = 'block';
+            this.emptyState.style.display = 'flex';
         }
+
+        // Reset scroll state
+        this.userHasScrolled = false;
     }
 }

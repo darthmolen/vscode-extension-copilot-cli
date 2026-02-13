@@ -289,7 +289,7 @@ export function handleActiveFileChangedMessage(payload) {
  */
 export function handleClearMessagesMessage(payload) {
 	// Delegate to MessageDisplay component
-	messageDisplay.clearMessages();
+	messageDisplay.clear();
 }
 
 /**
@@ -437,8 +437,8 @@ export function handleFilesSelectedMessage(payload) {
  */
 export function handleInitMessage(payload) {
 	// Clear messages via MessageDisplay
-	messageDisplay.clearMessages();
-	
+	messageDisplay.clear();
+
 	// Add messages from init
 	if (payload.messages && payload.messages.length > 0) {
 		// MessageDisplay handles hiding empty state via EventBus

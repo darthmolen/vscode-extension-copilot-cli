@@ -9,6 +9,7 @@ import { MessageEnhancementService } from './messageEnhancementService';
 import { FileSnapshotService } from './fileSnapshotService';
 import { MCPConfigurationService } from './mcpConfigurationService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
+import { BufferedEmitter } from './utilities/bufferedEmitter';
 import { 
     classifySessionError, 
     checkAuthEnvVars, 
@@ -104,34 +105,34 @@ export class SDKSessionManager implements vscode.Disposable {
     private readonly _sessionSub = this._reg(new MutableDisposable<vscode.Disposable>());
     
     // Granular event emitters (created once, survive session switches)
-    private readonly _onDidReceiveOutput = this._reg(new vscode.EventEmitter<string>());
+    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveOutput = this._onDidReceiveOutput.event;
     
-    private readonly _onDidReceiveReasoning = this._reg(new vscode.EventEmitter<string>());
+    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;
     
-    private readonly _onDidReceiveError = this._reg(new vscode.EventEmitter<string>());
+    private readonly _onDidReceiveError = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveError = this._onDidReceiveError.event;
     
-    private readonly _onDidChangeStatus = this._reg(new vscode.EventEmitter<StatusData>());
+    private readonly _onDidChangeStatus = this._reg(new BufferedEmitter<StatusData>());
     readonly onDidChangeStatus = this._onDidChangeStatus.event;
     
-    private readonly _onDidStartTool = this._reg(new vscode.EventEmitter<ToolExecutionState>());
+    private readonly _onDidStartTool = this._reg(new BufferedEmitter<ToolExecutionState>());
     readonly onDidStartTool = this._onDidStartTool.event;
     
-    private readonly _onDidUpdateTool = this._reg(new vscode.EventEmitter<ToolExecutionState>());
+    private readonly _onDidUpdateTool = this._reg(new BufferedEmitter<ToolExecutionState>());
     readonly onDidUpdateTool = this._onDidUpdateTool.event;
     
-    private readonly _onDidCompleteTool = this._reg(new vscode.EventEmitter<ToolExecutionState>());
+    private readonly _onDidCompleteTool = this._reg(new BufferedEmitter<ToolExecutionState>());
     readonly onDidCompleteTool = this._onDidCompleteTool.event;
     
-    private readonly _onDidChangeFile = this._reg(new vscode.EventEmitter<FileChangeData>());
+    private readonly _onDidChangeFile = this._reg(new BufferedEmitter<FileChangeData>());
     readonly onDidChangeFile = this._onDidChangeFile.event;
     
-    private readonly _onDidProduceDiff = this._reg(new vscode.EventEmitter<DiffData>());
+    private readonly _onDidProduceDiff = this._reg(new BufferedEmitter<DiffData>());
     readonly onDidProduceDiff = this._onDidProduceDiff.event;
     
-    private readonly _onDidUpdateUsage = this._reg(new vscode.EventEmitter<UsageData>());
+    private readonly _onDidUpdateUsage = this._reg(new BufferedEmitter<UsageData>());
     readonly onDidUpdateUsage = this._onDidUpdateUsage.event;
     
     private logger: Logger;
@@ -424,6 +425,7 @@ export class SDKSessionManager implements vscode.Disposable {
     }
 
     private _handleSDKEvent(event: any): void {
+        try {
         this.logger.debug(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
 
         switch (event.type) {
@@ -519,73 +521,88 @@ export class SDKSessionManager implements vscode.Disposable {
             default:
                 this.logger.debug(`Unhandled event type: ${event.type}`);
         }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error handling event "${event?.type}": ${error instanceof Error ? error.message : error}`);
+        }
     }
 
     private handleToolStart(event: any): void {
-        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
-        const data = event.data;
-        
-        const state: ToolExecutionState = {
-            toolCallId: data.toolCallId,
-            toolName: data.toolName,
-            arguments: data.arguments,
-            status: 'running',
-            startTime: eventTime,
-            intent: this.lastMessageIntent,  // Attach the intent from report_intent
-        };
-        
-        // Clear intent after first use to prevent it sticking to all subsequent tools
-        this.lastMessageIntent = undefined;
-        
-        this.toolExecutions.set(data.toolCallId, state);
-        
-        // Capture file snapshot for edit/create tools
-        this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
-        
-        this._onDidStartTool.fire(state);
+        try {
+            const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+            const data = event.data;
+
+            const state: ToolExecutionState = {
+                toolCallId: data.toolCallId,
+                toolName: data.toolName,
+                arguments: data.arguments,
+                status: 'running',
+                startTime: eventTime,
+                intent: this.lastMessageIntent,  // Attach the intent from report_intent
+            };
+
+            // Clear intent after first use to prevent it sticking to all subsequent tools
+            this.lastMessageIntent = undefined;
+
+            this.toolExecutions.set(data.toolCallId, state);
+
+            // Capture file snapshot for edit/create tools
+            this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
+
+            this._onDidStartTool.fire(state);
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolStart: ${error instanceof Error ? error.message : error}`);
+        }
     }
 
     private handleToolProgress(event: any): void {
-        const data = event.data;
-        const state = this.toolExecutions.get(data.toolCallId);
-        if (state) {
-            state.progress = data.progressMessage;
-            
-            this._onDidUpdateTool.fire(state);
+        try {
+            const data = event.data;
+            const state = this.toolExecutions.get(data.toolCallId);
+            if (state) {
+                state.progress = data.progressMessage;
+
+                this._onDidUpdateTool.fire(state);
+            }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolProgress: ${error instanceof Error ? error.message : error}`);
         }
     }
 
     private handleToolComplete(event: any): void {
-        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
-        const data = event.data;
-        const state = this.toolExecutions.get(data.toolCallId);
-        if (state) {
-            state.status = data.success ? 'complete' : 'failed';
-            state.endTime = eventTime;
-            state.result = data.result?.content;
-            state.error = data.error ? { message: data.error.message, code: data.error.code } : undefined;
-            
-            this._onDidCompleteTool.fire(state);
+        try {
+            const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+            const data = event.data;
+            const state = this.toolExecutions.get(data.toolCallId);
+            if (state) {
+                state.status = data.success ? 'complete' : 'failed';
+                state.endTime = eventTime;
+                state.result = data.result?.content;
+                state.error = data.error ? { message: data.error.message, code: data.error.code } : undefined;
 
-            // Check if this was a file operation
-            if (state.toolName === 'edit' || state.toolName === 'create') {
-                this._onDidChangeFile.fire({
-                    path: (state.arguments as any)?.path || '',
-                    type: state.toolName === 'create' ? 'created' : 'modified'
-                });
-                
-                // If we have a snapshot and operation succeeded, fire diff_available
-                const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
-                if (snapshot && data.success) {
-                    const fileName = path.basename(snapshot.originalPath);
-                    this._onDidProduceDiff.fire({
-                        toolCallId: data.toolCallId,
-                        beforeUri: snapshot.tempFilePath,
-                        afterUri: snapshot.originalPath,
-                        title: `${fileName} (Before ↔ After)`
+                this._onDidCompleteTool.fire(state);
+
+                // Check if this was a file operation
+                if (state.toolName === 'edit' || state.toolName === 'create') {
+                    this._onDidChangeFile.fire({
+                        path: (state.arguments as any)?.path || '',
+                        type: state.toolName === 'create' ? 'created' : 'modified'
                     });
+
+                    // If we have a snapshot and operation succeeded, fire diff_available
+                    const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
+                    if (snapshot && data.success) {
+                        const fileName = path.basename(snapshot.originalPath);
+                        this._onDidProduceDiff.fire({
+                            toolCallId: data.toolCallId,
+                            beforeUri: snapshot.tempFilePath,
+                            afterUri: snapshot.originalPath,
+                            title: `${fileName} (Before ↔ After)`
+                        });
+                    }
                 }
             }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolComplete: ${error instanceof Error ? error.message : error}`);
         }
     }
     

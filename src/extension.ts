@@ -12,6 +12,17 @@ let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatPanelProvider;
 
+/** Wraps an event handler with try/catch to prevent one handler error from breaking others. */
+function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => void {
+	return (data: T) => {
+		try {
+			handler(data);
+		} catch (error) {
+			Logger.getInstance().error(`[Event Handler] Error in ${name}: ${error instanceof Error ? error.message : error}`);
+		}
+	};
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
 	backendState = getBackendState();
@@ -408,28 +419,28 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		cliManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
 
 		// Subscribe to granular events (replaces monolithic switch statement)
-		context.subscriptions.push(cliManager.onDidReceiveOutput((content) => {
+		context.subscriptions.push(cliManager.onDidReceiveOutput(safeHandler('onDidReceiveOutput', (content) => {
 			logger.info(`[EVENT ORDER] 1️⃣ assistant.message at ${Date.now()}`);
 			logger.debug(`[CLI Output] ${content}`);
 			chatProvider.addAssistantMessage(content);
 			chatProvider.setThinking(false);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidReceiveReasoning((content) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidReceiveReasoning(safeHandler('onDidReceiveReasoning', (content) => {
 			logger.info(`[EVENT ORDER] 🧠 assistant.reasoning at ${Date.now()}`);
 			logger.debug(`[Assistant Reasoning] ${content.substring(0, 100)}...`);
 			chatProvider.addReasoningMessage(content);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidReceiveError((errorMsg) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidReceiveError(safeHandler('onDidReceiveError', (errorMsg) => {
 			logger.error(`[CLI Error] ${errorMsg}`);
 			chatProvider.addAssistantMessage(`Error: ${errorMsg}`);
 			chatProvider.setThinking(false);
-		}));
+		})));
 		
-		context.subscriptions.push(cliManager.onDidChangeStatus((statusData) => {
+		context.subscriptions.push(cliManager.onDidChangeStatus(safeHandler('onDidChangeStatus', (statusData) => {
 			logger.info(`[CLI Status] ${JSON.stringify(statusData)}`);
-			
+
 			switch (statusData.status) {
 				case 'thinking':
 					chatProvider.setThinking(true);
@@ -464,36 +475,36 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 					chatProvider.postMessage({ type: 'status', data: statusData });
 					break;
 			}
-		}));
-		
-		context.subscriptions.push(cliManager.onDidStartTool((toolState) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
 			logger.info(`[Tool Start] ${toolState.toolName}`);
 			chatProvider.addToolExecution(toolState);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidUpdateTool((toolState) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidUpdateTool(safeHandler('onDidUpdateTool', (toolState) => {
 			logger.debug(`[Tool Progress] ${toolState.toolName}: ${toolState.progress}`);
 			chatProvider.updateToolExecution(toolState);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidCompleteTool((toolState) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidCompleteTool(safeHandler('onDidCompleteTool', (toolState) => {
 			logger.info(`[Tool Complete] ${toolState.toolName} - ${toolState.status}`);
 			chatProvider.updateToolExecution(toolState);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidChangeFile((fileChange) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {
 			logger.info(`[File Change] ${fileChange.path} (${fileChange.type})`);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidProduceDiff((diffData) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidProduceDiff(safeHandler('onDidProduceDiff', (diffData) => {
 			logger.info(`[Diff Available] ${JSON.stringify(diffData)}`);
 			chatProvider.notifyDiffAvailable(diffData);
-		}));
-		
-		context.subscriptions.push(cliManager.onDidUpdateUsage((usageData) => {
+		})));
+
+		context.subscriptions.push(cliManager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {
 			logger.debug(`[Usage Info] ${usageData.currentTokens}/${usageData.tokenLimit}`);
 			chatProvider.postMessage({ type: 'usage_info', data: usageData });
-		}));
+		})));
 
 		logger.info('Starting CLI process...');
 		await cliManager.start();

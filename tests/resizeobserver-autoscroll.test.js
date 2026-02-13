@@ -47,6 +47,16 @@ describe('MessageDisplay - ResizeObserver Auto-Scroll', () => {
 				this.observations = [];
 			}
 		};
+
+		// Polyfill MutationObserver (available on JSDOM window but not global)
+		global.MutationObserver = dom.window.MutationObserver;
+
+		// Polyfill requestAnimationFrame
+		global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+		global.cancelAnimationFrame = (id) => clearTimeout(id);
+
+		// Mock marked.js
+		global.marked = { parse: (text) => `<p>${text}</p>` };
 	});
 
 	beforeEach(async () => {
@@ -60,20 +70,22 @@ describe('MessageDisplay - ResizeObserver Auto-Scroll', () => {
 	});
 
 	afterEach(() => {
-		if (messageDisplay && messageDisplay.resizeObserver) {
-			messageDisplay.resizeObserver.disconnect();
+		if (messageDisplay) {
+			if (messageDisplay.dispose) {
+				messageDisplay.dispose();
+			} else if (messageDisplay.mutationObserver) {
+				messageDisplay.mutationObserver.disconnect();
+			}
 		}
 	});
 
 	describe('Initialization', () => {
-		it('should create ResizeObserver instance', () => {
-			expect(messageDisplay.resizeObserver, 'ResizeObserver should exist').to.exist;
-			expect(messageDisplay.resizeObserver).to.be.instanceOf(global.ResizeObserver);
+		it('should create MutationObserver instance', () => {
+			expect(messageDisplay.mutationObserver, 'MutationObserver should exist').to.exist;
 		});
 
-		it('should observe the parent main element', () => {
-			// Verify observer is set up (hard to test directly, but we can check property exists)
-			expect(messageDisplay.resizeObserver, 'Should have ResizeObserver').to.exist;
+		it('should observe the messagesContainer', () => {
+			expect(messageDisplay.mutationObserver, 'Should have MutationObserver').to.exist;
 		});
 
 		it('should have debounce timeout property', () => {
@@ -101,12 +113,16 @@ describe('MessageDisplay - ResizeObserver Auto-Scroll', () => {
 
 		it('should return false when scrolled up', () => {
 			const messages = messageDisplay.container.querySelector('#messages');
-			
+
+			// Must set userHasScrolled so isNearBottom uses distance calculation
+			// (otherwise it returns true for initial load behavior)
+			messageDisplay.userHasScrolled = true;
+
 			// Simulate being scrolled up (more than 100px from bottom)
-			Object.defineProperty(messages, 'scrollTop', { value: 0, writable: true });
-			Object.defineProperty(messages, 'scrollHeight', { value: 1000, writable: true });
-			Object.defineProperty(messages, 'clientHeight', { value: 500, writable: true });
-			
+			Object.defineProperty(messages, 'scrollTop', { value: 0, writable: true, configurable: true });
+			Object.defineProperty(messages, 'scrollHeight', { value: 1000, writable: true, configurable: true });
+			Object.defineProperty(messages, 'clientHeight', { value: 500, writable: true, configurable: true });
+
 			// scrollHeight (1000) - scrollTop (0) - clientHeight (500) = 500 > 100px threshold
 			expect(messageDisplay.isNearBottom()).to.be.false;
 		});
@@ -193,14 +209,14 @@ describe('MessageDisplay - ResizeObserver Auto-Scroll', () => {
 			let disconnectCalled = false;
 			
 			// Mock disconnect
-			if (messageDisplay.resizeObserver) {
-				const originalDisconnect = messageDisplay.resizeObserver.disconnect;
-				messageDisplay.resizeObserver.disconnect = () => {
+			if (messageDisplay.mutationObserver) {
+				const originalDisconnect = messageDisplay.mutationObserver.disconnect;
+				messageDisplay.mutationObserver.disconnect = () => {
 					disconnectCalled = true;
-					originalDisconnect.call(messageDisplay.resizeObserver);
+					originalDisconnect.call(messageDisplay.mutationObserver);
 				};
 				
-				messageDisplay.resizeObserver.disconnect();
+				messageDisplay.mutationObserver.disconnect();
 				expect(disconnectCalled, 'Should call disconnect').to.be.true;
 			}
 		});
