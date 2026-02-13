@@ -39,6 +39,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "copilot-cli-sidebar",
+          "title": "Copilot CLI",
+          "icon": "images/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "copilot-cli-sidebar": [
+        {
+          "type": "webview",
+          "id": "copilot-cli.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "copilot-cli-extension.openChat",
@@ -70,6 +88,18 @@
           "command": "copilot-cli-extension.openChat",
           "group": "navigation",
           "when": "editorFocus"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "copilot-cli-extension.newSession",
+          "when": "view == copilot-cli.chatView",
+          "group": "navigation"
+        },
+        {
+          "command": "copilot-cli-extension.refreshPanel",
+          "when": "view == copilot-cli.chatView",
+          "group": "navigation"
         }
       ]
     },
@@ -299,16 +329,12 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "npm run test:plan-mode",
-    "test:mcp": "npm run compile && node tests/mcp-integration.test.js",
-    "test:plan-mode": "npm run compile && node tests/plan-mode-integration.test.js",
-    "test:attachment-error": "npm run compile && node tests/attachment-non-vision-e2e.test.js",
-    "test:plan-tools": "node tests/plan-mode-tools.test.js",
-    "test:integration": "npm run compile && node tests/sdk-integration.test.js",
-    "test:verify": "node tests/verify-setup.js",
-    "test:sdk": "node tests/sdk-integration.test.js",
-    "test:webview": "npm run compile && node tests/webview-lifecycle-integration.test.js",
-    "test:session": "npm run compile && node tests/session-resume.test.js"
+    "test": "npx mocha 'tests/unit/**/*.test.js' 'tests/integration/**/*.test.js' --recursive --timeout 10000",
+    "test:unit": "npx mocha 'tests/unit/**/*.test.js' --recursive --timeout 10000",
+    "test:integration": "npx mocha 'tests/integration/**/*.test.js' --recursive --timeout 10000",
+    "test:e2e:plan-mode": "npm run compile && node tests/e2e/plan-mode/plan-mode-integration.test.js",
+    "test:e2e:session": "npm run compile && node tests/e2e/session/webview-lifecycle-integration.test.js",
+    "test:verify": "node tests/helpers/verify-setup.js"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",

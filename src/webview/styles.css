@@ -1133,3 +1133,69 @@ button.stop-button:hover {
 ::-webkit-scrollbar-thumb:hover {
 	background: var(--vscode-scrollbarSlider-activeBackground);
 }
+
+/* ===== Responsive: Narrow sidebar (< 350px) ===== */
+@media (max-width: 350px) {
+	.header {
+		padding: 8px 10px;
+		gap: 8px;
+	}
+
+	.session-selector select {
+		min-width: 80px;
+	}
+
+	.messages {
+		padding: 10px;
+		gap: 10px;
+	}
+
+	.message-content,
+	.message-display__content {
+		padding: 8px 10px;
+	}
+
+	.tool-group,
+	.tool-execution__group,
+	.tool-message {
+		max-width: 100%;
+	}
+
+	.tool-executions {
+		max-width: 100%;
+	}
+
+	.tool-header,
+	.tool-execution__header {
+		gap: 4px;
+	}
+
+	.tool-intent,
+	.tool-execution__intent {
+		display: none;
+	}
+
+	.input-container {
+		padding: 8px 10px;
+	}
+
+	.input-controls {
+		padding: 4px 8px;
+		gap: 4px 8px;
+	}
+
+	.empty-state,
+	.message-display__empty {
+		padding: 20px;
+	}
+
+	.empty-state-icon,
+	.message-display__empty-icon {
+		font-size: 36px;
+	}
+
+	.acceptance-controls {
+		padding: 6px 8px;
+		gap: 8px;
+	}
+}

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
 import { Logger } from './logger';
-import { ChatPanelProvider } from './chatViewProvider';
+import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { getAllSessions, filterSessionsByFolder } from './sessionUtils';
 
@@ -10,7 +10,7 @@ let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
-let chatProvider: ChatPanelProvider;
+let chatProvider: ChatViewProvider;
 
 /** Wraps an event handler with try/catch to prevent one handler error from breaking others. */
 function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => void {
@@ -27,9 +27,16 @@ export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
 	backendState = getBackendState();
 	
-	// Create chat provider instance
-	chatProvider = new ChatPanelProvider(context.extensionUri);
+	// Create chat provider and register as sidebar webview
+	chatProvider = new ChatViewProvider(context.extensionUri);
 	context.subscriptions.push(chatProvider);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(
+			ChatViewProvider.viewType,
+			chatProvider,
+			{ webviewOptions: { retainContextWhenHidden: true } }
+		)
+	);
 	
 	logger.info('='.repeat(60));
 	logger.info('Copilot CLI Extension activating...');
@@ -48,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info('='.repeat(60));
 		logger.info('[DIAGNOSTIC] Open Chat command triggered');
 		logger.info(`[DIAGNOSTIC] CLI running: ${cliManager?.isRunning() || false}`);
-		logger.info(`[DIAGNOSTIC] BackendState before createOrShow: ${backendState.getMessages().length} messages`);
+		logger.info(`[DIAGNOSTIC] BackendState before show: ${backendState.getMessages().length} messages`);
 		
 		// Auto-start CLI session when panel opens (based on setting)
 		let sessionIdToResume: string | undefined = undefined;
@@ -71,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Create webview AFTER history is loaded
-		chatProvider.createOrShow();
+		chatProvider.show();
 		
 		// Update active file when panel opens
 		updateActiveFile(vscode.window.activeTextEditor);
@@ -180,7 +187,7 @@ export function activate(context: vscode.ExtensionContext) {
 		logger.info('Start Chat command triggered');
 		
 		// Open the panel first
-		chatProvider.createOrShow();
+		chatProvider.show();
 		
 		if (cliManager && cliManager.isRunning()) {
 			vscode.window.showInformationMessage('Copilot CLI session is already running');
@@ -203,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		
 		// Open the panel
-		chatProvider.createOrShow();
+		chatProvider.show();
 		
 		// Clear messages and reset plan mode state
 		chatProvider.clearMessages();
