@@ -30,45 +30,43 @@ describe('Attachment Validation Error Handling', () => {
     
     // Mock client with model capabilities
     const mockClient = {
-        listModels: async () => ({
-            models: [
-                {
-                    id: 'gpt-4o',
-                    name: 'GPT-4o',
-                    capabilities: {
-                        supports: { vision: true },
-                        limits: {
-                            vision: {
-                                max_prompt_images: 1,
-                                max_prompt_image_size: 3145728, // 3 MB
-                                supported_media_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-                            }
+        listModels: async () => [
+            {
+                id: 'gpt-4o',
+                name: 'GPT-4o',
+                capabilities: {
+                    supports: { vision: true },
+                    limits: {
+                        vision: {
+                            max_prompt_images: 1,
+                            max_prompt_image_size: 3145728, // 3 MB
+                            supported_media_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
                         }
-                    }
-                },
-                {
-                    id: 'claude-3.5-sonnet',
-                    name: 'Claude 3.5 Sonnet',
-                    capabilities: {
-                        supports: { vision: true },
-                        limits: {
-                            vision: {
-                                max_prompt_images: 5,
-                                max_prompt_image_size: 3145728, // 3 MB
-                                supported_media_types: ['image/jpeg', 'image/png', 'image/webp']
-                            }
-                        }
-                    }
-                },
-                {
-                    id: 'gpt-3.5-turbo',
-                    name: 'GPT-3.5 Turbo',
-                    capabilities: {
-                        supports: { vision: false }
                     }
                 }
-            ]
-        })
+            },
+            {
+                id: 'claude-3.5-sonnet',
+                name: 'Claude 3.5 Sonnet',
+                capabilities: {
+                    supports: { vision: true },
+                    limits: {
+                        vision: {
+                            max_prompt_images: 5,
+                            max_prompt_image_size: 3145728, // 3 MB
+                            supported_media_types: ['image/jpeg', 'image/png', 'image/webp']
+                        }
+                    }
+                }
+            },
+            {
+                id: 'gpt-3.5-turbo',
+                name: 'GPT-3.5 Turbo',
+                capabilities: {
+                    supports: { vision: false }
+                }
+            }
+        ]
     };
     
     before(() => {

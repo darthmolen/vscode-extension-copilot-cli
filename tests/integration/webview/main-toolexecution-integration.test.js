@@ -10,52 +10,17 @@
 
 import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
-import { JSDOM } from 'jsdom';
+import { createComponentDOM, cleanupComponentDOM } from '../../helpers/jsdom-component-setup.js';
 
 describe('main.js + ToolExecution Integration', () => {
     let dom, window, document;
     let messagesContainer, eventBus, messageDisplay, toolExecution;
 
-    before(async () => {
-        // Setup JSDOM with full HTML structure main.js expects (ONCE for all tests)
-        dom = new JSDOM(`
-            <!DOCTYPE html>
-            <html>
-            <body>
-                <div id="messages"></div>
-                <div id="emptyState"></div>
-                <div id="thinking"></div>
-                <textarea id="messageInput"></textarea>
-                <button id="sendButton"></button>
-                <div id="statusIndicator"></div>
-                <select id="sessionSelect"></select>
-                <button id="newSessionBtn"></button>
-                <button id="viewPlanBtn"></button>
-                <input type="checkbox" id="showReasoningCheckbox" />
-                <button id="enterPlanModeBtn"></button>
-                <button id="acceptPlanBtn"></button>
-                <button id="rejectPlanBtn"></button>
-                <div id="reasoningIndicator"></div>
-                <div id="usageWindow"></div>
-                <div id="usageUsed"></div>
-                <div id="usageRemaining"></div>
-                <div id="focusFileInfo"></div>
-                <div id="acceptanceControls"></div>
-                <textarea id="acceptanceInput"></textarea>
-                <button id="keepPlanningBtn"></button>
-                <button id="acceptAndWorkBtn"></button>
-                <button id="attachButton"></button>
-                <div id="attachmentsPreview"></div>
-                <span id="attachCount"></span>
-            </body>
-            </html>
-        `, { 
-            url: 'http://localhost',
-            runScripts: 'outside-only'
-        });
+    let mainModule;
 
-        global.window = dom.window;
-        global.document = dom.window.document;
+    before(async () => {
+        // Use standardized component DOM setup with all mount points
+        dom = createComponentDOM();
         window = global.window;
         document = global.document;
 
@@ -69,24 +34,27 @@ describe('main.js + ToolExecution Integration', () => {
             setState: () => {}
         });
 
-        // Mock marked
-        global.marked = { parse: (text) => `<p>${text}</p>` };
-
-        messagesContainer = document.getElementById('messages');
+        messagesContainer = document.getElementById('messages-mount');
 
         // Import main.js - it runs and creates instances (ONCE)
-        const mainModule = await import('../../../src/webview/main.js');
-        
+        // Use unique query to avoid module cache conflicts with other test files
+        mainModule = await import('../../../src/webview/main.js?t=toolexec-' + Date.now());
+
         // Extract instances from __testExports
         eventBus = mainModule.__testExports.eventBus;
         messageDisplay = mainModule.__testExports.messageDisplay;
         toolExecution = mainModule.__testExports.toolExecution;
     });
 
+    after(() => {
+        delete global.acquireVsCodeApi;
+        cleanupComponentDOM(dom);
+    });
+
     beforeEach(() => {
         // Clear messages container before each test
         messagesContainer.innerHTML = '';
-        
+
         // Reset ToolExecution internal state
         if (toolExecution) {
             toolExecution.currentToolGroup = null;
@@ -230,8 +198,7 @@ describe('main.js + ToolExecution Integration', () => {
         });
 
         it('should handle diffAvailable RPC message and add diff button to existing tool', async () => {
-            // Import the actual handler function
-            const mainModule = await import('../../../src/webview/main.js');
+            // Reuse the main module imported in before() hook
             const handleDiffAvailableMessage = mainModule.handleDiffAvailableMessage;
 
             // 1. Tool starts without diff

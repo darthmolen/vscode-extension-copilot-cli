@@ -131,6 +131,7 @@ describe('Session Resume E2E Integration Test', function () {
 						dispose: () => {}
 					}),
 					createWebviewPanel: () => createMockWebviewPanel(),
+					registerWebviewViewProvider: () => ({ dispose: () => {} }),
 					showInformationMessage: () => Promise.resolve(),
 					showErrorMessage: () => Promise.resolve(),
 					showWarningMessage: () => Promise.resolve(),

@@ -102,8 +102,10 @@ export function createComponentDOM() {
 export function cleanupComponentDOM(dom) {
     delete global.ResizeObserver;
     delete global.MutationObserver;
-    delete global.requestAnimationFrame;
-    delete global.cancelAnimationFrame;
+    // Replace with no-ops instead of deleting to prevent crashes from pending callbacks
+    // (e.g., MessageDisplay.scrollToBottom schedules via requestAnimationFrame -> setTimeout)
+    global.requestAnimationFrame = () => {};
+    global.cancelAnimationFrame = () => {};
     delete global.marked;
     delete global.window;
     delete global.document;

@@ -10,26 +10,22 @@
  */
 
 import { expect } from 'chai';
-import { JSDOM } from 'jsdom';
+import { createComponentDOM, cleanupComponentDOM } from '../../helpers/jsdom-component-setup.js';
 import { EventBus } from '../../../src/webview/app/state/EventBus.js';
 import { MessageDisplay } from '../../../src/webview/app/components/MessageDisplay/MessageDisplay.js';
 
 describe('EventBus Integration (Phase 4.2 Verification)', () => {
+    let dom;
     let container;
     let eventBus;
     let messageDisplay;
 
     beforeEach(() => {
-        // Setup DOM
-        const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-        global.window = dom.window;
-        global.document = dom.window.document;
-        global.marked = { parse: (text) => `<p>${text}</p>` };
+        // Use standardized component DOM setup with all mount points
+        dom = createComponentDOM();
 
-        // Create container
-        container = document.createElement('div');
-        container.id = 'messages';
-        document.body.appendChild(container);
+        // Use the messages-mount container provided by the helper
+        container = document.getElementById('messages-mount');
 
         // Create EventBus and MessageDisplay (simulating what main.js does)
         eventBus = new EventBus();
@@ -37,12 +33,7 @@ describe('EventBus Integration (Phase 4.2 Verification)', () => {
     });
 
     afterEach(() => {
-        if (container && container.parentNode) {
-            container.parentNode.removeChild(container);
-        }
-        delete global.window;
-        delete global.document;
-        delete global.marked;
+        cleanupComponentDOM(dom);
     });
 
     describe('EventBus → MessageDisplay flow', () => {

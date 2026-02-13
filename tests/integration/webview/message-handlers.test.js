@@ -3,8 +3,8 @@
  * Testing individual handler functions extracted from switch statement
  */
 
-const assert = require('assert').strict;
-const { JSDOM } = require('jsdom');
+import assert from 'assert/strict';
+import { createComponentDOM, cleanupComponentDOM } from '../../helpers/jsdom-component-setup.js';
 
 describe('Webview Message Handler Tests', function () {
 	let dom;
@@ -13,42 +13,15 @@ describe('Webview Message Handler Tests', function () {
 	before(async function () {
 		this.timeout(30000);
 
-		// Set up JSDOM environment with component mount points matching main.js expectations
-		dom = new JSDOM(`
-			<!DOCTYPE html>
-			<html>
-			<body>
-				<div id="session-toolbar-mount"></div>
-				<div id="messages-mount"></div>
-				<div id="input-mount"></div>
-				<div id="acceptance-mount"></div>
-			</body>
-			</html>
-		`, {
-			url: 'http://localhost',
-			pretendToBeVisual: true
-		});
+		// Use standardized component DOM setup with all mount points and polyfills
+		dom = createComponentDOM();
 
-		// Make DOM globals available
-		global.window = dom.window;
-		global.document = dom.window.document;
-		global.MutationObserver = dom.window.MutationObserver;
+		// Additional globals needed by some tests
 		global.HTMLElement = dom.window.HTMLElement;
 		global.MessageEvent = dom.window.MessageEvent;
 
-		// Polyfill requestAnimationFrame for JSDOM (used by scroll logic)
-		global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
-		global.cancelAnimationFrame = (id) => clearTimeout(id);
-		dom.window.requestAnimationFrame = global.requestAnimationFrame;
-		dom.window.cancelAnimationFrame = global.cancelAnimationFrame;
-
 		// Mark as test environment so main.js skips rpc.ready()
 		global.window.__TESTING__ = true;
-
-		// Mock marked library (needed for rendering assistant messages)
-		global.marked = {
-			parse: (text) => text // Simple pass-through for tests
-		};
 
 		// Mock acquireVsCodeApi (needed by main.js)
 		global.acquireVsCodeApi = () => ({
@@ -57,8 +30,8 @@ describe('Webview Message Handler Tests', function () {
 			getState: () => ({})
 		});
 
-		// Import main.js to get handler functions
-		const mainPath = '../../../src/webview/main.js';
+		// Import main.js to get handler functions (use unique query to avoid module cache)
+		const mainPath = '../../../src/webview/main.js?t=msg-handlers-' + Date.now();
 		mainModule = await import(mainPath);
 
 		// main.js uses bare `thinking` and `statusIndicator` as globals
@@ -68,18 +41,13 @@ describe('Webview Message Handler Tests', function () {
 	});
 
 	after(function () {
-		// Clean up globals
-		delete global.window;
-		delete global.document;
-		delete global.MutationObserver;
+		// Clean up additional globals
 		delete global.HTMLElement;
 		delete global.MessageEvent;
-		delete global.requestAnimationFrame;
-		delete global.cancelAnimationFrame;
-		delete global.marked;
 		delete global.acquireVsCodeApi;
 		delete global.thinking;
 		delete global.statusIndicator;
+		cleanupComponentDOM(dom);
 	});
 
 	it('handleThinkingMessage works', function () {
