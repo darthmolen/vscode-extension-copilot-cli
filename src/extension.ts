@@ -64,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('Copilot CLI Extension activated successfully');
 }
 
-/** Register chatProvider event handlers (message, abort, view plan). */
+/** Register chatProvider event handlers (message, abort, view plan, ready). */
 function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {
 		logger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);
@@ -119,6 +119,23 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
 		}
 	}));
+
+	context.subscriptions.push(chatProvider.onDidBecomeReady(async () => {
+		// Auto-resume CLI session when webview becomes ready (e.g., after Developer Reload)
+		await resumeAndStartSession(context);
+
+		// Re-send init — the first send (from onReady) was empty because backendState wasn't populated yet
+		const fullState = backendState.getFullState();
+		chatProvider.postMessage({
+			type: 'init',
+			sessionId: fullState.sessionId,
+			sessionActive: fullState.sessionActive,
+			messages: fullState.messages,
+			planModeStatus: fullState.planModeStatus,
+			workspacePath: fullState.workspacePath,
+			activeFilePath: fullState.activeFilePath
+		});
+	}));
 }
 
 /** Register all VS Code commands. */
@@ -141,29 +158,36 @@ function registerCommands(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(...commands);
 }
 
-// ── Command Handlers ──────────────────────────────────────────────────────────
+// ── Session Resume ───────────────────────────────────────────────────────────
 
-async function handleOpenChat(context: vscode.ExtensionContext): Promise<void> {
-	let sessionIdToResume: string | undefined = undefined;
-	if (!cliManager || !cliManager.isRunning()) {
-		const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
-		if (resumeLastSession) {
-			const sessionId = await determineSessionToResume(context);
-			if (sessionId) {
-				await loadSessionHistory(sessionId);
-				sessionIdToResume = sessionId;
-			}
+/** Shared logic: determine session to resume, load history, start CLI. */
+async function resumeAndStartSession(context: vscode.ExtensionContext): Promise<void> {
+	if (cliManager && cliManager.isRunning()) {
+		return;
+	}
+
+	const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
+	let sessionIdToResume: string | undefined;
+
+	if (resumeLastSession) {
+		const sessionId = await determineSessionToResume(context);
+		if (sessionId) {
+			await loadSessionHistory(sessionId);
+			sessionIdToResume = sessionId;
 		}
 	}
 
-	chatProvider.show();
 	updateActiveFile(vscode.window.activeTextEditor);
 	updateSessionsList();
 
-	if (sessionIdToResume || (!cliManager || !cliManager.isRunning())) {
-		const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
-		await startCLISession(context, resumeLastSession, sessionIdToResume);
-	}
+	await startCLISession(context, resumeLastSession, sessionIdToResume);
+}
+
+// ── Command Handlers ──────────────────────────────────────────────────────────
+
+async function handleOpenChat(context: vscode.ExtensionContext): Promise<void> {
+	chatProvider.show();
+	await resumeAndStartSession(context);
 }
 
 async function handleStartChat(context: vscode.ExtensionContext): Promise<void> {
