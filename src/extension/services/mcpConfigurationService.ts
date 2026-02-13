@@ -1,4 +1,4 @@
-import { Logger } from './logger';
+import { Logger } from '../../logger';
 
 /**
  * Service for MCP (Model Context Protocol) server configuration.

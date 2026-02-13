@@ -29,7 +29,7 @@ const originalRequire = Module.prototype.require;
 };
 
 // Now import the service
-import { FileSnapshotService } from '../src/fileSnapshotService';
+import { FileSnapshotService } from '../src/extension/services/fileSnapshotService';
 
 describe('FileSnapshotService - TDD', () => {
     let service: FileSnapshotService;

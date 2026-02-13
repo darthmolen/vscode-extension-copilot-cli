@@ -26,7 +26,7 @@ describe('Plan Mode Duplicate Tool Detection', function () {
 			'utf-8'
 		);
 		planModeToolsSource = fs.readFileSync(
-			path.join(__dirname, '../../../src/planModeToolsService.ts'),
+			path.join(__dirname, '../../../src/extension/services/planModeToolsService.ts'),
 			'utf-8'
 		);
 	});

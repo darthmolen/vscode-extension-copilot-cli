@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { Logger } from './logger';
+import { Logger } from '../../logger';
 
 /**
  * File snapshot for tracking pre-edit state

@@ -15,7 +15,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Logger } from './logger';
+import { Logger } from '../../logger';
 
 // Dynamic import for SDK
 let defineTool: any;

@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './logger';
-import { getMostRecentSession } from './sessionUtils';
-import { ModelCapabilitiesService } from './modelCapabilitiesService';
-import { PlanModeToolsService } from './planModeToolsService';
-import { MessageEnhancementService } from './messageEnhancementService';
-import { FileSnapshotService } from './fileSnapshotService';
-import { MCPConfigurationService } from './mcpConfigurationService';
+import { SessionService } from './extension/services/SessionService';
+import * as os from 'os';
+import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
+import { PlanModeToolsService } from './extension/services/planModeToolsService';
+import { MessageEnhancementService } from './extension/services/messageEnhancementService';
+import { FileSnapshotService } from './extension/services/fileSnapshotService';
+import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
 import { 
@@ -193,7 +194,8 @@ export class SDKSessionManager implements vscode.Disposable {
     private loadLastSessionId(): void {
         try {
             const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
-            const sessionId = getMostRecentSession(this.workingDirectory, filterByFolder);
+            const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+            const sessionId = SessionService.getMostRecentSession(sessionStateDir, this.workingDirectory, filterByFolder);
             
             if (sessionId) {
                 this.sessionId = sessionId;

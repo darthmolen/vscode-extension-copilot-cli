@@ -6,6 +6,16 @@ dist/
 .vscode-test/
 .env
 
+# Stale tsc output in src/ (webview/ has legit .js source — these patterns avoid it)
+src/*.js
+src/*.js.map
+src/shared/*.js
+src/shared/*.js.map
+src/extension/**/*.js
+src/extension/**/*.js.map
+src/utilities/*.js
+src/utilities/*.js.map
+
 # Test outputs
 tests/output/
 tests/logs/

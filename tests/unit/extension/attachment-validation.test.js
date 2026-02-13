@@ -71,7 +71,7 @@ describe('Attachment Validation Error Handling', () => {
     
     before(() => {
         // Load ModelCapabilitiesService
-        const modulePath = path.join(__dirname, '../../../out/modelCapabilitiesService.js');
+        const modulePath = path.join(__dirname, '../../../out/extension/services/modelCapabilitiesService.js');
         const module = require(modulePath);
         ModelCapabilitiesService = module.ModelCapabilitiesService;
     });
