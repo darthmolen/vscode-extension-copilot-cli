@@ -14,9 +14,10 @@ This directory contains **active planning work** - documents for features and im
 ```
 planning/                  ← You are here
   ↓ Feature implemented
-completed/                 ← Move here when done
+  in-progress/                ← when started, files and status files go here
+  completed/                 ← Move here when done
   ↓ Future work identified
-backlog/                   ← Ideas for later
+  backlog/                   ← Ideas for later
 ```
 
 ## Template

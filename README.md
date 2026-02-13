@@ -18,7 +18,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 
 ### 🎯 Focused by Design
 
-- **In-Stream Diffs** — File changes appear right in the chat. Review, approve, or redirect the agent without leaving your conversation.
+- **In-Stream Diffs** — File edits show compact inline diffs (+/- prefixes) directly in the chat stream. Larger diffs truncate with a "View Diff" button. Review, approve, or redirect the agent without leaving your conversation.
 - **Plan Mode (ACE-FCA)** — Separate planning and implementation into dual sessions. Explore with read-only tools, then hand off a solid plan to your work session.
 - **Plan Model Selection** — Use different AI models for planning vs. implementation. Think with Opus, build with Sonnet, explore with Haiku.
 - **Reasoning Visibility** — Watch the agent think in real-time with streaming reasoning traces.
@@ -26,7 +26,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 ### 🔄 Session-First Workflow
 
 - **Session Interop** — Sessions appear in the official Copilot extension's session list. Switch between both experiences freely.
-- **Auto-Resume** — Picks up where you left off. Full conversation history loads from Copilot CLI's event log.
+- **Auto-Resume** — Picks up where you left off, even after VS Code reloads. Full conversation history loads from Copilot CLI's event log.
 - **Session Resilience** — Smart retry logic handles transient failures automatically (v2.2.3+).
 - **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
 - **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
@@ -46,6 +46,38 @@ And you don't have to choose. Sessions created in this extension appear in the o
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### 3.0.0 -- Architecture Overhaul
+
+**Inline Diffs in Chat Stream**
+- File edits now show a compact inline diff directly in the chat stream (up to 10 lines with +/- prefixes)
+- Larger diffs show a truncation indicator ("... N more lines") with the existing "View Diff" button for the full picture
+- Keeps decision-making in the conversation flow -- no need to leave the chat to see what changed
+
+**Component Architecture**
+- Webview rewritten from monolithic script to component-based architecture
+- 8 independent components: MessageDisplay, ToolExecution, InputArea, SessionToolbar, AcceptanceControls, StatusBar, ActiveFileDisplay, PlanModeControls
+- EventBus pattern for decoupled component communication
+- Each component owns its DOM section and lifecycle
+
+**Type-Safe RPC Layer**
+- New ExtensionRpcRouter (520 lines) with typed send/receive methods replacing raw postMessage
+- New WebviewRpcClient (390 lines) with typed callback registration
+- 31 message types defined in shared/messages.ts with TypeScript interfaces
+- Message tracking and debugging built in
+
+**Service Extraction**
+- 7 services extracted from monolithic extension.ts: SessionService, InlineDiffService, fileSnapshotService, mcpConfigurationService, modelCapabilitiesService, planModeToolsService, messageEnhancementService
+- Each service is independently testable with clear boundaries
+
+**Auto-Resume After Reload**
+- CLI session automatically resumes when VS Code reloads with the sidebar open
+- Previous session history is restored to the chat UI
+
+**Test Infrastructure**
+- 710+ tests (unit, integration, e2e)
+- JSDOM-based component testing with mock RPC
+- Test helpers for scroll geometry, VS Code API mocking, and component setup
 
 ### v2.2.3 - Session Resume Resilience 🔄
 
@@ -468,25 +500,50 @@ Browse more servers at the [MCP Registry](https://registry.modelcontextprotocol.
 
 ## 🔧 Architecture
 
-### v2.0 SDK Architecture
+### v3.0 Architecture
 
 ```
-VS Code Extension (UI Layer)
+Extension Host (Node.js)
+  extension.ts orchestrator
        ↓
-@github/copilot-sdk (v0.1.18)
-       ↓ JSON-RPC
-Copilot CLI (server mode)
+  Extracted Services (7)
+    SessionService, InlineDiffService, fileSnapshotService,
+    mcpConfigurationService, modelCapabilitiesService,
+    planModeToolsService, messageEnhancementService
+       ↓
+  ExtensionRpcRouter (typed send/receive)
+       ↓ postMessage
+Webview (Browser)
+  WebviewRpcClient (typed callbacks)
+       ↓
+  EventBus (decoupled pub/sub)
+       ↓
+  Components (8)
+    MessageDisplay, ToolExecution, InputArea, SessionToolbar,
+    AcceptanceControls, StatusBar, ActiveFileDisplay, PlanModeControls
+       ↓
+  DOM
+
+Shared: TypeScript interfaces in src/shared/ defining the RPC contract
+  31 message types with TypeScript interfaces (shared/messages.ts)
 ```
 
-The extension provides:
+**Extension Host** provides:
 
-- **UI/UX Layer**: Chat panel, markdown rendering, session selector
-- **Configuration Bridge**: VS Code settings → SDK/CLI options
-- **Event Handling**: Real-time streaming, reasoning display, inline tool execution visibility
+- **Orchestration**: extension.ts coordinates services and routes messages
+- **Services**: 7 extracted services with clear boundaries and independent testability
+- **Type-Safe RPC**: ExtensionRpcRouter with typed send/receive methods replacing raw postMessage
 - **Session Persistence**: Auto-resume, history loading, workspace filtering
-- **Planning Mode**: Separate session for planning with limited tools and alternate model. Plan juggling back to main session.
+- **Planning Mode**: Separate session for planning with limited tools and alternate model
 
-The SDK provides:
+**Webview** provides:
+
+- **Component Architecture**: 8 independent components, each owning its DOM section and lifecycle
+- **EventBus**: Decoupled component communication via pub/sub
+- **Type-Safe RPC**: WebviewRpcClient with typed callback registration
+- **Inline Diffs**: Compact diff display directly in the chat stream
+
+**Copilot SDK** provides:
 - **Agent Runtime**: Production-tested orchestration engine
 - **Tool Invocation**: File edits, shell commands, web searches, MCP servers
 - **Model Access**: All Copilot CLI models via unified API
