@@ -25,7 +25,7 @@ Migrated from standalone panel (`ChatViewPanel`) to Activity Bar sidebar (`Webvi
 - **In-Stream Diffs** — File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)
 - **Truncation for Large Changes** — Diffs over 10 lines show "... N more lines" with "View Diff" button
 - **Decision-Making in Flow** — Review, approve, or redirect the agent without leaving the conversation
-- **InlineDiffService** — Dedicated service for git-based diff generation and formatting
+- **InlineDiffService** — Dedicated service for LCS-based diff generation and formatting
 
 #### Slash Commands (41 Commands) with Discovery Panel
 - **CommandParser** — Unified parser for 41 slash commands with type-safe execution
@@ -80,7 +80,7 @@ Replaced 1200+ line monolithic script with modular component architecture:
 #### Service Extraction (7 Services)
 Extracted from monolithic `extension.ts` for clean separation of concerns:
 - **SessionService** — Session lifecycle, creation, switching, resume logic
-- **InlineDiffService** — Git-based diff generation, formatting, and display
+- **InlineDiffService** — LCS-based diff generation, formatting, and display
 - **fileSnapshotService** — Git snapshots for file state tracking
 - **mcpConfigurationService** — MCP server configuration and discovery
 - **modelCapabilitiesService** — Model info caching and attachment validation

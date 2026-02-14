@@ -333,9 +333,9 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "npx mocha 'tests/unit/**/*.test.js' 'tests/integration/**/*.test.js' --recursive --timeout 10000",
-    "test:unit": "npx mocha 'tests/unit/**/*.test.js' --recursive --timeout 10000",
-    "test:integration": "npx mocha 'tests/integration/**/*.test.js' --recursive --timeout 10000",
+    "test": "npx mocha \"tests/unit/**/*.test.js\" \"tests/integration/**/*.test.js\" --recursive --timeout 10000",
+    "test:unit": "npx mocha \"tests/unit/**/*.test.js\" --recursive --timeout 10000",
+    "test:integration": "npx mocha \"tests/integration/**/*.test.js\" --recursive --timeout 10000",
     "test:e2e:plan-mode": "npm run compile && node tests/e2e/plan-mode/plan-mode-integration.test.js",
     "test:e2e:session": "npm run compile && node tests/e2e/session/webview-lifecycle-integration.test.js",
     "test:verify": "node tests/helpers/verify-setup.js"

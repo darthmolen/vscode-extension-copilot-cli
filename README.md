@@ -433,7 +433,7 @@ Choose from 16 AI models in settings:
 - Claude Sonnet 4.5 (default), Claude Haiku 4.5, Claude Opus 4.5
 - **Claude Opus 4.6, Claude Opus 4.6 Fast** (NEW in v3.0.0)
 - GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
-- GPT Codex variants (5.1, 5.2, 5.3, mini)
+- GPT Codex variants (5.1, 5.1 max, 5.1 mini, 5.2)
 - Gemini 3 Pro Preview
 
 ### Plan Mode Model

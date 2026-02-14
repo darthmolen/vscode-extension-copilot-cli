@@ -40,7 +40,7 @@ export class BackendState {
 
     public setSessionActive(active: boolean): void {
         // Track start time when session first becomes active
-        if (active && !this.sessionStartTime) {
+        if (active && this.sessionStartTime === null) {
             this.sessionStartTime = Date.now();
         }
         this.sessionActive = active;
@@ -55,7 +55,7 @@ export class BackendState {
     }
 
     public getSessionDuration(): number {
-        if (!this.sessionStartTime) {
+        if (this.sessionStartTime === null) {
             return 0;
         }
         return (Date.now() - this.sessionStartTime) / 1000;
