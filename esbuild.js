@@ -42,7 +42,8 @@ async function main() {
 	const statusBarDistDir = path.join(componentsDistDir, 'StatusBar');
 	const activeFileDisplayDistDir = path.join(componentsDistDir, 'ActiveFileDisplay');
 	const planModeControlsDistDir = path.join(componentsDistDir, 'PlanModeControls');
-	
+	const slashCommandPanelDistDir = path.join(componentsDistDir, 'SlashCommandPanel');
+
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
 	}
@@ -81,6 +82,9 @@ async function main() {
 	}
 	if (!fs.existsSync(planModeControlsDistDir)) {
 		fs.mkdirSync(planModeControlsDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(slashCommandPanelDistDir)) {
+		fs.mkdirSync(slashCommandPanelDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -177,6 +181,11 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'PlanModeControls', 'PlanModeControls.js'),
 		path.join(planModeControlsDistDir, 'PlanModeControls.js')
+	);
+	// Phase 5.3 - SlashCommandPanel component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'SlashCommandPanel', 'SlashCommandPanel.js'),
+		path.join(slashCommandPanelDistDir, 'SlashCommandPanel.js')
 	);
 
 	// Extension build context

@@ -418,6 +418,9 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 			case 'plan_mode_enabled':
 			case 'plan_mode_disabled':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				updateSessionsList();
+				break;
 			case 'plan_accepted':
 			case 'plan_rejected':
 			case 'plan_ready':
@@ -688,6 +691,11 @@ async function loadSessionHistory(sessionId: string): Promise<void> {
 }
 
 function updateActiveFile(editor: vscode.TextEditor | undefined) {
+	// Filter out non-file editors (output channels, debug console, etc.)
+	if (editor && editor.document.uri.scheme !== 'file' && editor.document.uri.scheme !== 'untitled') {
+		editor = undefined;
+	}
+
 	// If editor is defined, update last known editor
 	if (editor) {
 		lastKnownTextEditor = editor;

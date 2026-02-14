@@ -281,6 +281,8 @@ export function handleUserMessageMessage(payload) {
 		attachments: payload.attachments,
 		timestamp: Date.now()
 	});
+	// Explicitly scroll after user message — don't rely solely on MutationObserver
+	messageDisplay.scrollToBottom();
 }
 
 /**

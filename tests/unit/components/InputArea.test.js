@@ -404,7 +404,7 @@ describe('InputArea Component', () => {
 			eventBus.emit('session:active', true);
 
 			const input = document.getElementById('messageInput');
-			expect(input.placeholder).to.equal('Type a message...');
+			expect(input.placeholder).to.equal('Type a message or / for commands...');
 		});
 	});
 

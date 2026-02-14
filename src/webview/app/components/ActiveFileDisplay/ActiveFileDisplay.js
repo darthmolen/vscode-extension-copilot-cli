@@ -29,7 +29,9 @@ export class ActiveFileDisplay {
       return;
     }
 
-    this.pathEl.textContent = filePath;
+    const fileName = filePath.split(/[/\\]/).pop() || filePath;
+    this.pathEl.textContent = fileName;
+    this.pathEl.title = filePath;
     this.displayEl.style.display = '';
   }
 

@@ -2,6 +2,7 @@ import { escapeHtml } from '../../utils/webview-utils.js';
 import { ActiveFileDisplay } from '../ActiveFileDisplay/ActiveFileDisplay.js';
 import { StatusBar } from '../StatusBar/StatusBar.js';
 import { PlanModeControls } from '../PlanModeControls/PlanModeControls.js';
+import { SlashCommandPanel } from '../SlashCommandPanel/SlashCommandPanel.js';
 import { CommandParser } from '../../services/CommandParser.js';
 
 /**
@@ -74,7 +75,8 @@ export class InputArea {
 				</div>
 			</div>
 			<div class="input-area">
-				<div id="attachmentsPreview" class="attachments-preview"></div>
+				<div id="attachmentsPreview" class="attachments-preview" style="display: none;"></div>
+				<div id="slash-command-mount"></div>
 				<div class="input-wrapper">
 					<button id="attachButton" class="attach-button" title="Attach files">📎</button>
 					<textarea id="messageInput" class="message-input" placeholder="Type a message..." rows="1"></textarea>
@@ -104,10 +106,23 @@ export class InputArea {
 		const metricsMount = this.container.querySelector('#metrics-mount');
 		const planControlsMount = this.container.querySelector('#plan-controls-mount');
 		
+		const slashCommandMount = this.container.querySelector('#slash-command-mount');
+
 		this.activeFileDisplay = new ActiveFileDisplay(activeFileMount, this.eventBus);
 		this.statusBar = new StatusBar(metricsMount);
 		this.planModeControls = new PlanModeControls(planControlsMount, this.eventBus);
-		
+		this.slashCommandPanel = new SlashCommandPanel(slashCommandMount);
+		this.slashCommandPanel.onSelect = (commandName) => {
+			this.messageInput.value = `/${commandName} `;
+			this.slashCommandPanel.hide();
+			this.messageInput.focus();
+		};
+
+		// Wire StatusBar help icon to EventBus
+		this.statusBar.on('showHelp', () => {
+			this.eventBus.emit('showHelp');
+		});
+
 		console.log('[InputArea] Child components created');
 	}
 
@@ -137,6 +152,14 @@ export class InputArea {
 		// Auto-resize textarea
 		this.messageInput.style.height = 'auto';
 		this.messageInput.style.height = this.messageInput.scrollHeight + 'px';
+
+		// Show/hide slash command panel
+		const value = this.messageInput.value;
+		if (value.startsWith('/') && value.indexOf(' ') === -1) {
+			this.slashCommandPanel.show(this.commandParser.getVisibleCommands());
+		} else {
+			this.slashCommandPanel.hide();
+		}
 	}
 
 	handleSendClick() {
@@ -156,6 +179,10 @@ export class InputArea {
 	}
 
 	handleKeydown(e) {
+		if (e.key === 'Escape') {
+			this.slashCommandPanel.hide();
+			return;
+		}
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			this.sendMessage();
@@ -348,7 +375,7 @@ export class InputArea {
 		this.sendButton.disabled = !active;
 
 		if (active) {
-			this.messageInput.placeholder = 'Type a message...';
+			this.messageInput.placeholder = 'Type a message or / for commands...';
 			this.messageInput.focus();
 		} else {
 			this.messageInput.placeholder = 'Start a session to chat';

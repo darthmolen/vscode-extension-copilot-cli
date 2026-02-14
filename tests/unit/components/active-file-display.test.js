@@ -26,15 +26,48 @@ describe('ActiveFileDisplay Component - TDD RED Phase', () => {
   });
 
   describe('setFile()', () => {
-    it('should show file path when set', () => {
+    it('should show only the filename, not the full path', () => {
       const display = new ActiveFileDisplay(container, eventBus);
       display.setFile('/workspace/src/app.ts');
-      
-      const displayEl = container.querySelector('.active-file-display');
+
       const pathEl = container.querySelector('.file-path');
-      
-      expect(pathEl.textContent).to.equal('/workspace/src/app.ts');
+
+      expect(pathEl.textContent).to.equal('app.ts');
+    });
+
+    it('should show the full path as a tooltip', () => {
+      const display = new ActiveFileDisplay(container, eventBus);
+      display.setFile('/workspace/src/app.ts');
+
+      const pathEl = container.querySelector('.file-path');
+
+      expect(pathEl.title).to.equal('/workspace/src/app.ts');
+    });
+
+    it('should become visible when file is set', () => {
+      const display = new ActiveFileDisplay(container, eventBus);
+      display.setFile('/workspace/src/app.ts');
+
+      const displayEl = container.querySelector('.active-file-display');
       expect(displayEl.style.display).to.not.equal('none');
+    });
+
+    it('should handle Windows-style paths', () => {
+      const display = new ActiveFileDisplay(container, eventBus);
+      display.setFile('C:\\Users\\dev\\project\\index.js');
+
+      const pathEl = container.querySelector('.file-path');
+
+      expect(pathEl.textContent).to.equal('index.js');
+    });
+
+    it('should handle filename-only input (no directory)', () => {
+      const display = new ActiveFileDisplay(container, eventBus);
+      display.setFile('README.md');
+
+      const pathEl = container.querySelector('.file-path');
+
+      expect(pathEl.textContent).to.equal('README.md');
     });
 
     it('should hide when set to null', () => {

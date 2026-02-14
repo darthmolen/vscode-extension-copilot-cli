@@ -103,7 +103,7 @@ describe('InputArea - Component Composition - TDD RED Phase', () => {
       
       // Verify ActiveFileDisplay shows file
       const filePath = container.querySelector('.file-path');
-      expect(filePath.textContent).to.equal('/workspace/src/test.ts');
+      expect(filePath.textContent).to.equal('test.ts');
     });
 
     it('should forward updateUsageWindow to StatusBar child', () => {

@@ -300,6 +300,28 @@ describe('MessageDisplay - Scrolling (Phase 2)', () => {
 	});
 
 	// ========================================================================
+	// User message scroll: explicit scrollToBottom after user message
+	// ========================================================================
+	describe('User message scroll', () => {
+		it('should scroll to bottom after user message is added', () => {
+			const messages = display.messagesContainer;
+			setScrollProperties(messages, { scrollTop: 0, scrollHeight: 2000, clientHeight: 500 });
+
+			// Simulate user having scrolled (worst case)
+			display.userHasScrolled = true;
+
+			// Add user message
+			display.addMessage({ role: 'user', content: 'Hello agent', timestamp: Date.now() });
+
+			// Explicit scrollToBottom — this is what the fix adds in main.js
+			display.scrollToBottom();
+
+			// scrollTop should be set to scrollHeight (our polyfill doesn't change scrollHeight)
+			expect(messages.scrollTop).to.equal(messages.scrollHeight);
+		});
+	});
+
+	// ========================================================================
 	// Cleanup
 	// ========================================================================
 	describe('Cleanup', () => {

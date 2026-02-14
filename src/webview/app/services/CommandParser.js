@@ -17,78 +17,110 @@
  */
 export class CommandParser {
 	constructor() {
-		// Command registry: command name -> { type, event, instruction, requiredContext }
+		// Command registry: command name -> { type, event, instruction, requiredContext, category, description }
 		this.commands = new Map([
 			// Extension commands (10)
 			['plan', {
 				type: 'extension',
 				event: 'enterPlanMode',
-				requiredContext: { planMode: false }
+				requiredContext: { planMode: false },
+				category: 'plan',
+				description: 'Enter plan mode'
 			}],
 			['exit', {
 				type: 'extension',
 				event: 'exitPlanMode',
-				requiredContext: { planMode: true }
+				requiredContext: { planMode: true },
+				category: 'plan',
+				description: 'Exit plan mode'
 			}],
 			['accept', {
 				type: 'extension',
 				event: 'acceptPlan',
-				requiredContext: { planMode: true, planReady: true }
+				requiredContext: { planMode: true, planReady: true },
+				category: 'plan',
+				description: 'Accept the plan'
 			}],
 			['reject', {
 				type: 'extension',
 				event: 'rejectPlan',
-				requiredContext: { planMode: true, planReady: true }
+				requiredContext: { planMode: true, planReady: true },
+				category: 'plan',
+				description: 'Reject the plan'
 			}],
 			['review', {
 				type: 'extension',
-				event: 'showPlanContent'
+				event: 'showPlanContent',
+				category: 'code',
+				description: 'View plan content'
 			}],
 			['diff', {
 				type: 'extension',
-				event: 'openDiffView'
+				event: 'openDiffView',
+				category: 'code',
+				description: 'Compare two files'
 			}],
 			['mcp', {
 				type: 'extension',
-				event: 'showMcpConfig'
+				event: 'showMcpConfig',
+				category: 'config',
+				description: 'MCP server config'
 			}],
 			['usage', {
 				type: 'extension',
-				event: 'showUsageMetrics'
+				event: 'showUsageMetrics',
+				category: 'config',
+				description: 'Usage metrics'
 			}],
 			['help', {
 				type: 'extension',
-				event: 'showHelp'
+				event: 'showHelp',
+				category: 'config',
+				description: 'Command reference'
 			}],
 			['model', {
 				type: 'extension',
-				event: 'showModelSelector'
+				event: 'showModelSelector',
+				category: 'config',
+				description: 'Switch model'
 			}],
-			
+
 			// CLI Passthrough commands (6)
 			['delegate', {
 				type: 'passthrough',
-				instruction: 'The /delegate command opens GitHub Copilot coding agent in a new PR. Opening terminal...'
+				instruction: 'The /delegate command opens GitHub Copilot coding agent in a new PR. Opening terminal...',
+				category: 'cli',
+				description: 'GitHub Copilot agent'
 			}],
 			['agent', {
 				type: 'passthrough',
-				instruction: 'The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal...'
+				instruction: 'The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal...',
+				category: 'cli',
+				description: 'Specialized agents'
 			}],
 			['skills', {
 				type: 'passthrough',
-				instruction: 'The /skills command manages custom scripts and resources. Opening terminal...'
+				instruction: 'The /skills command manages custom scripts and resources. Opening terminal...',
+				category: 'cli',
+				description: 'Custom scripts'
 			}],
 			['plugin', {
 				type: 'passthrough',
-				instruction: 'The /plugin command installs extensions from the marketplace. Opening terminal...'
+				instruction: 'The /plugin command installs extensions from the marketplace. Opening terminal...',
+				category: 'cli',
+				description: 'Install plugins'
 			}],
 			['login', {
 				type: 'passthrough',
-				instruction: 'Opening terminal to authenticate with GitHub Copilot...'
+				instruction: 'Opening terminal to authenticate with GitHub Copilot...',
+				category: 'cli',
+				description: 'Authenticate'
 			}],
 			['logout', {
 				type: 'passthrough',
-				instruction: 'Opening terminal to log out of GitHub Copilot...'
+				instruction: 'Opening terminal to log out of GitHub Copilot...',
+				category: 'cli',
+				description: 'Log out'
 			}],
 			
 			// Not supported commands (25)
@@ -201,8 +233,21 @@ export class CommandParser {
 			return;
 		}
 
-		// Emit event with args
-		eventBus.emit(commandDef.event, cmd.args);
+		// Route by command type
+		switch (commandDef.type) {
+			case 'extension':
+				eventBus.emit(commandDef.event, cmd.args);
+				break;
+			case 'passthrough':
+				eventBus.emit('openInCLI', [cmd.command, ...cmd.args]);
+				break;
+			case 'not-supported':
+				eventBus.emit('showNotSupported', [cmd.command]);
+				break;
+			default:
+				console.warn(`[CommandParser] Unknown command type: ${commandDef.type}`);
+				break;
+		}
 	}
 
 	/**
@@ -285,5 +330,24 @@ export class CommandParser {
 	getInstruction(commandName) {
 		const commandDef = this.commands.get(commandName);
 		return (commandDef && commandDef.instruction) ? commandDef.instruction : null;
+	}
+
+	/**
+	 * Get visible commands for the slash command panel
+	 * Returns extension and passthrough commands (excludes not-supported)
+	 * @returns {Array<{name: string, description: string, category: string}>}
+	 */
+	getVisibleCommands() {
+		const result = [];
+		for (const [name, def] of this.commands) {
+			if (def.type === 'extension' || def.type === 'passthrough') {
+				result.push({
+					name,
+					description: def.description,
+					category: def.category
+				});
+			}
+		}
+		return result;
 	}
 }

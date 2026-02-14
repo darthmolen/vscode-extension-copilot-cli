@@ -27,6 +27,7 @@ export class StatusBar {
 					🧠 <span id="reasoningText">Reasoning...</span>
 				</span>
 				<span id="reasoningSeparator" class="control-separator" style="display: none;">|</span>
+				<button class="help-icon" title="Slash commands (/help)">?</button>
 				<div class="usage-group">
 					<span class="usage-info">
 						<span id="usageWindow" title="context window usage percentage">Window: 0%</span>
@@ -53,7 +54,12 @@ export class StatusBar {
 	 * Attach event listeners
 	 */
 	attachEventListeners() {
-		// No event listeners needed - reasoning checkbox moved to InputArea
+		const helpBtn = this.container.querySelector('.help-icon');
+		if (helpBtn) {
+			helpBtn.addEventListener('click', () => {
+				this.emit('showHelp');
+			});
+		}
 	}
 
 	/**

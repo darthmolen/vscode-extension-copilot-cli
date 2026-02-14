@@ -533,6 +533,8 @@ export class SDKSessionManager implements vscode.Disposable {
             const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
             const data = event.data;
 
+            this.logger.info(`[Tool Start] tool=${data.toolName} mode=${this.currentMode} session=${this.sessionId?.substring(0, 8)}`);
+
             const state: ToolExecutionState = {
                 toolCallId: data.toolCallId,
                 toolName: data.toolName,
@@ -638,6 +640,7 @@ export class SDKSessionManager implements vscode.Disposable {
             throw new Error('Session not initialized. Call start() first.');
         }
 
+        this.logger.info(`[sendMessage] mode=${this.currentMode} sessionId=${this.sessionId?.substring(0, 8)} isRetry=${isRetry}`);
         this.logger.info(`Sending message: ${message.substring(0, 100)}...`);
         if (attachments && attachments.length > 0) {
             this.logger.info(`[Attachments] Sending ${attachments.length} attachment(s):`);
