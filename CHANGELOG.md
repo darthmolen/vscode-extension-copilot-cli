@@ -2,6 +2,171 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.0.0] - 2026-02-14
+
+### 🚀 Major Release - Complete Architectural Overhaul
+
+This is the biggest transformation in the extension's history — a complete rewrite that makes it faster, more reliable, and infinitely more maintainable.
+
+#### **THE FOUNDATIONAL CHANGE - Sidebar Integration**
+
+Migrated from standalone panel (`ChatViewPanel`) to Activity Bar sidebar (`WebviewViewProvider`):
+- **Lives in Activity Bar** — Same location as native Copilot Chat and Claude Code
+- **Drag Between Sidebars** — Move between left/right sidebars freely via View → Chat
+- **Native Chat Experience** — Proper VS Code sidebar integration, not a floating panel
+- **Complete Webview Lifecycle Rewrite** — Proper disposal chain, resource management, and state preservation
+- **Fixed Massive Memory Leak** — MutableDisposable pattern eliminates accumulating event handlers from session switches
+
+**Why this matters**: Provides a native VS Code chat experience and solves the memory leak that would crash the extension after multiple session switches.
+
+### ✨ Features
+
+#### Inline Diff Display in Chat Stream
+- **In-Stream Diffs** — File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)
+- **Truncation for Large Changes** — Diffs over 10 lines show "... N more lines" with "View Diff" button
+- **Decision-Making in Flow** — Review, approve, or redirect the agent without leaving the conversation
+- **InlineDiffService** — Dedicated service for LCS-based diff generation and formatting
+
+#### Slash Commands (41 Commands) with Discovery Panel
+- **CommandParser** — Unified parser for 41 slash commands with type-safe execution
+- **SlashCommandPanel** — Type `/` to see a grouped command reference above the input; click to insert
+- **Help Icon (?)** — StatusBar help button triggers `/help` for full formatted command reference in chat
+- **User Commands**: `/help`, `/usage`, `/review`, `/diff`, `/mcp`, `/plan`, `/exit`, `/accept`, `/reject`, `/model`
+- **CLI Passthrough**: `/delegate`, `/agent`, `/skills`, `/plugin`, `/login`, `/logout` (opens terminal)
+- **Improved UX**: Unsupported commands show friendly help message instead of being sent to AI
+
+#### Claude Opus 4.6 Model Support
+- **Latest Models**: Added `claude-opus-4.6` and `claude-opus-4.6-fast`
+- **Model Capabilities Service** — Caches model info to reduce API calls
+- **Smart Attachment Validation** — Checks model vision capabilities before sending images
+
+#### Auto-Resume After VS Code Reload
+- **Automatic Reconnection** — CLI session resumes when VS Code reloads with sidebar open
+- **History Restoration** — Previous conversation loads from Copilot CLI's event log
+- **State Preservation** — Active file, plan mode status, and metrics restored across reloads
+
+### 🏗️ Architecture
+
+#### Component-Based UI (9 Components)
+Replaced 1200+ line monolithic script with modular component architecture:
+- **MessageDisplay** — Renders user/assistant messages, reasoning traces, tool execution groups
+- **ToolExecution** — Collapsible tool groups with expand/collapse, diff buttons, result display
+- **InputArea** — Message input with @file references, image attachments, `/` trigger panel
+- **SessionToolbar** — Session dropdown, model selector, new session button, view plan button
+- **AcceptanceControls** — Plan acceptance UI (accept/reject buttons, plan summary)
+- **StatusBar** — Usage metrics (window %, tokens used, quota remaining), help icon (?)
+- **ActiveFileDisplay** — Shows filename with full path tooltip
+- **PlanModeControls** — Plan mode toggle with separate model selector
+- **SlashCommandPanel** — Grouped slash command reference panel for discoverability
+
+**EventBus Pattern** — Decoupled pub/sub communication between components and extension:
+- 45+ event types defined in shared/messages.ts
+- Components emit events, extension and other components listen
+- Eliminates tight coupling and circular dependencies
+
+#### Type-Safe RPC Layer
+- **ExtensionRpcRouter** (520 lines) — Typed send/receive methods replacing raw postMessage
+  - 31 message types with TypeScript interfaces
+  - `send()`, `receive()`, `request()` methods with full type safety
+  - Message tracking and debugging built-in
+- **WebviewRpcClient** (390 lines) — Typed callback registration for webview
+  - `on()`, `emit()`, `call()` methods matching extension router
+  - Automatic message ID generation for request/response matching
+- **shared/messages.ts** — Central type definitions for all 31 message types
+  - Request/response pairs: `SessionListRequest`/`SessionListResponse`
+  - Event notifications: `AssistantMessageEvent`, `ToolStartEvent`, etc.
+  - Type guards for runtime validation
+
+#### Service Extraction (7 Services)
+Extracted from monolithic `extension.ts` for clean separation of concerns:
+- **SessionService** — Session lifecycle, creation, switching, resume logic
+- **InlineDiffService** — LCS-based diff generation, formatting, and display
+- **fileSnapshotService** — Git snapshots for file state tracking
+- **mcpConfigurationService** — MCP server configuration and discovery
+- **modelCapabilitiesService** — Model info caching and attachment validation
+- **planModeToolsService** — Plan mode tool definitions and whitelisting
+- **messageEnhancementService** — Message formatting, @file resolution, active file injection
+
+Each service is independently testable with clear boundaries and responsibilities.
+
+#### MutableDisposable Pattern - Memory Leak Fix
+- **Problem**: Event handlers accumulated on every session switch, causing memory growth
+- **Solution**: `MutableDisposable` wrapper that disposes old handlers before setting new ones
+- **Impact**: Extension can run indefinitely without memory leaks
+- **Clean Disposal Chain**: Extension → Services → Components → DOM
+  - Each layer properly disposes its resources when deactivated
+  - No orphaned event listeners or subscriptions
+
+### 🧪 Testing
+
+#### Comprehensive Test Suite (710+ Tests)
+- **Unit Tests** — All components, services, and utilities
+- **Integration Tests** — Cross-component flows (EventBus, RPC layer)
+- **E2E Tests** — Full user scenarios (session creation, message sending, plan acceptance)
+- **JSDOM-Based Component Testing** — Real DOM manipulation testing without browser
+- **Test Helpers Library** — Reusable mocks for scroll geometry, VS Code API, RPC clients
+
+#### TDD Methodology Enforced
+- **RED-GREEN-REFACTOR** — Every feature starts with a failing test
+- **Integration Tests** — Import actual production code, not mocks
+- **Flow Testing** — Tests execute full user interaction flows (click → event → handler → UI)
+- **Mandatory Checklist** — Every PR must pass test quality checklist
+
+**Test locations**:
+- `tests/*.test.js` — Integration tests (must import production code)
+- `tests/*.test.mjs` — SDK-specific tests (ESM modules)
+- Webview tests use JSDOM to test actual DOM manipulation
+
+### 🐛 Bug Fixes
+
+#### Session Dropdown Fixes
+- Fixed session list not updating when creating new session
+- Fixed dropdown not showing current session on initial load
+- Fixed race condition between session creation and dropdown render
+
+#### View Plan Button Fixes
+- Fixed button showing when no plan.md exists
+- Fixed button click not opening correct plan file
+- Added proper state tracking for plan file existence
+
+#### RPC Message Extraction Fixes
+- Fixed message content extraction for streaming messages
+- Fixed tool execution result display for complex nested structures
+- Added proper type guards for message format validation
+
+#### Scroll Geometry Fixes
+- Fixed auto-scroll not triggering after new message added
+- Fixed scroll position jumping when expanding/collapsing tool groups
+- Added proper scroll threshold detection (within 50px of bottom)
+
+### 📝 Documentation
+
+#### Updated Architecture Documentation
+- Added component architecture diagram
+- Documented RPC layer and message types
+- Explained service layer responsibilities
+- Added EventBus communication patterns
+
+#### Test Quality Standards
+- Documented TDD methodology requirements
+- Added anti-patterns guide (2026-02-09 diff button bug lessons)
+- Created mandatory test quality checklist
+- Defined integration test requirements (JSDOM, production code import)
+
+### 💥 Breaking Changes
+
+- **UI Location Changed** — Extension now lives in Activity Bar sidebar (not floating panel)
+  - Click icon in Activity Bar (left side by default) to show/hide chat
+  - Users may need to drag to preferred sidebar location (View → Chat for right sidebar)
+  - No configuration changes needed — extension automatically appears in Activity Bar
+
+### 🔄 Migration
+
+- **Automatic Migration** — Extension appears in Activity Bar on first launch after update
+- **Session Preservation** — Previous sessions remain accessible and auto-resume works
+- **No Config Changes** — All existing settings and configurations carry over
+- **Sidebar Preference** — Drag to right sidebar if preferred (View → Chat)
+
 ## [2.2.3] - 2026-02-08
 
 ### ✨ Features

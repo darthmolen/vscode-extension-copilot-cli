@@ -6,35 +6,376 @@ This document provides context and guidelines for AI agents helping to develop t
 
 ## 🚨 MANDATORY DEVELOPMENT PRACTICES
 
-### 1. Always Use `using-superpowers` and `test-first` Skill
+### 1. Always Use `using-superpowers` and `test-driven-development` Skill
 
-**Before starting ANY work**, invoke the `using-superpowers` and `test-first` skill:
+**Before starting ANY work**, invoke the `using-superpowers` and `test-driven-development` skill:
 - This ensures you follow established workflows
 - It activates necessary context and guidelines
 - It prevents common mistakes and rework
 
-**Example**: User asks to fix a bug → First call `using-superpowers` and `test-first`, then proceed
+**Example**: User asks to fix a bug → First call `using-superpowers` and `test-driven-development`, then proceed
 
-### 2. Test-First Development (ALWAYS)
+### 2. Test-Driven Development: The Iron Laws (2026-02-09 Lessons)
 
-**Never write production code without a test first!**
+**CRITICAL FAILURE CASE STUDY**: Phase 0.2 (diff button bug) - we wrote 5 "comprehensive" tests that all passed, but the code was still broken in production.
 
-When fixing bugs or adding features:
-1. **Find or create a failing test** that demonstrates the issue
-2. **Run the test** to confirm it fails
-3. **Make the minimal fix** to make the test pass
-4. **Run the test again** to verify the fix
-5. **Only then** consider the work complete
+#### The Fundamental Rule
 
-**Why**: Tests in this project exist but were ignored, leading to bugs. The `tests/sdk-plan-mode-tools.test.mjs` had the correct implementation, but production code diverged.
+> **"If you didn't watch the test fail, you don't know if it tests the right thing."**
+
+#### What We Did WRONG (Never Do This)
+
+```javascript
+// ❌ WRONG - Testing a mock, not production code
+it('should send full data', () => {
+    const mockRpcRouter = {
+        sendDiffAvailable(data) {
+            receivedData = data;  // Mock always works
+        }
+    };
+    mockRpcRouter.sendDiffAvailable(fullData);
+    expect(receivedData).to.deep.equal(fullData); // Always passes!
+});
+```
+
+**Result**: All 5 tests passed ✅, but production code crashed ❌
+
+**Why**: We tested mocks, not reality. Tests never executed actual production code.
+
+#### What We Should Do RIGHT (Mandatory From Now On)
+
+```javascript
+// ✅ RIGHT - Import and test actual production code
+import { handleDiffAvailableMessage } from '../src/webview/main.js';
+
+it('should send full data when button clicked', () => {
+    // Setup real DOM (use JSDOM)
+    document.body.innerHTML = '<div data-tool-id="test-123"></div>';
+    
+    // Call actual function with real data
+    handleDiffAvailableMessage({
+        toolCallId: 'test-123',
+        beforeUri: '/tmp/before',
+        afterUri: '/workspace/after',
+        title: 'Test'
+    });
+    
+    // Verify real button exists in real DOM
+    const btn = document.querySelector('.view-diff-btn');
+    expect(btn).to.exist;
+    
+    // Verify clicking real button sends correct data
+    let sentData = null;
+    global.rpc = { viewDiff: (data) => sentData = data };
+    btn.click();
+    
+    expect(sentData.beforeUri).to.equal('/tmp/before');
+});
+```
+
+#### The Three Iron Laws (Non-Negotiable)
+
+**Law 1: Tests Must Import Production Code**
+- ❌ Mock-only tests are documentation, not verification
+- ✅ Import actual functions and test them
+- ✅ Use JSDOM for webview code
+- ✅ Test with real DOM, real data, real behavior
+
+**Law 2: Tests Must Fail Against Broken Code**
+1. Write test that imports actual code
+2. Run test against current (buggy) code
+3. **Verify test fails with SAME error users see** ⚠️
+4. Only then write the fix
+5. Verify test passes
+
+**If test doesn't fail first, it's not testing anything real.**
+
+**Law 3: Production Code → Test Exists and Failed First**
+- If you wrote code before watching test fail → NOT TDD
+- If test passed immediately → NOT TDD
+- If test only tests mocks → NOT TDD
+- **Delete the code and start over with proper TDD**
+
+#### Special Rules for Webview Code (JavaScript)
+
+The webview is JavaScript (not TypeScript), so type checking doesn't help.
+
+**Mandatory for ALL webview fixes**:
+1. Import actual `main.js` functions
+2. Use JSDOM for DOM manipulation
+3. Test user interactions (clicks, input)
+4. Test message flow end-to-end
+5. Test with actual RPC client
+
+**Example Integration Test**:
+```javascript
+import { JSDOM } from 'jsdom';
+import { handleDiffAvailableMessage } from '../src/webview/main.js';
+
+describe('Diff Button Integration', () => {
+    let dom, sentMessages;
+    
+    beforeEach(() => {
+        // Setup real DOM environment
+        dom = new JSDOM(`<!DOCTYPE html><div id="messages"></div>`);
+        global.document = dom.window.document;
+        global.window = dom.window;
+        
+        // Mock RPC with tracking
+        sentMessages = [];
+        global.rpc = {
+            viewDiff: (data) => sentMessages.push(data)
+        };
+    });
+    
+    it('sends correct data when diff button clicked', () => {
+        // 1. Receive diffAvailable message
+        handleDiffAvailableMessage({
+            toolCallId: 'test-123',
+            beforeUri: '/tmp/before.ts',
+            afterUri: '/workspace/after.ts',
+            title: 'Test File'
+        });
+        
+        // 2. Verify button added
+        const btn = document.querySelector('.view-diff-btn');
+        expect(btn, 'Diff button must exist').to.exist;
+        
+        // 3. Click button
+        btn.click();
+        
+        // 4. Verify correct RPC call
+        expect(sentMessages).to.have.length(1);
+        expect(sentMessages[0]).to.deep.equal({
+            toolCallId: 'test-123',
+            beforeUri: '/tmp/before.ts',
+            afterUri: '/workspace/after.ts',
+            title: 'Test File'
+        });
+    });
+});
+```
+
+#### Test Quality Checklist (Mandatory Before Claiming Complete)
+
+**Every feature/fix MUST pass this checklist:**
+
+✅ **Flow Testing**
+- [ ] Test executes the FULL user interaction flow (click → event → handler → UI update)
+- [ ] Test crosses component boundaries (e.g., InputArea → EventBus → Handler → Webview)
+- [ ] Test verifies side effects (DOM changes, RPC calls, state updates)
+
+✅ **Production Code**
+- [ ] Test imports actual production functions (not mocks)
+- [ ] Test uses real DOM (JSDOM for webview code)
+- [ ] Test calls actual methods with real parameters
+
+✅ **Failure First**
+- [ ] Screenshot/log showing test FAILS against broken code
+- [ ] Failure message matches user-reported error
+- [ ] Only then write the fix
+- [ ] Screenshot/log showing test PASSES after fix
+
+✅ **Coverage Verification**
+- [ ] Integration test exists (not just unit tests)
+- [ ] Test would catch THIS specific bug if code regressed
+- [ ] Test exercises the code path users actually trigger
+
+**If you cannot check all boxes → your tests are incomplete.**
+
+#### Testing Anti-Patterns (Real Failures From This Project)
+
+**🚫 ANTI-PATTERN #1: Testing Registry, Not Execution**
+
+```javascript
+// ❌ WRONG (Slash Commands Bug - 2026-02-14)
+it('should have showNotSupported event', () => {
+    const cmd = parser.parse('/clear');
+    expect(cmd.type).to.equal('not-supported');
+    expect(cmd.event).to.equal('showNotSupported'); // Registry is correct!
+});
+// Test passes ✅ - but in production, execute() emits undefined event!
+```
+
+**Why it failed**: Test checked registry data, never called `execute()` to verify event is actually emitted.
+
+**✅ RIGHT:**
+```javascript
+it('should emit showNotSupported event when executing not-supported command', () => {
+    const eventBus = new EventBus();
+    let emittedEvent = null;
+    let emittedArgs = null;
+    
+    eventBus.on('showNotSupported', (args) => {
+        emittedEvent = 'showNotSupported';
+        emittedArgs = args;
+    });
+    
+    const inputArea = new InputArea(container, eventBus);
+    inputArea.sendMessage('/clear'); // ACTUALLY EXECUTE IT
+    
+    expect(emittedEvent).to.equal('showNotSupported');
+    expect(emittedArgs.command).to.equal('/clear');
+});
+```
+
+---
+
+**🚫 ANTI-PATTERN #2: Testing Mocks, Not Production Code**
+
+```javascript
+// ❌ WRONG (Diff Button Bug - 2026-02-09)
+it('should send full diff data', () => {
+    const mockRpc = { viewDiff: (data) => sentData = data };
+    mockRpc.viewDiff({ beforeUri: '/tmp/before' });
+    expect(sentData.beforeUri).to.equal('/tmp/before'); // Mock always works!
+});
+```
+
+**Why it failed**: Never imported actual `handleDiffAvailableMessage()` function. Never tested DOM button creation. Never tested click handler.
+
+**✅ RIGHT:** See "Example Integration Test" section above for proper webview testing approach.
+
+---
+
+**🚫 ANTI-PATTERN #3: Test Passed Immediately → Not TDD**
+
+If your test passes on first run without any code changes:
+1. ❌ You are testing existing working code (not the bug)
+2. ❌ You are testing mocks/fixtures (not production code)
+3. ❌ You don't know if the test would catch the bug if it regressed
+
+**Mandatory:** Every test MUST fail first. If it doesn't fail, comment out the fix code and verify the test catches the break.
+
+#### Checklist: Before Claiming Any Fix is Complete
+
+**Phase 0: Test Quality Verification**
+- [ ] Integration test imports production code (not mocks)
+- [ ] Test executes full user interaction flow (input → event → handler → UI)
+- [ ] Screenshot/log shows test FAILS with same error users see
+- [ ] Test exercises code path across component boundaries
+
+**Phase 1: Understand**
+- [ ] Reproduce bug manually
+- [ ] Find exact error message
+- [ ] Identify exact line that fails
+- [ ] Understand why it fails
+
+**Phase 2: RED - Write Failing Test**
+- [ ] Import actual production code (not mocks!)
+- [ ] Use JSDOM for webview tests
+- [ ] Run test → **VERIFY IT FAILS WITH SAME ERROR** ⚠️
+- [ ] Commit failing test
+
+**Phase 3: GREEN - Fix Code**
+- [ ] Make minimal fix
+- [ ] Run test → verify passes
+- [ ] Run ALL tests → no regressions
+
+**Phase 4: Integration**
+- [ ] Test message flow (extension ↔ webview)
+- [ ] Test user interaction (clicks, input)
+- [ ] Test with actual DOM
+
+**Phase 5: Manual Verification**
+- [ ] Build and install VSIX
+- [ ] Manually test exact scenario
+- [ ] Verify in VS Code Output logs
+
+**Phase 6: Reflect**
+- [ ] Could types have caught this?
+- [ ] Do type definitions match reality?
+- [ ] What prevents this bug class?
+
+#### Type Definitions Must Match Reality
+
+**FAILURE CASE**: Our DiffData interface said `originalPath/modifiedPath` but code used `beforeUri/afterUri`.
+
+**Rules**:
+1. Type definitions must match actual code usage
+2. Generate types from code (don't write manually)
+3. OR: Add runtime validation (zod, io-ts)
+4. OR: Integration tests verify types match usage
+
+```typescript
+// Runtime validation catches mismatches
+import { z } from 'zod';
+
+const DiffDataSchema = z.object({
+    beforeUri: z.string(),
+    afterUri: z.string(),
+    toolCallId: z.string().optional(),
+    title: z.string().optional()
+});
+
+// This catches type/code mismatches at runtime
+const diffData = DiffDataSchema.parse(receivedData);
+```
+
+#### Standards for Webview PRs
+
+**Every webview PR MUST include**:
+1. Integration test importing actual `main.js`
+2. JSDOM test for DOM manipulation
+3. Screenshot/log showing test failed before fix
+4. Screenshot/log showing test passes after fix
+5. Manual verification in installed extension
+
+**NO EXCEPTIONS.**
+
+#### Quote to Remember
+
+> **"We watched our tests pass. We never watched them fail. Therefore, they tested nothing."**
+
+This was a failure of test discipline, not coding skill. **Never skip the RED phase.**
 
 **Test locations**:
-- `tests/*.test.js` - Integration tests
+- `tests/*.test.js` - Integration tests (must import production code)
 - `tests/*.test.mjs` - SDK-specific tests (ESM modules)
+- Webview tests: Must use JSDOM, test actual DOM
 
-## Project Overview
+### Component Architecture
 
-This is a **VS Code extension** that provides a chat panel for GitHub Copilot CLI, built on the official `@github/copilot-sdk`.
+#### MessageDisplay (Parent Component)
+- **Location:** `src/webview/app/components/MessageDisplay/MessageDisplay.js`
+- **Purpose:** Owns the entire conversation flow
+- **Responsibilities:**
+  - Renders user messages, assistant messages, reasoning
+  - Creates ToolExecution as internal child component
+  - Manages `.messages` scrollable container
+  - Auto-scrolls to bottom on new content
+- **Children:** ToolExecution (created automatically)
+- **Usage:**
+  ```javascript
+  const display = new MessageDisplay(container, eventBus);
+  // ToolExecution created internally - don't create separately!
+  ```
+
+#### ToolExecution (Child Component)
+- **Location:** `src/webview/app/components/ToolExecution/ToolExecution.js`
+- **Purpose:** Renders tool execution groups within message flow
+- **Responsibilities:**
+  - Renders tool groups inside `.messages` container
+  - Manages expand/collapse of tool groups
+  - Handles diff button rendering
+- **Parent:** MessageDisplay (creates this component)
+- **Communication:** EventBus for cross-component events
+  - Listens: `tool:start`, `tool:complete`, `tool:progress`, `message:add`
+  - Emits: `viewDiff`
+- **Important:** NOT created directly in main.js - MessageDisplay handles this
+
+#### Component Hierarchy
+
+```
+main.js
+├─ SessionToolbar (top toolbar)
+├─ MessageDisplay (parent - owns message flow)
+│  └─ ToolExecution (child - renders tools)
+├─ AcceptanceControls (plan acceptance UI)
+└─ InputArea (bottom input area)
+```
+
+**Key Rule:** ToolExecution is NEVER initialized in main.js. MessageDisplay creates it internally to ensure tools render inside the scrollable `.messages` container.
 
 **Architecture Components**:
 1. **Backend (TypeScript)**: SDK session management, event handling, custom tools
@@ -98,6 +439,39 @@ npm run compile && code --install-extension copilot-cli-extension-latest.vsix --
 ```
 
 **Note:** The `tsconfig.json` excludes `tests/` directory to avoid compilation errors. Tests are JavaScript/ESM and don't need TypeScript compilation.
+
+### ⚠️ CRITICAL: Adding New Webview Component Files
+
+**When adding new component files to `src/webview/app/`, you MUST update `esbuild.js`:**
+
+The build process **copies** webview files (not bundles them). If you add a new component:
+
+1. **Create the component**: `src/webview/app/components/MyComponent/MyComponent.js`
+2. **Import in main.js**: `import { MyComponent } from './app/components/MyComponent/MyComponent.js';`
+3. **Update esbuild.js**: Add directory creation and file copy
+
+```javascript
+// In esbuild.js main() function:
+const myComponentDistDir = path.join(componentsDistDir, 'MyComponent');
+if (!fs.existsSync(myComponentDistDir)) {
+    fs.mkdirSync(myComponentDistDir, { recursive: true });
+}
+
+// Later in the copy section:
+fs.copyFileSync(
+    path.join(__dirname, 'src', 'webview', 'app', 'components', 'MyComponent', 'MyComponent.js'),
+    path.join(myComponentDistDir, 'MyComponent.js')
+);
+```
+
+**Why:** VS Code webview loads modules separately from `dist/webview/`. Missing files = runtime errors in production.
+
+**Verification:** After `./test-extension.sh`, check VSIX contents include your component:
+```bash
+npx @vscode/vsce ls copilot-cli-extension-3.0.0.vsix | grep MyComponent
+```
+
+**Failure symptom:** `ERR Webview.loadLocalResource - Error using fileReader` in VS Code logs.
 
 **Never suggest:**
 - "Press F5 to test"

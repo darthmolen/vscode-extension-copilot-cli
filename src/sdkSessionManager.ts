@@ -2,12 +2,15 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './logger';
-import { getMostRecentSession } from './sessionUtils';
-import { ModelCapabilitiesService } from './modelCapabilitiesService';
-import { PlanModeToolsService } from './planModeToolsService';
-import { MessageEnhancementService } from './messageEnhancementService';
-import { FileSnapshotService } from './fileSnapshotService';
-import { MCPConfigurationService } from './mcpConfigurationService';
+import { SessionService } from './extension/services/SessionService';
+import * as os from 'os';
+import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
+import { PlanModeToolsService } from './extension/services/planModeToolsService';
+import { MessageEnhancementService } from './extension/services/messageEnhancementService';
+import { FileSnapshotService } from './extension/services/fileSnapshotService';
+import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
+import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
+import { BufferedEmitter } from './utilities/bufferedEmitter';
 import { 
     classifySessionError, 
     checkAuthEnvVars, 
@@ -47,12 +50,6 @@ export interface CLIConfig {
     noAskUser?: boolean;
 }
 
-export interface CLIMessage {
-    type: 'output' | 'error' | 'status' | 'file_change' | 'tool_start' | 'tool_complete' | 'tool_progress' | 'reasoning' | 'diff_available' | 'usage_info';
-    data: any;
-    timestamp: number;
-}
-
 export interface ToolExecutionState {
     toolCallId: string;
     toolName: string;
@@ -66,14 +63,79 @@ export interface ToolExecutionState {
     intent?: string;  // Intent from the message containing this tool call
 }
 
+export interface StatusData {
+    status: 'thinking' | 'ready' | 'exited' | 'stopped' | 'aborted' | 'session_expired' | 
+            'plan_mode_enabled' | 'plan_mode_disabled' | 'plan_accepted' | 'plan_rejected' | 
+            'plan_ready' | 'reset_metrics' | 'session_resume_failed' | 'authentication_required';
+    turnId?: string;
+    sessionId?: string;  // For session ready
+    newSessionId?: string;  // For session_expired
+    reason?: string;  // For session_resume_failed
+    resetMetrics?: boolean;  // For reset_metrics
+    summary?: string | null;  // For plan_ready
+}
+
+export interface FileChangeData {
+    path: string;
+    type: 'created' | 'modified' | 'deleted';
+}
+
+export interface DiffData {
+    toolCallId: string;
+    beforeUri: string;
+    afterUri: string;
+    title?: string;
+}
+
+export interface UsageData {
+    remainingPercentage?: number;
+    currentTokens?: number;
+    tokenLimit?: number;
+    messagesLength?: number;
+}
+
 type SessionMode = 'work' | 'plan';
 
-export class SDKSessionManager {
+export class SDKSessionManager implements vscode.Disposable {
     private client: any | null = null;
     private session: any | null = null;
     private sessionId: string | null = null;
-    private readonly onMessageEmitter = new vscode.EventEmitter<CLIMessage>();
-    public readonly onMessage = this.onMessageEmitter.event;
+    
+    // Disposables management
+    private readonly _disposables = new DisposableStore();
+    private readonly _sessionSub = this._reg(new MutableDisposable<vscode.Disposable>());
+    
+    // Granular event emitters (created once, survive session switches)
+    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<string>());
+    readonly onDidReceiveOutput = this._onDidReceiveOutput.event;
+    
+    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<string>());
+    readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;
+    
+    private readonly _onDidReceiveError = this._reg(new BufferedEmitter<string>());
+    readonly onDidReceiveError = this._onDidReceiveError.event;
+    
+    private readonly _onDidChangeStatus = this._reg(new BufferedEmitter<StatusData>());
+    readonly onDidChangeStatus = this._onDidChangeStatus.event;
+    
+    private readonly _onDidStartTool = this._reg(new BufferedEmitter<ToolExecutionState>());
+    readonly onDidStartTool = this._onDidStartTool.event;
+    
+    private readonly _onDidUpdateTool = this._reg(new BufferedEmitter<ToolExecutionState>());
+    readonly onDidUpdateTool = this._onDidUpdateTool.event;
+    
+    private readonly _onDidCompleteTool = this._reg(new BufferedEmitter<ToolExecutionState>());
+    readonly onDidCompleteTool = this._onDidCompleteTool.event;
+    
+    private readonly _onDidChangeFile = this._reg(new BufferedEmitter<FileChangeData>());
+    readonly onDidChangeFile = this._onDidChangeFile.event;
+    
+    private readonly _onDidProduceDiff = this._reg(new BufferedEmitter<DiffData>());
+    readonly onDidProduceDiff = this._onDidProduceDiff.event;
+    
+    private readonly _onDidUpdateUsage = this._reg(new BufferedEmitter<UsageData>());
+    readonly onDidUpdateUsage = this._onDidUpdateUsage.event;
+    
     private logger: Logger;
     private workingDirectory: string;
     private resumeSession: boolean;
@@ -87,9 +149,6 @@ export class SDKSessionManager {
     private planSession: any | null = null;
     private workSessionId: string | null = null;
     private planModeSnapshot: string | null = null;
-    
-    // Event handler cleanup
-    private sessionUnsubscribe: (() => void) | null = null;
     
     // Services
     private modelCapabilitiesService: ModelCapabilitiesService;
@@ -126,11 +185,17 @@ export class SDKSessionManager {
             this.loadLastSessionId();
         }
     }
+    
+    private _reg<T extends vscode.Disposable>(d: T): T {
+        this._disposables.add(d);
+        return d;
+    }
 
     private loadLastSessionId(): void {
         try {
             const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
-            const sessionId = getMostRecentSession(this.workingDirectory, filterByFolder);
+            const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+            const sessionId = SessionService.getMostRecentSession(sessionStateDir, this.workingDirectory, filterByFolder);
             
             if (sessionId) {
                 this.sessionId = sessionId;
@@ -256,11 +321,7 @@ export class SDKSessionManager {
                     // Handle authentication errors differently - fail fast, don't create new session
                     if (errorType === 'authentication') {
                         this.logger.error('Authentication failure - cannot resume or create session. User needs to run: gh auth login');
-                        this.onMessageEmitter.fire({
-                            type: 'status',
-                            data: { status: 'authentication_required' },
-                            timestamp: Date.now()
-                        });
+                        this._onDidChangeStatus.fire({ status: 'authentication_required' as any });
                         throw error; // Propagate auth errors - user must fix
                     }
                     
@@ -277,10 +338,10 @@ export class SDKSessionManager {
                     
                     // Notify user with appropriate status
                     const status = errorType === 'session_expired' ? 'session_expired' : 'session_resume_failed';
-                    this.onMessageEmitter.fire({
-                        type: 'status',
-                        data: { status, newSessionId: this.sessionId, reason: errorType },
-                        timestamp: Date.now()
+                    this._onDidChangeStatus.fire({ 
+                        status: status as any, 
+                        newSessionId: this.sessionId || undefined,
+                        reason: errorType as any
                     });
                 }
             } else {
@@ -304,23 +365,18 @@ export class SDKSessionManager {
             // Reset session-level metrics for new sessions
             if (sessionWasCreatedNew) {
                 this.logger.info('[Metrics] Resetting session-level metrics for new session');
-                this.onMessageEmitter.fire({
-                    type: 'status',
-                    data: { status: 'reset_metrics', resetMetrics: true },
-                    timestamp: Date.now()
-                });
+                this._onDidChangeStatus.fire({ status: 'reset_metrics', resetMetrics: true });
             }
 
             // Set up event listeners
-            this.setupSessionEventHandlers();
+            this.setActiveSession(this.session);
             
             // Fetch model capabilities for vision support
             await this.updateModelCapabilities();
 
-            this.onMessageEmitter.fire({
-                type: 'status',
-                data: { status: 'ready', sessionId: this.sessionId },
-                timestamp: Date.now()
+            this._onDidChangeStatus.fire({ 
+                status: 'ready', 
+                sessionId: this.sessionId || undefined
             });
 
         } catch (error) {
@@ -354,242 +410,203 @@ export class SDKSessionManager {
         }
     }
 
+    /**
+     * Set the active session and wire up event handlers.
+     * Consolidates session assignment + event wiring to prevent leaks.
+     */
+    private setActiveSession(session: any): void {
+        this.session = session;
+        this.setupSessionEventHandlers();
+    }
+
     private setupSessionEventHandlers(): void {
-        if (!this.session) {return;}
+        if (!this.session) { return; }
+        this._sessionSub.value = toDisposable(
+            this.session.on((event: any) => this._handleSDKEvent(event))
+        );
+    }
 
-        // Clean up previous event handler if it exists
-        if (this.sessionUnsubscribe) {
-            this.sessionUnsubscribe();
-            this.sessionUnsubscribe = null;
-        }
+    private _handleSDKEvent(event: any): void {
+        try {
+        this.logger.debug(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
 
-        // Register new event handler and store unsubscribe function
-        this.sessionUnsubscribe = this.session.on((event: any) => {
-            this.logger.debug(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+        switch (event.type) {
+            case 'assistant.message':
+                // Extract intent from report_intent tool if present
+                if (event.data.toolRequests && Array.isArray(event.data.toolRequests)) {
+                    const reportIntentTool = event.data.toolRequests.find((t: any) => t.name === 'report_intent');
+                    if (reportIntentTool && reportIntentTool.arguments?.intent) {
+                        this.lastMessageIntent = reportIntentTool.arguments.intent;
+                    }
+                }
+                
+                // Only fire output message if there's actual content
+                if (event.data.content && event.data.content.trim().length > 0) {
+                    this._onDidReceiveOutput.fire(event.data.content);
+                }
+                break;
 
-            switch (event.type) {
-                case 'assistant.message':
-                    // Extract intent from report_intent tool if present
-                    if (event.data.toolRequests && Array.isArray(event.data.toolRequests)) {
-                        const reportIntentTool = event.data.toolRequests.find((t: any) => t.name === 'report_intent');
-                        if (reportIntentTool && reportIntentTool.arguments?.intent) {
-                            this.lastMessageIntent = reportIntentTool.arguments.intent;
+            case 'assistant.reasoning':
+                this._onDidReceiveReasoning.fire(event.data.content);
+                break;
+
+            case 'assistant.message_delta':
+                // Streaming message chunks (optional - can enable for real-time streaming)
+                break;
+
+            case 'tool.execution_start':
+                this.handleToolStart(event);
+                break;
+
+            case 'tool.execution_progress':
+                this.handleToolProgress(event);
+                break;
+
+            case 'tool.execution_complete':
+                this.handleToolComplete(event);
+                break;
+
+            case 'session.error':
+                this._onDidReceiveError.fire(event.data.message);
+                break;
+
+            case 'session.start':
+            case 'session.resume':
+            case 'session.idle':
+                this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+            
+            case 'assistant.turn_start':
+                this.logger.debug(`Assistant turn ${event.data.turnId} started`);
+                this._onDidChangeStatus.fire({ status: 'thinking', turnId: event.data.turnId });
+                break;
+            
+            case 'assistant.turn_end':
+                this.logger.debug(`Assistant turn ${event.data.turnId} ended`);
+                this._onDidChangeStatus.fire({ status: 'ready', turnId: event.data.turnId });
+                break;
+            
+            case 'session.usage_info':
+                this.logger.debug(`Token usage: ${event.data.currentTokens}/${event.data.tokenLimit}`);
+                this._onDidUpdateUsage.fire({
+                    currentTokens: event.data.currentTokens,
+                    tokenLimit: event.data.tokenLimit,
+                    messagesLength: event.data.messagesLength
+                });
+                break;
+        
+            case 'assistant.usage':
+                // Request quota information
+                if (event.data.quotaSnapshots) {
+                    let quota = event.data.quotaSnapshots.premium_interactions;
+                    let quotaType = 'premium_interactions';
+                    
+                    if (!quota) {
+                        const quotaKeys = Object.keys(event.data.quotaSnapshots);
+                        for (const key of quotaKeys) {
+                            const q = event.data.quotaSnapshots[key];
+                            if (!q.isUnlimitedEntitlement) {
+                                quota = q;
+                                quotaType = key;
+                                break;
+                            }
                         }
                     }
                     
-                    // Only fire output message if there's actual content
-                    if (event.data.content && event.data.content.trim().length > 0) {
-                        this.onMessageEmitter.fire({
-                            type: 'output',
-                            data: event.data.content,
-                            timestamp: Date.now()
-                        });
+                    if (quota && !quota.isUnlimitedEntitlement) {
+                        this.logger.debug(`Quota (${quotaType}): ${quota.remainingPercentage}% remaining`);
+                        this._onDidUpdateUsage.fire({ remainingPercentage: quota.remainingPercentage });
                     }
-                    break;
+                }
+                break;
 
-                case 'assistant.reasoning':
-                    // Extended thinking/reasoning from the model
-                    this.onMessageEmitter.fire({
-                        type: 'reasoning',
-                        data: event.data.content,
-                        timestamp: Date.now()
-                    });
-                    break;
-
-                case 'assistant.message_delta':
-                    // Streaming message chunks (optional - can enable for real-time streaming)
-                    // For now, we'll just wait for the final message
-                    break;
-
-                case 'tool.execution_start':
-                    this.handleToolStart(event);
-                    break;
-
-                case 'tool.execution_progress':
-                    this.handleToolProgress(event);
-                    break;
-
-                case 'tool.execution_complete':
-                    this.handleToolComplete(event);
-                    break;
-
-                case 'session.error':
-                    this.onMessageEmitter.fire({
-                        type: 'error',
-                        data: event.data.message,
-                        timestamp: Date.now()
-                    });
-                    break;
-
-                case 'session.start':
-                case 'session.resume':
-                case 'session.idle':
-                    this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
-                    break;
-                
-                case 'assistant.turn_start':
-                    // Assistant is starting to think/respond
-                    this.logger.debug(`Assistant turn ${event.data.turnId} started`);
-                    this.onMessageEmitter.fire({
-                        type: 'status',
-                        data: { status: 'thinking', turnId: event.data.turnId },
-                        timestamp: Date.now()
-                    });
-                    break;
-                
-                case 'assistant.turn_end':
-                    // Assistant finished this turn
-                    this.logger.debug(`Assistant turn ${event.data.turnId} ended`);
-                    this.onMessageEmitter.fire({
-                        type: 'status',
-                        data: { status: 'ready', turnId: event.data.turnId },
-                        timestamp: Date.now()
-                    });
-                    break;
-                
-                case 'session.usage_info':
-                    // Token usage information
-                    this.logger.debug(`Token usage: ${event.data.currentTokens}/${event.data.tokenLimit}`);
-                    this.onMessageEmitter.fire({
-                        type: 'usage_info',
-                        data: {
-                            currentTokens: event.data.currentTokens,
-                            tokenLimit: event.data.tokenLimit,
-                            messagesLength: event.data.messagesLength
-                        },
-                        timestamp: Date.now()
-                    });
-                    break;
-                
-                case 'assistant.usage':
-                    // Request quota information
-                    if (event.data.quotaSnapshots) {
-                        // Prefer premium_interactions quota (the actual limited one)
-                        let quota = event.data.quotaSnapshots.premium_interactions;
-                        let quotaType = 'premium_interactions';
-                        
-                        // Fallback: find first non-unlimited quota
-                        if (!quota) {
-                            const quotaKeys = Object.keys(event.data.quotaSnapshots);
-                            for (const key of quotaKeys) {
-                                const q = event.data.quotaSnapshots[key];
-                                if (!q.isUnlimitedEntitlement) {
-                                    quota = q;
-                                    quotaType = key;
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        // Only display if we found a limited quota
-                        if (quota && !quota.isUnlimitedEntitlement) {
-                            this.logger.debug(`Quota (${quotaType}): ${quota.remainingPercentage}% remaining`);
-                            this.onMessageEmitter.fire({
-                                type: 'usage_info',
-                                data: {
-                                    remainingPercentage: quota.remainingPercentage
-                                },
-                                timestamp: Date.now()
-                            });
-                        } else {
-                            this.logger.debug('All quotas unlimited, skipping quota display');
-                        }
-                    }
-                    break;
-
-                default:
-                    // Log other events for debugging
-                    this.logger.debug(`Unhandled event type: ${event.type}`);
-            }
-        });
+            default:
+                this.logger.debug(`Unhandled event type: ${event.type}`);
+        }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error handling event "${event?.type}": ${error instanceof Error ? error.message : error}`);
+        }
     }
 
     private handleToolStart(event: any): void {
-        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
-        const data = event.data;
-        
-        const state: ToolExecutionState = {
-            toolCallId: data.toolCallId,
-            toolName: data.toolName,
-            arguments: data.arguments,
-            status: 'running',
-            startTime: eventTime,
-            intent: this.lastMessageIntent,  // Attach the intent from report_intent
-        };
-        
-        // Clear intent after first use to prevent it sticking to all subsequent tools
-        this.lastMessageIntent = undefined;
-        
-        this.toolExecutions.set(data.toolCallId, state);
-        
-        // Capture file snapshot for edit/create tools
-        this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
-        
-        this.onMessageEmitter.fire({
-            type: 'tool_start',
-            data: state,
-            timestamp: eventTime
-        });
+        try {
+            const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+            const data = event.data;
+
+            this.logger.info(`[Tool Start] tool=${data.toolName} mode=${this.currentMode} session=${this.sessionId?.substring(0, 8)}`);
+
+            const state: ToolExecutionState = {
+                toolCallId: data.toolCallId,
+                toolName: data.toolName,
+                arguments: data.arguments,
+                status: 'running',
+                startTime: eventTime,
+                intent: this.lastMessageIntent,  // Attach the intent from report_intent
+            };
+
+            // Clear intent after first use to prevent it sticking to all subsequent tools
+            this.lastMessageIntent = undefined;
+
+            this.toolExecutions.set(data.toolCallId, state);
+
+            // Capture file snapshot for edit/create tools
+            this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
+
+            this._onDidStartTool.fire(state);
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolStart: ${error instanceof Error ? error.message : error}`);
+        }
     }
 
     private handleToolProgress(event: any): void {
-        const data = event.data;
-        const state = this.toolExecutions.get(data.toolCallId);
-        if (state) {
-            state.progress = data.progressMessage;
-            
-            this.onMessageEmitter.fire({
-                type: 'tool_progress',
-                data: state,
-                timestamp: Date.now()
-            });
+        try {
+            const data = event.data;
+            const state = this.toolExecutions.get(data.toolCallId);
+            if (state) {
+                state.progress = data.progressMessage;
+
+                this._onDidUpdateTool.fire(state);
+            }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolProgress: ${error instanceof Error ? error.message : error}`);
         }
     }
 
     private handleToolComplete(event: any): void {
-        const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
-        const data = event.data;
-        const state = this.toolExecutions.get(data.toolCallId);
-        if (state) {
-            state.status = data.success ? 'complete' : 'failed';
-            state.endTime = eventTime;
-            state.result = data.result?.content;
-            state.error = data.error ? { message: data.error.message, code: data.error.code } : undefined;
-            
-            this.onMessageEmitter.fire({
-                type: 'tool_complete',
-                data: state,
-                timestamp: eventTime
-            });
+        try {
+            const eventTime = event.timestamp ? new Date(event.timestamp).getTime() : Date.now();
+            const data = event.data;
+            const state = this.toolExecutions.get(data.toolCallId);
+            if (state) {
+                state.status = data.success ? 'complete' : 'failed';
+                state.endTime = eventTime;
+                state.result = data.result?.content;
+                state.error = data.error ? { message: data.error.message, code: data.error.code } : undefined;
 
-            // Check if this was a file operation
-            if (state.toolName === 'edit' || state.toolName === 'create') {
-                this.onMessageEmitter.fire({
-                    type: 'file_change',
-                    data: {
-                        toolCallId: data.toolCallId,
-                        toolName: state.toolName,
-                        arguments: state.arguments,
-                    },
-                    timestamp: Date.now()
-                });
-                
-                // If we have a snapshot and operation succeeded, fire diff_available
-                const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
-                if (snapshot && data.success) {
-                    const fileName = path.basename(snapshot.originalPath);
-                    this.onMessageEmitter.fire({
-                        type: 'diff_available',
-                        data: {
+                this._onDidCompleteTool.fire(state);
+
+                // Check if this was a file operation
+                if (state.toolName === 'edit' || state.toolName === 'create') {
+                    this._onDidChangeFile.fire({
+                        path: (state.arguments as any)?.path || '',
+                        type: state.toolName === 'create' ? 'created' : 'modified'
+                    });
+
+                    // If we have a snapshot and operation succeeded, fire diff_available
+                    const snapshot = this.fileSnapshotService.getSnapshot(data.toolCallId);
+                    if (snapshot && data.success) {
+                        const fileName = path.basename(snapshot.originalPath);
+                        this._onDidProduceDiff.fire({
                             toolCallId: data.toolCallId,
                             beforeUri: snapshot.tempFilePath,
                             afterUri: snapshot.originalPath,
                             title: `${fileName} (Before ↔ After)`
-                        },
-                        timestamp: Date.now()
-                    });
+                        });
+                    }
                 }
             }
+        } catch (error) {
+            this.logger.error(`[SDK Event] Error in handleToolComplete: ${error instanceof Error ? error.message : error}`);
         }
     }
     
@@ -623,6 +640,7 @@ export class SDKSessionManager {
             throw new Error('Session not initialized. Call start() first.');
         }
 
+        this.logger.info(`[sendMessage] mode=${this.currentMode} sessionId=${this.sessionId?.substring(0, 8)} isRetry=${isRetry}`);
         this.logger.info(`Sending message: ${message.substring(0, 100)}...`);
         if (attachments && attachments.length > 0) {
             this.logger.info(`[Attachments] Sending ${attachments.length} attachment(s):`);
@@ -637,11 +655,7 @@ export class SDKSessionManager {
                 this.logger.error(`[Attachments] Validation failed: ${errorMsg}`);
                 
                 // Fire error event to UI
-                this.onMessageEmitter.fire({
-                    type: 'error',
-                    data: errorMsg,
-                    timestamp: Date.now()
-                });
+                this._onDidReceiveError.fire(errorMsg);
                 
                 throw new Error(errorMsg);
             }
@@ -814,7 +828,7 @@ export class SDKSessionManager {
                 }
                 
                 // Re-setup event handlers for new session
-                this.setupSessionEventHandlers();
+                this.setActiveSession(this.session);
                 
                 // Fetch model capabilities for new session
                 await this.updateModelCapabilities();
@@ -822,11 +836,7 @@ export class SDKSessionManager {
                 this.logger.info(`Session recreated: ${this.sessionId}`);
                 
                 // Notify UI about new session
-                this.onMessageEmitter.fire({
-                    type: 'status',
-                    data: { status: 'session_expired', newSessionId: this.sessionId },
-                    timestamp: Date.now()
-                });
+                this._onDidChangeStatus.fire({ status: 'session_expired', newSessionId: this.sessionId || undefined });
                 
                 // Retry the message once (use flag to prevent infinite loop)
                 if (!isRetry) {
@@ -840,11 +850,7 @@ export class SDKSessionManager {
             this.logger.error('Failed to send message', error instanceof Error ? error : undefined);
             
             // Fire error event to UI
-            this.onMessageEmitter.fire({
-                type: 'error',
-                data: errorMessage,
-                timestamp: Date.now()
-            });
+            this._onDidReceiveError.fire(errorMessage);
             
             throw error;
         }
@@ -866,11 +872,7 @@ export class SDKSessionManager {
             this.logger.info('Message aborted successfully');
             
             // Fire status event to UI
-            this.onMessageEmitter.fire({
-                type: 'status',
-                data: { status: 'aborted' },
-                timestamp: Date.now()
-            });
+            this._onDidChangeStatus.fire({ status: 'aborted' });
         } catch (error) {
             this.logger.error('Failed to abort message', error instanceof Error ? error : undefined);
             throw error;
@@ -884,11 +886,8 @@ export class SDKSessionManager {
     public async stop(): Promise<void> {
         this.logger.info('Stopping SDK session manager...');
         
-        // Clean up event handler
-        if (this.sessionUnsubscribe) {
-            this.sessionUnsubscribe();
-            this.sessionUnsubscribe = null;
-        }
+        // MutableDisposable will handle cleanup automatically
+        this._sessionSub.value = undefined;
         
         if (this.session) {
             try {
@@ -914,11 +913,7 @@ export class SDKSessionManager {
         // Cleanup all file snapshots via service
         this.fileSnapshotService.cleanupAllSnapshots();
 
-        this.onMessageEmitter.fire({
-            type: 'status',
-            data: { status: 'stopped' },
-            timestamp: Date.now()
-        });
+        this._onDidChangeStatus.fire({ status: 'stopped' });
     }
 
     public async restart(): Promise<void> {
@@ -1003,7 +998,7 @@ export class SDKSessionManager {
         this.planModeToolsService = new PlanModeToolsService(
             this.workSessionId!,
             this.workingDirectory,
-            this.onMessageEmitter,
+            this._onDidChangeStatus,
             this.logger
         );
         await this.planModeToolsService.initialize();
@@ -1038,7 +1033,7 @@ export class SDKSessionManager {
             this.logger.info(`[Plan Mode]     sessionId: ${planSessionId}`);
             this.logger.info(`[Plan Mode]     model: ${this.config.model || 'default'}`);
             this.logger.info(`[Plan Mode]     tools: [${customTools.map(t => t.name).join(', ')}] (custom)`);
-            this.logger.info(`[Plan Mode]     availableTools: [plan_bash_explore, task_agent_type_explore, edit_plan_file, create_plan_file, update_work_plan, present_plan, view, grep, glob, web_fetch, fetch_copilot_cli_documentation]`);
+            this.logger.info(`[Plan Mode]     availableTools: [${this.planModeToolsService.getAvailableToolNames().join(', ')}]`);
             this.logger.info(`[Plan Mode]     mcpServers: ${hasMcpServers ? 'enabled' : 'disabled'}`);
             this.logger.info(`[Plan Mode]     systemMessage: mode=append (plan mode instructions)`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
@@ -1047,129 +1042,10 @@ export class SDKSessionManager {
                 sessionId: planSessionId,
                 model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
-                availableTools: [
-                    // Custom restricted tools (6)
-                    'plan_bash_explore',           // restricted bash for read-only commands
-                    'task_agent_type_explore',     // restricted task for exploration only
-                    'edit_plan_file',              // edit ONLY plan.md
-                    'create_plan_file',            // create ONLY plan.md
-                    'update_work_plan',            // update plan content
-                    'present_plan',                // present plan to user for acceptance
-                    // Safe SDK tools (5)
-                    'view',                        // read files
-                    'grep',                        // search content
-                    'glob',                        // find files
-                    'web_fetch',                   // fetch URLs
-                    'fetch_copilot_cli_documentation', // get CLI docs
-                    'report_intent'                // report intent to UI
-                ],
+                availableTools: this.planModeToolsService.getAvailableToolNames(),
                 systemMessage: {
                     mode: 'append',
-                    content: `
-
----
-🎯 **YOU ARE IN PLAN MODE** 🎯
----
-
-Your role is to PLAN, not to implement. You have the following capabilities:
-
-**YOUR PLAN LOCATION:**
-Your plan is stored at: \`${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md\`
-This is your dedicated workspace for planning.
-
-**AVAILABLE TOOLS IN PLAN MODE (11 total):**
-
-*Plan Management Tools:*
-- \`update_work_plan\` - **PRIMARY TOOL** for creating/updating your implementation plan
-- \`present_plan\` - **REQUIRED AFTER PLANNING** to present the plan to the user for review
-- \`create_plan_file\` - Create plan.md if it doesn't exist (restricted to plan.md only)
-- \`edit_plan_file\` - Edit plan.md (restricted to plan.md only)
-
-*Exploration Tools:*
-- \`view\` - Read file contents
-- \`grep\` - Search in files
-- \`glob\` - Find files by pattern
-- \`plan_bash_explore\` - Execute read-only shell commands (git status, ls, cat, etc.)
-- \`task_agent_type_explore\` - Dispatch exploration sub-agents (agent_type="explore" only)
-
-*Documentation Tools:*
-- \`web_fetch\` - Fetch web pages and documentation
-- \`fetch_copilot_cli_documentation\` - Get Copilot CLI documentation
-
-**CRITICAL: HOW TO CREATE YOUR PLAN**
-You MUST use ONLY these tools to create/update your plan:
-
-1. **update_work_plan** (PREFERRED) - Use this to create or update your plan:
-   \`\`\`
-   update_work_plan({ content: "# Plan\\n\\n## Problem...\\n\\n## Tasks\\n- [ ] Task 1" })
-   \`\`\`
-
-2. **present_plan** (REQUIRED) - After finalizing your plan, call this to present it to the user:
-   \`\`\`
-   present_plan({ summary: "Plan for implementing feature X" })
-   \`\`\`
-   This notifies the user that the plan is ready for review and acceptance.
-
-3. **create_plan_file** (FALLBACK) - Only if update_work_plan fails, use create_plan_file with the exact path:
-   \`\`\`
-   create_plan_file({ 
-     path: "${path.join(require('os').homedir(), '.copilot', 'session-state', this.workSessionId!)}/plan.md",
-     file_text: "# Plan\\n\\n## Problem..."
-   })
-   \`\`\`
-
-**WORKFLOW:**
-1. Explore and analyze the codebase
-2. Create/update your plan using \`update_work_plan\`
-3. When the plan is complete and ready for user review, call \`present_plan\`
-4. The user will then review and either accept, request changes, or provide new instructions
-
-❌ DO NOT try to create files in /tmp or anywhere else
-❌ DO NOT use bash to create the plan
-✅ ALWAYS use update_work_plan to create/update the plan
-✅ ALWAYS call present_plan when the plan is ready for review
-
-**WHAT YOU CAN DO:**
-- Analyze the codebase and understand requirements (use view, grep, glob tools)
-- Ask questions to clarify the task (use ask_user if available)
-- Research and explore the code structure (use task_agent_type_explore with agent_type="explore")
-- Fetch documentation and web resources (use web_fetch)
-- Run read-only commands to understand the environment (git status, ls, cat, etc. via plan_bash_explore)
-- Design solutions and consider alternatives
-- **Create and update implementation plans using update_work_plan**
-- Document your thinking and reasoning
-
-**WHAT YOU CANNOT DO:**
-- You CANNOT use edit or other file modification tools (except for plan.md via update_work_plan/create)
-- You CANNOT execute write commands (no npm install, git commit, rm, mv, etc.)
-- You CANNOT make changes to the codebase
-- You are in READ-ONLY mode for code
-
-**BASH COMMAND RESTRICTIONS (ENFORCED):**
-The bash tool is restricted to read-only commands. Attempts to run write commands will be automatically blocked.
-
-Allowed commands:
-- git status, git log, git branch, git diff, git show
-- ls, cat, head, tail, wc, find, grep, tree, pwd
-- npm list, pip list, go list
-- which, whereis, ps, env, echo, date, uname
-
-Blocked commands (will be rejected):
-- git commit, git push, git checkout, git merge
-- rm, mv, cp, touch, mkdir
-- npm install, npm run, make, build commands
-- sudo, chmod, chown
-
-Your plan should include:
-1. **Problem Statement**: Clear description of what needs to be done
-2. **Approach**: Proposed solution and why it's the best approach
-3. **Tasks**: Step-by-step implementation tasks with checkboxes [ ]
-4. **Technical Considerations**: Important details, risks, dependencies
-5. **Testing Strategy**: How to verify the implementation works
-
-When the user is satisfied with the plan, they will toggle back to WORK MODE to implement it.
-Remember: Your job is to think deeply and plan thoroughly, not to code!
-`
+                    content: this.planModeToolsService.getSystemPrompt(this.workSessionId!)
                 },
                 ...(hasMcpServers ? { mcpServers } : {}),
             });
@@ -1177,53 +1053,39 @@ Remember: Your job is to think deeply and plan thoroughly, not to code!
             this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
             
             this.logger.info(`[Plan Mode] Step 7/7: Activate plan session`);
-            this.session = this.planSession;
             this.sessionId = planSessionId;
+            this.currentMode = 'plan';
             this.logger.info(`[Plan Mode]   Active session changed to: ${this.sessionId}`);
             
             // Setup event listeners for plan session
             this.logger.info(`[Plan Mode]   Setting up event handlers for plan session`);
-            this.setupSessionEventHandlers();
+            this.setActiveSession(this.planSession);
             this.logger.info(`[Plan Mode]   ✅ Event handlers configured`);
             
             // Notify UI
             this.logger.info(`[Plan Mode]   Emitting plan_mode_enabled status event`);
-            this.onMessageEmitter.fire({
-                type: 'status',
-                data: { 
-                    status: 'plan_mode_enabled',
-                    planSessionId: planSessionId,
-                    workSessionId: this.workSessionId
-                },
-                timestamp: Date.now()
-            });
+            this._onDidChangeStatus.fire({ status: 'plan_mode_enabled' });
             this.logger.info(`[Plan Mode]   ✅ Status event emitted`);
             
             // Send visual message to chat
             this.logger.info(`[Plan Mode]   Sending visual message to chat`);
-            this.onMessageEmitter.fire({
-                type: 'output',
-                data: `🎯 **Entered Plan Mode**
-
-You can now analyze the codebase and design solutions without modifying files.
-
-**To create/update your plan:**
-- Ask me to research and create a plan
-- I'll use \`update_work_plan\` to save it to your session workspace
-- The plan will be available when you return to work mode
-
-**Available tools:**
-- \`update_work_plan\` - Save/update your implementation plan (recommended)
-- \`edit\` (restricted) - Edit plan.md only
-- \`create\` (restricted) - Create plan.md only
-- \`view\`, \`grep\`, \`glob\` - Read and search files
-- \`bash\` (read-only) - Run safe commands like \`ls\`, \`pwd\`, \`git status\`
-- \`task(agent_type="explore")\` - Dispatch exploration tasks
-- \`web_fetch\` - Fetch documentation
-
-Use **Accept** when ready to implement, or **Reject** to discard changes.`,
-                timestamp: Date.now()
-            });
+            this._onDidReceiveOutput.fire(
+                `🎯 **Entered Plan Mode**\n\n` +
+                `You can now analyze the codebase and design solutions without modifying files.\n\n` +
+                `**To create/update your plan:**\n` +
+                `- Ask me to research and create a plan\n` +
+                `- I'll use \`update_work_plan\` to save it to your session workspace\n` +
+                `- The plan will be available when you return to work mode\n\n` +
+                `**Available tools:**\n` +
+                `- \`update_work_plan\` - Save/update your implementation plan (recommended)\n` +
+                `- \`edit\` (restricted) - Edit plan.md only\n` +
+                `- \`create\` (restricted) - Create plan.md only\n` +
+                `- \`view\`, \`grep\`, \`glob\` - Read and search files\n` +
+                `- \`bash\` (read-only) - Run safe commands like \`ls\`, \`pwd\`, \`git status\`\n` +
+                `- \`task(agent_type="explore")\` - Dispatch exploration tasks\n` +
+                `- \`web_fetch\` - Fetch documentation\n\n` +
+                `Use **Accept** when ready to implement, or **Reject** to discard changes.`
+            );
             
             this.logger.info('═══════════════════════════════════════════════════════════');
             this.logger.info('✅ PLAN MODE SETUP - COMPLETE');
@@ -1281,33 +1143,21 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         }
         
         // Resume work session
-        this.session = this.workSession;
         this.sessionId = this.workSessionId;
         this.currentMode = 'work';
         
         this.logger.info(`✅ Plan mode disabled! Resumed work session: ${this.sessionId}`);
         
         // Re-setup event handlers for work session (they were unsubscribed when plan mode started)
-        this.setupSessionEventHandlers();
+        this.setActiveSession(this.workSession);
         
         // Notify UI
         this.logger.info('[Plan Mode] Emitting plan_mode_disabled status event');
-        this.onMessageEmitter.fire({
-            type: 'status',
-            data: { 
-                status: 'plan_mode_disabled',
-                workSessionId: this.sessionId
-            },
-            timestamp: Date.now()
-        });
+        this._onDidChangeStatus.fire({ status: 'plan_mode_disabled' });
         this.logger.info('[Plan Mode] plan_mode_disabled event emitted');
         
         // Send visual message to chat
-        this.onMessageEmitter.fire({
-            type: 'output',
-            data: '✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!',
-            timestamp: Date.now()
-        });
+        this._onDidReceiveOutput.fire('✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!');
     }
     
     /**
@@ -1330,25 +1180,14 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         const planPath = path.join(workSessionPath, 'plan.md');
         
         // Send visual message to chat BEFORE exiting plan mode
-        this.onMessageEmitter.fire({
-            type: 'output',
-            data: '✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...',
-            timestamp: Date.now()
-        });
+        this._onDidReceiveOutput.fire('✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...');
         
         // Exit plan mode
         await this.disablePlanMode();
         
         // Notify UI with accept status
         this.logger.info('[Plan Mode] Emitting plan_accepted status event');
-        this.onMessageEmitter.fire({
-            type: 'status',
-            data: { 
-                status: 'plan_accepted',
-                workSessionId: this.sessionId
-            },
-            timestamp: Date.now()
-        });
+        this._onDidChangeStatus.fire({ status: 'plan_accepted' });
         this.logger.info('[Plan Mode] plan_accepted event emitted');
         
         // Auto-inject context message to start implementation
@@ -1393,25 +1232,14 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         this.planModeSnapshot = null;
         
         // Send visual message to chat BEFORE exiting plan mode
-        this.onMessageEmitter.fire({
-            type: 'output',
-            data: '❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...',
-            timestamp: Date.now()
-        });
+        this._onDidReceiveOutput.fire('❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...');
         
         // Exit plan mode
         await this.disablePlanMode();
         
         // Notify UI with reject status
         this.logger.info('[Plan Mode] Emitting plan_rejected status event');
-        this.onMessageEmitter.fire({
-            type: 'status',
-            data: { 
-                status: 'plan_rejected',
-                workSessionId: this.sessionId
-            },
-            timestamp: Date.now()
-        });
+        this._onDidChangeStatus.fire({ status: 'plan_rejected' });
         this.logger.info('[Plan Mode] plan_rejected event emitted');
         
         this.logger.info('[Plan Mode] ❌ Plan rejected - changes discarded');
@@ -1558,11 +1386,11 @@ Use **Accept** when ready to implement, or **Reject** to discard changes.`,
         // Dispose all services
         this.messageEnhancementService.dispose();
         this.fileSnapshotService.dispose();
-        // MCPConfigurationService has no dispose method (no resources to clean up)
         if (this.planModeToolsService) {
             this.planModeToolsService.dispose();
         }
         
-        this.onMessageEmitter.dispose();
+        // Dispose all event emitters and subscriptions
+        this._disposables.dispose();
     }
 }

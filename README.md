@@ -18,7 +18,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 
 ### 🎯 Focused by Design
 
-- **In-Stream Diffs** — File changes appear right in the chat. Review, approve, or redirect the agent without leaving your conversation.
+- **In-Stream Diffs** — File edits show compact inline diffs (+/- prefixes) directly in the chat stream. Larger diffs truncate with a "View Diff" button. Review, approve, or redirect the agent without leaving your conversation.
 - **Plan Mode (ACE-FCA)** — Separate planning and implementation into dual sessions. Explore with read-only tools, then hand off a solid plan to your work session.
 - **Plan Model Selection** — Use different AI models for planning vs. implementation. Think with Opus, build with Sonnet, explore with Haiku.
 - **Reasoning Visibility** — Watch the agent think in real-time with streaming reasoning traces.
@@ -26,7 +26,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 ### 🔄 Session-First Workflow
 
 - **Session Interop** — Sessions appear in the official Copilot extension's session list. Switch between both experiences freely.
-- **Auto-Resume** — Picks up where you left off. Full conversation history loads from Copilot CLI's event log.
+- **Auto-Resume** — Picks up where you left off, even after VS Code reloads. Full conversation history loads from Copilot CLI's event log.
 - **Session Resilience** — Smart retry logic handles transient failures automatically (v2.2.3+).
 - **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
 - **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
@@ -46,6 +46,48 @@ And you don't have to choose. Sessions created in this extension appear in the o
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.0.0 - Complete Architectural Overhaul 🚀
+
+**THE BIG CHANGE - Sidebar Integration**
+- **Extension now lives in Activity Bar sidebar** — Same location as native Copilot Chat and Claude Code
+- **Click icon to show/hide** — Toggle chat visibility from Activity Bar (left side by default)
+- **Drag to right sidebar** — Move to right side via View → Chat if preferred
+- **Native chat experience** — Proper VS Code sidebar integration (no more floating panel)
+- **Fixed massive memory leak** — Extension can run indefinitely without crashes
+
+**Inline Diffs in Chat Stream**
+- File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)
+- Larger diffs show "... N more lines" with "View Diff" button for full picture
+- Review, approve, or redirect the agent without leaving the conversation
+- Decision-making stays in the chat flow
+
+**Slash Commands (41 Commands) with Discovery Panel**
+- Type `/` in the chat input to see a grouped command reference panel
+- Click any command to insert it, or use the `?` icon next to metrics for full `/help` output
+- `/help` — Show all available commands
+- `/usage` — View session metrics (tokens, context window)
+- `/review` — Show current plan
+- `/diff file1 file2` — Compare two files
+- `/mcp` — Show MCP server configuration
+- And 36 more commands for debugging, inspection, and control
+
+**Auto-Resume After Reload**
+- CLI session automatically resumes when VS Code reloads
+- Previous conversation history loads from Copilot CLI's event log
+- No more lost sessions when restarting VS Code
+
+**Claude Opus 4.6 Support**
+- Added latest `claude-opus-4.6` and `claude-opus-4.6-fast` models
+- Smart model capability detection for image attachments
+- Now supporting 16 AI models total
+
+**Reliability & Performance**
+- Component-based architecture (9 components) for maintainability
+- Type-safe RPC layer (31 message types) eliminates message bugs
+- Service extraction (7 services) with clear boundaries
+- 710+ tests ensure quality (unit, integration, e2e)
+- Memory leak fixed — runs indefinitely without crashes
 
 ### v2.2.3 - Session Resume Resilience 🔄
 
@@ -320,34 +362,42 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
 
 ## 🚀 Quick Start
 
-### Open the Chat Panel
+### Open the Chat Sidebar
 
-**Option 1: Command Palette**
+**Option 1: Activity Bar Icon (NEW in v3.0.0)**
+
+1. Look for the Copilot CLI icon in the Activity Bar (left side by default)
+2. Click the icon to show/hide the chat sidebar
+3. **Drag to right sidebar**: View → Appearance → Move Side Bar Right (or drag the icon)
+
+**Option 2: Command Palette**
 
 1. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
 2. Type "Copilot CLI: Open Chat"
 3. Press Enter
 
-**Option 2: Status Bar**
+**Option 3: Status Bar**
 
 - Click the "💬 Copilot CLI" item in the status bar
 
-**Option 3: Editor Toolbar**
+**Option 4: Editor Toolbar**
 
 - Click the chat icon in the editor toolbar
 
 ### Start Chatting
 
-1. The chat panel opens on the right side (dockable anywhere)
+1. The chat sidebar opens in the Activity Bar (left or right side)
 2. Your last session automatically resumes (if enabled)
 3. Type your message and press Enter or click Send
 4. View AI responses with full markdown formatting
+5. See inline diffs when the agent edits files
 
 ### Manage Sessions
 
 - **Session Dropdown**: Select from previous conversations
 - **New Session** (+): Start a fresh conversation
 - **Auto-resume**: Toggle in settings to auto-load last session
+- **Slash Commands**: Type `/help` to see all available commands
 
 ## ⚙️ Configuration
 
@@ -378,11 +428,12 @@ All Copilot CLI flags are configurable via VS Code settings:
 
 ### Available Models
 
-Choose from 14 AI models in settings:
+Choose from 16 AI models in settings:
 
 - Claude Sonnet 4.5 (default), Claude Haiku 4.5, Claude Opus 4.5
+- **Claude Opus 4.6, Claude Opus 4.6 Fast** (NEW in v3.0.0)
 - GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
-- GPT Codex variants (5.1, 5.2, mini)
+- GPT Codex variants (5.1, 5.1 max, 5.1 mini, 5.2)
 - Gemini 3 Pro Preview
 
 ### Plan Mode Model
@@ -468,25 +519,63 @@ Browse more servers at the [MCP Registry](https://registry.modelcontextprotocol.
 
 ## 🔧 Architecture
 
-### v2.0 SDK Architecture
+### v3.0 Architecture
 
 ```
-VS Code Extension (UI Layer)
+VS Code Activity Bar
+        ↓
+  WebviewViewProvider (sidebar integration)
+        ↓
+Extension Host (Node.js)
+  extension.ts orchestrator
        ↓
-@github/copilot-sdk (v0.1.18)
-       ↓ JSON-RPC
-Copilot CLI (server mode)
+  Extracted Services (7)
+    SessionService, InlineDiffService, fileSnapshotService,
+    mcpConfigurationService, modelCapabilitiesService,
+    planModeToolsService, messageEnhancementService
+       ↓
+  ExtensionRpcRouter (typed send/receive)
+       ↓ postMessage
+Webview (Browser)
+  WebviewRpcClient (typed callbacks)
+       ↓
+  EventBus (decoupled pub/sub)
+       ↓
+  Components (9)
+    MessageDisplay, ToolExecution, InputArea, SessionToolbar,
+    AcceptanceControls, StatusBar, ActiveFileDisplay, PlanModeControls,
+    SlashCommandPanel
+       ↓
+  DOM
+
+Shared: TypeScript interfaces in src/shared/ defining the RPC contract
+  31 message types with TypeScript interfaces (shared/messages.ts)
 ```
 
-The extension provides:
+**Sidebar Integration** (v3.0.0):
 
-- **UI/UX Layer**: Chat panel, markdown rendering, session selector
-- **Configuration Bridge**: VS Code settings → SDK/CLI options
-- **Event Handling**: Real-time streaming, reasoning display, inline tool execution visibility
+- **WebviewViewProvider**: Extension now lives in Activity Bar sidebar (not floating panel)
+- **Activity Bar Icon**: Click to show/hide chat, drag between left/right sidebars
+- **Native Experience**: Proper VS Code sidebar integration with resource management
+- **MutableDisposable Pattern**: Fixes memory leak from accumulating event handlers
+
+**Extension Host** provides:
+
+- **Orchestration**: extension.ts coordinates services and routes messages
+- **Services**: 7 extracted services with clear boundaries and independent testability
+- **Type-Safe RPC**: ExtensionRpcRouter with typed send/receive methods replacing raw postMessage
 - **Session Persistence**: Auto-resume, history loading, workspace filtering
-- **Planning Mode**: Separate session for planning with limited tools and alternate model. Plan juggling back to main session.
+- **Planning Mode**: Separate session for planning with limited tools and alternate model
 
-The SDK provides:
+**Webview** provides:
+
+- **Component Architecture**: 9 independent components, each owning its DOM section and lifecycle
+- **EventBus**: Decoupled component communication via pub/sub
+- **Type-Safe RPC**: WebviewRpcClient with typed callback registration
+- **Inline Diffs**: Compact diff display directly in the chat stream
+- **Slash Commands**: 41 commands via CommandParser (type `/help` for list)
+
+**Copilot SDK** provides:
 - **Agent Runtime**: Production-tested orchestration engine
 - **Tool Invocation**: File edits, shell commands, web searches, MCP servers
 - **Model Access**: All Copilot CLI models via unified API

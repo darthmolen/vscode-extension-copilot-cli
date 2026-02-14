@@ -101,45 +101,156 @@ All logs appear in the "Copilot CLI" Output Channel.
 ### Package Structure
 
 ```
-vscode-extension-copilot-cli/
-├── src/                    # TypeScript source
-│   ├── extension.ts        # Main entry point
-│   ├── chatViewProvider.ts # Chat UI
-│   ├── sdkSessionManager.ts# SDK session management
-│   ├── modelCapabilitiesService.ts # Model capabilities
-│   ├── backendState.ts     # State management
-│   ├── sessionUtils.ts     # Session utilities
-│   └── logger.ts           # Logging utility
-├── dist/                   # Compiled JavaScript
-├── images/                 # Extension icon
-├── documentation/          # Developer docs
-├── test-extension.sh       # Build/install script
-├── package.json            # Extension manifest
-├── tsconfig.json           # TypeScript config
-└── esbuild.js              # Build configuration
+src/
+├── extension.ts                           # Main entry point (744 lines)
+├── logger.ts                              # Structured logging
+├── backendState.ts                        # Single source of truth for session state
+├── sessionUtils.ts                        # Session file I/O utilities
+├── authUtils.ts                           # Authentication helpers
+├── chatViewProvider.ts                    # WebviewViewProvider for sidebar
+├── sdkSessionManager.ts                   # Copilot SDK session lifecycle
+├── shared/
+│   ├── index.ts                           # Barrel exports
+│   ├── models.ts                          # Domain types (Session, Message, etc.)
+│   └── messages.ts                        # RPC message types (31 types, 433 lines)
+├── utilities/
+│   ├── disposable.ts                      # Disposable pattern helpers
+│   └── bufferedEmitter.ts                 # Event buffering for race conditions
+└── extension/
+    ├── rpc/
+    │   ├── index.ts                       # Barrel export
+    │   └── ExtensionRpcRouter.ts          # Type-safe RPC (520 lines, 18 send + 11 receive)
+    └── services/
+        ├── SessionService.ts              # Session CRUD operations
+        ├── fileSnapshotService.ts          # File snapshot for diffs
+        ├── mcpConfigurationService.ts      # MCP server configuration
+        ├── modelCapabilitiesService.ts     # Model feature detection
+        ├── planModeToolsService.ts         # Plan mode tool filtering
+        ├── messageEnhancementService.ts    # Message enrichment pipeline
+        └── InlineDiffService.ts           # LCS-based inline diff (162 lines)
+
+src/webview/
+├── main.js                                # App bootstrap (526 lines)
+├── styles.css                             # All webview styles
+└── app/
+    ├── handlers/
+    │   ├── ui-handlers.js                 # UI event handlers
+    │   ├── acceptance-handlers.js         # Accept/reject plan handlers
+    │   ├── message-handlers.js            # Message processing
+    │   ├── diff-handler.js                # Diff button click handler
+    │   └── tool-group-handler.js          # Tool group expand/collapse
+    ├── utils/
+    │   └── webview-utils.js               # HTML escaping, formatting
+    ├── state/
+    │   └── EventBus.js                    # Pub/sub for component communication
+    ├── rpc/
+    │   └── WebviewRpcClient.js            # Type-safe RPC client (390 lines)
+    ├── services/
+    │   └── CommandParser.js               # Slash command parsing
+    └── components/
+        ├── AcceptanceControls/AcceptanceControls.js
+        ├── ActiveFileDisplay/ActiveFileDisplay.js
+        ├── StatusBar/StatusBar.js
+        ├── InputArea/InputArea.js
+        ├── SessionToolbar/SessionToolbar.js
+        ├── PlanModeControls/PlanModeControls.js
+        ├── SlashCommandPanel/SlashCommandPanel.js  # Slash command discovery panel
+        ├── MessageDisplay/MessageDisplay.js   # Message rendering + auto-scroll (292 lines)
+        └── ToolExecution/ToolExecution.js     # Tool cards, inline diffs (344 lines)
 ```
 
 ### Build Commands
 
 ```bash
-# Compile TypeScript
+# Type-check + lint + esbuild bundle
 npm run compile
 
-# Watch mode (auto-compile on save)
-npm run watch
+# TypeScript compile to out/ (needed for server-side tests)
+npm run compile-tests
 
-# Type checking only
+# TypeScript type checking only
 npm run check-types
 
-# Lint code
+# ESLint on src/
 npm run lint
 
-# Production build (minified)
+# Production build (minified esbuild)
 npm run package
 
-# Package VSIX manually
-npx vsce package
+# Watch mode (esbuild + tsc in parallel)
+npm run watch
+
+# Build VSIX, install, ready for reload
+./test-extension.sh
 ```
+
+### Testing
+
+#### Test Directory Structure
+
+```text
+tests/
+├── unit/                    # Fast, isolated tests (38 files)
+│   ├── extension/           # Server-side tests (13 files)
+│   │   └── rpc-router, session-service, file-snapshot, plan-mode-tools, inline-diff...
+│   ├── components/          # Webview component tests (13 files)
+│   │   └── MessageDisplay, ToolExecution, InputArea, EventBus, inline-diff...
+│   └── utils/               # Utility tests (12 files)
+│       └── webview-utils, command-parser, buffered-emitter, auth-error...
+├── integration/             # Cross-component tests (29 files)
+│   ├── webview/             # Component integration (24 files)
+│   │   └── auto-scroll, diff handling, tool groups, RPC flow...
+│   ├── plan-mode/           # Plan mode workflows (3 files)
+│   ├── session/             # Session lifecycle (1 file)
+│   └── sidebar/             # Sidebar integration (1 file)
+├── e2e/                     # End-to-end tests (9 files)
+│   ├── plan-mode/           # Full plan mode flows (4 files)
+│   └── session/             # Full session lifecycle (5 files)
+└── helpers/                 # Test utilities (7 files)
+    ├── jsdom-setup.js       # JSDOM + mock RPC creation
+    ├── jsdom-component-setup.js  # Full component test environment
+    ├── vscode-mock.js       # VS Code API mock
+    ├── scenarios.js         # Common test scenarios
+    └── ...
+```
+
+#### Test Runners
+
+- `npm test` -- Runs unit + integration tests via Mocha (main CI target, ~710 tests)
+- `npm run test:unit` -- Unit tests only (`tests/unit/**/*.test.js`)
+- `npm run test:integration` -- Integration tests only (`tests/integration/**/*.test.js`)
+- `npm run test:e2e:plan-mode` -- E2E plan mode tests (requires compiled output)
+- `npm run test:e2e:session` -- E2E session lifecycle tests (requires compiled output)
+- `npm run test:verify` -- Verify test setup (checks helpers load correctly)
+
+#### Test Utilities
+
+**`tests/helpers/jsdom-setup.js`**:
+
+- `createTestDOM(html)` -- Spins up a JSDOM instance, sets `global.window` and `global.document`
+- `cleanupTestDOM(dom)` -- Tears down globals, closes JSDOM window
+- `createMockRpc()` -- Mock RPC client with call tracking (records method calls and arguments)
+
+**`tests/helpers/jsdom-component-setup.js`**:
+
+- `createComponentDOM()` -- Full page structure with all component mount points (messages container, input area, session toolbar, etc.)
+- `cleanupComponentDOM(dom)` -- Full cleanup including global polyfills
+- `setScrollProperties(element, props)` -- Simulates scroll geometry (JSDOM doesn't compute layout)
+- Mock `ResizeObserver` and `MutationObserver` with manual trigger support
+- Polyfills for `requestAnimationFrame` and `marked.js`
+
+**`tests/helpers/vscode-mock.js`**:
+
+- Full VS Code API mock: `workspace`, `EventEmitter`, `Uri`, `window`, `commands`
+- Configuration defaults matching `copilotCLI` settings
+- Output channel mock, webview provider registration
+
+#### Key Testing Patterns
+
+- Server-side tests (`tests/unit/extension/`) require compiled TypeScript (`npm run compile-tests` first, outputs to `out/`)
+- Webview tests use JSDOM to simulate browser environment
+- Components are tested by importing directly and rendering into mock DOM
+- Tests skip gracefully if module not found (supports TDD red phase)
 
 ### Testing Different Scenarios
 
@@ -198,6 +309,14 @@ The extension supports MCP (Model Context Protocol) servers. To test with the in
 4. Test behavior changes
 
 ### Common Issues
+
+**Issue: New webview component not loading (blank sidebar)**
+- **Cause**: `esbuild.js` manually copies each webview file to `dist/`. New components must be registered there.
+- **Solution**: When adding a new directory under `src/webview/app/` (components, handlers, services, etc.), you MUST update `esbuild.js` to:
+  1. Declare the dist directory variable (e.g., `const myComponentDistDir = ...`)
+  2. Add the `mkdirSync` call to create the directory
+  3. Add the `copyFileSync` call to copy the `.js` file
+- **Symptom**: Extension activates, sidebar resolves, but webview is blank — the ES module import fails silently and the script never sends the 'ready' message.
 
 **Issue: Extension not updating**
 - Solution: Ensure old version is uninstalled before installing new one
