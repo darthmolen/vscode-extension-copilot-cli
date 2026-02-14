@@ -1,23 +1,28 @@
 # Add Claude Opus 4.6 Model Support
 
 **Date:** 2026-02-12
-**Status:** TODO
+**Updated:** 2026-02-14
+**Status:** ✅ COMPLETE
 **Priority:** Low (enhancement, not blocking Phase 1)
 
 ---
 
 ## What
 
-Add `claude-opus-4.6` to the model selection enums in `package.json` so users can select it from the VS Code settings dropdown.
+Add `claude-opus-4.6` and `claude-opus-4.6-fast` to the model selection enums in `package.json` so users can select them from the VS Code settings dropdown.
 
 ## Changes Required
 
 **File:** `package.json`
 
-Add `"claude-opus-4.6"` to both enum arrays:
+Add both variants to both enum arrays:
 
 1. `copilotCLI.model` enum (line ~172)
 2. `copilotCLI.planModel` enum (line ~194)
+
+Add:
+- `"claude-opus-4.6"` (regular mode)
+- `"claude-opus-4.6-fast"` (fast mode - 9x premium multiplier)
 
 Also update the default model description if desired (currently says `claude-sonnet-4.5`).
 
@@ -26,6 +31,8 @@ Also update the default model description if desired (currently says `claude-son
 ```
 claude-sonnet-4.5
 claude-haiku-4.5
+claude-opus-4.6 (NEW)
+claude-opus-4.6-fast (NEW - fast mode variant)
 claude-opus-4.5
 claude-sonnet-4
 gpt-5.2-codex
