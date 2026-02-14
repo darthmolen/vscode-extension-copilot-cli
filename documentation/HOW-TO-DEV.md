@@ -154,6 +154,7 @@ src/webview/
         ├── InputArea/InputArea.js
         ├── SessionToolbar/SessionToolbar.js
         ├── PlanModeControls/PlanModeControls.js
+        ├── SlashCommandPanel/SlashCommandPanel.js  # Slash command discovery panel
         ├── MessageDisplay/MessageDisplay.js   # Message rendering + auto-scroll (292 lines)
         └── ToolExecution/ToolExecution.js     # Tool cards, inline diffs (344 lines)
 ```
@@ -308,6 +309,14 @@ The extension supports MCP (Model Context Protocol) servers. To test with the in
 4. Test behavior changes
 
 ### Common Issues
+
+**Issue: New webview component not loading (blank sidebar)**
+- **Cause**: `esbuild.js` manually copies each webview file to `dist/`. New components must be registered there.
+- **Solution**: When adding a new directory under `src/webview/app/` (components, handlers, services, etc.), you MUST update `esbuild.js` to:
+  1. Declare the dist directory variable (e.g., `const myComponentDistDir = ...`)
+  2. Add the `mkdirSync` call to create the directory
+  3. Add the `copyFileSync` call to copy the `.js` file
+- **Symptom**: Extension activates, sidebar resolves, but webview is blank — the ES module import fails silently and the script never sends the 'ready' message.
 
 **Issue: Extension not updating**
 - Solution: Ensure old version is uninstalled before installing new one
