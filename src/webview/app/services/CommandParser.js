@@ -17,24 +17,105 @@
  */
 export class CommandParser {
 	constructor() {
-		// Command registry: command name -> { event, requiredContext }
+		// Command registry: command name -> { type, event, instruction, requiredContext }
 		this.commands = new Map([
+			// Extension commands (10)
 			['plan', {
+				type: 'extension',
 				event: 'enterPlanMode',
 				requiredContext: { planMode: false }
 			}],
 			['exit', {
+				type: 'extension',
 				event: 'exitPlanMode',
 				requiredContext: { planMode: true }
 			}],
 			['accept', {
+				type: 'extension',
 				event: 'acceptPlan',
 				requiredContext: { planMode: true, planReady: true }
 			}],
 			['reject', {
+				type: 'extension',
 				event: 'rejectPlan',
 				requiredContext: { planMode: true, planReady: true }
-			}]
+			}],
+			['review', {
+				type: 'extension',
+				event: 'showPlanContent'
+			}],
+			['diff', {
+				type: 'extension',
+				event: 'openDiffView'
+			}],
+			['mcp', {
+				type: 'extension',
+				event: 'showMcpConfig'
+			}],
+			['usage', {
+				type: 'extension',
+				event: 'showUsageMetrics'
+			}],
+			['help', {
+				type: 'extension',
+				event: 'showHelp'
+			}],
+			['model', {
+				type: 'extension',
+				event: 'showModelSelector'
+			}],
+			
+			// CLI Passthrough commands (6)
+			['delegate', {
+				type: 'passthrough',
+				instruction: 'The /delegate command opens GitHub Copilot coding agent in a new PR. Opening terminal...'
+			}],
+			['agent', {
+				type: 'passthrough',
+				instruction: 'The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal...'
+			}],
+			['skills', {
+				type: 'passthrough',
+				instruction: 'The /skills command manages custom scripts and resources. Opening terminal...'
+			}],
+			['plugin', {
+				type: 'passthrough',
+				instruction: 'The /plugin command installs extensions from the marketplace. Opening terminal...'
+			}],
+			['login', {
+				type: 'passthrough',
+				instruction: 'Opening terminal to authenticate with GitHub Copilot...'
+			}],
+			['logout', {
+				type: 'passthrough',
+				instruction: 'Opening terminal to log out of GitHub Copilot...'
+			}],
+			
+			// Not supported commands (25)
+			['clear', { type: 'not-supported' }],
+			['new', { type: 'not-supported' }],
+			['resume', { type: 'not-supported' }],
+			['rename', { type: 'not-supported' }],
+			['session', { type: 'not-supported' }],
+			['add-dir', { type: 'not-supported' }],
+			['list-dirs', { type: 'not-supported' }],
+			['cwd', { type: 'not-supported' }],
+			['cd', { type: 'not-supported' }],
+			['context', { type: 'not-supported' }],
+			['compact', { type: 'not-supported' }],
+			['lsp', { type: 'not-supported' }],
+			['theme', { type: 'not-supported' }],
+			['terminal-setup', { type: 'not-supported' }],
+			['init', { type: 'not-supported' }],
+			['allow-all', { type: 'not-supported' }],
+			['yolo', { type: 'not-supported' }],
+			['reset-allowed-tools', { type: 'not-supported' }],
+			['user', { type: 'not-supported' }],
+			['feedback', { type: 'not-supported' }],
+			['share', { type: 'not-supported' }],
+			['experimental', { type: 'not-supported' }],
+			['ide', { type: 'not-supported' }],
+			['quit', { type: 'not-supported' }]
 		]);
 	}
 
@@ -153,5 +234,56 @@ export class CommandParser {
 	 */
 	getCommandNames() {
 		return Array.from(this.commands.keys());
+	}
+
+	/**
+	 * Get command type
+	 * @param {string} commandName - Command name (without /)
+	 * @returns {'extension'|'passthrough'|'not-supported'|null}
+	 */
+	getCommandType(commandName) {
+		if (!commandName) {
+			return null;
+		}
+		
+		const commandDef = this.commands.get(commandName);
+		return commandDef ? commandDef.type : null;
+	}
+
+	/**
+	 * Check if command is an extension command
+	 * @param {string} commandName - Command name (without /)
+	 * @returns {boolean}
+	 */
+	isExtensionCommand(commandName) {
+		return this.getCommandType(commandName) === 'extension';
+	}
+
+	/**
+	 * Check if command is a passthrough command
+	 * @param {string} commandName - Command name (without /)
+	 * @returns {boolean}
+	 */
+	isPassthroughCommand(commandName) {
+		return this.getCommandType(commandName) === 'passthrough';
+	}
+
+	/**
+	 * Check if command is not supported
+	 * @param {string} commandName - Command name (without /)
+	 * @returns {boolean}
+	 */
+	isNotSupportedCommand(commandName) {
+		return this.getCommandType(commandName) === 'not-supported';
+	}
+
+	/**
+	 * Get instruction text for passthrough commands
+	 * @param {string} commandName - Command name (without /)
+	 * @returns {string|null}
+	 */
+	getInstruction(commandName) {
+		const commandDef = this.commands.get(commandName);
+		return (commandDef && commandDef.instruction) ? commandDef.instruction : null;
 	}
 }
