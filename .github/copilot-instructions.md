@@ -156,7 +156,104 @@ describe('Diff Button Integration', () => {
 });
 ```
 
+#### Test Quality Checklist (Mandatory Before Claiming Complete)
+
+**Every feature/fix MUST pass this checklist:**
+
+✅ **Flow Testing**
+- [ ] Test executes the FULL user interaction flow (click → event → handler → UI update)
+- [ ] Test crosses component boundaries (e.g., InputArea → EventBus → Handler → Webview)
+- [ ] Test verifies side effects (DOM changes, RPC calls, state updates)
+
+✅ **Production Code**
+- [ ] Test imports actual production functions (not mocks)
+- [ ] Test uses real DOM (JSDOM for webview code)
+- [ ] Test calls actual methods with real parameters
+
+✅ **Failure First**
+- [ ] Screenshot/log showing test FAILS against broken code
+- [ ] Failure message matches user-reported error
+- [ ] Only then write the fix
+- [ ] Screenshot/log showing test PASSES after fix
+
+✅ **Coverage Verification**
+- [ ] Integration test exists (not just unit tests)
+- [ ] Test would catch THIS specific bug if code regressed
+- [ ] Test exercises the code path users actually trigger
+
+**If you cannot check all boxes → your tests are incomplete.**
+
+#### Testing Anti-Patterns (Real Failures From This Project)
+
+**🚫 ANTI-PATTERN #1: Testing Registry, Not Execution**
+
+```javascript
+// ❌ WRONG (Slash Commands Bug - 2026-02-14)
+it('should have showNotSupported event', () => {
+    const cmd = parser.parse('/clear');
+    expect(cmd.type).to.equal('not-supported');
+    expect(cmd.event).to.equal('showNotSupported'); // Registry is correct!
+});
+// Test passes ✅ - but in production, execute() emits undefined event!
+```
+
+**Why it failed**: Test checked registry data, never called `execute()` to verify event is actually emitted.
+
+**✅ RIGHT:**
+```javascript
+it('should emit showNotSupported event when executing not-supported command', () => {
+    const eventBus = new EventBus();
+    let emittedEvent = null;
+    let emittedArgs = null;
+    
+    eventBus.on('showNotSupported', (args) => {
+        emittedEvent = 'showNotSupported';
+        emittedArgs = args;
+    });
+    
+    const inputArea = new InputArea(container, eventBus);
+    inputArea.sendMessage('/clear'); // ACTUALLY EXECUTE IT
+    
+    expect(emittedEvent).to.equal('showNotSupported');
+    expect(emittedArgs.command).to.equal('/clear');
+});
+```
+
+---
+
+**🚫 ANTI-PATTERN #2: Testing Mocks, Not Production Code**
+
+```javascript
+// ❌ WRONG (Diff Button Bug - 2026-02-09)
+it('should send full diff data', () => {
+    const mockRpc = { viewDiff: (data) => sentData = data };
+    mockRpc.viewDiff({ beforeUri: '/tmp/before' });
+    expect(sentData.beforeUri).to.equal('/tmp/before'); // Mock always works!
+});
+```
+
+**Why it failed**: Never imported actual `handleDiffAvailableMessage()` function. Never tested DOM button creation. Never tested click handler.
+
+**✅ RIGHT:** See "Example Integration Test" section above for proper webview testing approach.
+
+---
+
+**🚫 ANTI-PATTERN #3: Test Passed Immediately → Not TDD**
+
+If your test passes on first run without any code changes:
+1. ❌ You are testing existing working code (not the bug)
+2. ❌ You are testing mocks/fixtures (not production code)
+3. ❌ You don't know if the test would catch the bug if it regressed
+
+**Mandatory:** Every test MUST fail first. If it doesn't fail, comment out the fix code and verify the test catches the break.
+
 #### Checklist: Before Claiming Any Fix is Complete
+
+**Phase 0: Test Quality Verification**
+- [ ] Integration test imports production code (not mocks)
+- [ ] Test executes full user interaction flow (input → event → handler → UI)
+- [ ] Screenshot/log shows test FAILS with same error users see
+- [ ] Test exercises code path across component boundaries
 
 **Phase 1: Understand**
 - [ ] Reproduce bug manually
