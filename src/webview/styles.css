@@ -477,7 +477,7 @@ main {
 
 .diff-add {
 	color: var(--vscode-gitDecoration-addedResourceForeground, #2ea043);
-	background-color: rgba(46, 160, 67, 0.1);
+	background-color: rgba(144, 238, 144, 0.15); /* Lighter lime green */
 }
 
 .diff-remove {

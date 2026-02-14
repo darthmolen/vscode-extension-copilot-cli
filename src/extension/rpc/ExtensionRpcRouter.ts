@@ -41,6 +41,13 @@ import {
 	AcceptPlanPayload,
 	RejectPlanPayload,
 	PickFilesPayload,
+	ShowPlanContentPayload,
+	OpenDiffViewPayload,
+	ShowMcpConfigPayload,
+	ShowUsageMetricsPayload,
+	ShowHelpPayload,
+	ShowNotSupportedPayload,
+	OpenInCLIPayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -391,6 +398,55 @@ export class ExtensionRpcRouter {
 	 */
 	onPickFiles(handler: MessageHandler<PickFilesPayload>): Disposable {
 		return this.registerHandler('pickFiles', handler);
+	}
+	
+	/**
+	 * Register handler for showPlanContent
+	 */
+	onShowPlanContent(handler: MessageHandler<ShowPlanContentPayload>): Disposable {
+		return this.registerHandler('showPlanContent', handler);
+	}
+	
+	/**
+	 * Register handler for openDiffView
+	 */
+	onOpenDiffView(handler: MessageHandler<OpenDiffViewPayload>): Disposable {
+		return this.registerHandler('openDiffView', handler);
+	}
+	
+	/**
+	 * Register handler for showMcpConfig
+	 */
+	onShowMcpConfig(handler: MessageHandler<ShowMcpConfigPayload>): Disposable {
+		return this.registerHandler('showMcpConfig', handler);
+	}
+	
+	/**
+	 * Register handler for showUsageMetrics
+	 */
+	onShowUsageMetrics(handler: MessageHandler<ShowUsageMetricsPayload>): Disposable {
+		return this.registerHandler('showUsageMetrics', handler);
+	}
+	
+	/**
+	 * Register handler for showHelp
+	 */
+	onShowHelp(handler: MessageHandler<ShowHelpPayload>): Disposable {
+		return this.registerHandler('showHelp', handler);
+	}
+	
+	/**
+	 * Register handler for showNotSupported
+	 */
+	onShowNotSupported(handler: MessageHandler<ShowNotSupportedPayload>): Disposable {
+		return this.registerHandler('showNotSupported', handler);
+	}
+	
+	/**
+	 * Register handler for openInCLI
+	 */
+	onOpenInCLI(handler: MessageHandler<OpenInCLIPayload>): Disposable {
+		return this.registerHandler('openInCLI', handler);
 	}
 	
 	// ========================================================================

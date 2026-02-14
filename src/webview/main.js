@@ -148,6 +148,49 @@ eventBus.on('exitPlanMode', () => {
 	rpc.togglePlanMode();
 });
 
+// Listen for new slash command events
+eventBus.on('showPlanContent', () => {
+	console.log('[Slash Command] Show plan content (/review)');
+	rpc.showPlanContent();
+});
+
+eventBus.on('openDiffView', (args) => {
+	console.log('[Slash Command] Open diff view (/diff)', args);
+	if (args && args.length >= 2) {
+		rpc.openDiffView(args[0], args[1]);
+	} else {
+		console.error('[Slash Command] /diff requires two file arguments');
+	}
+});
+
+eventBus.on('showMcpConfig', () => {
+	console.log('[Slash Command] Show MCP config (/mcp)');
+	rpc.showMcpConfig();
+});
+
+eventBus.on('showUsageMetrics', () => {
+	console.log('[Slash Command] Show usage metrics (/usage)');
+	rpc.showUsageMetrics();
+});
+
+eventBus.on('showHelp', (args) => {
+	console.log('[Slash Command] Show help (/help)', args);
+	const command = args && args.length > 0 ? args[0] : undefined;
+	rpc.showHelp(command);
+});
+
+eventBus.on('showNotSupported', (args) => {
+	console.log('[Slash Command] Not supported command', args);
+	const command = args && args.length > 0 ? args.join(' ') : 'unknown';
+	rpc.showNotSupported(command);
+});
+
+eventBus.on('openInCLI', (args) => {
+	console.log('[Slash Command] Open in CLI (passthrough)', args);
+	const command = args && args.length > 0 ? `/${args.join(' ')}` : '';
+	rpc.openInCLI(command);
+});
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));

@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as os from 'os';
 import { Logger } from './logger';
 import { getBackendState } from './backendState';
 import { ExtensionRpcRouter } from './extension/rpc';
 import { DisposableStore } from './utilities/disposable';
+import { CodeReviewSlashHandlers } from './extension/services/slashCommands/CodeReviewSlashHandlers';
+import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashHandlers';
+import { NotSupportedSlashHandlers } from './extension/services/slashCommands/NotSupportedSlashHandlers';
+import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
+import { SessionService } from './extension/services/SessionService';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'copilot-cli.chatView';
@@ -17,6 +24,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private lastSentMessage: string | undefined;
 	private lastSentTime: number = 0;
 	private validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;
+
+	// Slash command services
+	private codeReviewHandlers?: CodeReviewSlashHandlers;
+	private infoHandlers?: InfoSlashHandlers;
+	private notSupportedHandlers?: NotSupportedSlashHandlers;
+	private cliPassthroughService?: CLIPassthroughService;
 
 	// Event emitters to replace Set<Function> handlers
 	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}>());
@@ -187,6 +200,104 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this._reg(this.rpcRouter.onRejectPlan(() => {
 			this.logger.info('Reject plan requested from UI');
 			vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
+		}));
+
+		// Initialize slash command services
+		// Create sessionService adapter
+		const sessionService = {
+			getCurrentSession: () => {
+				const backendState = getBackendState();
+				const sessionId = backendState.getSessionId();
+				return sessionId ? { id: sessionId } : null;
+			},
+			getPlanPath: (sessionId: string) => {
+				const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+				return path.join(sessionStateDir, sessionId, 'plan.md');
+			}
+		};
+
+		this.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);
+		this.infoHandlers = new InfoSlashHandlers(undefined, getBackendState()); // MCP config will be undefined for now
+		this.notSupportedHandlers = new NotSupportedSlashHandlers();
+		this.cliPassthroughService = new CLIPassthroughService(vscode);
+
+		// Handle slash commands from webview
+		this._reg(this.rpcRouter.onShowPlanContent(async () => {
+			this.logger.info('Show plan content requested from UI');
+			const result = await this.codeReviewHandlers!.handleReview();
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onOpenDiffView(async (payload) => {
+			this.logger.info(`Open diff view requested: ${payload.file1} vs ${payload.file2}`);
+			const result = await this.codeReviewHandlers!.handleDiff(payload.file1, payload.file2);
+			if (!result.success && result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onShowMcpConfig(async () => {
+			this.logger.info('Show MCP config requested from UI');
+			const result = await this.infoHandlers!.handleMcp();
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onShowUsageMetrics(async () => {
+			this.logger.info('Show usage metrics requested from UI');
+			const result = await this.infoHandlers!.handleUsage();
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onShowHelp(async (payload) => {
+			this.logger.info(`Show help requested from UI: ${payload.command || 'all'}`);
+			const result = await this.infoHandlers!.handleHelp(payload.command);
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onShowNotSupported(async (payload) => {
+			this.logger.info(`Not supported command: ${payload.command}`);
+			const result = await this.notSupportedHandlers!.handleNotSupported(payload.command);
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onOpenInCLI(async (payload) => {
+			this.logger.info(`Open in CLI requested: ${payload.command}`);
+			
+			// Get current session ID and workspace path
+			const backendState = getBackendState();
+			const sessionId = backendState.getSessionId();
+			const workspacePath = backendState.getWorkspacePath() || this.currentWorkspacePath || null;
+
+			if (!sessionId) {
+				this.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');
+				return;
+			}
+
+			const result = this.cliPassthroughService!.openCLI(payload.command, sessionId, workspacePath);
+			
+			if (result.success && result.instruction) {
+				this.rpcRouter!.addAssistantMessage(result.instruction);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
 		}));
 
 		// Start listening for messages from webview

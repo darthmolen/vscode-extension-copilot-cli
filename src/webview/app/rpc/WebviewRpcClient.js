@@ -148,6 +148,79 @@ class WebviewRpcClient {
 		});
 	}
 	
+	/**
+	 * Show plan content (/review command)
+	 */
+	showPlanContent() {
+		this._send({
+			type: 'showPlanContent'
+		});
+	}
+	
+	/**
+	 * Open diff view (/diff command)
+	 * @param {string} file1 - First file path
+	 * @param {string} file2 - Second file path
+	 */
+	openDiffView(file1, file2) {
+		this._send({
+			type: 'openDiffView',
+			file1,
+			file2
+		});
+	}
+	
+	/**
+	 * Show MCP configuration (/mcp command)
+	 */
+	showMcpConfig() {
+		this._send({
+			type: 'showMcpConfig'
+		});
+	}
+	
+	/**
+	 * Show usage metrics (/usage command)
+	 */
+	showUsageMetrics() {
+		this._send({
+			type: 'showUsageMetrics'
+		});
+	}
+	
+	/**
+	 * Show help documentation (/help command)
+	 * @param {string} [command] - Optional specific command to get help for
+	 */
+	showHelp(command) {
+		this._send({
+			type: 'showHelp',
+			command
+		});
+	}
+	
+	/**
+	 * Show not supported message
+	 * @param {string} command - Command name that's not supported
+	 */
+	showNotSupported(command) {
+		this._send({
+			type: 'showNotSupported',
+			command
+		});
+	}
+	
+	/**
+	 * Open command in CLI terminal (passthrough)
+	 * @param {string} command - Full command to pass through
+	 */
+	openInCLI(command) {
+		this._send({
+			type: 'openInCLI',
+			command
+		});
+	}
+	
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================

@@ -312,4 +312,121 @@ describe('WebviewRpcClient Unit Tests', function () {
 			assert.equal(typeof client[method], 'function', `${method} should be a function`);
 		}
 	});
+
+	// ========================================================================
+	// New Slash Command RPC Methods Tests
+	// ========================================================================
+
+	it('should send showPlanContent message', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showPlanContent();
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showPlanContent');
+	});
+
+	it('should send openDiffView message with file paths', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.openDiffView('src/file1.ts', 'src/file2.ts');
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'openDiffView');
+		assert.equal(messages[0].file1, 'src/file1.ts');
+		assert.equal(messages[0].file2, 'src/file2.ts');
+	});
+
+	it('should send showMcpConfig message', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showMcpConfig();
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showMcpConfig');
+	});
+
+	it('should send showUsageMetrics message', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showUsageMetrics();
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showUsageMetrics');
+	});
+
+	it('should send showHelp message without command', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showHelp();
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showHelp');
+		assert.equal(messages[0].command, undefined);
+	});
+
+	it('should send showHelp message with specific command', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showHelp('review');
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showHelp');
+		assert.equal(messages[0].command, 'review');
+	});
+
+	it('should send showNotSupported message with command name', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.showNotSupported('clear');
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'showNotSupported');
+		assert.equal(messages[0].command, 'clear');
+	});
+
+	it('should send openInCLI message with command', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.openInCLI('/delegate my task');
+
+		const messages = mockVsCodeApi._getSentMessages();
+		assert.equal(messages.length, 1);
+		assert.equal(messages[0].type, 'openInCLI');
+		assert.equal(messages[0].command, '/delegate my task');
+	});
+
+	it('should have all new slash command send methods', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		const newSendMethods = [
+			'showPlanContent',
+			'openDiffView',
+			'showMcpConfig',
+			'showUsageMetrics',
+			'showHelp',
+			'showNotSupported',
+			'openInCLI'
+		];
+
+		for (const method of newSendMethods) {
+			assert.equal(typeof client[method], 'function', `${method} should be a function`);
+		}
+	});
 });

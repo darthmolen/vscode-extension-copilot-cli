@@ -40,7 +40,14 @@ export type WebviewMessageType =
 	| 'togglePlanMode'
 	| 'acceptPlan'
 	| 'rejectPlan'
-	| 'pickFiles';
+	| 'pickFiles'
+	| 'showPlanContent'
+	| 'openDiffView'
+	| 'showMcpConfig'
+	| 'showUsageMetrics'
+	| 'showHelp'
+	| 'showNotSupported'
+	| 'openInCLI';
 
 /**
  * Send user message to agent
@@ -125,6 +132,60 @@ export interface PickFilesPayload extends BaseMessage {
 }
 
 /**
+ * Show plan.md content (for /review command)
+ */
+export interface ShowPlanContentPayload extends BaseMessage {
+	type: 'showPlanContent';
+}
+
+/**
+ * Open diff viewer (for /diff command)
+ */
+export interface OpenDiffViewPayload extends BaseMessage {
+	type: 'openDiffView';
+	file1: string;
+	file2: string;
+}
+
+/**
+ * Show MCP configuration (for /mcp command)
+ */
+export interface ShowMcpConfigPayload extends BaseMessage {
+	type: 'showMcpConfig';
+}
+
+/**
+ * Show usage metrics (for /usage command)
+ */
+export interface ShowUsageMetricsPayload extends BaseMessage {
+	type: 'showUsageMetrics';
+}
+
+/**
+ * Show help documentation (for /help command)
+ */
+export interface ShowHelpPayload extends BaseMessage {
+	type: 'showHelp';
+	command?: string;
+}
+
+/**
+ * Show not supported message
+ */
+export interface ShowNotSupportedPayload extends BaseMessage {
+	type: 'showNotSupported';
+	command: string;
+}
+
+/**
+ * Open CLI terminal (for passthrough commands)
+ */
+export interface OpenInCLIPayload extends BaseMessage {
+	type: 'openInCLI';
+	command: string;
+}
+
+/**
  * Union of all webview → extension messages
  */
 export type WebviewMessage =
@@ -138,7 +199,14 @@ export type WebviewMessage =
 	| TogglePlanModePayload
 	| AcceptPlanPayload
 	| RejectPlanPayload
-	| PickFilesPayload;
+	| PickFilesPayload
+	| ShowPlanContentPayload
+	| OpenDiffViewPayload
+	| ShowMcpConfigPayload
+	| ShowUsageMetricsPayload
+	| ShowHelpPayload
+	| ShowNotSupportedPayload
+	| OpenInCLIPayload;
 
 // ============================================================================
 // Extension → Webview Messages

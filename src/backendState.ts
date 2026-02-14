@@ -27,6 +27,7 @@ export class BackendState {
     private planModeStatus: PlanModeStatus | null = null;
     private workspacePath: string | null = null;
     private activeFilePath: string | null = null;
+    private sessionStartTime: number | null = null;
 
     // Session management
     public setSessionId(id: string | null): void {
@@ -38,11 +39,26 @@ export class BackendState {
     }
 
     public setSessionActive(active: boolean): void {
+        // Track start time when session first becomes active
+        if (active && !this.sessionStartTime) {
+            this.sessionStartTime = Date.now();
+        }
         this.sessionActive = active;
     }
 
     public isSessionActive(): boolean {
         return this.sessionActive;
+    }
+
+    public getSessionStartTime(): number | null {
+        return this.sessionStartTime;
+    }
+
+    public getSessionDuration(): number {
+        if (!this.sessionStartTime) {
+            return 0;
+        }
+        return (Date.now() - this.sessionStartTime) / 1000;
     }
 
     // Message history management
@@ -64,6 +80,14 @@ export class BackendState {
 
     public setMessages(messages: Message[]): void {
         this.messages = [...messages];
+    }
+
+    public getMessageCount(): number {
+        return this.messages.length;
+    }
+
+    public getToolCallCount(): number {
+        return this.messages.filter(m => m.type === 'tool').length;
     }
 
     // Plan mode management
@@ -117,6 +141,7 @@ export class BackendState {
         this.sessionActive = false;
         this.messages = [];
         this.planModeStatus = null;
+        this.sessionStartTime = null;
         // Keep workspace/active file as they're environment-level state
     }
 
