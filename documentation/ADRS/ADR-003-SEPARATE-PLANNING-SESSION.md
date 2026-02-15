@@ -16,7 +16,7 @@ Early attempts used a `[[PLAN]]` prefix hack in messages to signal plan mode wit
 
 ## Decision
 
-**Use the SDK's dual-session capability to run planning in an isolated session with a restricted tool whitelist.**
+**Use the SDK's session capability and follow a dual-session pattern to run planning in an isolated session with a restricted tool whitelist.**
 
 ### Architecture
 
