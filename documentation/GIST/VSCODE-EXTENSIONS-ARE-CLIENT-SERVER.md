@@ -84,7 +84,7 @@ Read that table once. Now every pattern from your day job applies.
 
 If you take one thing from this article, take this diagram:
 
-```
+```text
 ┌──────────────────────────────┐     ┌─────────────────────────────┐
 │       EXTENSION HOST         │     │          WEBVIEW            │
 │       (Your Server)          │     │       (Your Client)         │
@@ -118,7 +118,9 @@ If you take one thing from this article, take this diagram:
 
 That's it. That's a VS Code extension with a webview.
 
-If you've ever built an Angular app talking to an ASP.NET API, a React app talking to Express, a Vue app talking to Django, or literally any SPA with a backend — you've already built this. The only difference is the transport protocol: `postMessage` instead of HTTP.
+If you squint, that's ASP.NET MVC + Angular. Or Express + React. Or Django + Vue. Or Rails + whatever.
+
+It's all the same pattern. It's always been the same pattern.
 
 ---
 
@@ -153,7 +155,8 @@ Don't take my word for it. Prove it to yourself:
 ### 1. Open your webview's DevTools
 
 In VS Code, open the Command Palette and run:
-```
+
+```text
 Developer: Open Webview Developer Tools
 ```
 
@@ -164,6 +167,7 @@ Your webview IS a browser. Chromium, specifically. Same engine as Chrome and Edg
 ### 2. Watch the messages
 
 Add this to your webview code:
+
 ```javascript
 window.addEventListener('message', event => {
     console.log('[Client] Received from server:', event.data);
@@ -171,6 +175,7 @@ window.addEventListener('message', event => {
 ```
 
 Add this to your extension code:
+
 ```typescript
 webview.onDidReceiveMessage(message => {
     console.log('[Server] Received from client:', message);
@@ -183,87 +188,13 @@ You're watching HTTP traffic. It's just not using HTTP.
 
 ### 3. Look at the process model
 
-Open Task Manager or Activity Monitor. Find the VS Code processes. You'll see:
+Open `Help >> Process Explorer`. Find the VS Code processes. You'll see:
+
 - The main Electron process
 - The Extension Host process (your "server")
 - A renderer process for each webview (your "client")
 
 Separate processes. Separate memory spaces. Just like a web server and a browser.
-
----
-
-## What the Docs Should Say (But Don't)
-
-The VS Code documentation should have a page that says:
-
-> **Building a Webview Extension?**
->
-> You're building a web application. Your extension host is the server (Node.js). Your webview is the client (browser). They communicate over a message-based transport (`postMessage`).
->
-> If you've built a web app before, you already know how to do this. Apply your existing patterns: controllers, services, typed contracts, separation of concerns. The only new thing is the transport.
-
-That's it. One paragraph. Would have saved me weeks of confusion, several versions of spaghetti code, and a major architectural refactor.
-
-Instead, the docs have pages about `WebviewViewProvider` lifecycle events, CSP headers, and resource URIs — all useful details, but without the framing that makes them make sense.
-
-It's like reading the Express.js docs if nobody ever told you what a web server is. All the pieces are there, but you don't know what you're assembling.
-
----
-
-## The Pattern Nobody Documents
-
-Here's the architecture that every serious webview extension converges on eventually. You'll recognize it immediately:
-
-```
-┌─ Extension Host (Server) ────────────────────────────────┐
-│                                                           │
-│  extension.ts (Startup / Composition Root)                │
-│    ├── Registers commands (routes)                        │
-│    ├── Creates services (DI)                              │
-│    ├── Creates ViewProvider (controller)                  │
-│    └── Wires events (middleware / event bus)              │
-│                                                           │
-│  ViewProvider (Controller)                                │
-│    ├── resolveWebviewView() → returns the "page"         │
-│    ├── onDidReceiveMessage() → handles "requests"        │
-│    ├── postMessage() → sends "responses"                 │
-│    └── Delegates to services for business logic          │
-│                                                           │
-│  Services (Business Logic Layer)                         │
-│    ├── SessionManager → manages external API sessions    │
-│    ├── FileService → filesystem operations               │
-│    └── StateManager → persistent state (the "database")  │
-│                                                           │
-│  Shared Types (API Contract / DTOs)                      │
-│    ├── Message types (request/response shapes)           │
-│    └── Domain models (shared between client and server)  │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
-                    │ postMessage (JSON) │
-                    ▼                    ▲
-┌─ Webview (Client) ───────────────────────────────────────┐
-│                                                           │
-│  index.html (the SPA shell)                              │
-│                                                           │
-│  RPC Client (API client / HTTP service equivalent)       │
-│    ├── send(type, payload) → vscode.postMessage()        │
-│    └── onMessage(type, handler) → window.onmessage       │
-│                                                           │
-│  UI Components (your frontend framework of choice)       │
-│    ├── Render state                                      │
-│    ├── Handle user input                                 │
-│    └── Call RPC client to talk to server                 │
-│                                                           │
-│  State Management (client-side state)                    │
-│    ├── getState() / setState() for persistence           │
-│    └── In-memory state for UI                            │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
-```
-
-If you squint, that's ASP.NET MVC + Angular. Or Express + React. Or Django + Vue. Or Rails + whatever.
-
-It's all the same pattern. It's always been the same pattern.
 
 ---
 
@@ -296,7 +227,7 @@ If you're a backend developer about to build your first VS Code webview extensio
 ---
 
 *Steven Molen, Sr. Enterprise Architect*
-*Written with Claude Opus 4.6 — because sometimes the most useful documentation is the documentation that doesn't exist yet.*
+*GIST written with Claude Opus 4.6 — because sometimes the most useful documentation is the documentation that doesn't exist yet, and I'm too busy writing and reviewing code to not take advantage of a tool that allows me to disseminate what I'm thinking.*
 
 *This is part of a series on building VS Code extensions with AI. See also:*
 - *[THE-AI-JOURNEY.md](THE-AI-JOURNEY.md) — How AI is both a help and a hindrance*
