@@ -105,8 +105,16 @@ export class FileSnapshotService {
     }
     
     /**
-     * Capture a file snapshot keyed by file path (Phase 1 of two-phase correlation).
-     * Called from onPreToolUse hook, BEFORE the SDK modifies the file.
+     * Capture a file snapshot keyed by file path.
+     *
+     * This is Phase 1 of a two-phase correlation flow (path-keyed storage → toolCallId-keyed
+     * retrieval) that underpins our three-tier capture pipeline:
+     *   - Tier 1: assistant.message-derived paths
+     *   - Tier 2: onPreToolUse hook
+     *   - Tier 3: handleToolStart fallback
+     *
+     * All tiers ultimately call this method to record the pre-modification state of a file
+     * before the SDK (or tools) change its contents.
      *
      * @param toolName Name of the tool ('edit' or 'create')
      * @param filePath Absolute path to the target file

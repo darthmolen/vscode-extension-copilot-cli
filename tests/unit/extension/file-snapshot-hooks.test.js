@@ -1,9 +1,14 @@
 /**
- * TDD: File snapshot hooks-based capture
+ * TDD: File snapshot capture-and-correlate pipeline
  *
- * Tests for the two-phase correlation strategy:
- *   Phase 1: onPreToolUse hook captures snapshot keyed by file path
- *   Phase 2: tool.execution_start event correlates path → toolCallId
+ * Tests for the two-phase correlation flow (captureByPath → correlateToToolCallId)
+ * that underpins the three-tier capture pipeline:
+ *   Tier 1: assistant.message pre-captures by file path (primary)
+ *   Tier 2: onPreToolUse hook captures as safety net
+ *   Tier 3: handleToolStart fallback captures as last resort
+ *
+ * All tiers call captureByPath() (Phase 1), then handleToolStart correlates
+ * the path-keyed snapshot to a toolCallId (Phase 2).
  *
  * This fixes the race condition where captureFileSnapshot was called
  * from handleToolStart AFTER the SDK had already started modifying files.
