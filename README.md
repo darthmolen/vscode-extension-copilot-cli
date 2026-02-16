@@ -16,6 +16,10 @@ And you don't have to choose. Sessions created in this extension appear in the o
 
 ## ✨ Features
 
+### 📌 Activity Bar Sidebar
+
+The extension lives in the VS Code Activity Bar — same location as native Copilot Chat and Claude Code. Click the icon to show/hide, drag between left and right sidebars. Native chat experience with proper lifecycle management and zero memory leaks.
+
 ### 🎯 Focused by Design
 
 - **In-Stream Diffs** — File edits show compact inline diffs (+/- prefixes) directly in the chat stream. Larger diffs truncate with a "View Diff" button. Review, approve, or redirect the agent without leaving your conversation.
@@ -47,14 +51,13 @@ And you don't have to choose. Sessions created in this extension appear in the o
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
-### v3.0.0 - Complete Architectural Overhaul 🚀
+### v3.0.1
 
-**THE BIG CHANGE - Sidebar Integration**
-- **Extension now lives in Activity Bar sidebar** — Same location as native Copilot Chat and Claude Code
-- **Click icon to show/hide** — Toggle chat visibility from Activity Bar (left side by default)
-- **Drag to right sidebar** — Move to right side via View → Chat if preferred
-- **Native chat experience** — Proper VS Code sidebar integration (no more floating panel)
-- **Fixed massive memory leak** — Extension can run indefinitely without crashes
+- **SDK Upgrade to 0.1.22** — Enables first-class hooks system for reliable tool interception
+- **File Diff Fix** — View Diff now correctly shows original file content via `onPreToolUse` hook (fixes race condition where snapshots captured empty/modified files)
+- **Plan Mode Diff for update_work_plan** — Custom plan-mode tool now emits file diffs when writing plan.md (captures pre-write snapshot and shows Before ↔ After)
+
+### v3.0.0 - Complete Architectural Overhaul 🚀
 
 **Inline Diffs in Chat Stream**
 - File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)

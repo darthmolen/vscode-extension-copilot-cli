@@ -11,3 +11,5 @@ This is where we capture ideas for future implementation.
 * Show images from the AI in chat.
 * Slash command IntelliSense / auto-complete.
 * Show when a message is queued, awaiting AI notice.
+* Multiple Agents - separate virtual windows (a tmux-like experience)
+* User hook support (users can define their own pre and post hooks)

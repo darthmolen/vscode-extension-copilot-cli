@@ -664,7 +664,7 @@ Example:
 - **GitHub Copilot CLI Documentation**: https://docs.github.com/copilot/cli
 - **VS Code Terminal API**: https://code.visualstudio.com/api/references/vscode-api#window.createTerminal
 - **VS Code Diff API**: https://code.visualstudio.com/api/references/vscode-api#commands.executeCommand
-- **Extension Architecture**: `documentation/ARCHITECTURE.md`
+- **Extension Architecture**: `documentation/README-ARCHITECTURE.md`
 - **Testing Guide**: `documentation/TESTING.md`
 
 ---
