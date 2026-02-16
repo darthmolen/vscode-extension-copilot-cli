@@ -474,6 +474,17 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 			diffTruncated,
 			diffTotalLines
 		});
+
+		// Cleanup temp BEFORE file if it lives in snapshot temp dir
+		try {
+			const snapshotService = manager.getFileSnapshotService();
+			const tempDir = snapshotService.getTempDir();
+			if (typeof diffData.beforeUri === 'string' && diffData.beforeUri.startsWith(tempDir)) {
+				snapshotService.cleanupTempFile(diffData.beforeUri);
+			}
+		} catch (e) {
+			logger.warn(`[Diff] Temp cleanup failed: ${e instanceof Error ? e.message : e}`);
+		}
 	})));
 
 	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {

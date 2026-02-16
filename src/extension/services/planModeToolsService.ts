@@ -16,6 +16,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../../logger';
+import { FileSnapshotService } from './fileSnapshotService';
 
 // Dynamic import for SDK
 let defineTool: any;
@@ -34,6 +35,8 @@ export class PlanModeToolsService {
         private readonly workSessionId: string,
         private readonly workingDirectory: string,
         private readonly onDidChangeStatus: vscode.EventEmitter<any>,
+        private readonly fileSnapshotService: FileSnapshotService,
+        private readonly emitDiff: (diffData: { toolCallId: string; beforeUri: string; afterUri: string; title: string }) => void,
         logger?: Logger
     ) {
         this.logger = logger || Logger.getInstance();
@@ -82,7 +85,7 @@ export class PlanModeToolsService {
                 },
                 required: ['content']
             },
-            handler: async ({ content }: { content: string }) => {
+            handler: async ({ content }: { content: string }, invocation: any) => {
                 try {
                     const homeDir = require('os').homedir();
                     const workSessionPath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId);
@@ -96,10 +99,37 @@ export class PlanModeToolsService {
                         return `Error: Work session directory not found. Session may not exist yet.`;
                     }
                     
-                    // Write the plan
-                    await fs.promises.writeFile(planPath, content, 'utf-8');
+                    // Extract toolCallId or generate fallback
+                    const toolCallId = invocation?.toolCallId || `custom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
                     
+                    // STEP 1: Capture BEFORE state
+                    const beforeContent = fs.existsSync(planPath) ? await fs.promises.readFile(planPath, 'utf-8') : '';
+                    let beforeUri = '';
+                    try {
+                        beforeUri = this.fileSnapshotService.createTempSnapshot(beforeContent, 'plan.md');
+                    } catch (e) {
+                        this.logger.error('[Plan Mode] Failed to create snapshot, skipping diff:', e instanceof Error ? e : undefined);
+                        // Continue without diff
+                        await fs.promises.writeFile(planPath, content, 'utf-8');
+                        return `Plan updated successfully (diff unavailable)`;
+                    }
+                    
+                    // STEP 2: Write new content
+                    await fs.promises.writeFile(planPath, content, 'utf-8');
                     this.logger.info(`[Plan Mode] Plan updated successfully (${content.length} bytes)`);
+                    
+                    // STEP 3: Emit diff
+                    try {
+                        this.emitDiff({
+                            toolCallId,
+                            beforeUri,
+                            afterUri: planPath,
+                            title: 'plan.md (Before ↔ After)'
+                        });
+                    } catch (e) {
+                        this.logger.error('[Plan Mode] Failed to emit diff:', e instanceof Error ? e : undefined);
+                        // Continue - plan write succeeded
+                    }
                     
                     return `Plan updated successfully! The plan has been saved to ${planPath}. When you switch back to work mode, this plan will be ready for implementation.`;
                 } catch (error) {
