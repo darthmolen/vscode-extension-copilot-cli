@@ -276,7 +276,7 @@ export class ExtensionRpcRouter {
 6. ✅ Production-ready RPC architecture
 
 **Unexpected Benefits:**
-- Discovered client-server architecture mental model (see `documentation/ARCHITECTURE.md`)
+- Discovered client-server architecture mental model (see `documentation/README-ARCHITECTURE.md`)
 - Documented AI coding best practices (see `documentation/THE-AI-JOURNEY-POC-TO-PRODUCTION.md`)
 - Fixed 5 bugs during manual testing (ES6 modules, infinite recursion, etc.)
 - Achieved deep understanding of VS Code extension architecture

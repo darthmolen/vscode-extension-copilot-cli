@@ -2,6 +2,60 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.0.1] - 2026-02-15
+
+### 🐛 Bug Fixes
+
+#### File Diff Race Condition Fix
+
+- **Fixed empty "before" state in View Diff** — Diffs now correctly show the original file content
+  - **Root Cause:** `captureFileSnapshot()` was called from `tool.execution_start`, which fires AFTER the SDK has already begun modifying the file. The snapshot captured partially-written or empty content.
+  - **Fix:** Uses the SDK's `onPreToolUse` hook (introduced in SDK 0.1.20) to capture snapshots BEFORE tool execution begins. Two-phase correlation strategy bridges the gap between hook inputs (keyed by file path) and the event pipeline (keyed by `toolCallId`).
+  - **Plan Mode Custom Tool Diff:** `update_work_plan` now captures a pre-write `plan.md` snapshot via `FileSnapshotService.createTempSnapshot()` and emits a diff.
+    - **Paths:** `beforeUri` → temp snapshot under the snapshot tmp dir; `afterUri` → `~/.copilot/session-state/<workSessionId>/plan.md`
+    - **Emission:** `emitDiff({ toolCallId, beforeUri, afterUri, title })` with `toolCallId` from invocation. If snapshot fails, write proceeds and returns success without diff.
+    - **Cleanup:** Temp snapshot files are removed after the diff is displayed in the webview.
+  - **New Methods:** `captureByPath()`, `correlateToToolCallId()`, `getPendingByPath()` on `FileSnapshotService`
+  - **Hook Registration:** All session creation and resume paths now register `onPreToolUse` via `getSessionHooks()`
+  - **9 TDD tests** covering both phases, edge cases, and the end-to-end pipeline
+
+### 🔧 Technical Changes
+
+#### SDK Upgrade to 0.1.22
+
+- Upgraded `@github/copilot-sdk` from `^0.1.18` to `0.1.22`
+- Enables first-class hooks system (`onPreToolUse`, `onPostToolUse`, `onSessionStart`, etc.)
+- Pinned version (no caret) for reproducible builds
+
+#### SDK Hooks Documentation
+
+- Created `documentation/COPILOT-SDK-HOOKS.md` — comprehensive reference for all 6 SDK hooks
+- Covers TypeScript signatures, input/output tables, invocation context, limitations
+- Documents the missing `toolCallId` in hook inputs and the two-phase correlation workaround
+- Prepared for future user-configurable hook support
+
+#### SDK Spike Tool
+
+- New `tests/harness/sdk-spike.mjs` — general-purpose SDK experimentation CLI
+- Run prompt files against the SDK, inspect events, analyze streaming quality
+- Supports `--events`, `--analyze-streaming`, `--verbose`, `--json` flags
+- Interactive mode for ad-hoc prompts
+- npm scripts: `test:spike`, `test:spike:streaming`, `test:spike:interactive`
+
+#### Markdown Prompt Format
+
+- Converted test prompts from JSON to markdown with YAML frontmatter
+- Human-readable prompt files with structured metadata (`id`, `category`, `timeout`, `expectedBehavior`)
+- Prompt loader utility (`tests/harness/prompt-loader.mjs`) with filtering support
+- 6 sub-agent streaming test prompts in `tests/prompts/sub-agent-streaming/`
+
+#### Sub-Agent Streaming Analysis
+
+- Automated streaming quality analysis on SDK 0.1.22 confirms sub-agent message queueing
+- All 6 test prompts assessed as BATCHED (max pauses of 9-47 seconds)
+- Filed upstream: [github/copilot-sdk#477](https://github.com/github/copilot-sdk/issues/477)
+- Evidence documented in `documentation/issues/BACKLOG-SUBAGENT-MESSAGE-QUEUEING.md`
+
 ## [3.0.0] - 2026-02-14
 
 ### 🚀 Major Release - Complete Architectural Overhaul

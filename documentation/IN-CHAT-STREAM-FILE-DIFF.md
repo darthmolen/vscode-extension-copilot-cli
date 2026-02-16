@@ -14,9 +14,141 @@ This is what decision locality means: the developer never has to leave the conve
 
 ---
 
+## File Snapshot Capture: The Race Condition and the Fix
+
+The diff pipeline needs a "before" snapshot of every file the agent modifies. Without it, there's nothing to diff against.
+
+### v3.0.0: The Race Condition
+
+In v3.0.0, the snapshot was captured inside `handleToolStart()`, which fires when the SDK emits `tool.execution_start`. The problem: this event fires **after the SDK has already modified the file**. For fast local operations like `edit` and `create`, the file on disk already contains the new content by the time our handler runs.
+
+```text
+Time ──────────────────────────────────────────────────────►
+
+SDK receives tool call from model
+  │
+  ├─ SDK executes tool (writes to disk)     ◄── file modified HERE
+  │
+  └─ SDK emits tool.execution_start         ◄── we hear about it HERE
+       │
+       └─ handleToolStart() runs
+            │
+            └─ captureFileSnapshot()         ◄── too late, file already changed
+```
+
+Result: the "before" snapshot captures the *modified* file. The diff shows zero changes or diffs the modified content against itself.
+
+### v3.0.1: Three-Tier Snapshot Capture Pipeline
+
+SDK v0.1.20 introduced **hooks** — interceptors that fire *before* tool execution. The original plan was to use the `onPreToolUse` hook as the sole pre-execution capture point. During implementation, we discovered a **race condition within the SDK itself**: the `tool.execution_start` notification (fire-and-forget) consistently arrives before the `hooks.invoke` request (requires round-trip) on the same JSON-RPC connection. This is the "see-saw" — the event and the hook race each other, and the event wins.
+
+Rather than rely on any single capture point, we built a three-tier pipeline where each tier catches what the previous one might miss:
+
+```text
+Time ──────────────────────────────────────────────────────►
+
+Model returns tool call in API response
+  │
+  ├─ assistant.message event fires           ◄── Tier 1: PRIMARY capture
+  │    │   (contains toolRequests[] with         (most reliable — arrives
+  │    │    tool name, args, and file path)        before any execution)
+  │    └─ captureByPath(toolName, filePath)
+  │
+  ├─ onPreToolUse hook fires                 ◄── Tier 2: SAFETY NET
+  │    │   (skips if pending snapshot             (hooks.invoke round-trip
+  │    │    already exists for this path)          may lose the race)
+  │    └─ captureByPath() — only if needed
+  │
+  ├─ SDK executes tool (writes to disk)      ◄── file modified
+  │
+  └─ tool.execution_start event fires        ◄── Tier 3: FALLBACK + correlate
+       │                                          (last resort if neither
+       └─ handleToolStart() runs                   Tier 1 nor 2 fired)
+            ├─ correlateToToolCallId()
+            └─ captureByPath() — only if
+               no snapshot exists yet
+```
+
+**Tier 1 — `assistant.message` (Primary):** The `assistant.message` event carries `toolRequests[]` — a list of tools the model is about to call, including their arguments. This arrives **before** any tool execution begins, giving us a reliable window to copy the original file. This is the primary capture path.
+
+**Tier 2 — `onPreToolUse` hook (Safety Net):** The hook fires before tool execution by design. However, due to the "see-saw" race (hooks.invoke request vs. notification delivery order on the JSON-RPC connection), it sometimes arrives after `tool.execution_start`. The hook checks `getPendingByPath()` and skips capture if Tier 1 already handled it, avoiding duplicate work.
+
+**Tier 3 — `handleToolStart` fallback (Last Resort):** If neither Tier 1 nor Tier 2 captured a snapshot (e.g., the `assistant.message` format changes, or the session was resumed without hooks), `handleToolStart()` attempts a fallback capture. This has a race condition (the file may already be modified), but a partial diff is better than no diff at all. A warning is logged when this path fires.
+
+After capture, `correlateToToolCallId()` re-keys the snapshot from file path to `toolCallId`. Everything downstream is unaware of which tier captured the snapshot.
+
+### Deduplication
+
+All three tiers avoid duplicate work:
+
+| Tier | Deduplication check |
+|------|-------------------|
+| Tier 1 (`assistant.message`) | `captureByPath()` cleans up any previous pending snapshot for the same path |
+| Tier 2 (`onPreToolUse` hook) | Skips if `getPendingByPath(filePath)` returns non-null |
+| Tier 3 (`handleToolStart` fallback) | Skips if `getSnapshot(toolCallId)` returns non-null after correlation |
+
+### Hook Registration
+
+Every session creation and resume call passes hooks via `getSessionHooks()` in `sdkSessionManager.ts`:
+
+```typescript
+private getSessionHooks() {
+    return {
+        onPreToolUse: (input: any, _invocation: any) => {
+            if (input.toolName === 'edit' || input.toolName === 'create') {
+                const filePath = (input.toolArgs as any)?.path;
+                if (filePath && !this.fileSnapshotService.getPendingByPath(filePath)) {
+                    this.fileSnapshotService.captureByPath(input.toolName, filePath);
+                }
+            }
+            return { permissionDecision: 'allow' };
+        }
+    };
+}
+```
+
+This is registered at all session creation/resume points (new session, resume, plan mode entry, plan mode exit, etc.) to ensure coverage regardless of how a session starts.
+
+### Snapshot Service Methods
+
+`fileSnapshotService.ts` exposes four methods for the capture-and-correlate flow:
+
+| Method | Purpose |
+| ------ | ------- |
+| `captureByPath(toolName, filePath)` | Copy file to temp dir, store in `pendingByPath` map keyed by file path |
+| `getPendingByPath(filePath)` | Check if a pending snapshot exists (used for deduplication) |
+| `correlateToToolCallId(filePath, toolCallId)` | Re-key from file path to toolCallId for downstream consumers |
+| `getSnapshot(toolCallId)` | Retrieve snapshot for diff computation |
+
+Implementation details:
+
+- **Cleanup before create.** If a pending snapshot already exists for the same path (e.g., the model edits the same file twice quickly), the old temp file is deleted before the new one is created.
+- **Unique ID = timestamp + counter.** `Date.now()` alone causes collisions when two captures happen in the same millisecond. A monotonic `nextId` counter guarantees unique temp filenames.
+- **New file handling.** For `create` tool calls, an empty temp file represents "no previous content." The diff shows all lines as additions.
+- **Orphan cleanup.** If a capture fires but `tool.execution_start` never comes (SDK error, tool denied), the orphaned snapshot is cleaned up when `cleanupAllSnapshots()` runs at session end.
+
+### The "See-Saw" Race Condition
+
+The race was discovered through diagnostic logging. In the SDK's JSON-RPC connection:
+
+1. `tool.execution_start` is a **notification** (fire-and-forget) — the server sends it and moves on
+2. `hooks.invoke` is a **request** (needs round-trip) — the server sends it and waits for the client's response
+
+On the same connection, the notification consistently arrives first. The hook fires *after* `handleToolStart()` has already processed the tool. This is why two-phase correlation alone was insufficient — the hook provided the timing guarantee (fires before execution) but lost the delivery race on the transport layer.
+
+The `assistant.message` event avoids this entirely because it fires at a completely different stage — when the model returns its response, before any tool execution begins.
+
+### SDK Limitation
+
+The `toolCallId` exists at hook invocation time — it's parsed from the model's API response before the hook runs — but the SDK intentionally omits it from hook inputs because hooks are designed for permission decisions, not execution tracking. We filed [github/copilot-sdk#477](https://github.com/github/copilot-sdk/issues/477) requesting this field. If accepted, the three-tier pipeline simplifies to a single capture in the hook.
+
+See: [COPILOT-SDK-HOOKS.md](COPILOT-SDK-HOOKS.md) for the full hooks reference.
+
+---
+
 ## Technical Pipeline
 
-The inline diff flows through four layers: extension-side computation, RPC transport, and webview rendering.
+The inline diff flows through four layers: snapshot capture, extension-side computation, RPC transport, and webview rendering.
 
 ### 1. Extension Side (Node.js)
 
@@ -132,3 +264,4 @@ The inline diff gives a quick glance. The button gives the full picture. Both ar
 
 - **15 unit tests** for `computeInlineDiff()` in `tests/unit/extension/inline-diff.test.js` — covering empty inputs, additions, deletions, modifications, context filtering, truncation behavior, and edge cases around trailing newlines.
 - **10 rendering tests** for ToolExecution inline diff rendering in `tests/unit/components/tool-execution-inline-diff.test.js` — covering HTML structure, CSS classes, prefix characters, truncation messages, XSS escaping, and the absence of diff blocks when no diff data is present.
+- **9 snapshot tests** for the capture-and-correlate pipeline in `tests/unit/extension/file-snapshot-hooks.test.js` — covering `captureByPath` (existing file copy, new file empty marker, non-edit rejection, overwrite cleanup), `correlateToToolCallId` (pending-to-final promotion, map cleanup, missing path no-op), and end-to-end flows (full capture-correlate cycle, race condition proof).

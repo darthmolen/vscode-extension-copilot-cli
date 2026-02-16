@@ -347,10 +347,33 @@ It's **distributed systems development** with:
 
 **This Codebase:**
 - Server: `src/extension/` - Node.js backend
-- Client: `src/webview/` - Browser frontend  
+- Client: `src/webview/` - Browser frontend
 - RPC: `src/extension/rpc/` + `src/webview/app/rpc/`
 - Types: `src/shared/messages.ts`
 
+**Getting Started:**
+
+- [Development Guide](HOW-TO-DEV.md) - Build, test, debug, and package the extension
+
+**Feature Documentation:**
+
+- [In-Chat Stream File Diff](IN-CHAT-STREAM-FILE-DIFF.md) - Inline diffs, snapshot capture, and the SDK hooks race condition fix
+- [Messages in the Chat UI](MESSAGES-IN-THE-CHAT-UI.md) - Message lifecycle across the VS Code process boundary
+- [Chat Auto-Scrolling](CHAT-AUTO-SCROLLING.md) - Scroll behavior and the user-intent detection algorithm
+- [Slash Commands Architecture](SLASH-COMMANDS-ARCHITECTURE.md) - Command registration, routing, and execution
+- [Copilot SDK Hooks](COPILOT-SDK-HOOKS.md) - Hook system reference (onPreToolUse, onPostToolUse, etc.)
+
+**Architecture Decision Records:**
+
+- [ADRs/](ADRS/) - ADR-001 through ADR-005 covering SDK choice, TDD workflow, planning sessions, event architecture, and slash commands
+
+**Other:**
+
+- [issues/](issues/) - Open bug investigations and backlog items
+- [copilot-sdk/](copilot-sdk/) - SDK research and source analysis
+- [GIST/](GIST/) - Opinion pieces and essays
+
 **Mental Model:**
+
 - Think: Express + React
 - Not: "VS Code extension magic"
