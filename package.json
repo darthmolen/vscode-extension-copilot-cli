@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -336,6 +336,9 @@
     "test": "npx mocha \"tests/unit/**/*.test.js\" \"tests/integration/**/*.test.js\" --recursive --timeout 10000",
     "test:unit": "npx mocha \"tests/unit/**/*.test.js\" --recursive --timeout 10000",
     "test:integration": "npx mocha \"tests/integration/**/*.test.js\" --recursive --timeout 10000",
+    "test:spike": "node tests/harness/sdk-spike.mjs",
+    "test:spike:streaming": "node tests/harness/sdk-spike.mjs run --analyze-streaming tests/prompts/sub-agent-streaming/",
+    "test:spike:interactive": "node tests/harness/sdk-spike.mjs interactive",
     "test:e2e:plan-mode": "npm run compile && node tests/e2e/plan-mode/plan-mode-integration.test.js",
     "test:e2e:session": "npm run compile && node tests/e2e/session/webview-lifecycle-integration.test.js",
     "test:verify": "node tests/helpers/verify-setup.js"
@@ -359,7 +362,7 @@
     "typescript-eslint": "^8.52.0"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^0.1.18",
+    "@github/copilot-sdk": "0.1.22",
     "dompurify": "^3.3.1",
     "marked": "^17.0.1",
     "vscode-jsonrpc": "^8.2.1"

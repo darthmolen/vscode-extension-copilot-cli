@@ -310,6 +310,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         this.sessionId,
                         {
                             tools: this.getCustomTools(),
+                            hooks: this.getSessionHooks(),
                             ...(hasMcpServers ? { mcpServers } : {}),
                         }
                     );
@@ -332,10 +333,11 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.session = await this.client.createSession({
                         model: this.config.model || undefined,
                         tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
                         ...(hasMcpServers ? { mcpServers } : {}),
                     });
                     this.sessionId = this.session.sessionId;
-                    
+
                     // Notify user with appropriate status
                     const status = errorType === 'session_expired' ? 'session_expired' : 'session_resume_failed';
                     this._onDidChangeStatus.fire({ 
@@ -350,6 +352,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.session = await this.client.createSession({
                     model: this.config.model || undefined,
                     tools: this.getCustomTools(),
+                    hooks: this.getSessionHooks(),
                     ...(hasMcpServers ? { mcpServers } : {}),
                 });
                 this.sessionId = this.session.sessionId;
@@ -437,6 +440,15 @@ export class SDKSessionManager implements vscode.Disposable {
                     const reportIntentTool = event.data.toolRequests.find((t: any) => t.name === 'report_intent');
                     if (reportIntentTool && reportIntentTool.arguments?.intent) {
                         this.lastMessageIntent = reportIntentTool.arguments.intent;
+                    }
+
+                    // Pre-capture snapshots for edit/create tools BEFORE execution starts.
+                    // assistant.message arrives before tool.execution_start, giving us a
+                    // reliable window to read the original file content.
+                    for (const toolReq of event.data.toolRequests) {
+                        if ((toolReq.name === 'edit' || toolReq.name === 'create') && toolReq.arguments?.path) {
+                            this.fileSnapshotService.captureByPath(toolReq.name, toolReq.arguments.path);
+                        }
                     }
                 }
                 
@@ -549,8 +561,23 @@ export class SDKSessionManager implements vscode.Disposable {
 
             this.toolExecutions.set(data.toolCallId, state);
 
-            // Capture file snapshot for edit/create tools
-            this.fileSnapshotService.captureFileSnapshot(data.toolCallId, data.toolName, data.arguments);
+            // Phase 2: correlate pre-hook snapshot (captured by path) to toolCallId
+            if (data.toolName === 'edit' || data.toolName === 'create') {
+                const filePath = data.arguments?.path;
+                if (filePath) {
+                    this.fileSnapshotService.correlateToToolCallId(filePath, data.toolCallId);
+
+                    // Fallback: if onPreToolUse hook didn't fire (e.g. resumed session
+                    // originally created without hooks), capture snapshot now.
+                    // This has a race condition (file may already be modified), but it's
+                    // better than no diff at all.
+                    if (!this.fileSnapshotService.getSnapshot(data.toolCallId)) {
+                        this.logger.warn(`[FileSnapshot] Hook did not fire for ${data.toolName} — using fallback capture (race possible)`);
+                        this.fileSnapshotService.captureByPath(data.toolName, filePath);
+                        this.fileSnapshotService.correlateToToolCallId(filePath, data.toolCallId);
+                    }
+                }
+            }
 
             this._onDidStartTool.fire(state);
         } catch (error) {
@@ -613,6 +640,44 @@ export class SDKSessionManager implements vscode.Disposable {
     
     public cleanupDiffSnapshot(toolCallId: string): void {
         this.fileSnapshotService.cleanupSnapshot(toolCallId);
+    }
+
+    /**
+     * Provide a callback for custom tools to emit diff events.
+     * Avoids circular dependencies by using a single-function interface.
+     */
+    public getDiffEmitCallback(): (diffData: DiffData) => void {
+        return (diffData: DiffData) => {
+            this.logger.info(`[Custom Tool Diff] ${diffData.title}`);
+            this._onDidProduceDiff.fire(diffData);
+        };
+    }
+
+    /**
+     * Expose FileSnapshotService for extension handlers (e.g., temp cleanup).
+     */
+    public getFileSnapshotService(): FileSnapshotService {
+        return this.fileSnapshotService;
+    }
+
+    /**
+     * Build the SDK hooks config for session creation/resume.
+     * Uses onPreToolUse to capture file snapshots BEFORE tool execution,
+     * fixing the race condition where snapshots were captured too late.
+     */
+    private getSessionHooks(): { onPreToolUse: (input: any, invocation: any) => { permissionDecision: string } } {
+        return {
+            onPreToolUse: (input: any, _invocation: any) => {
+                this.logger.info(`[Hook] onPreToolUse fired: tool=${input.toolName}`);
+                if (input.toolName === 'edit' || input.toolName === 'create') {
+                    const filePath = (input.toolArgs as any)?.path;
+                    if (filePath && !this.fileSnapshotService.getPendingByPath(filePath)) {
+                        this.fileSnapshotService.captureByPath(input.toolName, filePath);
+                    }
+                }
+                return { permissionDecision: 'allow' };
+            }
+        };
     }
 
     private getCustomTools(): any[] {
@@ -722,6 +787,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     
                     const resumeOptions = {
                         tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
                         ...(wasPlanMode ? {
                             availableTools: [
                                 'plan_bash_explore',
@@ -791,6 +857,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         sessionId: planSessionId,
                         model: this.config.planModel || this.config.model || undefined,
                         tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
                         availableTools: [
                             'plan_bash_explore',
                             'task_agent_type_explore',
@@ -817,10 +884,11 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.session = await this.client.createSession({
                         model: this.config.model || undefined,
                         tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
                         ...(hasMcpServers ? { mcpServers } : {}),
                     });
                     this.sessionId = this.session.sessionId;
-                    
+
                     // Update work session tracking
                     this.workSession = this.session;
                     this.workSessionId = this.sessionId;
@@ -999,6 +1067,8 @@ export class SDKSessionManager implements vscode.Disposable {
             this.workSessionId!,
             this.workingDirectory,
             this._onDidChangeStatus,
+            this.fileSnapshotService,
+            this.getDiffEmitCallback(),
             this.logger
         );
         await this.planModeToolsService.initialize();
@@ -1042,6 +1112,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 sessionId: planSessionId,
                 model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
+                hooks: this.getSessionHooks(),
                 availableTools: this.planModeToolsService.getAvailableToolNames(),
                 systemMessage: {
                     mode: 'append',
