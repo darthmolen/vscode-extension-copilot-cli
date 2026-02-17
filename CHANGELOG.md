@@ -2,6 +2,70 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.1.0] - 2026-02-16
+
+### ✨ Features
+
+#### Inline Image Rendering
+
+- **Agent-created images render directly in chat** — When the agent creates SVG, PNG, JPG, or other image files and mentions the path in its response, the image renders inline in the sidebar
+  - Detects bare image paths in assistant messages (e.g., `images/chart.svg`) and resolves them against the session directory and workspace folder
+  - Also resolves markdown image syntax `![alt](path)` to webview URIs
+  - Supports PNG, JPG, JPEG, GIF, SVG, and WebP formats
+  - Images auto-size to fit the sidebar width (`max-width: 100%`)
+
+- **Clickable file path links** — Resolved image paths display as clickable links above the rendered image
+  - Clicking the link opens the file in a VS Code editor tab
+  - Full RPC wiring: `openFile` message type from webview to extension host
+
+- **"File not found" annotation** — When a bare image path is detected but the file doesn't exist on disk, the path is annotated with italic *file not found* instead of silently leaving the raw text
+  - Gives immediate feedback when the agent claims to have saved a file but the tool execution failed
+
+- **SVG code block rendering** — SVG content in `` ```svg `` code blocks and inline `<svg>` tags render as actual images in the chat
+  - Contained in styled `.svg-render` containers with proper sizing and borders
+
+#### Paste Image from Clipboard
+
+- **Ctrl+V image paste** — Paste images directly from the clipboard into the chat input
+  - Detects image data in clipboard, reads as data URI
+  - Emits `input:pasteImage` event with data URI, MIME type, and auto-generated filename
+  - Prevents default paste behavior when image data is present
+
+#### Tool Execution UX Improvements
+
+- **Individual tool card collapse** — Click any tool execution header to collapse/expand that individual tool card
+  - Chevron indicator shows collapse state
+  - Collapsed state tracked per-card independently
+
+- **Tool group stability fix** — Tool groups no longer auto-collapse when user or assistant messages arrive
+  - Previously, manually expanding a tool group would auto-collapse on the next message
+  - Groups now close naturally only when a new group starts
+
+### 🐛 Bug Fixes
+
+#### Workspace Path Resolution
+
+- **Fixed image path resolution using wrong directory** — `manager.getWorkspacePath()` returned the SDK session-state directory (`~/.copilot/session-state/<id>/`) instead of the VS Code workspace folder
+  - Images saved by the agent to the workspace were never found during resolution
+  - Now uses `vscode.workspace.workspaceFolders[0]` for the correct workspace path
+
+#### URL Overflow
+
+- **Fixed long URLs overflowing message bubbles** — Added `overflow-wrap: break-word` and `word-break: break-word` to message content containers
+
+### 🔧 Technical Changes
+
+- **New utility: `resolveImagePaths.ts`** — Extracted image path resolution into a standalone utility with 22 TDD tests
+  - Two-pass approach: Pass 1 resolves markdown image syntax, Pass 2 detects bare paths
+  - Context-aware exclusions for URLs, already-resolved paths, and webview URIs
+  - `tryResolve()` checks multiple directories (session dir, then workspace dir)
+
+- **New RPC message: `openFile`** — Webview-to-extension message for opening files in the editor
+  - `OpenFilePayload` type in `shared/messages.ts`
+  - Handler in `ExtensionRpcRouter` and `ChatViewProvider`
+
+- **970 tests passing** (3 pre-existing baseline failures)
+
 ## [3.0.1] - 2026-02-15
 
 ### 🐛 Bug Fixes

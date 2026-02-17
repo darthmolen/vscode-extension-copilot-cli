@@ -950,6 +950,14 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 
 ## Release Process
 
+### Semver Rules
+
+- **Patch** (3.1.x): Bug fixes only. No new features, no new UI, no new APIs.
+- **Minor** (3.x.0): New features, new capabilities, new UI elements. Image support, mermaid rendering, model switching — these are all minor bumps.
+- **Major** (x.0.0): Breaking changes, architectural rewrites, or incompatible API changes.
+
+When in doubt, bump minor. A "small feature" is still a feature.
+
 **⚠️ BEFORE PUBLISHING:**
 - **MUST** update version in package.json (use `npm version patch/minor/major`)
 - **MUST** update CHANGELOG.md and README.md with the **SAME** version number
@@ -957,9 +965,9 @@ vscode.commands.registerCommand('copilot-cli-extension.newCommand', () => { });
 1. **Test thoroughly** using VSIX workflow
 2. **Update version** in `package.json`:
    ```bash
-   npm version patch --no-git-tag-version  # 2.1.1 → 2.1.2
-   npm version minor --no-git-tag-version  # 2.1.2 → 2.2.0
-   npm version major --no-git-tag-version  # 2.2.0 → 3.0.0
+   npm version patch --no-git-tag-version  # 3.1.0 → 3.1.1
+   npm version minor --no-git-tag-version  # 3.1.0 → 3.2.0
+   npm version major --no-git-tag-version  # 3.2.0 → 4.0.0
    ```
 3. **Update CHANGELOG.md** - Add section with the **SAME** version from step 2:
    ```markdown

@@ -10,6 +10,8 @@ import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashH
 import { NotSupportedSlashHandlers } from './extension/services/slashCommands/NotSupportedSlashHandlers';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
 import { SessionService } from './extension/services/SessionService';
+import { resolveImagePaths } from './extension/utils/resolveImagePaths';
+import * as fs from 'fs';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'copilot-cli.chatView';
@@ -162,6 +164,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			this._handleFilePicker();
 		}));
 
+		this._reg(this.rpcRouter.onPasteImage((payload) => {
+			this.logger.info(`Pasted image received: ${payload.fileName}`);
+			this._handlePastedImage(payload.dataUri, payload.mimeType, payload.fileName);
+		}));
+
 		this._reg(this.rpcRouter.onAbortMessage(() => {
 			this.logger.info('Abort requested from UI');
 			this._onDidRequestAbort.fire();
@@ -300,6 +307,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			}
 		}));
 
+		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
+			this.logger.info(`[OpenFile] ${payload.filePath}`);
+			try {
+				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(payload.filePath));
+				await vscode.window.showTextDocument(doc, { preview: true });
+			} catch (err: any) {
+				this.logger.warn(`[OpenFile] Failed: ${err.message}`);
+			}
+		}));
+
 		// Start listening for messages from webview
 		this.rpcRouter.listen();
 	}
@@ -333,7 +350,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				timestamp: Date.now()
 			});
 		}
-		this.rpcRouter?.addAssistantMessage(text);
+
+		// Resolve relative image paths in markdown to webview URIs
+		const resolvedText = this._resolveAssistantImagePaths(text);
+		this.rpcRouter?.addAssistantMessage(resolvedText);
 	}
 
 	public addReasoningMessage(text: string, storeInBackend: boolean = true) {
@@ -452,6 +472,93 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		} else {
 			this.logger.info('File picker cancelled');
 		}
+	}
+
+	private async _handlePastedImage(dataUri: string, _mimeType: string, fileName: string) {
+		try {
+			// Extract base64 data from data URI
+			const base64Data = dataUri.split(',')[1];
+			if (!base64Data) {
+				this.logger.warn('[PASTE] Invalid data URI — no base64 portion');
+				return;
+			}
+
+			const buffer = Buffer.from(base64Data, 'base64');
+
+			// Write to temp file
+			const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-paste-'));
+			const tempFilePath = path.join(tempDir, fileName);
+			fs.writeFileSync(tempFilePath, buffer);
+			this.logger.info(`[PASTE] Wrote temp file: ${tempFilePath} (${buffer.length} bytes)`);
+
+			// Validate via the same callback as file picker
+			if (this.validateAttachmentsCallback) {
+				const validationResult = await this.validateAttachmentsCallback([tempFilePath]);
+				if (!validationResult.valid) {
+					this.logger.warn(`[PASTE] Validation failed: ${validationResult.error}`);
+					vscode.window.showErrorMessage(validationResult.error || 'Invalid image');
+					// Clean up temp file
+					try { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }
+					return;
+				}
+			}
+
+			// Create webview URI and send back as filesSelected (reuses existing flow)
+			const fileUri = vscode.Uri.file(tempFilePath);
+			const webviewUri = this._view?.webview.asWebviewUri(fileUri);
+			const attachment = {
+				type: 'file' as const,
+				path: tempFilePath,
+				displayName: fileName,
+				webviewUri: webviewUri?.toString() || ''
+			};
+
+			this.logger.info(`[PASTE] Sending pasted image attachment to webview`);
+			this.postMessage({
+				type: 'filesSelected',
+				attachments: [attachment]
+			});
+		} catch (error) {
+			this.logger.error('[PASTE] Failed to handle pasted image', error instanceof Error ? error : undefined);
+		}
+	}
+
+	private _resolveAssistantImagePaths(text: string): string {
+		const backendState = getBackendState();
+		const sessionId = backendState.getSessionId();
+		if (!sessionId || !this._view?.webview) {
+			this.logger?.debug(`[ImageResolve] Skipped: sessionId=${!!sessionId} webview=${!!this._view?.webview}`);
+			return text;
+		}
+
+		const sessionDir = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
+		const webview = this._view.webview;
+
+		const additionalDirs: string[] = [];
+		if (this.currentWorkspacePath) {
+			additionalDirs.push(this.currentWorkspacePath);
+		}
+
+		this.logger?.debug(`[ImageResolve] Input: "${text.substring(0, 100)}" sessionDir=${sessionDir} additionalDirs=${JSON.stringify(additionalDirs)}`);
+
+		const result = resolveImagePaths(text, sessionDir, (absolutePath: string) => {
+			const exists = fs.existsSync(absolutePath);
+			this.logger?.debug(`[ImageResolve] Check: ${absolutePath} exists=${exists}`);
+			if (!exists) {
+				return null;
+			}
+			const fileUri = vscode.Uri.file(absolutePath);
+			const uri = webview.asWebviewUri(fileUri).toString();
+			this.logger?.debug(`[ImageResolve] Resolved: ${uri}`);
+			return uri;
+		}, additionalDirs);
+
+		if (result !== text) {
+			this.logger?.info(`[ImageResolve] Resolved image paths in message`);
+			this.logger?.debug(`[ImageResolve] Output: "${result.substring(0, 200)}"`);
+		}
+
+		return result;
 	}
 
 	public setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) {

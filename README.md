@@ -51,6 +51,17 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.1.0 - Inline Image Rendering
+
+- **Agent-created images render in chat** — When the agent creates SVG, PNG, or other image files and mentions the path, the image renders inline in the sidebar. Supports bare paths (`images/chart.svg`) and markdown image syntax.
+- **Clickable file path links** — Image paths display as clickable links that open the file in a VS Code editor tab.
+- **"File not found" annotation** — When a referenced image doesn't exist on disk, the path is annotated with *file not found* so you know the tool execution failed.
+- **SVG code block rendering** — SVG content in code blocks renders as actual images in the chat.
+- **Paste images from clipboard** — Ctrl+V to paste images directly into the chat input.
+- **Individual tool card collapse** — Click any tool execution header to collapse/expand that specific card.
+- **Tool group stability** — Expanded tool groups no longer auto-collapse when messages arrive.
+- **URL overflow fix** — Long URLs no longer break out of message bubbles.
+
 ### v3.0.1
 
 - **SDK Upgrade to 0.1.22** — Enables first-class hooks system for reliable tool interception

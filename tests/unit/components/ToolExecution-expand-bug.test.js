@@ -122,15 +122,14 @@ describe('ToolExecution - Expand/Contract After Message Bug', () => {
             expandBtn.click();
             expect(toolContainer.classList.contains('expanded'), 'Should be expanded after first click').to.be.true;
             
-            // NEW MESSAGE ARRIVES - this triggers closeCurrentToolGroup()
+            // NEW MESSAGE ARRIVES - no longer triggers closeCurrentToolGroup()
             eventBus.emit('message:add', {
                 role: 'assistant',
                 content: 'Done!',
                 timestamp: Date.now()
             });
-            
-            // BUG: After message arrives, toggle should STILL work
-            // but currently it breaks because currentToolGroup is null
+
+            // After message arrives, toggle should STILL work
             
             // Try to contract
             expandBtn.click();

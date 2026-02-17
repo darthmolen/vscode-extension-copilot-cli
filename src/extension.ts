@@ -503,9 +503,12 @@ function onSessionStarted(manager: SDKSessionManager): void {
 	statusBarItem.tooltip = "Copilot CLI is active";
 	chatProvider.setSessionActive(true);
 
-	const workspacePath = manager.getWorkspacePath();
-	backendState.setWorkspacePath(workspacePath || null);
-	chatProvider.setWorkspacePath(workspacePath);
+	// manager.getWorkspacePath() returns the SDK session-state dir, not the
+	// VS Code workspace.  Use the real workspace folder for image resolution.
+	const sdkWorkspacePath = manager.getWorkspacePath();
+	backendState.setWorkspacePath(sdkWorkspacePath || null);
+	const vsWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	chatProvider.setWorkspacePath(vsWorkspacePath);
 
 	chatProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
 		if (!cliManager) {

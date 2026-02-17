@@ -92,7 +92,7 @@
 - Node 20 is still supported LTS
 - 0.1.22 has the critical fixes we need
 - Bundling is nice-to-have, not critical
-- Can upgrade to Node 24 + SDK 0.1.23 in v3.0.2 or later
+- Can upgrade to Node 24 + SDK 0.1.23 in v3.1.0 or later
 
 ## Version History Context
 

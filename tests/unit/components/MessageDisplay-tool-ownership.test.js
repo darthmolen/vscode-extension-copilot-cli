@@ -175,28 +175,28 @@ describe('MessageDisplay Tool Ownership (Parent-Child Pattern)', () => {
             }
         });
 
-        it('should close tool group when message arrives', () => {
+        it('should NOT close tool group when message arrives', () => {
             messageDisplay = new MessageDisplay(container, eventBus);
-            
+
             // Start tool
             eventBus.emit('tool:start', {
                 toolCallId: 'test-999',
                 toolName: 'bash',
                 status: 'running'
             });
-            
+
             let toolGroup = container.querySelector('.tool-group');
             expect(toolGroup).to.exist;
-            
-            // Send user message - should close tool group
+
+            // Send user message - should NOT close tool group (fix for auto-collapse bug)
             eventBus.emit('message:add', {
                 role: 'user',
                 content: 'Next command',
                 timestamp: Date.now()
             });
-            
-            // Tool group should be finalized (no longer "current")
-            expect(messageDisplay.toolExecution.currentToolGroup).to.be.null;
+
+            // Tool group should still be current (not nulled by message:add)
+            expect(messageDisplay.toolExecution.currentToolGroup).to.not.be.null;
         });
     });
 

@@ -220,7 +220,31 @@ class WebviewRpcClient {
 			command
 		});
 	}
-	
+
+	/**
+	 * Send pasted image data to extension for temp file creation
+	 * @param {{dataUri: string, mimeType: string, fileName: string}} data - Image data
+	 */
+	pasteImage(data) {
+		this._send({
+			type: 'pasteImage',
+			dataUri: data.dataUri,
+			mimeType: data.mimeType,
+			fileName: data.fileName
+		});
+	}
+
+	/**
+	 * Open a file in the VS Code editor
+	 * @param {string} filePath - Absolute file path to open
+	 */
+	openFile(filePath) {
+		this._send({
+			type: 'openFile',
+			filePath
+		});
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================

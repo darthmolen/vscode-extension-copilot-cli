@@ -191,6 +191,11 @@ eventBus.on('openInCLI', (args) => {
 	rpc.openInCLI(command);
 });
 
+// Open file in VS Code editor (from image file links)
+eventBus.on('openFile', (filePath) => {
+	rpc.openFile(filePath);
+});
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));
@@ -207,6 +212,12 @@ eventBus.on('input:abort', () => {
 eventBus.on('input:attachFiles', () => {
 	console.log('[ATTACH] Attach files requested');
 	rpc.pickFiles();
+});
+
+// Listen for input:pasteImage events from InputArea component
+eventBus.on('input:pasteImage', (data) => {
+	console.log('[PASTE] Image pasted:', data.fileName);
+	rpc.pasteImage(data);
 });
 
 // Listen for viewDiff events from ToolExecution component (duplicate removed)

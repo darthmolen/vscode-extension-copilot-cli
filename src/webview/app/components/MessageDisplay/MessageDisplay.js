@@ -76,6 +76,20 @@ export class MessageDisplay {
             this.updateReasoningVisibility();
         });
 
+        // Delegated click handler for image file links
+        if (this.messagesContainer) {
+            this.messagesContainer.addEventListener('click', (e) => {
+                const link = e.target.closest('.image-file-link');
+                if (link) {
+                    e.preventDefault();
+                    const filePath = link.getAttribute('data-filepath');
+                    if (filePath) {
+                        this.eventBus.emit('openFile', filePath);
+                    }
+                }
+            });
+        }
+
         // Track user manual scrolling
         if (this.messagesContainer) {
             this.messagesContainer.addEventListener('scroll', () => {
@@ -259,8 +273,52 @@ export class MessageDisplay {
             `;
         }
 
+        // Post-process: render SVG code blocks and inline SVGs as actual images
+        if (role === 'assistant') {
+            this._renderSvgBlocks(messageDiv);
+        }
+
         this.messagesContainer.appendChild(messageDiv);
         // MutationObserver handles scrolling automatically
+    }
+
+    /**
+     * Post-process rendered HTML to convert SVG code blocks and inline SVGs
+     * into actual rendered SVG images within .svg-render containers.
+     */
+    _renderSvgBlocks(messageDiv) {
+        // 1. Handle ```svg code blocks (rendered as <pre><code class="language-svg">)
+        const svgCodeBlocks = messageDiv.querySelectorAll('code.language-svg');
+        svgCodeBlocks.forEach(codeEl => {
+            const svgSource = codeEl.textContent;
+            const preEl = codeEl.parentElement;
+            if (!preEl || preEl.tagName !== 'PRE') return;
+
+            const container = document.createElement('div');
+            container.className = 'svg-render';
+            container.innerHTML = svgSource;
+
+            const svgEl = container.querySelector('svg');
+            if (svgEl) {
+                svgEl.style.maxWidth = '100%';
+                svgEl.style.height = 'auto';
+            }
+
+            preEl.replaceWith(container);
+        });
+
+        // 2. Handle inline <svg> tags not already in a .svg-render container
+        const inlineSvgs = messageDiv.querySelectorAll('svg');
+        inlineSvgs.forEach(svgEl => {
+            if (svgEl.closest('.svg-render')) return;
+
+            const container = document.createElement('div');
+            container.className = 'svg-render';
+            svgEl.style.maxWidth = '100%';
+            svgEl.style.height = 'auto';
+            svgEl.parentNode.insertBefore(container, svgEl);
+            container.appendChild(svgEl);
+        });
     }
 
     updateReasoningVisibility() {

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="520" height="360" viewBox="0 0 520 360" xmlns="http://www.w3.org/2000/svg">
+  <title>Testing Image Draws</title>
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <g>
+    <circle cx="150" cy="150" r="120" fill="#f7f7f7"/>
+    <path d="M150,150 L270.000,150.000 A120,120 0 0,1 112.918,264.127 Z" fill="#e74c3c" stroke="#ffffff" stroke-width="2"/>
+    <path d="M150,150 L112.918,264.127 A120,120 0 0,1 79.466,52.918 Z" fill="#8e44ad" stroke="#ffffff" stroke-width="2"/>
+    <path d="M150,150 L79.466,52.918 A120,120 0 0,1 220.534,52.918 Z" fill="#2ecc71" stroke="#ffffff" stroke-width="2"/>
+    <path d="M150,150 L220.534,52.918 A120,120 0 0,1 270.000,150.000 Z" fill="#f39c12" stroke="#ffffff" stroke-width="2"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="14">
+    <text x="320" y="30" font-size="18" font-weight="bold">Project Time Breakdown</text>
+    <rect x="320" y="55" width="16" height="16" fill="#e74c3c"/>
+    <text x="342" y="67">Coding — 30%</text>
+    <rect x="320" y="85" width="16" height="16" fill="#8e44ad"/>
+    <text x="342" y="97">Debugging — 35%</text>
+    <rect x="320" y="115" width="16" height="16" fill="#2ecc71"/>
+    <text x="342" y="127">Planning — 20%</text>
+    <rect x="320" y="145" width="16" height="16" fill="#f39c12"/>
+    <text x="342" y="157">Code Review — 15%</text>
+  </g>
+</svg>

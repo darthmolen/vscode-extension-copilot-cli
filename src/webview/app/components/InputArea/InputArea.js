@@ -34,6 +34,7 @@ export class InputArea {
 
 		// State
 		this.pendingAttachments = [];
+		this.pasteImageCounter = 0;
 		this.messageHistory = [];
 		this.MAX_HISTORY = 20;
 		this.historyIndex = -1; // -1 means current draft (not in history)
@@ -47,6 +48,7 @@ export class InputArea {
 		this.handleSendClick = this.handleSendClick.bind(this);
 		this.handleAttachClick = this.handleAttachClick.bind(this);
 		this.handleKeydown = this.handleKeydown.bind(this);
+		this.handlePaste = this.handlePaste.bind(this);
 		this.sendMessage = this.sendMessage.bind(this);
 		this.handleSessionActive = this.handleSessionActive.bind(this);
 		this.handleSessionThinking = this.handleSessionThinking.bind(this);
@@ -130,6 +132,7 @@ export class InputArea {
 		// Input events
 		this.messageInput.addEventListener('input', this.handleInput);
 		this.messageInput.addEventListener('keydown', this.handleKeydown);
+		this.messageInput.addEventListener('paste', this.handlePaste);
 
 		// Button events
 		this.sendButton.addEventListener('click', this.handleSendClick);
@@ -200,6 +203,40 @@ export class InputArea {
 				e.preventDefault();
 				this.navigateHistory(e.key === 'ArrowUp' ? 'up' : 'down');
 			}
+		}
+	}
+
+	handlePaste(e) {
+		const items = e.clipboardData && e.clipboardData.items;
+		if (!items || items.length === 0) return;
+
+		let hasImage = false;
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (item.kind === 'file' && item.type.startsWith('image/')) {
+				hasImage = true;
+				const file = item.getAsFile();
+				if (!file) continue;
+
+				this.pasteImageCounter++;
+				const ext = item.type.split('/')[1];
+				const fileName = `pasted-image-${this.pasteImageCounter}.${ext}`;
+				const mimeType = item.type;
+
+				const reader = new FileReader();
+				reader.onload = () => {
+					this.eventBus.emit('input:pasteImage', {
+						dataUri: reader.result,
+						mimeType,
+						fileName
+					});
+				};
+				reader.readAsDataURL(file);
+			}
+		}
+
+		if (hasImage) {
+			e.preventDefault();
 		}
 	}
 

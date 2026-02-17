@@ -41,13 +41,15 @@ export type WebviewMessageType =
 	| 'acceptPlan'
 	| 'rejectPlan'
 	| 'pickFiles'
+	| 'pasteImage'
 	| 'showPlanContent'
 	| 'openDiffView'
 	| 'showMcpConfig'
 	| 'showUsageMetrics'
 	| 'showHelp'
 	| 'showNotSupported'
-	| 'openInCLI';
+	| 'openInCLI'
+	| 'openFile';
 
 /**
  * Send user message to agent
@@ -132,6 +134,16 @@ export interface PickFilesPayload extends BaseMessage {
 }
 
 /**
+ * Send pasted image data to extension for temp file creation
+ */
+export interface PasteImagePayload extends BaseMessage {
+	type: 'pasteImage';
+	dataUri: string;
+	mimeType: string;
+	fileName: string;
+}
+
+/**
  * Show plan.md content (for /review command)
  */
 export interface ShowPlanContentPayload extends BaseMessage {
@@ -186,6 +198,14 @@ export interface OpenInCLIPayload extends BaseMessage {
 }
 
 /**
+ * Open a file in the VS Code editor
+ */
+export interface OpenFilePayload extends BaseMessage {
+	type: 'openFile';
+	filePath: string;
+}
+
+/**
  * Union of all webview → extension messages
  */
 export type WebviewMessage =
@@ -200,13 +220,15 @@ export type WebviewMessage =
 	| AcceptPlanPayload
 	| RejectPlanPayload
 	| PickFilesPayload
+	| PasteImagePayload
 	| ShowPlanContentPayload
 	| OpenDiffViewPayload
 	| ShowMcpConfigPayload
 	| ShowUsageMetricsPayload
 	| ShowHelpPayload
 	| ShowNotSupportedPayload
-	| OpenInCLIPayload;
+	| OpenInCLIPayload
+	| OpenFilePayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -459,7 +481,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'togglePlanMode',
 		'acceptPlan',
 		'rejectPlan',
-		'pickFiles'
+		'pickFiles',
+		'pasteImage'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);

@@ -48,6 +48,8 @@ import {
 	ShowHelpPayload,
 	ShowNotSupportedPayload,
 	OpenInCLIPayload,
+	OpenFilePayload,
+	PasteImagePayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -401,6 +403,13 @@ export class ExtensionRpcRouter {
 	}
 	
 	/**
+	 * Register handler for pasteImage
+	 */
+	onPasteImage(handler: MessageHandler<PasteImagePayload>): Disposable {
+		return this.registerHandler('pasteImage', handler);
+	}
+
+	/**
 	 * Register handler for showPlanContent
 	 */
 	onShowPlanContent(handler: MessageHandler<ShowPlanContentPayload>): Disposable {
@@ -447,6 +456,13 @@ export class ExtensionRpcRouter {
 	 */
 	onOpenInCLI(handler: MessageHandler<OpenInCLIPayload>): Disposable {
 		return this.registerHandler('openInCLI', handler);
+	}
+
+	/**
+	 * Register handler for openFile
+	 */
+	onOpenFile(handler: MessageHandler<OpenFilePayload>): Disposable {
+		return this.registerHandler('openFile', handler);
 	}
 	
 	// ========================================================================
