@@ -102,7 +102,8 @@ export function resolveImagePaths(
 		const resolved = tryResolve(match, dirs, resolveUri);
 		if (resolved) {
 			const filename = path.basename(match, path.extname(match));
-			return `<a class="image-file-link" data-filepath="${resolved.absolutePath}">${match}</a>\n\n![${filename}](${resolved.uri})\n\n`;
+			const safePath = resolved.absolutePath.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+			return `<a class="image-file-link" data-filepath="${safePath}">${match}</a>\n\n![${filename}](${resolved.uri})\n\n`;
 		}
 
 		// File not found — annotate so the user knows

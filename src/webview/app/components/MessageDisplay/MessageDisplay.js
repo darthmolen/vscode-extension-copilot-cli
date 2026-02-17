@@ -286,6 +286,22 @@ export class MessageDisplay {
      * Post-process rendered HTML to convert SVG code blocks and inline SVGs
      * into actual rendered SVG images within .svg-render containers.
      */
+    _sanitizeSvg(svgSource) {
+        const temp = document.createElement('div');
+        temp.innerHTML = svgSource;
+        // Remove script, foreignObject, and event handler attributes
+        temp.querySelectorAll('script, foreignObject').forEach(el => el.remove());
+        const all = temp.querySelectorAll('*');
+        all.forEach(el => {
+            for (const attr of [...el.attributes]) {
+                if (attr.name.startsWith('on')) {
+                    el.removeAttribute(attr.name);
+                }
+            }
+        });
+        return temp.innerHTML;
+    }
+
     _renderSvgBlocks(messageDiv) {
         // 1. Handle ```svg code blocks (rendered as <pre><code class="language-svg">)
         const svgCodeBlocks = messageDiv.querySelectorAll('code.language-svg');
@@ -296,7 +312,7 @@ export class MessageDisplay {
 
             const container = document.createElement('div');
             container.className = 'svg-render';
-            container.innerHTML = svgSource;
+            container.innerHTML = this._sanitizeSvg(svgSource);
 
             const svgEl = container.querySelector('svg');
             if (svgEl) {

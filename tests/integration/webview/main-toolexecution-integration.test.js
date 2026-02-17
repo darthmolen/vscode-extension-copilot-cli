@@ -1,11 +1,11 @@
 /**
  * Integration Tests: main.js ToolExecution Integration
- * 
+ *
  * Tests the ACTUAL production flow:
  * RPC message → main.js handler → EventBus event → ToolExecution → DOM
- * 
- * CRITICAL: These tests MUST import and test actual main.js
- * They should FAIL until main.js is integrated with ToolExecution component
+ *
+ * ToolExecution is created internally by MessageDisplay (component hierarchy).
+ * These tests verify the EventBus-driven flow works end-to-end.
  */
 
 import { describe, it, beforeEach } from 'mocha';
@@ -43,7 +43,8 @@ describe('main.js + ToolExecution Integration', () => {
         // Extract instances from __testExports
         eventBus = mainModule.__testExports.eventBus;
         messageDisplay = mainModule.__testExports.messageDisplay;
-        toolExecution = mainModule.__testExports.toolExecution;
+        // ToolExecution is created internally by MessageDisplay (component hierarchy)
+        toolExecution = messageDisplay.toolExecution;
     });
 
     after(() => {
@@ -52,30 +53,36 @@ describe('main.js + ToolExecution Integration', () => {
     });
 
     beforeEach(() => {
-        // Clear messages container before each test
-        messagesContainer.innerHTML = '';
+        // Clear the INNER messages container (not the outer mount point).
+        // MessageDisplay renders into an inner #messages div, and ToolExecution's
+        // this.container references that inner div. Clearing the outer mount
+        // would orphan it.
+        const innerMessages = messageDisplay.messagesContainer;
+        if (innerMessages) {
+            innerMessages.innerHTML = '';
+        }
 
         // Reset ToolExecution internal state
         if (toolExecution) {
             toolExecution.currentToolGroup = null;
             toolExecution.toolGroupExpanded = false;
             toolExecution.tools.clear();
+            toolExecution.collapsedCards.clear();
         }
     });
 
     afterEach(() => {
-        // Clear messages container for next test
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '';
+        const innerMessages = messageDisplay.messagesContainer;
+        if (innerMessages) {
+            innerMessages.innerHTML = '';
         }
     });
 
-    describe('main.js creates ToolExecution component', () => {
-        it('should create ToolExecution instance on initialization', async () => {
-            // This test will FAIL because main.js doesn't create ToolExecution yet
+    describe('MessageDisplay creates ToolExecution as child component', () => {
+        it('should create ToolExecution instance internally', async () => {
             const { ToolExecution } = await import('../../../src/webview/app/components/ToolExecution/ToolExecution.js');
-            
-            expect(toolExecution, 'main.js should create ToolExecution instance').to.exist;
+
+            expect(toolExecution, 'MessageDisplay should create ToolExecution instance').to.exist;
             expect(toolExecution).to.be.instanceOf(ToolExecution);
         });
 
@@ -232,7 +239,7 @@ describe('main.js + ToolExecution Integration', () => {
             let emittedData = null;
             eventBus.on('viewDiff', (data) => { emittedData = data; });
             diffBtn.click();
-            
+
             expect(emittedData).to.deep.equal(diffData);
         });
     });

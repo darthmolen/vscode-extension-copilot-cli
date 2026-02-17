@@ -482,7 +482,15 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'acceptPlan',
 		'rejectPlan',
 		'pickFiles',
-		'pasteImage'
+		'pasteImage',
+		'showPlanContent',
+		'openDiffView',
+		'showMcpConfig',
+		'showUsageMetrics',
+		'showHelp',
+		'showNotSupported',
+		'openInCLI',
+		'openFile'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);

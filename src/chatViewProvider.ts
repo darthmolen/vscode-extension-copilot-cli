@@ -70,6 +70,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			enableScripts: true,
 			localResourceRoots: [
 				this.extensionUri,
+				vscode.Uri.file(path.join(os.homedir(), '.copilot')),
 				...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)
 			]
 		};
@@ -309,8 +310,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
 			this.logger.info(`[OpenFile] ${payload.filePath}`);
+			const resolved = path.resolve(payload.filePath);
+			const workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [];
+			const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+			const allowed = workspaceFolders.some(ws => resolved.startsWith(ws + path.sep)) ||
+				resolved.startsWith(sessionStateDir + path.sep);
+			if (!allowed) {
+				this.logger.warn(`[OpenFile] Blocked: path outside workspace and session-state`);
+				return;
+			}
 			try {
-				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(payload.filePath));
+				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
 				await vscode.window.showTextDocument(doc, { preview: true });
 			} catch (err: any) {
 				this.logger.warn(`[OpenFile] Failed: ${err.message}`);
@@ -512,6 +522,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				displayName: fileName,
 				webviewUri: webviewUri?.toString() || ''
 			};
+
+			// Schedule temp file cleanup after SDK has had time to consume it
+			setTimeout(() => {
+				try { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }
+			}, 30_000);
 
 			this.logger.info(`[PASTE] Sending pasted image attachment to webview`);
 			this.postMessage({

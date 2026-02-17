@@ -231,6 +231,9 @@ export class InputArea {
 						fileName
 					});
 				};
+				reader.onerror = () => {
+					console.error('[PASTE] Failed to read image file:', reader.error);
+				};
 				reader.readAsDataURL(file);
 			}
 		}

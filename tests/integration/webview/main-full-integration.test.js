@@ -148,11 +148,12 @@ describe('main.js Full Component Integration (RED Phase)', () => {
 			assert.ok(mainJS.includes('new MessageDisplay('), 'main.js should create MessageDisplay instance');
 		});
 
-		it('should create ToolExecution component', async () => {
-			const mainJS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'webview', 'main.js'), 'utf-8');
+		it('should create ToolExecution via MessageDisplay (component hierarchy)', async () => {
+			// ToolExecution is created internally by MessageDisplay, not by main.js directly
+			const messageDisplayJS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'webview', 'app', 'components', 'MessageDisplay', 'MessageDisplay.js'), 'utf-8');
 
-			assert.ok(mainJS.includes('import { ToolExecution }'), 'main.js should import ToolExecution');
-			assert.ok(mainJS.includes('new ToolExecution('), 'main.js should create ToolExecution instance');
+			assert.ok(messageDisplayJS.includes('import { ToolExecution }'), 'MessageDisplay should import ToolExecution');
+			assert.ok(messageDisplayJS.includes('new ToolExecution('), 'MessageDisplay should create ToolExecution instance');
 		});
 
 		it('should create InputArea component', async () => {

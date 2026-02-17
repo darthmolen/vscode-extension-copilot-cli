@@ -3,7 +3,7 @@ import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import EventBus and components
 import { EventBus } from './app/state/EventBus.js';
 import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
-import { ToolExecution } from './app/components/ToolExecution/ToolExecution.js';
+
 import { InputArea } from './app/components/InputArea/InputArea.js';
 import { SessionToolbar } from './app/components/SessionToolbar/SessionToolbar.js';
 import { AcceptanceControls } from './app/components/AcceptanceControls/AcceptanceControls.js';
@@ -50,7 +50,6 @@ const eventBus = new EventBus();
 // Initialize components
 const messagesContainer = document.getElementById('messages-mount');
 const messageDisplay = new MessageDisplay(messagesContainer, eventBus);
-const toolExecution = new ToolExecution(messagesContainer, eventBus);
 const inputAreaContainer = document.getElementById('input-mount');
 const inputArea = new InputArea(inputAreaContainer, eventBus);
 
@@ -572,7 +571,6 @@ if (typeof window !== 'undefined' && !window.__TESTING__) {
 export const __testExports = {
 	eventBus,
 	messageDisplay,
-	toolExecution,
 	inputArea,
 	sessionToolbar,
 	acceptanceControls,
