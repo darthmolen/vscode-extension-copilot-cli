@@ -25,7 +25,80 @@ let CopilotSession: any;
 let defineTool: any;
 
 /** Fallback model used when configured model is unsupported or mistyped */
-const FALLBACK_MODEL = 'claude-sonnet-4.5';
+export const FALLBACK_MODEL = 'claude-sonnet-4.5';
+
+/**
+ * Preferred model order for fallback selection.
+ * When the requested model is unavailable, we pick the first model from this
+ * list that appears in the user's available models.
+ */
+export const MODEL_PREFERENCE_ORDER = [
+    'claude-sonnet-4.6',
+    'claude-sonnet-4.5',
+    'gpt-5',
+    'claude-haiku-4.5',
+    'gpt-5-mini',
+    'claude-opus-4.6',
+    'gpt-4.1',
+];
+
+/**
+ * Select the best fallback model from the user's available models.
+ *
+ * Strategy:
+ * 1. Query available models via ModelCapabilitiesService
+ * 2. Walk MODEL_PREFERENCE_ORDER; return first match not excluded
+ * 3. If no preferred model matches, return first available
+ * 4. If getAllModels() fails or returns empty, return FALLBACK_MODEL
+ */
+export async function selectFallbackModel(
+    modelCapabilitiesService: ModelCapabilitiesService,
+    excludeModel?: string,
+    logger?: Logger
+): Promise<string> {
+    try {
+        const availableModels = await modelCapabilitiesService.getAllModels();
+
+        if (!availableModels || availableModels.length === 0) {
+            logger?.warn('[Model Fallback] No models returned from getAllModels(), using hardcoded fallback');
+            return FALLBACK_MODEL;
+        }
+
+        const availableIds = new Set(availableModels.map(m => m.id));
+        logger?.info(`[Model Fallback] Available models: [${Array.from(availableIds).join(', ')}]`);
+
+        // Remove the model that already failed
+        if (excludeModel) {
+            availableIds.delete(excludeModel);
+        }
+
+        if (availableIds.size === 0) {
+            logger?.warn('[Model Fallback] No models available after excluding failed model');
+            return FALLBACK_MODEL;
+        }
+
+        // Walk preference list, return first match
+        for (const preferred of MODEL_PREFERENCE_ORDER) {
+            if (availableIds.has(preferred)) {
+                logger?.info(`[Model Fallback] Selected preferred model: ${preferred}`);
+                return preferred;
+            }
+        }
+
+        // No preferred model available — use first available (not excluded)
+        const firstAvailable = availableModels.find(m => m.id !== excludeModel)?.id;
+        if (firstAvailable) {
+            logger?.info(`[Model Fallback] No preferred model available, using first available: ${firstAvailable}`);
+            return firstAvailable;
+        }
+
+        return FALLBACK_MODEL;
+    } catch (error) {
+        logger?.error('[Model Fallback] getAllModels() failed, using hardcoded fallback',
+            error instanceof Error ? error : undefined);
+        return FALLBACK_MODEL;
+    }
+}
 
 async function loadSDK() {
     if (!CopilotClient) {
@@ -1398,23 +1471,91 @@ export class SDKSessionManager implements vscode.Disposable {
     }
 
     /**
-     * Create a session, retrying with FALLBACK_MODEL if the requested model
-     * is unsupported or mistyped.
+     * Create a session, with smart model fallback when the requested model
+     * is unsupported by the user's account.
+     *
+     * Queries available models via ModelCapabilitiesService and picks the
+     * best alternative. Notifies the user via both chat and OS-level toast.
      */
     private async createSessionWithModelFallback(config: Record<string, unknown>): Promise<any> {
+        const MAX_FALLBACK_ATTEMPTS = 3;
+        const requestedModel = config.model as string | undefined;
+        const triedModels = new Set<string>();
+
+        if (requestedModel) {
+            triedModels.add(requestedModel);
+        }
+
+        // First attempt: try the requested model
         try {
             return await this.client.createSession(config);
         } catch (error) {
-            const requestedModel = config.model as string | undefined;
-            if (this.isModelUnsupportedError(error) && requestedModel && requestedModel !== FALLBACK_MODEL) {
-                this.logger.warn(`[Model Fallback] Model "${requestedModel}" is not supported, retrying with ${FALLBACK_MODEL}`);
-                vscode.window.showWarningMessage(
-                    `Model "${requestedModel}" is not supported by your account. Falling back to ${FALLBACK_MODEL}.`
-                );
-                return await this.client.createSession({ ...config, model: FALLBACK_MODEL });
+            if (!this.isModelUnsupportedError(error) || !requestedModel) {
+                throw error;
             }
+
+            this.logger.warn(`[Model Fallback] Model "${requestedModel}" is not supported, selecting fallback...`);
+
+            // Fallback loop: try available models
+            for (let attempt = 1; attempt <= MAX_FALLBACK_ATTEMPTS; attempt++) {
+                const fallbackModel = await selectFallbackModel(
+                    this.modelCapabilitiesService, requestedModel, this.logger
+                );
+
+                // Avoid retrying a model we already tried
+                if (triedModels.has(fallbackModel)) {
+                    this.logger.warn(`[Model Fallback] Model "${fallbackModel}" already tried, stopping`);
+                    break;
+                }
+                triedModels.add(fallbackModel);
+
+                this.logger.info(`[Model Fallback] Attempt ${attempt}/${MAX_FALLBACK_ATTEMPTS}: trying "${fallbackModel}"`);
+
+                try {
+                    const session = await this.client.createSession({ ...config, model: fallbackModel });
+
+                    // Success — notify user
+                    this.notifyModelFallback(requestedModel, fallbackModel);
+                    return session;
+                } catch (retryError) {
+                    if (this.isModelUnsupportedError(retryError)) {
+                        this.logger.warn(`[Model Fallback] Fallback model "${fallbackModel}" also unsupported`);
+                        continue;
+                    }
+                    throw retryError;
+                }
+            }
+
+            // All fallback attempts failed
+            this.logger.error(`[Model Fallback] All fallback attempts exhausted. Tried: [${Array.from(triedModels).join(', ')}]`);
+            vscode.window.showErrorMessage(
+                `Model "${requestedModel}" is not supported by your account and no fallback model could be found.`
+            );
+            this._onDidReceiveOutput.fire(
+                `**Model Unavailable**\n\n` +
+                `Model \`${requestedModel}\` is not supported by your account, ` +
+                `and no fallback model could be found.\n\n` +
+                `**Models tried:** ${Array.from(triedModels).map(m => `\`${m}\``).join(', ')}\n\n` +
+                `Please update your model in **Settings > Copilot CLI > Model**.`
+            );
             throw error;
         }
+    }
+
+    /**
+     * Notify the user about a model fallback via both chat and OS-level toast.
+     */
+    private notifyModelFallback(requestedModel: string, actualModel: string): void {
+        vscode.window.showWarningMessage(
+            `Model "${requestedModel}" is not available. Using "${actualModel}" instead.`
+        );
+        this._onDidReceiveOutput.fire(
+            `**Model Fallback**\n\n` +
+            `Model \`${requestedModel}\` is not available for your account. ` +
+            `Using \`${actualModel}\` instead.\n\n` +
+            `To change your default model, go to **Settings > Copilot CLI > Model**.`
+        );
+        this.logger.info(`[Model Fallback] Successfully fell back from "${requestedModel}" to "${actualModel}"`);
     }
 
     /**
