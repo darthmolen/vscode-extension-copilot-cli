@@ -41,7 +41,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
 - **@file References** — Reference files directly in your messages.
-- **14 AI Models** — GPT-5, Claude 4.5 Sonnet/Opus, Gemini 3 Pro, and more.
+- **15 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
 - **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
 
 ### ⚡ Developer Control
@@ -50,6 +50,11 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.1.1 - Claude Sonnet 4.6 + Model Fallback
+
+- **Claude Sonnet 4.6** — Added `claude-sonnet-4.6` to both work and plan mode model selection dropdowns.
+- **Automatic model fallback** — If the selected model is not available on your enterprise or was mistyped, the extension falls back to `claude-sonnet-4.5` automatically and shows a warning notification.
 
 ### v3.1.0 - Inline Image Rendering
 

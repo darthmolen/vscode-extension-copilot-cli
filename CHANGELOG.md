@@ -2,6 +2,16 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.1.1] - 2026-02-21
+
+### ✨ Features
+
+- **Claude Sonnet 4.6 model** — Added `claude-sonnet-4.6` to both the work-mode and plan-mode model selection dropdowns.
+
+### 🛡️ Reliability
+
+- **Model fallback** — When the configured model is not supported by the enterprise or contains a typo, the extension now automatically retries session creation with `claude-sonnet-4.5` and surfaces a warning notification.
+
 ## [3.1.0] - 2026-02-16
 
 ### ✨ Features
