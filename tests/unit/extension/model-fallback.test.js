@@ -3,20 +3,16 @@
  *
  * Covers:
  * - selectFallbackModel: picks best available model from user's account
- * - createSessionWithModelFallback: retries with dynamic fallback + notifies user
+ * - MODEL_PREFERENCE_ORDER and FALLBACK_MODEL constants
  */
 
 const Module = require('module');
 const originalRequire = Module.prototype.require;
 
 // Mock vscode module BEFORE anything else loads
-const warningMessages = [];
 Module.prototype.require = function (id) {
     if (id === 'vscode') {
-        const mock = require('../../helpers/vscode-mock');
-        // Capture warning messages for assertion
-        mock.window.showWarningMessage = (msg) => { warningMessages.push(msg); };
-        return mock;
+        return require('../../helpers/vscode-mock');
     }
     return originalRequire.apply(this, arguments);
 };
@@ -69,42 +65,40 @@ describe('Smart Model Fallback', function () {
         }
     });
 
-    beforeEach(function () {
-        warningMessages.length = 0;
-    });
-
     describe('selectFallbackModel', function () {
         it('should return preferred model when available', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
-            const result = await selectFallbackModel(service, 'nonexistent-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['nonexistent-model']), mockLogger);
 
             assert.strictEqual(result, 'claude-sonnet-4.6');
         });
 
-        it('should skip the excluded (failed) model', async function () {
+        it('should skip a single excluded model', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
-            // Exclude the top-preference model
-            const result = await selectFallbackModel(service, 'claude-sonnet-4.6', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['claude-sonnet-4.6']), mockLogger);
 
             assert.strictEqual(result, 'claude-sonnet-4.5');
         });
 
-        it('should skip multiple excluded models and find next preferred', async function () {
+        it('should skip multiple excluded models and pick next preferred', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
             // Exclude top two preferences — should pick gpt-5
-            const result = await selectFallbackModel(service, 'claude-sonnet-4.6', mockLogger);
-            // claude-sonnet-4.6 excluded, so should return claude-sonnet-4.5
-            assert.strictEqual(result, 'claude-sonnet-4.5');
+            const result = await selectFallbackModel(
+                service,
+                new Set(['claude-sonnet-4.6', 'claude-sonnet-4.5']),
+                mockLogger
+            );
+
+            assert.strictEqual(result, 'gpt-5');
         });
 
         it('should return first available when no preferred model matches', async function () {
-            // Models that don't match any preference
             const unusualModels = [
                 { id: 'custom-enterprise-model', name: 'Custom', capabilities: {} },
                 { id: 'internal-llm-v2', name: 'Internal', capabilities: {} },
@@ -112,16 +106,16 @@ describe('Smart Model Fallback', function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => unusualModels });
 
-            const result = await selectFallbackModel(service, 'some-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['some-model']), mockLogger);
 
             assert.strictEqual(result, 'custom-enterprise-model');
         });
 
-        it('should pick gpt-5 when all Claude models are excluded', async function () {
+        it('should pick gpt-5 when no Claude models are available', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => enterpriseModelsNoClaude });
 
-            const result = await selectFallbackModel(service, 'some-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['some-model']), mockLogger);
 
             assert.strictEqual(result, 'gpt-5');
         });
@@ -132,7 +126,7 @@ describe('Smart Model Fallback', function () {
                 listModels: async () => { throw new Error('SDK connection failed'); }
             });
 
-            const result = await selectFallbackModel(service, 'some-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['some-model']), mockLogger);
 
             assert.strictEqual(result, FALLBACK_MODEL);
         });
@@ -141,7 +135,7 @@ describe('Smart Model Fallback', function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => [] });
 
-            const result = await selectFallbackModel(service, 'some-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['some-model']), mockLogger);
 
             assert.strictEqual(result, FALLBACK_MODEL);
         });
@@ -153,9 +147,18 @@ describe('Smart Model Fallback', function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => singleModel });
 
-            const result = await selectFallbackModel(service, 'only-model', mockLogger);
+            const result = await selectFallbackModel(service, new Set(['only-model']), mockLogger);
 
             assert.strictEqual(result, FALLBACK_MODEL);
+        });
+
+        it('should work with empty exclusion set', async function () {
+            const service = new ModelCapabilitiesService();
+            service.setClient({ listModels: async () => standardModels });
+
+            const result = await selectFallbackModel(service, new Set(), mockLogger);
+
+            assert.strictEqual(result, 'claude-sonnet-4.6');
         });
     });
 

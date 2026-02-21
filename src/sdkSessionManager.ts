@@ -53,7 +53,7 @@ export const MODEL_PREFERENCE_ORDER = [
  */
 export async function selectFallbackModel(
     modelCapabilitiesService: ModelCapabilitiesService,
-    excludeModel?: string,
+    excludeModels: Set<string>,
     logger?: Logger
 ): Promise<string> {
     try {
@@ -67,13 +67,13 @@ export async function selectFallbackModel(
         const availableIds = new Set(availableModels.map(m => m.id));
         logger?.info(`[Model Fallback] Available models: [${Array.from(availableIds).join(', ')}]`);
 
-        // Remove the model that already failed
-        if (excludeModel) {
-            availableIds.delete(excludeModel);
+        // Remove all models that have already failed
+        for (const excluded of excludeModels) {
+            availableIds.delete(excluded);
         }
 
         if (availableIds.size === 0) {
-            logger?.warn('[Model Fallback] No models available after excluding failed model');
+            logger?.warn('[Model Fallback] No models available after excluding failed models');
             return FALLBACK_MODEL;
         }
 
@@ -86,7 +86,7 @@ export async function selectFallbackModel(
         }
 
         // No preferred model available — use first available (not excluded)
-        const firstAvailable = availableModels.find(m => m.id !== excludeModel)?.id;
+        const firstAvailable = availableModels.find(m => !excludeModels.has(m.id))?.id;
         if (firstAvailable) {
             logger?.info(`[Model Fallback] No preferred model available, using first available: ${firstAvailable}`);
             return firstAvailable;
@@ -1499,7 +1499,7 @@ export class SDKSessionManager implements vscode.Disposable {
             // Fallback loop: try available models
             for (let attempt = 1; attempt <= MAX_FALLBACK_ATTEMPTS; attempt++) {
                 const fallbackModel = await selectFallbackModel(
-                    this.modelCapabilitiesService, requestedModel, this.logger
+                    this.modelCapabilitiesService, triedModels, this.logger
                 );
 
                 // Avoid retrying a model we already tried
@@ -1529,12 +1529,12 @@ export class SDKSessionManager implements vscode.Disposable {
             // All fallback attempts failed
             this.logger.error(`[Model Fallback] All fallback attempts exhausted. Tried: [${Array.from(triedModels).join(', ')}]`);
             vscode.window.showErrorMessage(
-                `Model "${requestedModel}" is not supported by your account and no fallback model could be found.`
+                `Model "${requestedModel}" is not supported by your account and no supported fallback model could be selected.`
             );
             this._onDidReceiveOutput.fire(
                 `**Model Unavailable**\n\n` +
                 `Model \`${requestedModel}\` is not supported by your account, ` +
-                `and no fallback model could be found.\n\n` +
+                `and no supported fallback model could be selected.\n\n` +
                 `**Models tried:** ${Array.from(triedModels).map(m => `\`${m}\``).join(', ')}\n\n` +
                 `Please update your model in **Settings > Copilot CLI > Model**.`
             );
