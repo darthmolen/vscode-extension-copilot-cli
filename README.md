@@ -41,7 +41,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
 - **@file References** — Reference files directly in your messages.
-- **15 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
+- **17 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
 - **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
 
 ### ⚡ Developer Control
@@ -50,6 +50,12 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.1.2 - Smart Model Fallback + README Cleanup
+
+- **Smart model fallback** — When the configured model is unavailable (enterprise restrictions, typos), the extension queries your account's available models and picks the best one automatically. Notifies you in the chat with which model was selected.
+- **Copilot Memory** — Added documentation for the Copilot Memory public preview feature.
+- **README cleanup** — Trimmed pre-3.x version history, updated model count to 17.
 
 ### v3.1.1 - Claude Sonnet 4.6 + Model Fallback
 
@@ -99,7 +105,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 **Claude Opus 4.6 Support**
 - Added latest `claude-opus-4.6` and `claude-opus-4.6-fast` models
 - Smart model capability detection for image attachments
-- Now supporting 16 AI models total
+- Now supporting 17 AI models total
 
 **Reliability & Performance**
 - Component-based architecture (9 components) for maintainability
@@ -108,182 +114,21 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - 710+ tests ensure quality (unit, integration, e2e)
 - Memory leak fixed — runs indefinitely without crashes
 
-### v2.2.3 - Session Resume Resilience 🔄
+### 🧠 Copilot Memory
 
-- 🔁 **Smart Retry Logic** - Automatic recovery from transient failures
-  - Circuit breaker pattern retries up to 3 times with exponential backoff (1s, 2s delays)
-  - Handles network drops, CLI startup delays, and temporary connection issues
-  - No more lost sessions from transient errors
-  - Detailed retry timeline in output logs for debugging
-  
-- 🎯 **Intelligent Error Classification** - Different strategies for different errors
-  - Session expired → Creates new session immediately (no retries)
-  - Authentication errors → Fails fast (requires user to fix auth)
-  - Network timeouts → Retries automatically (transient issue)
-  - CLI not ready → Retries with patience (CLI still starting)
-  - Unknown errors → Retries conservatively (safe default)
-  
-- 💬 **User Recovery Dialog** - You decide what happens after retries
-  - Shows contextual error message based on failure type
-  - "Try Again" button → Retries the resume operation
-  - "Start New Session" button → Creates fresh session
-  - Appears only after automatic retries are exhausted
-  - Never lose conversation history without your decision
+Copilot learns about your codebase across sessions — coding agent, code review, and CLI all contribute to a shared memory. Memories auto-expire after 28 days and are validated against current code before use.
 
-### v2.2.2 - Bug Fixes & Polish 🐛
+**Status:** Public preview (Copilot Pro, Pro+, Business, Enterprise)
 
-- 🔄 **Session History Loading Fixed** - Chat history now loads immediately
-  - Fixed issue where previous conversation didn't appear until switching sessions
-  - History now loads reliably when opening chat panel
-  - No more workaround of switching away and back to see your messages
-  
-- 🐛 **Active File Display Fixed** - Correct file shown at extension start
-  - No longer shows output channel name as "active file"
-  - Filters initial editor by scheme (file/untitled only)
-  - Cleaner, more accurate status display
-  
-- 📊 **Metrics Reset on New Session** - Fresh metrics for each session
-  - Session-level metrics (Window %, Used tokens) reset when starting new session
-  - Account-level metric (Remaining %) correctly preserved
-  - No more stale metrics from previous sessions
-  
-- 🎨 **Image Thumbnail Positioning** - Better visual grouping
-  - Uploaded image thumbnails now inside user's message bubble
-  - Properly aligned with message text
-  - Consistent styling across all attachments
-  
-- 📋 **View Plan Button Fixed** - Opens plan.md from correct location
-  - Now opens plan files from session state directory
-  - Shows helpful message when no plan exists yet
-  - Works correctly in both work and plan modes
-  
-- ✅ **Test Suite Fixed** - All 12 plan mode tests passing
-  - Corrected edit tool restriction test logic
-  - Verifies SDK whitelist correctly excludes edit tool in plan mode
+**How to enable:**
 
-### v2.2.1 - Authentication Detection & Enterprise Support 🔐
+1. Enterprise admins enable at the enterprise level
+2. Org owners enable for their organization
+3. Individual users enable in their Copilot settings
 
-- 🔍 **Smart Authentication Detection** - Automatic error detection and guidance
-  - Extension detects when Copilot CLI is not authenticated
-  - Clear, actionable error messages instead of generic failures
-  - Different handling for OAuth vs. environment variable authentication
-  - Comprehensive logging for debugging authentication issues
-  
-- ✨ **One-Click Authentication** - Terminal-based interactive setup
-  - Click "Authenticate Now" button in error dialog
-  - Extension opens terminal with `copilot login` command pre-filled
-  - Follow device code flow in browser to complete authentication
-  - "Retry" button to test authentication after completion
-  
-- 🔑 **Environment Variable Support** - Token-based authentication detection
-  - Detects `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN` (priority order)
-  - Validates tokens and shows helpful error if invalid/expired
-  - Suggests updating token or using interactive login
-  - Supports automation and CI/CD scenarios
-  
-- 🏢 **GitHub Enterprise SSO** - First-class enterprise support
-  - New setting: `copilotCLI.ghSsoEnterpriseSlug` for SSO-enabled enterprises
-  - Auto-generates SSO login command with enterprise slug
-  - Example: `copilot login --host https://github.com/enterprises/acme/sso`
-  - Clear documentation for when SSO configuration is needed
-  - Works seamlessly with standard GitHub Enterprise (no SSO)
+**Managing memories:** Repository owners can view memories chronologically, delete individual entries, or batch-delete.
 
-### v2.2.0 - Image Attachment Support 🎨
-
-- 📎 **Attach Images to Messages** - Send images to vision-capable AI models
-  - Click attachment button (📎) next to chat input box
-  - Select PNG, JPEG, GIF, or WebP images from file picker
-  - Preview thumbnails with filename and size before sending
-  - Remove individual attachments before sending
-  - Automatic validation (size, count, type) prevents errors
-  - Works with GPT-4o, Claude Sonnet 4, and other vision-capable models
-  
-- 🤖 **Vision Model Detection** - Smart capability detection
-  - Extension automatically detects which models support image analysis
-  - Model capabilities cached for performance
-  - Clear error messages when model doesn't support images
-  - Session remains functional after validation errors
-  
-- 🏗️ **Architecture Refactor** - Cleaner, more maintainable code
-  - SDKSessionManager reduced by 31% (1946 → 1345 lines)
-  - 4 new services with single responsibilities
-  - 39 new tests ensuring quality
-  - Test-driven development throughout
-
-**Known Limitations** (coming in v2.2.1):
-- Attachment button doesn't disable for non-vision models
-- Tool-returned images not displayed yet
-- Attachment history not persisted in session resume
-
-### v2.1.4 - Active File Context Fix
-
-- 🐛 **Active File Context Preserved** - AI now knows which file you're working on
-  - Fixed: Active file context not sent to LLM when chat panel has focus
-  - Extension tracks last active text editor, preserves context across focus changes
-  - Works in both work mode and plan mode
-  - No need to manually specify filenames anymore!
-
-### v2.1.3 - Session Filtering Fix
-
-- 🐛 **Session Dropdown Filtering** - Fixed workspace folder filtering
-  - Dropdown now correctly shows only workspace-specific sessions when filtering is enabled
-  - Previously showed all sessions but only workspace ones were resumable (confusing)
-  - Setting: `copilotCLI.filterSessionsByFolder`
-
-### v2.1.2 - Plan Mode Model & Bug Fixes
-
-- ⚙️ **Plan Mode Model Configuration** - Use different AI models for planning vs implementation
-  - Added `copilotCLI.planModel` setting for model selection in planning mode
-  - Cost optimization: Use Haiku for planning, Sonnet for work
-  - Extensive planning: Use Opus for planning, Sonnet for work
-  - Falls back to work mode model if not specified
-
-- 🐛 **Session Expiration Recovery** - Fixed CLI becoming unresponsive after timeout
-  - Session recreation now maintains client connection
-  - Seamless recovery without manual intervention
-
-- 🎨 **UI Polish** - Larger planning mode icons for better visibility
-
-### v2.1.1 - Stability & Polish
-
-- 🐛 **Bug Fixes** - Enhanced reliability and user experience
-  - **Active File Persistence**: File context no longer disappears when clicking in input box
-  - **Session State**: Chat panel properly preserves session when closed and reopened
-  - **Session List Cleanup**: Empty and corrupt sessions filtered from dropdown
-  - **Auto-Recovery**: Gracefully handles expired sessions without manual intervention
-
-### v2.0.6 - Plan Mode & UI Enhancements
-
-- 📋 **Plan Mode (ACE-FCA)** - Dedicated planning session separate from implementation
-  - **Dual Sessions**: Work session for coding, plan session for exploration
-  - **Sandboxed Tools**: 11 safe tools in plan mode (read-only, exploration only)
-  - **Auto-Context**: Automatically injects plan path when switching to work mode
-  - **Icon Buttons**: Compact planning controls (📝, ✅, ❌, 📋)
-  - See [PLAN_MODE.md](./PLAN_MODE.md) for complete guide
-
-### v2.0 - Now Powered by Copilot SDK
-
-- ⚡ **SDK 2.0 Integration** - Built on official [@github/copilot-sdk](https://github.com/github/copilot-sdk) for production-ready agent runtime
-- 🎯 **Real-time Streaming** - See AI responses as they're generated with `assistant.message_delta` events
-- 🧠 **Reasoning Visibility** - Watch Copilot think with `assistant.reasoning_delta` events (when available)
-- 📡 **Event-Driven Architecture** - JSON-RPC communication with Copilot CLI server mode
-
-### Core Features
-
-- 💬 **Interactive Chat Panel** - Dockable chat interface with full markdown rendering (code blocks, lists, headers, links)
-- 📜 **Session Management** - Resume previous conversations, switch between sessions with dropdown selector
-- 🔄 **Auto-resume** - Automatically picks up where you left off (configurable)
-- 📚 **Full History** - Loads complete conversation history from Copilot CLI's events.jsonl
-- 📊 **Usage Statistics** - Real-time context window, token usage, and quota tracking
-- 🔧 **Tool Grouping** - Collapsible tool execution groups with expand/collapse
-- ⚙️ **Complete CLI Configuration** - All Copilot CLI flags configurable via VS Code settings
-- 🚀 **YOLO Mode** - Quick development mode with all permissions enabled (default, recommended)
-- 🤖 **14 AI Models** - Choose from GPT-5, Claude 4.5 Sonnet/Opus, Gemini 3 Pro, and more
-- 🔧 **Granular Permissions** - Control tool access, file paths, and URLs individually
-- 📂 **Active File Context** - Automatically includes current file and selection
-- 🔗 **@file References** - Resolve file references in messages
-- ♿ **Accessibility** - Screen reader optimizations, ARIA labels, semantic HTML
-- 🌍 **Cross-Platform** - Works on Linux, macOS, and Windows
+See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/copilot-memory)
 
 ## 📦 Installation
 
@@ -447,10 +292,10 @@ All Copilot CLI flags are configurable via VS Code settings:
 
 ### Available Models
 
-Choose from 16 AI models in settings:
+Choose from 17 AI models in settings:
 
-- Claude Sonnet 4.5 (default), Claude Haiku 4.5, Claude Opus 4.5
-- **Claude Opus 4.6, Claude Opus 4.6 Fast** (NEW in v3.0.0)
+- Claude Sonnet 4.6, Claude Sonnet 4.5 (default), Claude Sonnet 4, Claude Haiku 4.5, Claude Opus 4.5
+- Claude Opus 4.6, Claude Opus 4.6 Fast
 - GPT-5, GPT-5.1, GPT-5.2, GPT-5 mini, GPT-4.1
 - GPT Codex variants (5.1, 5.1 max, 5.1 mini, 5.2)
 - Gemini 3 Pro Preview

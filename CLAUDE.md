@@ -80,7 +80,7 @@ CLI responds → SDK event → SDKSessionManager emitter
 
 ## Versioning (Semver)
 
-- **Patch** (3.1.x): Bug fixes only. No new features, no new UI, no new APIs.
+- **Patch** (3.1.x): Bug fixes and minor changes. No new features, no new UI, no new APIs. Small behavior improvements (e.g., smarter fallback logic) that don't add capabilities are patch-level.
 - **Minor** (3.x.0): New features, new capabilities, new UI elements. Image support, mermaid rendering, model switching — these are all minor bumps.
 - **Major** (x.0.0): Breaking changes, architectural rewrites, or incompatible API changes.
 

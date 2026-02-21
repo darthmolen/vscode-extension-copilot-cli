@@ -2,6 +2,18 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.1.2] - 2026-02-21
+
+### 🛡️ Reliability
+
+- **Smart model fallback** — When the configured model is unavailable (enterprise restrictions, typos), the extension now queries your account's available models via the SDK and picks the best one from a preference order. Notifies you in the chat with which model was selected. Falls back gracefully even when `claude-sonnet-4.5` is unavailable.
+
+### 📖 Documentation
+
+- **Copilot Memory section** — Added documentation for the Copilot Memory public preview feature to README.
+- **README cleanup** — Removed pre-3.x version history, updated model count to 17.
+- **Versioning guidance** — Patch releases can include minor bug fixes and small behavior improvements.
+
 ## [3.1.1] - 2026-02-21
 
 ### ✨ Features
