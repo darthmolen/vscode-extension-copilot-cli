@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -200,6 +200,7 @@
           "type": "string",
           "enum": [
             "",
+            "claude-sonnet-4.6",
             "claude-sonnet-4.5",
             "claude-haiku-4.5",
             "claude-opus-4.6",
@@ -224,6 +225,7 @@
           "type": "string",
           "enum": [
             "",
+            "claude-sonnet-4.6",
             "claude-sonnet-4.5",
             "claude-haiku-4.5",
             "claude-opus-4.6",

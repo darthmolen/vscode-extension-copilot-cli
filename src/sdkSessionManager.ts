@@ -24,6 +24,9 @@ let CopilotClient: any;
 let CopilotSession: any;
 let defineTool: any;
 
+/** Fallback model used when configured model is unsupported or mistyped */
+const FALLBACK_MODEL = 'claude-sonnet-4.5';
+
 async function loadSDK() {
     if (!CopilotClient) {
         const sdk = await import('@github/copilot-sdk');
@@ -330,7 +333,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.logger.warn(`Failed to resume session ${this.sessionId} (error type: ${errorType}), creating new session`);
                     this.sessionId = null;
                     sessionWasCreatedNew = true;
-                    this.session = await this.client.createSession({
+                    this.session = await this.createSessionWithModelFallback({
                         model: this.config.model || undefined,
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
@@ -349,7 +352,7 @@ export class SDKSessionManager implements vscode.Disposable {
             } else {
                 this.logger.info('Creating new session');
                 sessionWasCreatedNew = true;
-                this.session = await this.client.createSession({
+                this.session = await this.createSessionWithModelFallback({
                     model: this.config.model || undefined,
                     tools: this.getCustomTools(),
                     hooks: this.getSessionHooks(),
@@ -853,7 +856,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.logger.info('Recreating plan mode session...');
                     const planSessionId = `${this.workSessionId}-plan`;
                     
-                    this.session = await this.client.createSession({
+                    this.session = await this.createSessionWithModelFallback({
                         sessionId: planSessionId,
                         model: this.config.planModel || this.config.model || undefined,
                         tools: this.getCustomTools(),
@@ -881,7 +884,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     // Recreate work session with full tools
                     this.logger.info('Recreating work mode session...');
                     
-                    this.session = await this.client.createSession({
+                    this.session = await this.createSessionWithModelFallback({
                         model: this.config.model || undefined,
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
@@ -1108,7 +1111,7 @@ export class SDKSessionManager implements vscode.Disposable {
             this.logger.info(`[Plan Mode]     systemMessage: mode=append (plan mode instructions)`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
             
-            this.planSession = await this.client.createSession({
+            this.planSession = await this.createSessionWithModelFallback({
                 sessionId: planSessionId,
                 model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
@@ -1376,6 +1379,44 @@ export class SDKSessionManager implements vscode.Disposable {
         return Array.from(this.toolExecutions.values());
     }
     
+    /**
+     * Determine whether an error indicates the requested model is unavailable
+     * (not supported by the enterprise or an unrecognised model identifier).
+     */
+    private isModelUnsupportedError(error: unknown): boolean {
+        if (!(error instanceof Error)) { return false; }
+        const msg = error.message.toLowerCase();
+        return msg.includes('model') && (
+            msg.includes('not found') ||
+            msg.includes('not supported') ||
+            msg.includes('unsupported') ||
+            msg.includes('invalid') ||
+            msg.includes('not available') ||
+            msg.includes('does not exist') ||
+            msg.includes('unknown')
+        );
+    }
+
+    /**
+     * Create a session, retrying with FALLBACK_MODEL if the requested model
+     * is unsupported or mistyped.
+     */
+    private async createSessionWithModelFallback(config: Record<string, unknown>): Promise<any> {
+        try {
+            return await this.client.createSession(config);
+        } catch (error) {
+            const requestedModel = config.model as string | undefined;
+            if (this.isModelUnsupportedError(error) && requestedModel && requestedModel !== FALLBACK_MODEL) {
+                this.logger.warn(`[Model Fallback] Model "${requestedModel}" is not supported, retrying with ${FALLBACK_MODEL}`);
+                vscode.window.showWarningMessage(
+                    `Model "${requestedModel}" is not supported by your account. Falling back to ${FALLBACK_MODEL}.`
+                );
+                return await this.client.createSession({ ...config, model: FALLBACK_MODEL });
+            }
+            throw error;
+        }
+    }
+
     /**
      * Update model capabilities by logging them for current model
      * Called on session start and model changes
