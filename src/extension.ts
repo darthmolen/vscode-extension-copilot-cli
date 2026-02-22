@@ -534,6 +534,31 @@ async function handleStartupError(
 	logger.error(`Failed to start CLI: ${errorMessage}`, error instanceof Error ? error : undefined);
 
 	const enhancedError: any = error;
+
+	// CLI version mismatch — fail fast with clear guidance
+	if (enhancedError.errorType === 'cli_version') {
+		const version = enhancedError.cliVersion || 'unknown';
+		statusBarItem.text = "$(error) CLI Version Mismatch";
+		statusBarItem.tooltip = `Copilot CLI v${version} is not compatible`;
+		chatProvider.addAssistantMessage(
+			`**CLI Version Mismatch**\n\n` +
+			`Copilot CLI v${version} uses the ACP protocol which this extension does not yet support.\n\n` +
+			`**To fix**, downgrade to a compatible version:\n` +
+			`\`\`\`\nnpm install -g @github/copilot@0.0.403\n\`\`\`\n\n` +
+			`A future extension update will add ACP protocol support.`
+		);
+		vscode.window.showErrorMessage(
+			`Copilot CLI v${version} is not compatible. Downgrade: npm install -g @github/copilot@0.0.403`,
+			'Copy Command'
+		).then(action => {
+			if (action === 'Copy Command') {
+				vscode.env.clipboard.writeText('npm install -g @github/copilot@0.0.403');
+				vscode.window.showInformationMessage('Command copied to clipboard.');
+			}
+		});
+		return;
+	}
+
 	if (enhancedError.errorType !== 'authentication') {
 		statusBarItem.text = "$(error) CLI Failed";
 		statusBarItem.tooltip = `Failed: ${errorMessage}`;

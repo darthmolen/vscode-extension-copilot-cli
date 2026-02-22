@@ -52,6 +52,24 @@ describe('Authentication Error Classification Tests', function () {
         });
     });
 
+    describe('CLI version error patterns', function () {
+        it('should classify CLI version mismatch as cli_version', function () {
+            const error = new Error('Copilot CLI v0.0.414 is not compatible. CLI v0.0.410+ removed --headless support.');
+            const errorType = classifySessionError(error);
+            assert.strictEqual(errorType, 'cli_version');
+        });
+
+        it('should classify version errors with different version numbers', function () {
+            const error = new Error('Copilot CLI v0.0.410 is not compatible');
+            assert.strictEqual(classifySessionError(error), 'cli_version');
+        });
+
+        it('should not classify unrelated version mentions as cli_version', function () {
+            const error = new Error('API version 2.0 not supported');
+            assert.notStrictEqual(classifySessionError(error), 'cli_version');
+        });
+    });
+
     describe('Unknown error classification', function () {
         it('should classify unknown errors correctly', function () {
             const error = new Error('Something completely different happened');

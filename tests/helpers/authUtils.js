@@ -30,6 +30,11 @@ function classifySessionError(error) {
         return 'session_expired';
     }
 
+    // CLI version mismatch patterns
+    if (msg.includes('copilot cli v') && msg.includes('not compatible')) {
+        return 'cli_version';
+    }
+
     // Network error patterns
     if (msg.includes('network') ||
         msg.includes('econnrefused') ||

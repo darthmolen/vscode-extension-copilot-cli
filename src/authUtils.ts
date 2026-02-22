@@ -5,7 +5,7 @@
  * Extracted from SDKSessionManager for testability.
  */
 
-export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'network_timeout' | 'unknown';
+export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'network_timeout' | 'cli_version' | 'unknown';
 
 export interface EnvVarCheckResult {
     hasEnvVar: boolean;
@@ -73,6 +73,11 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
 export function classifySessionError(error: Error): ErrorType {
     const msg = error.message.toLowerCase();
     
+    // 0. CLI version mismatch (check first - fail fast)
+    if (msg.includes('copilot cli v') && msg.includes('not compatible')) {
+        return 'cli_version';
+    }
+
     // 1. Session expired/not found patterns (check first - most specific)
     //    Session doesn't exist anymore or was deleted
     //    NOT retriable - session is permanently gone
