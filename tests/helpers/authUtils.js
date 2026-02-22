@@ -1,6 +1,9 @@
 /**
  * Authentication utility functions for Copilot CLI
  * CommonJS version for mocha test compatibility
+ *
+ * IMPORTANT: This must mirror src/authUtils.ts exactly.
+ * Same order, same patterns, same return values.
  */
 
 /**
@@ -9,38 +12,45 @@
 function classifySessionError(error) {
     const msg = error.message.toLowerCase();
 
-    // Authentication error patterns
+    // 0. CLI version mismatch (check first - fail fast)
+    if (msg.includes('copilot cli v') && msg.includes('not compatible')) {
+        return 'cli_version';
+    }
+
+    // 1. Session expired/not found patterns
+    if ((msg.includes('not found') && msg.includes('session')) ||
+        (msg.includes('invalid') && msg.includes('session')) ||
+        msg.includes('session does not exist') ||
+        (msg.includes('session') && (msg.includes('expired') || msg.includes('deleted')))) {
+        return 'session_expired';
+    }
+
+    // 2. Authentication error patterns
     if (msg.includes('auth') ||
         msg.includes('unauthorized') ||
         msg.includes('not authenticated') ||
         msg.includes('authentication') ||
         msg.includes('login required') ||
         msg.includes('not logged in') ||
-        msg.includes('invalid token') ||
-        msg.includes('expired token') ||
+        msg.includes('token') ||
         msg.includes('403') ||
         msg.includes('401')) {
         return 'authentication';
     }
 
-    // Session expired/not found patterns
-    if (msg.includes('session not found') ||
-        msg.includes('expired') ||
-        msg.includes('invalid session')) {
-        return 'session_expired';
+    // 3. Client not ready patterns
+    if (msg.includes('not connected') ||
+        msg.includes('not ready')) {
+        return 'session_not_ready';
     }
 
-    // CLI version mismatch patterns
-    if (msg.includes('copilot cli v') && msg.includes('not compatible')) {
-        return 'cli_version';
-    }
-
-    // Network error patterns
+    // 4. Network error patterns
     if (msg.includes('network') ||
         msg.includes('econnrefused') ||
+        msg.includes('etimedout') ||
         msg.includes('enotfound') ||
         msg.includes('timeout')) {
-        return 'network';
+        return 'network_timeout';
     }
 
     return 'unknown';

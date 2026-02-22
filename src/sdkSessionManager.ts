@@ -570,8 +570,11 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.error(`[Auth Detection] Error type: ${errorType}, Has env var: ${envCheck.hasEnvVar}${envCheck.source ? ` (${envCheck.source})` : ''}`);
                 
                 // Create enhanced error with classification info
+                // Preserve pre-set errorType (e.g. from checkCliVersion) if present
                 const enhancedError: any = error;
-                enhancedError.errorType = errorType;
+                if (!enhancedError.errorType) {
+                    enhancedError.errorType = errorType;
+                }
                 enhancedError.hasEnvVar = envCheck.hasEnvVar;
                 enhancedError.envVarSource = envCheck.source;
                 

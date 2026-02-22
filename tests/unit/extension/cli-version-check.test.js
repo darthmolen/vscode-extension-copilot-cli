@@ -85,5 +85,13 @@ describe('CLI Version Check', function () {
         it('should allow 0.0.1', function () {
             assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.1'), false);
         });
+
+        it('should flag minor version bump 0.1.0 as incompatible', function () {
+            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.1.0'), true);
+        });
+
+        it('should flag major version bump 1.0.0 as incompatible', function () {
+            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('1.0.0'), true);
+        });
     });
 });

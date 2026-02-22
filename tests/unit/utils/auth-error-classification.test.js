@@ -28,7 +28,13 @@ describe('Authentication Error Classification Tests', function () {
 
     describe('Session expired error patterns', function () {
         it('should classify session expired patterns correctly', function () {
-            const expiredPatterns = ['session not found', 'invalid session'];
+            const expiredPatterns = [
+                'session not found',
+                'invalid session',
+                'session does not exist',
+                'session expired',
+                'session deleted'
+            ];
 
             for (const pattern of expiredPatterns) {
                 const error = new Error(`Failed: ${pattern}`);
@@ -37,17 +43,23 @@ describe('Authentication Error Classification Tests', function () {
                     `Pattern "${pattern}" should be classified as session_expired error`);
             }
         });
+
+        it('should not classify standalone "expired" without "session" as session_expired', function () {
+            const error = new Error('Token expired');
+            // 'token' matches auth before session_expired can fire
+            assert.strictEqual(classifySessionError(error), 'authentication');
+        });
     });
 
     describe('Network error patterns', function () {
         it('should classify network patterns correctly', function () {
-            const networkPatterns = ['network', 'econnrefused', 'enotfound', 'timeout'];
+            const networkPatterns = ['network', 'econnrefused', 'etimedout', 'enotfound', 'timeout'];
 
             for (const pattern of networkPatterns) {
                 const error = new Error(`Failed: ${pattern}`);
                 const errorType = classifySessionError(error);
-                assert.strictEqual(errorType, 'network',
-                    `Pattern "${pattern}" should be classified as network error`);
+                assert.strictEqual(errorType, 'network_timeout',
+                    `Pattern "${pattern}" should be classified as network_timeout error`);
             }
         });
     });
