@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { Logger } from './logger';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
@@ -11,12 +12,13 @@ import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
-import { 
-    classifySessionError, 
-    checkAuthEnvVars, 
-    ErrorType, 
+import {
+    classifySessionError,
+    checkAuthEnvVars,
+    ErrorType,
     attemptSessionResumeWithRetry,
-    showSessionRecoveryDialog 
+    showSessionRecoveryDialog,
+    withTimeout
 } from './authUtils';
 
 // Dynamic import for SDK (ESM module)
@@ -339,9 +341,43 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
 
+    /**
+     * Resolve the Copilot CLI binary path.
+     * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
+     * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
+     * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
+     */
+    private resolveCliPath(): string {
+        // 1. User-configured path takes priority
+        const configured = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+        if (configured) {
+            this.logger.info(`Using configured CLI path: ${configured}`);
+            return configured;
+        }
+
+        // 2. Resolve 'copilot' from PATH (cross-platform)
+        try {
+            const cmd = process.platform === 'win32' ? 'where' : 'which';
+            const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            if (result) {
+                const resolved = result.split(/\r?\n/)[0];
+                this.logger.info(`Resolved CLI from PATH: ${resolved}`);
+                return resolved;
+            }
+        } catch {
+            // Not on PATH
+        }
+
+        // 3. Fail with actionable message
+        throw new Error(
+            'Copilot CLI not found on PATH. Install it (see https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) ' +
+            'or set copilotCLI.cliPath in VS Code settings.'
+        );
+    }
+
     public async start(): Promise<void> {
         this.logger.info('Starting SDK Session Manager...');
-        
+
         try {
             // Load SDK dynamically
             if (!this.sdkLoaded) {
@@ -350,12 +386,12 @@ export class SDKSessionManager implements vscode.Disposable {
             }
 
             // Create CopilotClient
-            const cliPath = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+            const cliPath = this.resolveCliPath();
             const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
-            
+
             this.client = new CopilotClient({
                 logLevel: 'info',
-                ...(cliPath ? { cliPath } : {}),
+                cliPath,
                 ...(yolo ? { cliArgs: ['--yolo'] } : {}),
                 cwd: this.workingDirectory,
                 autoStart: true,
@@ -1486,9 +1522,11 @@ export class SDKSessionManager implements vscode.Disposable {
             triedModels.add(requestedModel);
         }
 
+        const SDK_TIMEOUT_MS = 30_000;
+
         // First attempt: try the requested model
         try {
-            return await this.client.createSession(config);
+            return await withTimeout(this.client.createSession(config), SDK_TIMEOUT_MS, 'createSession');
         } catch (error) {
             if (!this.isModelUnsupportedError(error) || !requestedModel) {
                 throw error;
@@ -1512,7 +1550,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Model Fallback] Attempt ${attempt}/${MAX_FALLBACK_ATTEMPTS}: trying "${fallbackModel}"`);
 
                 try {
-                    const session = await this.client.createSession({ ...config, model: fallbackModel });
+                    const session = await withTimeout(this.client.createSession({ ...config, model: fallbackModel }), SDK_TIMEOUT_MS, 'createSession');
 
                     // Success — notify user
                     this.notifyModelFallback(requestedModel, fallbackModel);

@@ -348,6 +348,18 @@ main {
 	height: auto;
 }
 
+/* Mermaid render containers */
+.mermaid-render {
+	margin: 8px 0;
+	max-width: 100%;
+	overflow: hidden;
+	border-radius: 4px;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-panel-border);
+	padding: 8px;
+	text-align: center;
+}
+
 .message-content em,
 .message-display__content em {
 	font-style: italic;

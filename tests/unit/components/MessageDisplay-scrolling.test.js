@@ -33,6 +33,10 @@ describe('MessageDisplay - Scrolling (Phase 2)', () => {
 	});
 
 	beforeEach(() => {
+		// Ensure rAF polyfill is active (may be replaced with no-op by prior test cleanup)
+		global.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+		global.cancelAnimationFrame = (id) => clearTimeout(id);
+
 		container = document.createElement('div');
 		container.id = 'messages-mount';
 		const existingMount = document.getElementById('messages-mount');

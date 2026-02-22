@@ -29,6 +29,28 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Wrap a promise with a timeout. If the promise doesn't settle within `ms`,
+ * rejects with a descriptive timeout error.
+ *
+ * @param promise - The promise to wrap
+ * @param ms - Timeout in milliseconds
+ * @param label - Description for the timeout error message
+ * @returns The resolved value of the original promise
+ * @throws Error if the promise doesn't settle within `ms`
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${ms}ms`));
+        }, ms);
+        promise.then(
+            (val) => { clearTimeout(timer); resolve(val); },
+            (err) => { clearTimeout(timer); reject(err); }
+        );
+    });
+}
+
+/**
  * Classify error type based on error message patterns
  * 
  * This classification drives the circuit breaker retry logic:
@@ -136,13 +158,15 @@ export function checkAuthEnvVars(): EnvVarCheckResult {
  * @param sessionId - The session ID to resume
  * @param resumeFn - Function that attempts to resume the session
  * @param logger - Optional logger for debug output
+ * @param timeoutMs - Per-attempt timeout in milliseconds (default: 30000)
  * @returns The resumed session
  * @throws Error if all retries fail or non-retriable error occurs
  */
 export async function attemptSessionResumeWithRetry<T>(
     sessionId: string,
     resumeFn: () => Promise<T>,
-    logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void }
+    logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void } | null,
+    timeoutMs: number = 30_000
 ): Promise<T> {
     const breaker: CircuitBreakerState = {
         attempts: 0,
@@ -155,7 +179,7 @@ export async function attemptSessionResumeWithRetry<T>(
             breaker.attempts++;
             logger?.info(`[Resume] Attempt ${breaker.attempts}/${breaker.maxAttempts} for session ${sessionId.substring(0, 8)}...`);
             
-            const result = await resumeFn();
+            const result = await withTimeout(resumeFn(), timeoutMs, 'resumeSession');
             logger?.info('[Resume] ✅ Success');
             return result;
             
