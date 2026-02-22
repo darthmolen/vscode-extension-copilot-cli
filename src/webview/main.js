@@ -440,8 +440,8 @@ export function handleStatusMessage(payload) {
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
 		console.log('[METRICS] Resetting session-level metrics');
-		// statusBar.updateUsageWindow(0, 0, 1);
-		// statusBar.updateUsageUsed(0);
+		inputArea.updateUsageWindow(0, 0, 1);
+		inputArea.updateUsageUsed(0);
 	}
 	
 	if (status === 'plan_mode_enabled') {

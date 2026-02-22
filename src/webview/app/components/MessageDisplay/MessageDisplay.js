@@ -28,6 +28,7 @@ export class MessageDisplay {
         this.emptyState = null;
         this.thinking = null;
         this.showReasoning = false;
+        this.mermaidModule = null;
 
         // MutationObserver for auto-scroll
         this.scrollTimeout = null;
@@ -274,8 +275,10 @@ export class MessageDisplay {
         }
 
         // Post-process: render SVG code blocks and inline SVGs as actual images
+        // Post-process: render mermaid code blocks as diagrams
         if (role === 'assistant') {
             this._renderSvgBlocks(messageDiv);
+            this._renderMermaidBlocks(messageDiv);
         }
 
         this.messagesContainer.appendChild(messageDiv);
@@ -335,6 +338,37 @@ export class MessageDisplay {
             svgEl.parentNode.insertBefore(container, svgEl);
             container.appendChild(svgEl);
         });
+    }
+
+    _renderMermaidBlocks(messageDiv) {
+        const mermaidCodeBlocks = messageDiv.querySelectorAll('code.language-mermaid');
+        mermaidCodeBlocks.forEach(codeEl => {
+            const mermaidSource = codeEl.textContent;
+            const preEl = codeEl.parentElement;
+            if (!preEl || preEl.tagName !== 'PRE') return;
+
+            const container = document.createElement('div');
+            container.className = 'mermaid-render';
+            container.textContent = mermaidSource;
+
+            preEl.replaceWith(container);
+
+            this._renderMermaidDiagram(container);
+        });
+    }
+
+    async _renderMermaidDiagram(container) {
+        try {
+            if (!this.mermaidModule) {
+                const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+                this.mermaidModule = mod.default;
+                const theme = document.body.classList.contains('vscode-light') ? 'default' : 'dark';
+                this.mermaidModule.initialize({ startOnLoad: false, theme });
+            }
+            await this.mermaidModule.run({ nodes: [container] });
+        } catch {
+            // mermaid.js unavailable (offline, CSP, JSDOM) — keep source text as fallback
+        }
     }
 
     updateReasoningVisibility() {

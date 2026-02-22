@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { Logger } from './logger';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
@@ -11,18 +12,45 @@ import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
-import { 
-    classifySessionError, 
-    checkAuthEnvVars, 
-    ErrorType, 
+import {
+    classifySessionError,
+    checkAuthEnvVars,
+    ErrorType,
     attemptSessionResumeWithRetry,
-    showSessionRecoveryDialog 
+    showSessionRecoveryDialog,
+    withTimeout
 } from './authUtils';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
 let CopilotSession: any;
 let defineTool: any;
+
+/** Minimum incompatible CLI version (removed --headless --stdio) */
+const CLI_VERSION_THRESHOLD = '0.0.410';
+
+/**
+ * Parse CLI version from `copilot --version` output.
+ * Handles formats: "copilot version 0.0.403", "0.0.403", with trailing whitespace.
+ */
+export function parseCliVersion(output: string): string | null {
+    const match = output.trim().match(/(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+}
+
+/**
+ * Check if a CLI version is incompatible (>= 0.0.410).
+ * CLI v0.0.410+ removed --headless --stdio, which the SDK requires.
+ */
+export function isCliVersionIncompatible(version: string): boolean {
+    const parts = version.split('.').map(Number);
+    const threshold = CLI_VERSION_THRESHOLD.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+        if (parts[i] > threshold[i]) { return true; }
+        if (parts[i] < threshold[i]) { return false; }
+    }
+    return true; // equal = incompatible
+}
 
 /** Fallback model used when configured model is unsupported or mistyped */
 export const FALLBACK_MODEL = 'claude-sonnet-4.5';
@@ -339,23 +367,88 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
 
+    /**
+     * Resolve the Copilot CLI binary path.
+     * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
+     * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
+     * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
+     */
+    private resolveCliPath(): string {
+        // 1. User-configured path takes priority
+        const configured = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+        if (configured) {
+            this.logger.info(`Using configured CLI path: ${configured}`);
+            return configured;
+        }
+
+        // 2. Resolve 'copilot' from PATH (cross-platform)
+        try {
+            const cmd = process.platform === 'win32' ? 'where' : 'which';
+            const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            if (result) {
+                const resolved = result.split(/\r?\n/)[0];
+                this.logger.info(`Resolved CLI from PATH: ${resolved}`);
+                return resolved;
+            }
+        } catch {
+            // Not on PATH
+        }
+
+        // 3. Fail with actionable message
+        throw new Error(
+            'Copilot CLI not found on PATH. Install it (see https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) ' +
+            'or set copilotCLI.cliPath in VS Code settings.'
+        );
+    }
+
+    /**
+     * Check CLI version and fail fast if incompatible.
+     * CLI v0.0.410+ removed --headless --stdio, breaking the SDK.
+     */
+    private checkCliVersion(cliPath: string): void {
+        try {
+            const output = execFileSync(cliPath, ['--version'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            const version = parseCliVersion(output);
+            if (version && isCliVersionIncompatible(version)) {
+                const error: any = new Error(
+                    `Copilot CLI v${version} is not compatible. CLI v0.0.410+ removed --headless support ` +
+                    `which this extension requires.\n\n` +
+                    `To fix, downgrade to a compatible version:\n` +
+                    `  npm install -g @github/copilot@0.0.403\n\n` +
+                    `A future extension update will add support for the new ACP protocol.`
+                );
+                error.errorType = 'cli_version';
+                error.cliVersion = version;
+                throw error;
+            }
+            if (version) {
+                this.logger.info(`CLI version: ${version}`);
+            }
+        } catch (e: any) {
+            // Re-throw version errors, swallow --version failures
+            if (e.errorType === 'cli_version') { throw e; }
+            this.logger.warn(`Could not determine CLI version: ${e.message}`);
+        }
+    }
+
     public async start(): Promise<void> {
         this.logger.info('Starting SDK Session Manager...');
-        
+
         try {
+            // Check CLI version FIRST — fail fast before loading SDK
+            const cliPath = this.resolveCliPath();
+            this.checkCliVersion(cliPath);
+
             // Load SDK dynamically
             if (!this.sdkLoaded) {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-
-            // Create CopilotClient
-            const cliPath = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
             const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
-            
+
             this.client = new CopilotClient({
                 logLevel: 'info',
-                ...(cliPath ? { cliPath } : {}),
+                cliPath,
                 ...(yolo ? { cliArgs: ['--yolo'] } : {}),
                 cwd: this.workingDirectory,
                 autoStart: true,
@@ -1486,9 +1579,11 @@ export class SDKSessionManager implements vscode.Disposable {
             triedModels.add(requestedModel);
         }
 
+        const SDK_TIMEOUT_MS = 30_000;
+
         // First attempt: try the requested model
         try {
-            return await this.client.createSession(config);
+            return await withTimeout(this.client.createSession(config), SDK_TIMEOUT_MS, 'createSession');
         } catch (error) {
             if (!this.isModelUnsupportedError(error) || !requestedModel) {
                 throw error;
@@ -1512,7 +1607,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Model Fallback] Attempt ${attempt}/${MAX_FALLBACK_ATTEMPTS}: trying "${fallbackModel}"`);
 
                 try {
-                    const session = await this.client.createSession({ ...config, model: fallbackModel });
+                    const session = await withTimeout(this.client.createSession({ ...config, model: fallbackModel }), SDK_TIMEOUT_MS, 'createSession');
 
                     // Success — notify user
                     this.notifyModelFallback(requestedModel, fallbackModel);
