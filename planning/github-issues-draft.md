@@ -7,6 +7,7 @@
 | 1 | copilot-cli | Breaking change: --headless --stdio removed without deprecation | OPEN | [#1606](https://github.com/github/copilot-cli/issues/1606) |
 | 2 | copilot-sdk | CLI v0.0.410+ auto-update breaks all SDK versions | OPEN | [#530](https://github.com/github/copilot-sdk/issues/530) |
 | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | OPEN | [#528](https://github.com/github/copilot-sdk/issues/528) |
+| 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | OPEN | [#532](https://github.com/github/copilot-sdk/issues/532) |
 
 ## Comments Added
 
