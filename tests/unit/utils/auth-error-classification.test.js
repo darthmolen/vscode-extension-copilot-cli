@@ -7,7 +7,7 @@
  */
 
 const assert = require('assert');
-const { classifySessionError, checkAuthEnvVars } = require('../../helpers/authUtils');
+const { classifySessionError, checkAuthEnvVars } = require('../../helpers/sessionErrorUtils');
 
 describe('Authentication Error Classification Tests', function () {
 
@@ -28,7 +28,13 @@ describe('Authentication Error Classification Tests', function () {
 
     describe('Session expired error patterns', function () {
         it('should classify session expired patterns correctly', function () {
-            const expiredPatterns = ['session not found', 'invalid session'];
+            const expiredPatterns = [
+                'session not found',
+                'invalid session',
+                'session does not exist',
+                'session expired',
+                'session deleted'
+            ];
 
             for (const pattern of expiredPatterns) {
                 const error = new Error(`Failed: ${pattern}`);
@@ -37,18 +43,69 @@ describe('Authentication Error Classification Tests', function () {
                     `Pattern "${pattern}" should be classified as session_expired error`);
             }
         });
+
+        it('should not classify standalone "expired" without "session" as session_expired', function () {
+            const error = new Error('Token expired');
+            // 'token' matches auth before session_expired can fire
+            assert.strictEqual(classifySessionError(error), 'authentication');
+        });
     });
 
     describe('Network error patterns', function () {
         it('should classify network patterns correctly', function () {
-            const networkPatterns = ['network', 'econnrefused', 'enotfound', 'timeout'];
+            const networkPatterns = ['network', 'econnrefused', 'etimedout', 'enotfound', 'timeout'];
 
             for (const pattern of networkPatterns) {
                 const error = new Error(`Failed: ${pattern}`);
                 const errorType = classifySessionError(error);
-                assert.strictEqual(errorType, 'network',
-                    `Pattern "${pattern}" should be classified as network error`);
+                assert.strictEqual(errorType, 'network_timeout',
+                    `Pattern "${pattern}" should be classified as network_timeout error`);
             }
+        });
+    });
+
+    describe('CLI version error patterns', function () {
+        it('should classify CLI version mismatch as cli_version', function () {
+            const error = new Error('Copilot CLI v0.0.414 is not compatible. CLI v0.0.410+ removed --headless support.');
+            const errorType = classifySessionError(error);
+            assert.strictEqual(errorType, 'cli_version');
+        });
+
+        it('should classify version errors with different version numbers', function () {
+            const error = new Error('Copilot CLI v0.0.410 is not compatible');
+            assert.strictEqual(classifySessionError(error), 'cli_version');
+        });
+
+        it('should not classify unrelated version mentions as cli_version', function () {
+            const error = new Error('API version 2.0 not supported');
+            assert.notStrictEqual(classifySessionError(error), 'cli_version');
+        });
+    });
+
+    describe('Connection closed error patterns', function () {
+        it('should classify "Connection is closed." as connection_closed', function () {
+            const error = new Error('Connection is closed.');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "connection is disposed" as connection_closed', function () {
+            const error = new Error('connection is disposed');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "transport closed" as connection_closed', function () {
+            const error = new Error('transport closed unexpectedly');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "write after end" as connection_closed', function () {
+            const error = new Error('write after end');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "socket hang up" as connection_closed', function () {
+            const error = new Error('socket hang up');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
         });
     });
 

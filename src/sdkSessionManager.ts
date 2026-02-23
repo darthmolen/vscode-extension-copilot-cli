@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import { Logger } from './logger';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
@@ -11,18 +12,28 @@ import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
-import { 
-    classifySessionError, 
-    checkAuthEnvVars, 
-    ErrorType, 
+import {
+    classifySessionError,
+    checkAuthEnvVars,
+    ErrorType,
     attemptSessionResumeWithRetry,
-    showSessionRecoveryDialog 
-} from './authUtils';
+    showSessionRecoveryDialog,
+    withTimeout
+} from './sessionErrorUtils';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
 let CopilotSession: any;
 let defineTool: any;
+
+/**
+ * Parse CLI version from `copilot --version` output.
+ * Handles formats: "copilot version 0.0.403", "0.0.403", with trailing whitespace.
+ */
+export function parseCliVersion(output: string): string | null {
+    const match = output.trim().match(/(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
+}
 
 /** Fallback model used when configured model is unsupported or mistyped */
 export const FALLBACK_MODEL = 'claude-sonnet-4.5';
@@ -327,8 +338,11 @@ export class SDKSessionManager implements vscode.Disposable {
                 );
                 
                 if (userChoice === 'retry') {
-                    // User wants to try again - loop will perform another retry cycle
                     this.logger.info('[Resume] User chose "Try Again", retrying...');
+                    // If connection was lost, recreate client before the next retry cycle
+                    if (errorType === 'connection_closed') {
+                        await this.recreateClient();
+                    }
                     continue; // Loop back to retry
                 } else {
                     // User wants new session - throw to trigger creation
@@ -339,30 +353,99 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
 
+    /**
+     * Resolve the Copilot CLI binary path.
+     * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
+     * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
+     * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
+     */
+    private resolveCliPath(): string {
+        // 1. User-configured path takes priority
+        const configured = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+        if (configured) {
+            this.logger.info(`Using configured CLI path: ${configured}`);
+            return configured;
+        }
+
+        // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)
+        // The @github/copilot-{os}-{arch} package exports the native binary directly.
+        // require.resolve() returns the binary path without loading it.
+        // Only works when running from source (dev); installed VSIX has no node_modules.
+        try {
+            const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;
+            const binPath = require.resolve(platformPkg);
+            if (fs.existsSync(binPath)) {
+                this.logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);
+                return binPath;
+            }
+        } catch {
+            // Platform package not installed — fall through to PATH
+        }
+
+        // 3. Resolve 'copilot' from PATH (cross-platform fallback)
+        try {
+            const cmd = process.platform === 'win32' ? 'where' : 'which';
+            const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            if (result) {
+                const resolved = result.split(/\r?\n/)[0];
+                this.logger.info(`Resolved CLI from PATH: ${resolved}`);
+                return resolved;
+            }
+        } catch {
+            // Not on PATH
+        }
+
+        // 4. Fail with actionable message
+        throw new Error(
+            'Copilot CLI not found on PATH. Install it (see https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) ' +
+            'or set copilotCLI.cliPath in VS Code settings.'
+        );
+    }
+
+    /**
+     * Log the CLI version for diagnostics.
+     * Uses --no-auto-update to get the actual binary version, not a
+     * runtime-delegated version from ~/.copilot/pkg/.
+     */
+    private logCliVersion(cliPath: string): void {
+        try {
+            const output = execFileSync(cliPath, ['--version', '--no-auto-update'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            const version = parseCliVersion(output);
+            if (version) {
+                this.logger.info(`CLI version: ${version}`);
+            }
+        } catch (e: any) {
+            this.logger.warn(`Could not determine CLI version: ${e.message}`);
+        }
+    }
+
     public async start(): Promise<void> {
         this.logger.info('Starting SDK Session Manager...');
-        
+
         try {
+            const cliPath = this.resolveCliPath();
+            this.logCliVersion(cliPath);
+
             // Load SDK dynamically
             if (!this.sdkLoaded) {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-
-            // Create CopilotClient
-            const cliPath = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
             const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
-            
+
             this.client = new CopilotClient({
                 logLevel: 'info',
-                ...(cliPath ? { cliPath } : {}),
-                ...(yolo ? { cliArgs: ['--yolo'] } : {}),
+                cliPath,
+                cliArgs: [
+                    '--no-auto-update',
+                    ...(yolo ? ['--yolo'] : []),
+                ],
                 cwd: this.workingDirectory,
                 autoStart: true,
             });
 
             this.logger.info('CopilotClient created, initializing session...');
-            
+
             // Initialize model capabilities service with the client
             await this.modelCapabilitiesService.initialize(this.client);
 
@@ -406,6 +489,10 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.logger.warn(`Failed to resume session ${this.sessionId} (error type: ${errorType}), creating new session`);
                     this.sessionId = null;
                     sessionWasCreatedNew = true;
+                    // Recreate client if connection was lost (prevents "Connection is closed" on createSession)
+                    if (errorType === 'connection_closed') {
+                        await this.recreateClient();
+                    }
                     this.session = await this.createSessionWithModelFallback({
                         model: this.config.model || undefined,
                         tools: this.getCustomTools(),
@@ -447,9 +534,9 @@ export class SDKSessionManager implements vscode.Disposable {
                 this._onDidChangeStatus.fire({ status: 'reset_metrics', resetMetrics: true });
             }
 
-            // Set up event listeners
+            // Set up event listeners (also attaches CLI process lifecycle listeners)
             this.setActiveSession(this.session);
-            
+
             // Fetch model capabilities for vision support
             await this.updateModelCapabilities();
 
@@ -496,6 +583,9 @@ export class SDKSessionManager implements vscode.Disposable {
     private setActiveSession(session: any): void {
         this.session = session;
         this.setupSessionEventHandlers();
+        // Attach process lifecycle listeners now that a session is active
+        // (the CLI process is guaranteed to be spawned by this point)
+        this.attachClientLifecycleListeners();
     }
 
     private setupSessionEventHandlers(): void {
@@ -826,11 +916,13 @@ export class SDKSessionManager implements vscode.Disposable {
                 return; // Don't throw or emit error
             }
             
-            // Check for session not found / expired errors
-            if (errorMessage.includes('does not exist') || 
+            // Check for session not found / expired / connection dead errors
+            if (errorMessage.includes('does not exist') ||
                 errorMessage.includes('Session not found') ||
                 errorMessage.includes('session has been deleted') ||
-                errorMessage.includes('session is invalid')) {
+                errorMessage.includes('session is invalid') ||
+                errorMessage.toLowerCase().includes('connection is closed') ||
+                errorMessage.toLowerCase().includes('connection is disposed')) {
                 
                 this.logger.warn('Session appears to have timed out or expired during message sending');
                 
@@ -883,6 +975,13 @@ export class SDKSessionManager implements vscode.Disposable {
                         ...(hasMcpServers ? { mcpServers } : {}),
                     };
                     
+                    // If connection was lost, recreate client before attempting resume
+                    const sendErrorType = classifySessionError(error instanceof Error ? error : new Error(errorMessage));
+                    if (sendErrorType === 'connection_closed') {
+                        this.logger.info('[Timeout Recovery] Connection closed — recreating client before resume...');
+                        await this.recreateClient();
+                    }
+
                     this.logger.info(`[Timeout Recovery] Attempting to resume timed-out session ${failedSessionId.substring(0, 8)}...`);
                     this.session = await this.attemptSessionResumeWithUserRecovery(
                         failedSessionId,
@@ -920,7 +1019,8 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.logger.warn('[Timeout Recovery] Resume failed, creating new session: ' + resumeErrorMsg);
                 }
                 
-                // If we get here, resume failed - create new session
+                // If we get here, resume failed - recreate client and create new session
+                await this.recreateClient();
                 const mcpServers = this.getEnabledMCPServers();
                 const hasMcpServers = Object.keys(mcpServers).length > 0;
                 
@@ -1025,6 +1125,81 @@ export class SDKSessionManager implements vscode.Disposable {
 
     public isRunning(): boolean {
         return this.session !== null;
+    }
+
+    /**
+     * Attach listeners to the SDK's internal CLI process and JSON-RPC connection.
+     * The SDK silently swallows stderr, exit events, and connection errors.
+     * This gives us visibility into why the CLI dies.
+     */
+    private _lifecycleListenersAttached = false;
+
+    private attachClientLifecycleListeners(): void {
+        if (!this.client || this._lifecycleListenersAttached) {
+            return;
+        }
+
+        const proc = (this.client as any).cliProcess;
+        if (!proc) {
+            return; // CLI process not yet spawned — will retry on next setActiveSession
+        }
+        this._lifecycleListenersAttached = true;
+        if (proc?.stderr) {
+            proc.stderr.on('data', (data: Buffer) => {
+                const lines = data.toString().split('\n').filter((l: string) => l.trim());
+                for (const line of lines) {
+                    this.logger.warn(`[CLI stderr] ${line}`);
+                }
+            });
+        }
+
+        if (proc) {
+            proc.on('exit', (code: number | null, signal: string | null) => {
+                this.logger.error(`[CLI Process] Exited with code=${code}, signal=${signal}`);
+            });
+        }
+
+        const conn = (this.client as any).connection;
+        if (conn?.onClose) {
+            conn.onClose(() => {
+                this.logger.error('[CLI Connection] JSON-RPC connection closed');
+            });
+        }
+    }
+
+    /**
+     * Stop the dead client and create a fresh one with current config.
+     * Called before any createSession/resumeSession after a connection loss.
+     */
+    private async recreateClient(): Promise<void> {
+        this.logger.info('[Client Recreate] Recreating CopilotClient...');
+        this._lifecycleListenersAttached = false;
+        if (this.client) {
+            try {
+                await this.client.stop();
+            } catch (e: any) {
+                this.logger.debug(`[Client Recreate] Error stopping dead client (expected): ${e.message}`);
+            }
+            this.client = null;
+        }
+
+        const cliPath = this.resolveCliPath();
+        const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
+
+        this.client = new CopilotClient({
+            logLevel: 'info',
+            cliPath,
+            cliArgs: [
+                '--no-auto-update',
+                ...(yolo ? ['--yolo'] : []),
+            ],
+            cwd: this.workingDirectory,
+            autoStart: true,
+        });
+
+        this.modelCapabilitiesService.clearCache();
+        await this.modelCapabilitiesService.initialize(this.client);
+        this.logger.info('[Client Recreate] Fresh CopilotClient created');
     }
 
     public async stop(): Promise<void> {
@@ -1486,9 +1661,11 @@ export class SDKSessionManager implements vscode.Disposable {
             triedModels.add(requestedModel);
         }
 
+        const SDK_TIMEOUT_MS = 30_000;
+
         // First attempt: try the requested model
         try {
-            return await this.client.createSession(config);
+            return await withTimeout(this.client.createSession(config), SDK_TIMEOUT_MS, 'createSession');
         } catch (error) {
             if (!this.isModelUnsupportedError(error) || !requestedModel) {
                 throw error;
@@ -1512,7 +1689,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Model Fallback] Attempt ${attempt}/${MAX_FALLBACK_ATTEMPTS}: trying "${fallbackModel}"`);
 
                 try {
-                    const session = await this.client.createSession({ ...config, model: fallbackModel });
+                    const session = await withTimeout(this.client.createSession({ ...config, model: fallbackModel }), SDK_TIMEOUT_MS, 'createSession');
 
                     // Success — notify user
                     this.notifyModelFallback(requestedModel, fallbackModel);

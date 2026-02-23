@@ -33,7 +33,7 @@ describe('Session Recovery Dialog', () => {
     let showSessionRecoveryDialog;
 
     before(async () => {
-        const mod = await import('../../../out/authUtils.js');
+        const mod = await import('../../../out/sessionErrorUtils.js');
         showSessionRecoveryDialog = mod.showSessionRecoveryDialog;
     });
 

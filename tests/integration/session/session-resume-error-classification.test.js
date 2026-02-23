@@ -11,7 +11,7 @@ describe('Session Error Classification', () => {
     let classifySessionError;
 
     before(async () => {
-        const mod = await import('../../../out/authUtils.js');
+        const mod = await import('../../../out/sessionErrorUtils.js');
         classifySessionError = mod.classifySessionError;
     });
 

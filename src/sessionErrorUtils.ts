@@ -1,11 +1,11 @@
 /**
- * Authentication utility functions for Copilot CLI
- * 
- * These functions handle authentication error detection and environment variable checking.
+ * Session error utilities for Copilot CLI
+ *
+ * Error classification, retry logic, and recovery dialogs for session lifecycle errors.
  * Extracted from SDKSessionManager for testability.
  */
 
-export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'network_timeout' | 'unknown';
+export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'connection_closed' | 'network_timeout' | 'unknown';
 
 export interface EnvVarCheckResult {
     hasEnvVar: boolean;
@@ -26,6 +26,28 @@ export interface CircuitBreakerState {
  */
 function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Wrap a promise with a timeout. If the promise doesn't settle within `ms`,
+ * rejects with a descriptive timeout error.
+ *
+ * @param promise - The promise to wrap
+ * @param ms - Timeout in milliseconds
+ * @param label - Description for the timeout error message
+ * @returns The resolved value of the original promise
+ * @throws Error if the promise doesn't settle within `ms`
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${ms}ms`));
+        }, ms);
+        promise.then(
+            (val) => { clearTimeout(timer); resolve(val); },
+            (err) => { clearTimeout(timer); reject(err); }
+        );
+    });
 }
 
 /**
@@ -83,7 +105,18 @@ export function classifySessionError(error: Error): ErrorType {
         return 'session_not_ready';
     }
     
-    // 4. Network error patterns  
+    // 3b. Connection closed / transport dead patterns
+    //     NOT retriable — the underlying process has died
+    //     Requires client recreation before any retry is possible
+    if (msg.includes('connection is closed') ||
+        msg.includes('connection is disposed') ||
+        msg.includes('transport closed') ||
+        msg.includes('write after end') ||
+        msg.includes('socket hang up')) {
+        return 'connection_closed';
+    }
+
+    // 4. Network error patterns
     //    RETRIABLE - transient network issues, connection drops
     if (msg.includes('network') || 
         msg.includes('econnrefused') ||
@@ -136,13 +169,15 @@ export function checkAuthEnvVars(): EnvVarCheckResult {
  * @param sessionId - The session ID to resume
  * @param resumeFn - Function that attempts to resume the session
  * @param logger - Optional logger for debug output
+ * @param timeoutMs - Per-attempt timeout in milliseconds (default: 30000)
  * @returns The resumed session
  * @throws Error if all retries fail or non-retriable error occurs
  */
 export async function attemptSessionResumeWithRetry<T>(
     sessionId: string,
     resumeFn: () => Promise<T>,
-    logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void }
+    logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void } | null,
+    timeoutMs: number = 30_000
 ): Promise<T> {
     const breaker: CircuitBreakerState = {
         attempts: 0,
@@ -155,7 +190,7 @@ export async function attemptSessionResumeWithRetry<T>(
             breaker.attempts++;
             logger?.info(`[Resume] Attempt ${breaker.attempts}/${breaker.maxAttempts} for session ${sessionId.substring(0, 8)}...`);
             
-            const result = await resumeFn();
+            const result = await withTimeout(resumeFn(), timeoutMs, 'resumeSession');
             logger?.info('[Resume] ✅ Success');
             return result;
             
@@ -174,6 +209,12 @@ export async function attemptSessionResumeWithRetry<T>(
             // Don't retry auth errors - requires external action
             if (errorType === 'authentication') {
                 logger?.error('[Resume] Auth error, failing fast');
+                throw error;
+            }
+
+            // Don't retry connection_closed — client is dead, must be recreated
+            if (errorType === 'connection_closed') {
+                logger?.error('[Resume] Connection closed — client must be recreated');
                 throw error;
             }
             
@@ -234,6 +275,9 @@ export async function showSessionRecoveryDialog(
     } else if (errorType === 'session_not_ready') {
         message = 'Copilot CLI not ready';
         detail = `CLI not ready after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
+    } else if (errorType === 'connection_closed') {
+        message = 'Copilot CLI connection lost';
+        detail = `The CLI process closed unexpectedly after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
     } else {
         message = 'Failed to resume session';
         detail = `Unknown error after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
