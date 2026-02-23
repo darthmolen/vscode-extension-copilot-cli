@@ -23,12 +23,15 @@ export class ToolExecution {
     }
 
     attachListeners() {
-        // Subscribe to tool lifecycle events only.
-        // NOTE: We intentionally do NOT listen to 'message:add' here.
-        // Tool groups close naturally when a new group starts via
-        // getOrCreateToolGroup(). Closing on message:add caused a bug
-        // where manually-expanded tool groups would auto-collapse when
-        // a user or assistant message arrived.
+        // Close current tool group when a new message arrives.
+        // This ensures each assistant response gets its own tool group.
+        // Individual card expand/collapse state is preserved (tracked by collapsedCards Set).
+        this.eventBus.on('message:add', (message) => {
+            if (message.role === 'user' || message.role === 'assistant') {
+                this.closeCurrentToolGroup();
+            }
+        });
+
         this.eventBus.on('tool:start', (data) => {
             this.handleToolStart(data);
         });

@@ -195,6 +195,11 @@ eventBus.on('openFile', (filePath) => {
 	rpc.openFile(filePath);
 });
 
+// Save mermaid diagram to disk
+eventBus.on('saveMermaidImage', (data) => {
+	rpc.saveMermaidImage(data);
+});
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));

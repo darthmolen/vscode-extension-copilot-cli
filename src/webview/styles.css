@@ -360,6 +360,40 @@ main {
 	text-align: center;
 }
 
+.mermaid-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	gap: 4px;
+	padding: 2px 4px;
+}
+
+.mermaid-toolbar__btn {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 3px;
+	padding: 2px 8px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.mermaid-toolbar__btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.mermaid-source {
+	text-align: left;
+	white-space: pre-wrap;
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	padding: 8px;
+	margin: 0;
+}
+
+.hidden {
+	display: none !important;
+}
+
 .message-content em,
 .message-display__content em {
 	font-style: italic;

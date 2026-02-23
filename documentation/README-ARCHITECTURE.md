@@ -362,6 +362,7 @@ It's **distributed systems development** with:
 - [Chat Auto-Scrolling](CHAT-AUTO-SCROLLING.md) - Scroll behavior and the user-intent detection algorithm
 - [Slash Commands Architecture](SLASH-COMMANDS-ARCHITECTURE.md) - Command registration, routing, and execution
 - [Copilot SDK Hooks](COPILOT-SDK-HOOKS.md) - Hook system reference (onPreToolUse, onPostToolUse, etc.)
+- [Session Startup Flow](COPILOT-SDK-CLI-SESSION-STARTUP.md) - Full startup sequence from activation to ready, with retry and error recovery
 
 **Architecture Decision Records:**
 

@@ -109,7 +109,7 @@ describe('ToolExecution Component', () => {
             expect(tools).to.have.length(2);
         });
 
-        it('should NOT close current group when message:add event received', () => {
+        it('should close current group when user message:add event received', () => {
             const toolExec = new ToolExecution(container, eventBus);
 
             // Add tool to group
@@ -119,14 +119,14 @@ describe('ToolExecution Component', () => {
                 startTime: Date.now()
             });
 
-            // Send message (should NOT close group - fix for auto-collapse bug)
+            // User message closes the group
             eventBus.emit('message:add', {
                 role: 'user',
                 content: 'Test',
                 timestamp: Date.now()
             });
 
-            // Next tool should be added to the SAME group
+            // Next tool starts a NEW group
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-2',
                 toolName: 'bash',
@@ -134,10 +134,10 @@ describe('ToolExecution Component', () => {
             });
 
             const toolGroups = container.querySelectorAll('.tool-execution__group');
-            expect(toolGroups).to.have.length(1);
+            expect(toolGroups).to.have.length(2);
 
-            const tools = toolGroups[0].querySelectorAll('.tool-execution__item');
-            expect(tools).to.have.length(2);
+            expect(toolGroups[0].querySelectorAll('.tool-execution__item')).to.have.length(1);
+            expect(toolGroups[1].querySelectorAll('.tool-execution__item')).to.have.length(1);
         });
     });
 

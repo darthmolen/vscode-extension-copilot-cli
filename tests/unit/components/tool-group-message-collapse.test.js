@@ -1,17 +1,14 @@
 /**
- * Tool Group Message Collapse Bug Test
+ * Tool Group Message Lifecycle Tests
  *
- * Regression tests for the bug where expanded tool groups auto-collapse
- * when a new user or assistant message arrives via the `message:add` event.
+ * Tests that tool groups close when user/assistant messages arrive,
+ * ensuring each agent response gets its own tool group. System and
+ * other message roles do NOT close tool groups.
  *
- * The root cause is that `closeCurrentToolGroup()` is called on every
- * `message:add` with role 'user' or 'assistant', which resets
- * `currentToolGroup` to null and `toolGroupExpanded` to false even when
- * the user has manually expanded a tool group.
- *
- * The fix is to remove the `message:add` listener that calls
- * `closeCurrentToolGroup()`. Tool groups close naturally when a new
- * tool group is started.
+ * History: v3.1.0 removed the message:add listener to prevent
+ * auto-collapsing expanded groups, but this caused ALL tools to pile
+ * into one group forever. v3.2.0 re-adds the listener — individual
+ * card collapse state is preserved via the collapsedCards Set.
  */
 
 import { expect } from 'chai';
@@ -19,7 +16,7 @@ import { JSDOM } from 'jsdom';
 import { ToolExecution } from '../../../src/webview/app/components/ToolExecution/ToolExecution.js';
 import { EventBus } from '../../../src/webview/app/state/EventBus.js';
 
-describe('Tool Group - No auto-collapse on message:add', () => {
+describe('Tool Group - Message lifecycle', () => {
     let dom, container, eventBus, toolExecution;
 
     beforeEach(() => {
@@ -53,9 +50,8 @@ describe('Tool Group - No auto-collapse on message:add', () => {
         }
     }
 
-    describe('message:add should NOT close the current tool group', () => {
-        it('should keep tools in the same group when message:add arrives mid-group', () => {
-            // Arrange: start a tool group with 2 tools
+    describe('assistant message closes current tool group', () => {
+        it('should create a new group for tools after assistant message', () => {
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-1',
                 toolName: 'bash',
@@ -73,14 +69,14 @@ describe('Tool Group - No auto-collapse on message:add', () => {
 
             expect(container.querySelectorAll('.tool-group')).to.have.length(1);
 
-            // Act: an assistant message arrives
+            // Assistant message closes the current group
             eventBus.emit('message:add', {
                 role: 'assistant',
                 content: 'Working on it...',
                 timestamp: Date.now()
             });
 
-            // Act: another tool starts (still part of the same logical turn)
+            // Next tool starts a new group
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-3',
                 toolName: 'bash',
@@ -89,35 +85,23 @@ describe('Tool Group - No auto-collapse on message:add', () => {
                 startTime: Date.now()
             });
 
-            // Assert: all 3 tools should be in the SAME group
-            // (message:add should NOT force group separation)
             const groups = container.querySelectorAll('.tool-group');
-            expect(groups).to.have.length(1);
-
-            const tools = groups[0].querySelectorAll('.tool-execution__item');
-            expect(tools).to.have.length(3);
+            expect(groups).to.have.length(2);
+            expect(groups[0].querySelectorAll('.tool-execution__item')).to.have.length(2);
+            expect(groups[1].querySelectorAll('.tool-execution__item')).to.have.length(1);
         });
+    });
 
-        it('should NOT reset toolGroupExpanded when user message arrives', () => {
-            // Arrange: create a tool group with overflow, expand it
+    describe('user message closes current tool group', () => {
+        it('should start a new group for tools after user message', () => {
             addToolsToTriggerOverflow();
 
-            const expandBtn = container.querySelector('.tool-group-toggle');
-            expect(expandBtn, 'Expand button should exist').to.exist;
-            expandBtn.click();
-
-            // Act: user message arrives
             eventBus.emit('message:add', {
                 role: 'user',
                 content: 'Tell me more',
                 timestamp: Date.now()
             });
 
-            // Act: a tool completes, which triggers updateToolGroupToggle()
-            // if currentToolGroup is still set.
-            // With the bug, currentToolGroup is null so toggle is never
-            // rebuilt, but toolGroupExpanded is false so the NEXT group
-            // would inherit the wrong state.
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-new',
                 toolName: 'bash',
@@ -126,81 +110,87 @@ describe('Tool Group - No auto-collapse on message:add', () => {
                 startTime: Date.now()
             });
 
-            // Assert: the tool was added to the SAME group (not a new one)
-            // which proves currentToolGroup was not nulled out
             const groups = container.querySelectorAll('.tool-group');
-            expect(groups).to.have.length(1);
-
-            // Assert: the container is still expanded
-            const toolContainer = container.querySelector('.tool-group-container');
-            expect(toolContainer.classList.contains('expanded'),
-                'Tool group should remain expanded after user message and new tool').to.be.true;
+            expect(groups).to.have.length(2);
         });
+    });
 
-        it('should NOT reset toolGroupExpanded when assistant message arrives', () => {
-            // Arrange: create a tool group with overflow, expand it
+    describe('new group starts fresh (not expanded)', () => {
+        it('should not inherit expanded state from previous group', () => {
             addToolsToTriggerOverflow();
 
-            const toolContainer = container.querySelector('.tool-group-container');
+            // Expand the first group
             const expandBtn = container.querySelector('.tool-group-toggle');
+            expect(expandBtn, 'Expand button should exist').to.exist;
             expandBtn.click();
-            expect(toolContainer.classList.contains('expanded')).to.be.true;
 
-            // Act: assistant message arrives
+            // Assistant message closes the group
             eventBus.emit('message:add', {
                 role: 'assistant',
                 content: 'Here is the result.',
                 timestamp: Date.now()
             });
 
-            // Act: another tool starts in the same group
-            eventBus.emit('tool:start', {
-                toolCallId: 'tool-new',
-                toolName: 'bash',
-                arguments: { command: 'echo done' },
-                status: 'running',
-                startTime: Date.now()
-            });
+            // Start tools in a new group
+            for (let i = 0; i < 5; i++) {
+                eventBus.emit('tool:start', {
+                    toolCallId: `new-tool-${i}`,
+                    toolName: 'bash',
+                    arguments: { command: `new-cmd-${i}` },
+                    status: 'running',
+                    startTime: Date.now()
+                });
+            }
 
-            // Assert: same group, still expanded
+            // The new group should NOT be expanded (starts fresh)
             const groups = container.querySelectorAll('.tool-group');
-            expect(groups).to.have.length(1);
-            expect(toolContainer.classList.contains('expanded'),
-                'Tool group should remain expanded after assistant message').to.be.true;
+            expect(groups).to.have.length(2);
+
+            const newContainer = groups[1].querySelector('.tool-group-container');
+            expect(newContainer.classList.contains('expanded'),
+                'New tool group should start collapsed, not inherit expanded state').to.be.false;
         });
+    });
 
-        it('should preserve expanded state through multiple sequential messages', () => {
-            // Arrange
-            addToolsToTriggerOverflow();
-
-            const toolContainer = container.querySelector('.tool-group-container');
-            const expandBtn = container.querySelector('.tool-group-toggle');
-            expandBtn.click();
-
-            // Act: several messages in a row
-            eventBus.emit('message:add', { role: 'user', content: 'msg1', timestamp: Date.now() });
-            eventBus.emit('message:add', { role: 'assistant', content: 'msg2', timestamp: Date.now() });
-            eventBus.emit('message:add', { role: 'user', content: 'msg3', timestamp: Date.now() });
-
-            // Act: more tools arrive
+    describe('multiple messages create multiple groups', () => {
+        it('should create separate groups for each message boundary', () => {
+            // Round 1
             eventBus.emit('tool:start', {
-                toolCallId: 'tool-after-msgs',
+                toolCallId: 'round1-tool',
                 toolName: 'bash',
-                arguments: { command: 'echo hi' },
+                arguments: { command: 'echo 1' },
                 status: 'running',
                 startTime: Date.now()
             });
 
-            // Assert: all in one group, still expanded
-            expect(container.querySelectorAll('.tool-group')).to.have.length(1);
-            expect(toolContainer.classList.contains('expanded'),
-                'Tool group should remain expanded after multiple messages').to.be.true;
+            eventBus.emit('message:add', { role: 'assistant', content: 'msg1', timestamp: Date.now() });
+
+            // Round 2
+            eventBus.emit('tool:start', {
+                toolCallId: 'round2-tool',
+                toolName: 'bash',
+                arguments: { command: 'echo 2' },
+                status: 'running',
+                startTime: Date.now()
+            });
+
+            eventBus.emit('message:add', { role: 'user', content: 'msg2', timestamp: Date.now() });
+
+            // Round 3
+            eventBus.emit('tool:start', {
+                toolCallId: 'round3-tool',
+                toolName: 'bash',
+                arguments: { command: 'echo 3' },
+                status: 'running',
+                startTime: Date.now()
+            });
+
+            expect(container.querySelectorAll('.tool-group')).to.have.length(3);
         });
     });
 
     describe('system messages should still be ignored', () => {
         it('should not affect tool groups when system message arrives', () => {
-            // Arrange: start a tool group
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-1',
                 toolName: 'bash',
@@ -209,14 +199,13 @@ describe('Tool Group - No auto-collapse on message:add', () => {
                 startTime: Date.now()
             });
 
-            // Act: system message (was never handled, still should not be)
+            // System message — should NOT close the group
             eventBus.emit('message:add', {
                 role: 'system',
                 content: 'System info',
                 timestamp: Date.now()
             });
 
-            // Act: another tool in same group
             eventBus.emit('tool:start', {
                 toolCallId: 'tool-2',
                 toolName: 'bash',
@@ -225,7 +214,6 @@ describe('Tool Group - No auto-collapse on message:add', () => {
                 startTime: Date.now()
             });
 
-            // Assert: same group
             expect(container.querySelectorAll('.tool-group')).to.have.length(1);
         });
     });

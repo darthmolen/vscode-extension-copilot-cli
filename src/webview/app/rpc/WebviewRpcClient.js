@@ -245,6 +245,18 @@ class WebviewRpcClient {
 		});
 	}
 
+	/**
+	 * Save a rendered mermaid diagram to disk
+	 * @param {{svgContent: string, source: string}} data - SVG content and mermaid source
+	 */
+	saveMermaidImage(data) {
+		this._send({
+			type: 'saveMermaidImage',
+			svgContent: data.svgContent,
+			source: data.source
+		});
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================

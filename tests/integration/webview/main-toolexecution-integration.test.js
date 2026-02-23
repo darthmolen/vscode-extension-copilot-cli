@@ -142,7 +142,7 @@ describe('main.js + ToolExecution Integration', () => {
             expect(toolDiv.textContent).to.include('1.00s');
         });
 
-        it('should NOT close tool group when user message received', async () => {
+        it('should close tool group when user message received', async () => {
             // Add many tools to create a group
             for (let i = 0; i < 5; i++) {
                 eventBus.emit('tool:start', {
@@ -152,22 +152,22 @@ describe('main.js + ToolExecution Integration', () => {
                 });
             }
 
-            // ACT: User message arrives (should NOT close current tool group)
+            // ACT: User message arrives — closes current tool group
             eventBus.emit('message:add', {
                 role: 'user',
                 content: 'What did those tools find?'
             });
 
-            // Add another tool - should stay in SAME group
+            // Add another tool - should start a NEW group
             eventBus.emit('tool:start', {
                 toolCallId: 'new-tool',
                 toolName: 'bash',
                 startTime: Date.now()
             });
 
-            // ASSERT: All tools in one group (no forced separation on message:add)
+            // ASSERT: Two separate groups (user message splits them)
             const groups = messagesContainer.querySelectorAll('.tool-execution__group');
-            expect(groups.length).to.equal(1, 'Should keep all tools in same group after message');
+            expect(groups.length).to.equal(2, 'User message should start a new tool group');
         });
     });
 

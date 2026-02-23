@@ -349,15 +349,52 @@ export class MessageDisplay {
 
             const container = document.createElement('div');
             container.className = 'mermaid-render';
-            container.textContent = mermaidSource;
+            container.dataset.mermaidSource = mermaidSource;
+
+            // Toolbar with View Source and Save buttons
+            const toolbar = document.createElement('div');
+            toolbar.className = 'mermaid-toolbar';
+            toolbar.innerHTML = `
+                <button class="mermaid-toolbar__btn mermaid-toolbar__source" title="View Source">{ }</button>
+                <button class="mermaid-toolbar__btn mermaid-toolbar__save" title="Save Image">\uD83D\uDCBE</button>
+            `;
+            container.appendChild(toolbar);
+
+            // Diagram container (mermaid renders into this)
+            const diagramDiv = document.createElement('div');
+            diagramDiv.className = 'mermaid-diagram';
+            diagramDiv.textContent = mermaidSource;
+            container.appendChild(diagramDiv);
+
+            // Source view (hidden by default)
+            const sourceDiv = document.createElement('pre');
+            sourceDiv.className = 'mermaid-source hidden';
+            sourceDiv.textContent = mermaidSource;
+            container.appendChild(sourceDiv);
 
             preEl.replaceWith(container);
+            this._renderMermaidDiagram(diagramDiv);
 
-            this._renderMermaidDiagram(container);
+            // Wire View Source toggle
+            toolbar.querySelector('.mermaid-toolbar__source').addEventListener('click', () => {
+                const showing = diagramDiv.classList.toggle('hidden');
+                sourceDiv.classList.toggle('hidden', !showing);
+            });
+
+            // Wire Save button
+            toolbar.querySelector('.mermaid-toolbar__save').addEventListener('click', () => {
+                const svg = diagramDiv.querySelector('svg');
+                if (svg) {
+                    this.eventBus.emit('saveMermaidImage', {
+                        svgContent: svg.outerHTML,
+                        source: mermaidSource
+                    });
+                }
+            });
         });
     }
 
-    async _renderMermaidDiagram(container) {
+    async _renderMermaidDiagram(diagramDiv) {
         try {
             if (!this.mermaidModule) {
                 const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
@@ -365,7 +402,7 @@ export class MessageDisplay {
                 const theme = document.body.classList.contains('vscode-light') ? 'default' : 'dark';
                 this.mermaidModule.initialize({ startOnLoad: false, theme });
             }
-            await this.mermaidModule.run({ nodes: [container] });
+            await this.mermaidModule.run({ nodes: [diagramDiv] });
         } catch {
             // mermaid.js unavailable (offline, CSP, JSDOM) — keep source text as fallback
         }
