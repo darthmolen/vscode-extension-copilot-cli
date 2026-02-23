@@ -41,8 +41,8 @@ tests/
     jsdom-component-setup.js     # Full component JSDOM with polyfills (MutationObserver, rAF, etc.)
     vscode-mock.js               # VS Code API mock for extension-side tests
     scenarios.js                 # Test scenario definitions
-    authUtils.js                 # Auth error classification helpers (CJS)
-    authUtils.mjs                # Auth error classification helpers (ESM)
+    sessionErrorUtils.js         # Session error classification helpers (CJS)
+    authUtils.mjs                # Auth error classification helpers (ESM, deprecated)
     verify-setup.js              # Environment verification script
 ```
 

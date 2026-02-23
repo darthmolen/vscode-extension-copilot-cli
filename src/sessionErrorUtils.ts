@@ -1,11 +1,11 @@
 /**
- * Authentication utility functions for Copilot CLI
- * 
- * These functions handle authentication error detection and environment variable checking.
+ * Session error utilities for Copilot CLI
+ *
+ * Error classification, retry logic, and recovery dialogs for session lifecycle errors.
  * Extracted from SDKSessionManager for testability.
  */
 
-export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'network_timeout' | 'cli_version' | 'unknown';
+export type ErrorType = 'authentication' | 'session_expired' | 'session_not_ready' | 'connection_closed' | 'network_timeout' | 'unknown';
 
 export interface EnvVarCheckResult {
     hasEnvVar: boolean;
@@ -73,11 +73,6 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
 export function classifySessionError(error: Error): ErrorType {
     const msg = error.message.toLowerCase();
     
-    // 0. CLI version mismatch (check first - fail fast)
-    if (msg.includes('copilot cli v') && msg.includes('not compatible')) {
-        return 'cli_version';
-    }
-
     // 1. Session expired/not found patterns (check first - most specific)
     //    Session doesn't exist anymore or was deleted
     //    NOT retriable - session is permanently gone
@@ -110,7 +105,18 @@ export function classifySessionError(error: Error): ErrorType {
         return 'session_not_ready';
     }
     
-    // 4. Network error patterns  
+    // 3b. Connection closed / transport dead patterns
+    //     NOT retriable — the underlying process has died
+    //     Requires client recreation before any retry is possible
+    if (msg.includes('connection is closed') ||
+        msg.includes('connection is disposed') ||
+        msg.includes('transport closed') ||
+        msg.includes('write after end') ||
+        msg.includes('socket hang up')) {
+        return 'connection_closed';
+    }
+
+    // 4. Network error patterns
     //    RETRIABLE - transient network issues, connection drops
     if (msg.includes('network') || 
         msg.includes('econnrefused') ||
@@ -205,6 +211,12 @@ export async function attemptSessionResumeWithRetry<T>(
                 logger?.error('[Resume] Auth error, failing fast');
                 throw error;
             }
+
+            // Don't retry connection_closed — client is dead, must be recreated
+            if (errorType === 'connection_closed') {
+                logger?.error('[Resume] Connection closed — client must be recreated');
+                throw error;
+            }
             
             // For retriable errors, wait before retry (if not last attempt)
             if (breaker.attempts < breaker.maxAttempts) {
@@ -263,6 +275,9 @@ export async function showSessionRecoveryDialog(
     } else if (errorType === 'session_not_ready') {
         message = 'Copilot CLI not ready';
         detail = `CLI not ready after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
+    } else if (errorType === 'connection_closed') {
+        message = 'Copilot CLI connection lost';
+        detail = `The CLI process closed unexpectedly after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;
     } else {
         message = 'Failed to resume session';
         detail = `Unknown error after ${attemptCount} attempt${attemptCount > 1 ? 's' : ''}: ${lastError.message}`;

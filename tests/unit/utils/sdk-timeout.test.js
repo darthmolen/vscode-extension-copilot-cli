@@ -15,7 +15,7 @@ describe('SDK Call Timeout Protection', function () {
     let attemptSessionResumeWithRetry;
 
     before(async () => {
-        const mod = await import('../../../out/authUtils.js');
+        const mod = await import('../../../out/sessionErrorUtils.js');
         withTimeout = mod.withTimeout;
         attemptSessionResumeWithRetry = mod.attemptSessionResumeWithRetry;
     });

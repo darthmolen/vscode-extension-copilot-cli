@@ -1,8 +1,8 @@
 /**
- * Authentication utility functions for Copilot CLI
+ * Session error utility functions for Copilot CLI
  * CommonJS version for mocha test compatibility
  *
- * IMPORTANT: This must mirror src/authUtils.ts exactly.
+ * IMPORTANT: This must mirror src/sessionErrorUtils.ts exactly.
  * Same order, same patterns, same return values.
  */
 
@@ -42,6 +42,15 @@ function classifySessionError(error) {
     if (msg.includes('not connected') ||
         msg.includes('not ready')) {
         return 'session_not_ready';
+    }
+
+    // 3b. Connection closed / transport dead patterns
+    if (msg.includes('connection is closed') ||
+        msg.includes('connection is disposed') ||
+        msg.includes('transport closed') ||
+        msg.includes('write after end') ||
+        msg.includes('socket hang up')) {
+        return 'connection_closed';
     }
 
     // 4. Network error patterns

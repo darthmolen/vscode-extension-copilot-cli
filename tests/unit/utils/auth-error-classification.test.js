@@ -7,7 +7,7 @@
  */
 
 const assert = require('assert');
-const { classifySessionError, checkAuthEnvVars } = require('../../helpers/authUtils');
+const { classifySessionError, checkAuthEnvVars } = require('../../helpers/sessionErrorUtils');
 
 describe('Authentication Error Classification Tests', function () {
 
@@ -79,6 +79,33 @@ describe('Authentication Error Classification Tests', function () {
         it('should not classify unrelated version mentions as cli_version', function () {
             const error = new Error('API version 2.0 not supported');
             assert.notStrictEqual(classifySessionError(error), 'cli_version');
+        });
+    });
+
+    describe('Connection closed error patterns', function () {
+        it('should classify "Connection is closed." as connection_closed', function () {
+            const error = new Error('Connection is closed.');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "connection is disposed" as connection_closed', function () {
+            const error = new Error('connection is disposed');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "transport closed" as connection_closed', function () {
+            const error = new Error('transport closed unexpectedly');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "write after end" as connection_closed', function () {
+            const error = new Error('write after end');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
+        });
+
+        it('should classify "socket hang up" as connection_closed', function () {
+            const error = new Error('socket hang up');
+            assert.strictEqual(classifySessionError(error), 'connection_closed');
         });
     });
 

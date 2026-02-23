@@ -1,8 +1,8 @@
 /**
- * Tests for CLI version check (v3.1.2)
+ * Tests for CLI version parsing (v3.1.2)
  *
- * Verifies that checkCliVersion() detects incompatible CLI versions
- * and throws with actionable error messages before attempting connection.
+ * Verifies that parseCliVersion() extracts version strings from
+ * various `copilot --version` output formats.
  */
 
 const Module = require('module');
@@ -58,40 +58,6 @@ describe('CLI Version Check', function () {
         it('should return null for empty string', function () {
             const version = sdkSessionManagerModule.parseCliVersion('');
             assert.strictEqual(version, null);
-        });
-    });
-
-    describe('isCliVersionIncompatible', function () {
-        it('should flag 0.0.410 as incompatible', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.410'), true);
-        });
-
-        it('should flag 0.0.414 as incompatible', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.414'), true);
-        });
-
-        it('should flag 0.0.999 as incompatible', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.999'), true);
-        });
-
-        it('should allow 0.0.403', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.403'), false);
-        });
-
-        it('should allow 0.0.409', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.409'), false);
-        });
-
-        it('should allow 0.0.1', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.0.1'), false);
-        });
-
-        it('should flag minor version bump 0.1.0 as incompatible', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('0.1.0'), true);
-        });
-
-        it('should flag major version bump 1.0.0 as incompatible', function () {
-            assert.strictEqual(sdkSessionManagerModule.isCliVersionIncompatible('1.0.0'), true);
         });
     });
 });

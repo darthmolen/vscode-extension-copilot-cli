@@ -17,7 +17,7 @@ We corrected #1606 and #530 with this finding. Our workaround: `cliArgs: ['--no-
 |---|---|------|-------|--------|------|
 | + | 1 | copilot-cli | Breaking change: --headless --stdio removed without deprecation | OPEN | [#1606](https://github.com/github/copilot-cli/issues/1606) |
 | + | 2 | copilot-sdk | CLI v0.0.410+ auto-update breaks all SDK versions | OPEN (needs-info) | [#530](https://github.com/github/copilot-sdk/issues/530) |
-|   | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | OPEN | [#528](https://github.com/github/copilot-sdk/issues/528) |
+| + | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | PR SUBMITTED | [#528](https://github.com/github/copilot-sdk/issues/528) → [PR #546](https://github.com/github/copilot-sdk/pull/546) |
 | x | 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | CLOSED | [#532](https://github.com/github/copilot-sdk/issues/532) |
 |   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN | [#1607](https://github.com/github/copilot-cli/issues/1607) |
 
@@ -34,7 +34,8 @@ the launcher delegates to `~/.copilot/pkg/universal/` at runtime, SDK <= v0.1.22
 `--no-auto-update`, and his `^0.0.411` resolves to 0.0.411 not 0.0.414 as he stated.
 Acknowledged his PR #392 fix is correct.
 
-**#528** — Steve is open to a CJS build PR. Actionable opportunity — needs a concrete proposal.
+**#528** — PR submitted: [#546](https://github.com/github/copilot-sdk/pull/546). Replaces `import.meta.resolve`
+with `createRequire` + path walking, adds CJS bundled output, conditional exports. Awaiting Steve's review.
 
 **#532** — Closed by Steve (Feb 23). He acknowledged a gap in auto-downloader E2E testing
 but rejected the broader claim. Would need a narrower re-file to pursue.
