@@ -535,8 +535,6 @@ async function handleStartupError(
 
 	const enhancedError: any = error;
 
-
-
 	if (enhancedError.errorType !== 'authentication') {
 		statusBarItem.text = "$(error) CLI Failed";
 		statusBarItem.tooltip = `Failed: ${errorMessage}`;
