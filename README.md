@@ -81,13 +81,15 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 
 ### v3.0.0 - Complete Architectural Overhaul 🚀
 
-**Inline Diffs in Chat Stream**
+#### Inline Diffs in Chat Stream
+
 - File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)
 - Larger diffs show "... N more lines" with "View Diff" button for full picture
 - Review, approve, or redirect the agent without leaving the conversation
 - Decision-making stays in the chat flow
 
-**Slash Commands (41 Commands) with Discovery Panel**
+#### Slash Commands (41 Commands) with Discovery Panel
+
 - Type `/` in the chat input to see a grouped command reference panel
 - Click any command to insert it, or use the `?` icon next to metrics for full `/help` output
 - `/help` — Show all available commands
@@ -97,17 +99,20 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - `/mcp` — Show MCP server configuration
 - And 36 more commands for debugging, inspection, and control
 
-**Auto-Resume After Reload**
+#### Auto-Resume After Reload
+
 - CLI session automatically resumes when VS Code reloads
 - Previous conversation history loads from Copilot CLI's event log
 - No more lost sessions when restarting VS Code
 
-**Claude Opus 4.6 Support**
+#### Claude Opus 4.6 Support
+
 - Added latest `claude-opus-4.6` and `claude-opus-4.6-fast` models
 - Smart model capability detection for image attachments
 - Now supporting 17 AI models total
 
-**Reliability & Performance**
+#### Reliability & Performance
+
 - Component-based architecture (9 components) for maintainability
 - Type-safe RPC layer (31 message types) eliminates message bugs
 - Service extraction (7 services) with clear boundaries
@@ -152,10 +157,32 @@ code --install-extension darthmolen.copilot-cli-extension
   - **Linux/macOS**: `brew install copilot-cli`
   - **Windows**: `winget install GitHub.Copilot`
   - **Note**: Requires PowerShell v6+ on Windows
-  - See: https://docs.github.com/copilot/concepts/agents/about-copilot-cli
+  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
 - **Active Copilot subscription**
 
 ⚠️ **Important**: This extension requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
+
+### Troubleshooting: Session Won't Start
+
+If the extension hangs on "Starting CLI process..." or times out with "Connection is closed", your Copilot CLI binary is likely too old. The extension requires **v0.0.403 or newer**.
+
+Check your version:
+
+```bash
+copilot --version --no-auto-update
+```
+
+To upgrade:
+
+```bash
+# Update the npm package
+npm install -g @github/copilot@latest
+
+# Then let the CLI self-update its runtime
+copilot upgrade
+```
+
+After upgrading, reload VS Code (`Ctrl+Shift+P` → "Developer: Reload Window").
 
 ### Authentication
 
@@ -178,7 +205,7 @@ The extension will automatically guide you if authentication is needed:
 For automation or CI/CD scenarios, set an authentication token as an environment variable:
 
 1. Create a fine-grained Personal Access Token (PAT) with "Copilot Requests" permission
-   - Go to: https://github.com/settings/tokens?type=beta
+   - Go to: [GitHub token settings](https://github.com/settings/tokens?type=beta)
    - Generate new token → Select "Copilot Requests" scope
 2. Set the environment variable (priority order):
    - **`COPILOT_GITHUB_TOKEN`** (highest priority)
@@ -187,12 +214,14 @@ For automation or CI/CD scenarios, set an authentication token as an environment
 3. Restart VS Code to pick up the environment variable
 
 **Linux/macOS**:
+
 ```bash
 export GH_TOKEN="ghp_your_token_here"
 code  # Restart VS Code from terminal to inherit env vars
 ```
 
 **Windows (PowerShell)**:
+
 ```powershell
 $env:GH_TOKEN="ghp_your_token_here"
 code  # Restart VS Code
@@ -212,11 +241,13 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
    - Search for "Copilot CLI GH SSO Enterprise Slug"
    - Enter just the slug: `acme`
 3. When authenticating, the extension will automatically generate:
+
    ```bash
    copilot login --host https://github.com/enterprises/acme/sso
    ```
 
 **When to use this**:
+
 - ✅ Your enterprise has SSO enabled and requires `/enterprises/{slug}/sso` path
 - ❌ Using github.com (public GitHub) - leave empty
 - ❌ Using GitHub Enterprise Server (self-hosted) - leave empty
@@ -228,23 +259,23 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
 
 ### Open the Chat Sidebar
 
-**Option 1: Activity Bar Icon (NEW in v3.0.0)**
+#### Option 1: Activity Bar Icon (NEW in v3.0.0)
 
 1. Look for the Copilot CLI icon in the Activity Bar (left side by default)
 2. Click the icon to show/hide the chat sidebar
 3. **Drag to right sidebar**: View → Appearance → Move Side Bar Right (or drag the icon)
 
-**Option 2: Command Palette**
+#### Option 2: Command Palette
 
 1. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac)
 2. Type "Copilot CLI: Open Chat"
 3. Press Enter
 
-**Option 3: Status Bar**
+#### Option 3: Status Bar
 
 - Click the "💬 Copilot CLI" item in the status bar
 
-**Option 4: Editor Toolbar**
+#### Option 4: Editor Toolbar
 
 - Click the chat icon in the editor toolbar
 
@@ -374,6 +405,7 @@ Add custom MCP servers via settings:
 - `@modelcontextprotocol/server-memory` - Knowledge graph-based persistent memory
 
 **MCP Server Types**:
+
 - **Local (stdio)**: Execute a command locally (e.g., npx, python, node)
 - **Remote (HTTP/SSE)**: Connect to a remote server via URL
 
@@ -385,7 +417,7 @@ Browse more servers at the [MCP Registry](https://registry.modelcontextprotocol.
 
 ### v3.0 Architecture
 
-```
+```text
 VS Code Activity Bar
         ↓
   WebviewViewProvider (sidebar integration)
@@ -440,6 +472,7 @@ Shared: TypeScript interfaces in src/shared/ defining the RPC contract
 - **Slash Commands**: 41 commands via CommandParser (type `/help` for list)
 
 **Copilot SDK** provides:
+
 - **Agent Runtime**: Production-tested orchestration engine
 - **Tool Invocation**: File edits, shell commands, web searches, MCP servers
 - **Model Access**: All Copilot CLI models via unified API
@@ -451,6 +484,7 @@ Shared: TypeScript interfaces in src/shared/ defining the RPC contract
 - ✅ **Windows** - Fully supported (PowerShell v6+)
 
 Session state location:
+
 - **Linux/macOS**: `~/.copilot/session-state/`
 - **Windows**: `%USERPROFILE%\.copilot\session-state\`
 
@@ -473,9 +507,9 @@ MIT - See [LICENSE](LICENSE) for details
 
 ## 🐛 Issues & Feedback
 
-- **Report bugs**: https://github.com/darthmolen/vscode-extension-copilot-cli/issues
-- **Ask questions**: https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension&ssr=false#qna
-- **Marketplace**: https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension
+- **Report bugs**: [GitHub Issues](https://github.com/darthmolen/vscode-extension-copilot-cli/issues)
+- **Ask questions**: [Marketplace Q&A](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension&ssr=false#qna)
+- **Marketplace**: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=darthmolen.copilot-cli-extension)
 
 ## ⭐ Support
 
@@ -488,4 +522,3 @@ If you find this extension helpful, please:
 ---
 
 Made with ❤️ by [darthmolen](https://github.com/darthmolen)
-

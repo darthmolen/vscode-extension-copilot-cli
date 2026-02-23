@@ -368,19 +368,15 @@ export class SDKSessionManager implements vscode.Disposable {
         }
 
         // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)
+        // The @github/copilot-{os}-{arch} package exports the native binary directly.
+        // require.resolve() returns the binary path without loading it.
+        // Only works when running from source (dev); installed VSIX has no node_modules.
         try {
             const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;
-            const pkgJsonPath = require.resolve(`${platformPkg}/package.json`);
-            const pkgDir = path.dirname(pkgJsonPath);
-            const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-            // Binary name from package.json "exports" field (e.g., "./copilot")
-            const binName = (pkg.exports || '').replace(/^\.\//, '');
-            if (binName) {
-                const binPath = path.join(pkgDir, binName);
-                if (fs.existsSync(binPath)) {
-                    this.logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);
-                    return binPath;
-                }
+            const binPath = require.resolve(platformPkg);
+            if (fs.existsSync(binPath)) {
+                this.logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);
+                return binPath;
             }
         } catch {
             // Platform package not installed — fall through to PATH

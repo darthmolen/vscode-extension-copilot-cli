@@ -7,11 +7,22 @@ All notable changes to the Copilot CLI Chat extension.
 ### 🛡️ Reliability
 
 - **Smart model fallback** — When the configured model is unavailable (enterprise restrictions, typos), the extension now queries your account's available models via the SDK and picks the best one from a preference order. Notifies you in the chat with which model was selected. Falls back gracefully even when `claude-sonnet-4.5` is unavailable.
+- **SDK-bundled CLI resolution** — The extension now resolves the Copilot CLI binary from the SDK's bundled `@github/copilot-{platform}-{arch}` package before falling back to PATH. This prevents version mismatches where an older system-installed binary (e.g., v0.0.394) is used instead of the SDK-compatible version (v0.0.403+).
+- **Connection closed recovery** — When the CLI process dies mid-session, the extension now detects "Connection is closed" errors, tears down the dead client, and recreates a fresh `CopilotClient` automatically. Previously, all recovery paths reused the dead client, causing infinite timeout loops.
+- **CLI process observability** — The extension now captures CLI stderr output, process exit events, and JSON-RPC connection close events in the Output Channel. Previously the SDK silently swallowed all CLI diagnostics, making failures invisible.
+- **`--no-auto-update` flag** — Passes `--no-auto-update` to the CLI to prevent the Go launcher from downloading newer versions at runtime, which caused version drift and unpredictable behavior.
+
+### 🐛 Bug Fixes
+
+- **Session error classification** — Added `connection_closed` error type with 5 detection patterns (`connection is closed`, `connection is disposed`, `transport closed`, `write after end`, `socket hang up`). Connection closed errors now fast-fail instead of retrying against a dead client.
+- **Renamed `authUtils` → `sessionErrorUtils`** — The error classification module handles all session error types (timeouts, connection failures, expired sessions), not just authentication. Renamed for clarity.
 
 ### 📖 Documentation
 
+- **Troubleshooting section** — Added "Session Won't Start" troubleshooting guide to README with version check and upgrade instructions. The extension requires Copilot CLI v0.0.403 or newer.
 - **Copilot Memory section** — Added documentation for the Copilot Memory public preview feature to README.
 - **README cleanup** — Removed pre-3.x version history, updated model count to 17.
+- **README lint fixes** — Fixed all markdownlint warnings (bare URLs, emphasis-as-heading, missing blank lines, code block languages).
 - **Versioning guidance** — Patch releases can include minor bug fixes and small behavior improvements.
 
 ## [3.1.1] - 2026-02-21
