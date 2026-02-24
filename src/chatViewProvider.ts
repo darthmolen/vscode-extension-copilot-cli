@@ -170,6 +170,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			this._handlePastedImage(payload.dataUri, payload.mimeType, payload.fileName);
 		}));
 
+		this._reg(this.rpcRouter.onSaveMermaidImage(async (payload) => {
+			this.logger.info('Save mermaid image requested');
+			await this._handleSaveMermaidImage(payload.svgContent, payload.source);
+		}));
+
 		this._reg(this.rpcRouter.onAbortMessage(() => {
 			this.logger.info('Abort requested from UI');
 			this._onDidRequestAbort.fire();
@@ -535,6 +540,34 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			});
 		} catch (error) {
 			this.logger.error('[PASTE] Failed to handle pasted image', error instanceof Error ? error : undefined);
+		}
+	}
+
+	private async _handleSaveMermaidImage(svgContent: string, source: string) {
+		try {
+			const options: vscode.SaveDialogOptions = {
+				filters: svgContent
+					? { 'SVG Image': ['svg'], 'Mermaid Source': ['mmd'] }
+					: { 'Mermaid Source': ['mmd'] }
+			};
+			const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+			if (workspaceFolderUri) {
+				options.defaultUri = vscode.Uri.joinPath(workspaceFolderUri, 'diagram');
+			}
+			const uri = await vscode.window.showSaveDialog(options);
+			if (!uri) {
+				this.logger.info('[Mermaid] Save cancelled');
+				return;
+			}
+
+			const isMmd = uri.fsPath.endsWith('.mmd');
+			const content = isMmd ? source : svgContent;
+			await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
+			vscode.window.showInformationMessage(`Saved mermaid ${isMmd ? 'source' : 'image'} to ${path.basename(uri.fsPath)}`);
+			this.logger.info(`[Mermaid] Saved ${isMmd ? 'source' : 'SVG'} to ${uri.fsPath}`);
+		} catch (error) {
+			this.logger.error('[Mermaid] Failed to save', error instanceof Error ? error : undefined);
+			vscode.window.showErrorMessage('Failed to save mermaid diagram');
 		}
 	}
 

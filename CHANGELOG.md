@@ -2,6 +2,16 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.2.0] - 2026-02-23
+
+### ✨ Features
+
+- **Mermaid diagram toolbar** — Rendered mermaid diagrams now show a toolbar with "View Source" and "Save" buttons. View Source toggles between the rendered diagram and the raw mermaid syntax. Save opens a native Save As dialog to export as SVG image or `.mmd` source file.
+
+### 🐛 Bug Fixes
+
+- **Tool groups no longer pile up** — Fixed a regression from v3.1.0 where all tool executions accumulated in a single group div. Each assistant/user message now correctly starts a new tool group. Individual card expand/collapse state is preserved.
+
 ## [3.1.2] - 2026-02-21
 
 ### 🛡️ Reliability

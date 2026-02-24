@@ -50,6 +50,7 @@ import {
 	OpenInCLIPayload,
 	OpenFilePayload,
 	PasteImagePayload,
+	SaveMermaidImagePayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -407,6 +408,13 @@ export class ExtensionRpcRouter {
 	 */
 	onPasteImage(handler: MessageHandler<PasteImagePayload>): Disposable {
 		return this.registerHandler('pasteImage', handler);
+	}
+
+	/**
+	 * Register handler for saveMermaidImage
+	 */
+	onSaveMermaidImage(handler: MessageHandler<SaveMermaidImagePayload>): Disposable {
+		return this.registerHandler('saveMermaidImage', handler);
 	}
 
 	/**

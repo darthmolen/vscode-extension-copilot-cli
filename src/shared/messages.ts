@@ -49,7 +49,8 @@ export type WebviewMessageType =
 	| 'showHelp'
 	| 'showNotSupported'
 	| 'openInCLI'
-	| 'openFile';
+	| 'openFile'
+	| 'saveMermaidImage';
 
 /**
  * Send user message to agent
@@ -206,6 +207,15 @@ export interface OpenFilePayload extends BaseMessage {
 }
 
 /**
+ * Save a rendered mermaid diagram to disk
+ */
+export interface SaveMermaidImagePayload extends BaseMessage {
+	type: 'saveMermaidImage';
+	svgContent: string;
+	source: string;
+}
+
+/**
  * Union of all webview → extension messages
  */
 export type WebviewMessage =
@@ -228,7 +238,8 @@ export type WebviewMessage =
 	| ShowHelpPayload
 	| ShowNotSupportedPayload
 	| OpenInCLIPayload
-	| OpenFilePayload;
+	| OpenFilePayload
+	| SaveMermaidImagePayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -490,7 +501,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'showHelp',
 		'showNotSupported',
 		'openInCLI',
-		'openFile'
+		'openFile',
+		'saveMermaidImage'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);

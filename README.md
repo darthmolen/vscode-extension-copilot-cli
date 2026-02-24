@@ -38,6 +38,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 ### 🛠️ Rich Agent Experience
 
 - **In-Stream Tool Execution** — Collapsible tool groups show exactly what the agent is doing, inline with the conversation.
+- **Mermaid Diagrams** — Mermaid code blocks render as interactive diagrams with a toolbar to view source or save as SVG/`.mmd`.
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
 - **@file References** — Reference files directly in your messages.
@@ -51,27 +52,10 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
-### v3.1.2 - Smart Model Fallback + README Cleanup
+### v3.2.0 - Mermaid Diagrams + Tool Group Fix
 
-- **Smart model fallback** — When the configured model is unavailable (enterprise restrictions, typos), the extension queries your account's available models and picks the best one automatically. Notifies you in the chat with which model was selected.
-- **Copilot Memory** — Added documentation for the Copilot Memory public preview feature.
-- **README cleanup** — Trimmed pre-3.x version history, updated model count to 17.
-
-### v3.1.1 - Claude Sonnet 4.6 + Model Fallback
-
-- **Claude Sonnet 4.6** — Added `claude-sonnet-4.6` to both work and plan mode model selection dropdowns.
-- **Automatic model fallback** — If the selected model is not available on your enterprise or was mistyped, the extension falls back to `claude-sonnet-4.5` automatically and shows a warning notification.
-
-### v3.1.0 - Inline Image Rendering
-
-- **Agent-created images render in chat** — When the agent creates SVG, PNG, or other image files and mentions the path, the image renders inline in the sidebar. Supports bare paths (`images/chart.svg`) and markdown image syntax.
-- **Clickable file path links** — Image paths display as clickable links that open the file in a VS Code editor tab.
-- **"File not found" annotation** — When a referenced image doesn't exist on disk, the path is annotated with *file not found* so you know the tool execution failed.
-- **SVG code block rendering** — SVG content in code blocks renders as actual images in the chat.
-- **Paste images from clipboard** — Ctrl+V to paste images directly into the chat input.
-- **Individual tool card collapse** — Click any tool execution header to collapse/expand that specific card.
-- **Tool group stability** — Expanded tool groups no longer auto-collapse when messages arrive.
-- **URL overflow fix** — Long URLs no longer break out of message bubbles.
+- **Mermaid diagram toolbar** — Rendered mermaid diagrams now show a toolbar with "View Source" and "Save" buttons. View Source toggles between the rendered diagram and the raw mermaid syntax. Save opens a native Save As dialog to export as SVG image or `.mmd` source file.
+- **Tool groups no longer pile up** — Fixed a regression where all tool executions accumulated in a single group. Each assistant/user message now correctly starts a new tool group and saves its own expand/contract state.
 
 ### v3.0.1
 
