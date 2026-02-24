@@ -46,7 +46,7 @@ Users cannot change the AI model mid-conversation in the VS Code extension. The 
 
 ## Proposed Design: Dropdown Above Input Area
 
-**Location**: Between the message scrollable area and the input box
+**Location**: Right above "show reasoning" and "enter plan mode" icon.
 
 ```
 ┌─────────────────────────────────────────┐
