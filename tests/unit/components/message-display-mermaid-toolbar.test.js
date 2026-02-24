@@ -168,19 +168,21 @@ describe('MessageDisplay Mermaid Toolbar', function () {
 			assert.ok(emittedData.source.includes(source), 'should contain original source');
 		});
 
-		it('should NOT emit saveMermaidImage when no SVG rendered', function () {
+		it('should emit saveMermaidImage with empty svgContent when no SVG rendered', function () {
 			const msg = addMermaidMessage();
 			// Don't inject SVG — mermaid hasn't rendered yet in JSDOM
 
-			let emitted = false;
-			eventBus.on('saveMermaidImage', () => {
-				emitted = true;
+			let emittedData = null;
+			eventBus.on('saveMermaidImage', (data) => {
+				emittedData = data;
 			});
 
 			const saveBtn = msg.querySelector('.mermaid-toolbar__save');
 			saveBtn.click();
 
-			assert.ok(!emitted, 'should NOT emit when no SVG exists');
+			assert.ok(emittedData, 'saveMermaidImage event should still emit for .mmd save');
+			assert.strictEqual(emittedData.svgContent, '', 'svgContent should be empty string');
+			assert.ok(emittedData.source.includes('flowchart'), 'should contain original source');
 		});
 	});
 });

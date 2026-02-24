@@ -390,10 +390,6 @@ main {
 	margin: 0;
 }
 
-.hidden {
-	display: none !important;
-}
-
 .message-content em,
 .message-display__content em {
 	font-style: italic;

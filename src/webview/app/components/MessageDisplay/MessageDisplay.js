@@ -355,8 +355,8 @@ export class MessageDisplay {
             const toolbar = document.createElement('div');
             toolbar.className = 'mermaid-toolbar';
             toolbar.innerHTML = `
-                <button class="mermaid-toolbar__btn mermaid-toolbar__source" title="View Source">{ }</button>
-                <button class="mermaid-toolbar__btn mermaid-toolbar__save" title="Save Image">\uD83D\uDCBE</button>
+                <button class="mermaid-toolbar__btn mermaid-toolbar__source" type="button" aria-label="View mermaid source" title="View Source">{ }</button>
+                <button class="mermaid-toolbar__btn mermaid-toolbar__save" type="button" aria-label="Save mermaid diagram as image" title="Save Image">\uD83D\uDCBE</button>
             `;
             container.appendChild(toolbar);
 
@@ -384,12 +384,10 @@ export class MessageDisplay {
             // Wire Save button
             toolbar.querySelector('.mermaid-toolbar__save').addEventListener('click', () => {
                 const svg = diagramDiv.querySelector('svg');
-                if (svg) {
-                    this.eventBus.emit('saveMermaidImage', {
-                        svgContent: svg.outerHTML,
-                        source: mermaidSource
-                    });
-                }
+                this.eventBus.emit('saveMermaidImage', {
+                    svgContent: svg ? svg.outerHTML : '',
+                    source: mermaidSource
+                });
             });
         });
     }

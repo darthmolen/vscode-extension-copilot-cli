@@ -546,15 +546,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private async _handleSaveMermaidImage(svgContent: string, source: string) {
 		try {
 			const options: vscode.SaveDialogOptions = {
-				defaultUri: vscode.Uri.joinPath(
-					vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(''),
-					'diagram'
-				),
-				filters: {
-					'SVG Image': ['svg'],
-					'Mermaid Source': ['mmd']
-				}
+				filters: svgContent
+					? { 'SVG Image': ['svg'], 'Mermaid Source': ['mmd'] }
+					: { 'Mermaid Source': ['mmd'] }
 			};
+			const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+			if (workspaceFolderUri) {
+				options.defaultUri = vscode.Uri.joinPath(workspaceFolderUri, 'diagram');
+			}
 			const uri = await vscode.window.showSaveDialog(options);
 			if (!uri) {
 				this.logger.info('[Mermaid] Save cancelled');
