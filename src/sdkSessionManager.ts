@@ -1284,7 +1284,7 @@ export class SDKSessionManager implements vscode.Disposable {
             const result = await this.session.rpc.model.switchTo({ modelId: newModel });
             this.config.model = newModel;
             this.logger.info(`[Model Switch] Successfully switched to "${result.modelId}"`);
-            this._onDidChangeStatus.fire({ status: 'model_switched', model: newModel });
+            // Note: model_switched status is fired by the session.model_change event handler
         } catch (error) {
             this.logger.error(`[Model Switch] Failed to switch to "${newModel}": ${error instanceof Error ? error.message : error}`);
             this._onDidChangeStatus.fire({ status: 'model_switch_failed', model: previousModel });

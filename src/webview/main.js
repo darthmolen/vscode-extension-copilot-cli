@@ -453,7 +453,7 @@ export function handleStatusMessage(payload) {
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
 		const postTokens = payload.data.postCompactionTokens;
-		if (postTokens !== undefined && postTokens > 0) {
+		if (postTokens !== undefined && postTokens > 0 && lastTokenLimit > 0) {
 			// Compaction reset: show post-compaction values, not zero
 			const windowPct = Math.round((postTokens / lastTokenLimit) * 100);
 			console.log(`[METRICS] Compaction reset: ${postTokens} tokens, ${windowPct}% window`);

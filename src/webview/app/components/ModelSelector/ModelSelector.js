@@ -69,6 +69,19 @@ class ModelSelector {
 				this.close();
 			}
 		});
+
+		this._onDocumentClick = (event) => {
+			if (this.isOpen && !this.container.contains(event.target)) {
+				this.close();
+			}
+		};
+		document.addEventListener('click', this._onDocumentClick);
+	}
+
+	destroy() {
+		if (this._onDocumentClick) {
+			document.removeEventListener('click', this._onDocumentClick);
+		}
 	}
 
 	/**

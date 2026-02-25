@@ -1473,9 +1473,9 @@ button.stop-button:hover {
 }
 
 .tier-standard {
-	color: #3fb950;
+	color: var(--vscode-testing-iconPassed);
 }
 
 .tier-premium {
-	color: #d29922;
+	color: var(--vscode-editorWarning-foreground);
 }

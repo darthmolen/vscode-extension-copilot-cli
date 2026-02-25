@@ -53,7 +53,7 @@ describe('Mid-Session Model Switching', function () {
 			assert.strictEqual(firedStatus.length, 0, 'Should not fire any events for same model');
 		});
 
-		it('should fire model_switched status on success', async function () {
+		it('should call SDK and update config on success (event fired by session.model_change)', async function () {
 			const firedStatus = [];
 			let switchedTo = null;
 
@@ -81,10 +81,10 @@ describe('Mid-Session Model Switching', function () {
 			// Should have updated config.model
 			assert.strictEqual(ctx.config.model, 'gpt-5', 'config.model should be updated');
 
-			// Should fire model_switched
+			// switchModel() no longer fires model_switched directly — the SDK
+			// session.model_change event handler is the single source of truth
 			const switched = firedStatus.filter(e => e.status === 'model_switched');
-			assert.strictEqual(switched.length, 1, 'Should fire model_switched');
-			assert.strictEqual(switched[0].model, 'gpt-5', 'Should include new model name');
+			assert.strictEqual(switched.length, 0, 'switchModel should not fire model_switched directly');
 		});
 
 		it('should fire model_switch_failed and keep previous model on error', async function () {
