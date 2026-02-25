@@ -480,7 +480,7 @@ export interface CurrentModelPayload extends BaseMessage {
  */
 export interface AvailableModelsPayload extends BaseMessage {
 	type: 'availableModels';
-	models: Array<{ id: string; name: string }>;
+	models: Array<{ id: string; name: string; multiplier?: number }>;
 }
 
 /**

@@ -28,6 +28,7 @@ export interface ModelInfo {
     id: string;
     name: string;
     capabilities: ModelCapabilities;
+    billing?: { multiplier: number };
 }
 
 /**

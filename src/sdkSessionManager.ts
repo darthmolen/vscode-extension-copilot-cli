@@ -1905,10 +1905,10 @@ export class SDKSessionManager implements vscode.Disposable {
     /**
      * Get available models from the SDK for populating UI dropdowns
      */
-    public async getAvailableModels(): Promise<Array<{ id: string; name: string }>> {
+    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number }>> {
         try {
             const models = await this.modelCapabilitiesService.getAllModels();
-            return models.map(m => ({ id: m.id, name: m.name }));
+            return models.map(m => ({ id: m.id, name: m.name, multiplier: m.billing?.multiplier }));
         } catch {
             return [];
         }

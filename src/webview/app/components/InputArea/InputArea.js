@@ -62,20 +62,15 @@ export class InputArea {
 	render() {
 		this.container.innerHTML = `
 			<div class="input-controls">
-				<div class="controls-left">
-					<div id="active-file-mount"></div>
-					<div id="metrics-mount"></div>
-				</div>
-				<div class="controls-right">
-					<div id="model-selector-mount"></div>
-					<div class="controls-spacer"></div>
-					<div class="controls-row">
-						<label class="reasoning-toggle">
-							<input type="checkbox" id="reasoningCheckbox" />
-							<span>Show Reasoning</span>
-						</label>
-						<div id="plan-controls-mount"></div>
-					</div>
+				<div class="active-file-row" id="active-file-mount"></div>
+				<div class="model-selector-row" id="model-selector-mount"></div>
+				<div class="metrics-row" id="metrics-mount"></div>
+				<div class="controls-row">
+					<label class="reasoning-toggle">
+						<input type="checkbox" id="reasoningCheckbox" />
+						<span>Show Reasoning</span>
+					</label>
+					<div id="plan-controls-mount"></div>
 				</div>
 			</div>
 			<div class="input-area">

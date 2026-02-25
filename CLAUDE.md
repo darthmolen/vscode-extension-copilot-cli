@@ -98,6 +98,15 @@ CLI responds → SDK event → SDKSessionManager emitter
 
 When in doubt, bump minor. A "small feature" is still a feature.
 
+## Design Principle: Thoughtful & Useful
+
+This extension's identity is "thoughtful" — we prioritize presenting meaningful, well-organized information over shipping fast. Every UI element should help the user make better decisions.
+
+- **Group by usefulness, not by data source.** Models are grouped by cost tier (Fast/Standard/Premium), not by vendor. The user cares about "how much does this cost me?" not "who made this model?"
+- **Show decision-relevant data.** Multiplier badges tell users the cost implication of switching models. Don't hide information that affects their choices.
+- **Don't become the Swiss Army knife.** Every feature we add should have a clear reason to exist and present its information thoughtfully. We are not a generic wrapper — we are a focused, opinionated tool.
+- **Useful > Fast.** When choosing between shipping quickly and shipping something genuinely helpful, always choose helpful. A half-baked feature with missing context damages trust.
+
 ## Critical: Webview Build System
 
 esbuild.js manually copies each webview file to `dist/`. When adding a new directory under `src/webview/app/`, you MUST update `esbuild.js` with:

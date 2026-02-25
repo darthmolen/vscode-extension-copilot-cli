@@ -224,12 +224,12 @@ describe('ModelSelector Component', () => {
 			expect(modelIds).to.include('gemini-3-pro-preview');
 		});
 
-		it('should group dynamic models by vendor prefix', () => {
+		it('should group dynamic models by cost tier', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
-				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
-				{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6' },
-				{ id: 'gpt-5', name: 'GPT-5' },
+				{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', multiplier: 0.5 },
+				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', multiplier: 1.0 },
+				{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', multiplier: 3.0 },
 			]);
 			selector.setModel('claude-sonnet-4.6');
 
@@ -237,7 +237,11 @@ describe('ModelSelector Component', () => {
 			bar.click();
 
 			const groups = container.querySelectorAll('.model-group-header');
-			expect(groups.length).to.be.greaterThan(1);
+			const groupTexts = Array.from(groups).map(g => g.textContent);
+			expect(groups.length).to.equal(3);
+			expect(groupTexts).to.include('Fast');
+			expect(groupTexts).to.include('Standard');
+			expect(groupTexts).to.include('Premium');
 		});
 
 		it('should use fallback catalog when setAvailableModels not called', () => {
