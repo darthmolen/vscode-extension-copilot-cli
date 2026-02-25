@@ -134,8 +134,22 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			messages: fullState.messages,
 			planModeStatus: fullState.planModeStatus,
 			workspacePath: fullState.workspacePath,
-			activeFilePath: fullState.activeFilePath
+			activeFilePath: fullState.activeFilePath,
+			currentModel: fullState.currentModel
 		});
+	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestSwitchModel(async (model: string) => {
+		logger.info(`[Model Switch] Requested: ${model}`);
+		try {
+			if (cliManager) {
+				await cliManager.switchModel(model);
+			} else {
+				logger.warn('[Model Switch] No active session manager');
+			}
+		} catch (error: any) {
+			logger.error(`[Model Switch] Failed: ${error.message}`);
+		}
 	}));
 }
 
@@ -232,7 +246,8 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 		messages: fullState.messages,
 		planModeStatus: fullState.planModeStatus,
 		workspacePath: fullState.workspacePath,
-		activeFilePath: fullState.activeFilePath
+		activeFilePath: fullState.activeFilePath,
+		currentModel: fullState.currentModel
 	});
 	updateSessionsList();
 }
@@ -427,6 +442,13 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 			case 'reset_metrics':
 				chatProvider.postMessage({ type: 'status', data: statusData });
 				break;
+			case 'model_switched':
+				backendState.setCurrentModel(statusData.model || null);
+				chatProvider.sendModelSwitched(statusData.model || '', true);
+				break;
+			case 'model_switch_failed':
+				chatProvider.sendModelSwitched(statusData.model || '', false);
+				break;
 		}
 	})));
 
@@ -517,10 +539,23 @@ function onSessionStarted(manager: SDKSessionManager): void {
 		return await cliManager.validateAttachments(filePaths);
 	});
 
+	// Set configured default model in backend state so webview shows it
+	const configModel = getCLIConfig().model;
+	backendState.setCurrentModel(configModel || null);
+
 	logger.info('CLI process started successfully');
 	chatProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
 	updateSessionsList();
 	logger.show();
+
+	// Fetch available models from SDK and send to webview (fire-and-forget)
+	cliManager?.getAvailableModels().then(models => {
+		if (models.length > 0) {
+			chatProvider.sendAvailableModels(models);
+		}
+	}).catch(err => {
+		logger.warn(`[Models] Failed to fetch available models: ${err}`);
+	});
 }
 
 /** Handle startup errors: auth errors get special dialog flow, others get generic message. */

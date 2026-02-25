@@ -50,7 +50,8 @@ export type WebviewMessageType =
 	| 'showNotSupported'
 	| 'openInCLI'
 	| 'openFile'
-	| 'saveMermaidImage';
+	| 'saveMermaidImage'
+	| 'switchModel';
 
 /**
  * Send user message to agent
@@ -216,6 +217,14 @@ export interface SaveMermaidImagePayload extends BaseMessage {
 }
 
 /**
+ * Switch to a different model mid-session
+ */
+export interface SwitchModelPayload extends BaseMessage {
+	type: 'switchModel';
+	model: string;
+}
+
+/**
  * Union of all webview → extension messages
  */
 export type WebviewMessage =
@@ -239,7 +248,8 @@ export type WebviewMessage =
 	| ShowNotSupportedPayload
 	| OpenInCLIPayload
 	| OpenFilePayload
-	| SaveMermaidImagePayload;
+	| SaveMermaidImagePayload
+	| SwitchModelPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -268,7 +278,10 @@ export type ExtensionMessageType =
 	| 'appendMessage'
 	| 'attachmentValidation'
 	| 'status'
-	| 'usage_info';
+	| 'usage_info'
+	| 'modelSwitched'
+	| 'currentModel'
+	| 'availableModels';
 
 /**
  * Initialize webview with full state
@@ -281,6 +294,7 @@ export interface InitPayload extends BaseMessage {
 	planModeStatus: PlanModeStatus | null;
 	workspacePath: string | null;
 	activeFilePath: string | null;
+	currentModel: string | null;
 }
 
 /**
@@ -445,6 +459,31 @@ export interface UsageInfoPayload extends BaseMessage {
 }
 
 /**
+ * Model switched result (success or failure)
+ */
+export interface ModelSwitchedPayload extends BaseMessage {
+	type: 'modelSwitched';
+	model: string;
+	success: boolean;
+}
+
+/**
+ * Current model notification
+ */
+export interface CurrentModelPayload extends BaseMessage {
+	type: 'currentModel';
+	model: string;
+}
+
+/**
+ * Available models list from SDK
+ */
+export interface AvailableModelsPayload extends BaseMessage {
+	type: 'availableModels';
+	models: Array<{ id: string; name: string }>;
+}
+
+/**
  * Union of all extension → webview messages
  */
 export type ExtensionMessage =
@@ -467,7 +506,10 @@ export type ExtensionMessage =
 	| AppendMessagePayload
 	| AttachmentValidationPayload
 	| StatusPayload
-	| UsageInfoPayload;
+	| UsageInfoPayload
+	| ModelSwitchedPayload
+	| CurrentModelPayload
+	| AvailableModelsPayload;
 
 // ============================================================================
 // Type Guards
@@ -502,7 +544,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'showNotSupported',
 		'openInCLI',
 		'openFile',
-		'saveMermaidImage'
+		'saveMermaidImage',
+		'switchModel'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);
@@ -536,8 +579,10 @@ export function isExtensionMessage(message: any): message is ExtensionMessage {
 		'appendMessage',
 		'attachmentValidation',
 		'status',
-		'usage_info'
+		'usage_info',
+		'modelSwitched',
+		'currentModel'
 	];
-	
+
 	return validTypes.includes(message.type as ExtensionMessageType);
 }

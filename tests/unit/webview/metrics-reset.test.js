@@ -72,6 +72,53 @@ describe('Compaction Metrics Reset', function () {
 		assert.equal(usageUsed.textContent, 'Used: 0', 'Usage used should be reset to 0');
 	});
 
+	it('resets usage to post-compaction values when postCompactionTokens is provided', function () {
+		const { handleStatusMessage, inputArea, handleUsageInfoMessage } = mainModule.__testExports;
+
+		// Set non-zero usage so tokenLimit is stored
+		handleUsageInfoMessage({
+			data: {
+				currentTokens: 80000,
+				tokenLimit: 100000,
+				remainingPercentage: 50
+			}
+		});
+
+		// Trigger compaction reset with post-compaction token count
+		handleStatusMessage({ data: { resetMetrics: true, postCompactionTokens: 5000 } });
+
+		const usageWindow = document.getElementById('usageWindow');
+		const usageUsed = document.getElementById('usageUsed');
+		const usageRemaining = document.getElementById('usageRemaining');
+
+		// Window should show 5% (5000/100000), not 0%
+		assert.equal(usageWindow.textContent, 'Window: 5%', 'Usage window should reflect post-compaction percentage');
+		// Used should show 5K, not 0
+		assert.equal(usageUsed.textContent, 'Used: 5.0K', 'Usage used should reflect post-compaction tokens');
+		// Remaining should be untouched (account-level, not session-level)
+		assert.equal(usageRemaining.textContent, 'Remaining: 50', 'Remaining should not change on compaction');
+	});
+
+	it('zeros out usage when postCompactionTokens is not provided (new session reset)', function () {
+		const { handleStatusMessage, handleUsageInfoMessage } = mainModule.__testExports;
+
+		// Set non-zero usage
+		handleUsageInfoMessage({
+			data: {
+				currentTokens: 50000,
+				tokenLimit: 100000
+			}
+		});
+
+		// Trigger reset without postCompactionTokens (new session behavior)
+		handleStatusMessage({ data: { resetMetrics: true } });
+
+		const usageWindow = document.getElementById('usageWindow');
+		const usageUsed = document.getElementById('usageUsed');
+		assert.equal(usageWindow.textContent, 'Window: 0%', 'Usage window should be 0% for new session reset');
+		assert.equal(usageUsed.textContent, 'Used: 0', 'Usage used should be 0 for new session reset');
+	});
+
 	it('does not reset metrics when resetMetrics is absent', function () {
 		const { handleStatusMessage, handleUsageInfoMessage } = mainModule.__testExports;
 

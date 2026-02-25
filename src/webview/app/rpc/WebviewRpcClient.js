@@ -257,6 +257,17 @@ class WebviewRpcClient {
 		});
 	}
 
+	/**
+	 * Switch to a different model mid-session
+	 * @param {string} model - Model ID to switch to
+	 */
+	switchModel(model) {
+		this._send({
+			type: 'switchModel',
+			model
+		});
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================
@@ -449,7 +460,34 @@ class WebviewRpcClient {
 	onUsageInfo(handler) {
 		return this._registerHandler('usage_info', handler);
 	}
-	
+
+	/**
+	 * Register handler for modelSwitched
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onModelSwitched(handler) {
+		return this._registerHandler('modelSwitched', handler);
+	}
+
+	/**
+	 * Register handler for currentModel
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onCurrentModel(handler) {
+		return this._registerHandler('currentModel', handler);
+	}
+
+	/**
+	 * Register handler for availableModels
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onAvailableModels(handler) {
+		return this._registerHandler('availableModels', handler);
+	}
+
 	// ========================================================================
 	// Private Methods
 	// ========================================================================

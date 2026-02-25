@@ -42,6 +42,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
 - **@file References** — Reference files directly in your messages.
+- **Mid-Session Model Switching** — Switch AI models mid-conversation without losing context. The session resumes with the new model, preserving all messages and tool state.
 - **17 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
 - **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
 
@@ -52,10 +53,11 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
-### v3.2.0 - Mermaid Diagrams + Tool Group Fix
+### v3.3.0 - Mid-Session Model Switching
 
-- **Mermaid diagram toolbar** — Rendered mermaid diagrams now show a toolbar with "View Source" and "Save" buttons. View Source toggles between the rendered diagram and the raw mermaid syntax. Save opens a native Save As dialog to export as SVG image or `.mmd` source file.
-- **Tool groups no longer pile up** — Fixed a regression where all tool executions accumulated in a single group. Each assistant/user message now correctly starts a new tool group and saves its own expand/contract state.
+- **Model switching without losing context** — New ModelSelector dropdown in the controls bar lets you switch AI models mid-conversation. The SDK resumes the session with the new model, preserving all previous messages and tool state.
+- **SDK 0.1.26 reliability** — Permission handler, client name header, fixed `--yolo` flag logic, and accurate compaction metrics.
+- **New SDK event handling** — Compaction, queued messages, subagent, hook, skill, and model change events.
 
 ### v3.0.1
 

@@ -128,4 +128,14 @@ describe('BackendState - Session Tracking', () => {
             expect(state.getToolCallCount()).to.equal(0);
         });
     });
+
+    describe('Current Model Reset', () => {
+        it('should reset currentModel when reset() is called', () => {
+            state.setCurrentModel('claude-opus-4.5');
+            expect(state.getCurrentModel()).to.equal('claude-opus-4.5');
+
+            state.reset();
+            expect(state.getCurrentModel()).to.be.null;
+        });
+    });
 });

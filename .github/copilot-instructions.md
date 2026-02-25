@@ -811,7 +811,15 @@ try {
 
 2. **Watch Output Channel**: `Ctrl+Shift+U` → "Copilot CLI"
 
-3. **Check session files**:
+3. **Read saved log files**: The `tests/logs/server/` directory contains log files manually saved from the Output Channel. As an AI agent, read them with:
+   - `grep -i "keyword" tests/logs/server/<name>.log` — search for specific events
+   - `bash head -N` / `tail -N` for large files (they can exceed the `view` tool's size limit)
+   - `view` with `view_range` for specific line ranges
+   - Log format: `[LEVEL] TIMESTAMP Message` (levels: `INFO`, `DEBUG`, `WARN`, `ERROR`)
+
+   To save a new log: Output Channel → "..." menu → "Open Output in Editor" → save to `tests/logs/server/<descriptive-name>.log`
+
+4. **Check session files**:
 ```bash
 # View conversation history
 cat ~/.copilot/session-state/<session-id>/events.jsonl

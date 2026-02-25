@@ -3,6 +3,7 @@ import { ActiveFileDisplay } from '../ActiveFileDisplay/ActiveFileDisplay.js';
 import { StatusBar } from '../StatusBar/StatusBar.js';
 import { PlanModeControls } from '../PlanModeControls/PlanModeControls.js';
 import { SlashCommandPanel } from '../SlashCommandPanel/SlashCommandPanel.js';
+import { ModelSelector } from '../ModelSelector/ModelSelector.js';
 import { CommandParser } from '../../services/CommandParser.js';
 
 /**
@@ -66,6 +67,7 @@ export class InputArea {
 					<div id="metrics-mount"></div>
 				</div>
 				<div class="controls-right">
+					<div id="model-selector-mount"></div>
 					<div class="controls-spacer"></div>
 					<div class="controls-row">
 						<label class="reasoning-toggle">
@@ -107,12 +109,13 @@ export class InputArea {
 		const activeFileMount = this.container.querySelector('#active-file-mount');
 		const metricsMount = this.container.querySelector('#metrics-mount');
 		const planControlsMount = this.container.querySelector('#plan-controls-mount');
-		
+		const modelSelectorMount = this.container.querySelector('#model-selector-mount');
 		const slashCommandMount = this.container.querySelector('#slash-command-mount');
 
 		this.activeFileDisplay = new ActiveFileDisplay(activeFileMount, this.eventBus);
 		this.statusBar = new StatusBar(metricsMount);
 		this.planModeControls = new PlanModeControls(planControlsMount, this.eventBus);
+		this.modelSelector = new ModelSelector(modelSelectorMount, this.eventBus);
 		this.slashCommandPanel = new SlashCommandPanel(slashCommandMount);
 		this.slashCommandPanel.onSelect = (commandName) => {
 			this.messageInput.value = `/${commandName} `;
@@ -500,6 +503,26 @@ export class InputArea {
 		}
 	}
 	
+	/**
+	 * Set current model on the ModelSelector
+	 * @param {string} model - Model ID
+	 */
+	setCurrentModel(model) {
+		if (this.modelSelector) {
+			this.modelSelector.setModel(model);
+		}
+	}
+
+	/**
+	 * Set available models on the ModelSelector
+	 * @param {Array<{id: string, name: string}>} models
+	 */
+	setAvailableModels(models) {
+		if (this.modelSelector) {
+			this.modelSelector.setAvailableModels(models);
+		}
+	}
+
 	/**
 	 * Add attachments to pending list (called from filesSelected handler)
 	 * @param {Array} attachments - Array of attachment objects

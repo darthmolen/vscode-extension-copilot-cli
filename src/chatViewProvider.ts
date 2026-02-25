@@ -38,12 +38,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidRequestAbort = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
+	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
 	readonly onDidRequestAbort = this._onDidRequestAbort.event;
 	readonly onDidRequestViewPlan = this._onDidRequestViewPlan.event;
 	readonly onDidBecomeReady = this._onDidBecomeReady.event;
+	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
 
 	constructor(extensionUri: vscode.Uri) {
 		this.extensionUri = extensionUri;
@@ -133,7 +135,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				messages: fullState.messages as any,
 				planModeStatus: fullState.planModeStatus,
 				workspacePath: fullState.workspacePath,
-				activeFilePath: fullState.activeFilePath
+				activeFilePath: fullState.activeFilePath,
+				currentModel: fullState.currentModel
 			});
 
 			this._onDidBecomeReady.fire();
@@ -313,6 +316,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			}
 		}));
 
+		this._reg(this.rpcRouter.onSwitchModel((payload) => {
+			this.logger.info(`Switch model requested: ${payload.model}`);
+			this._onDidRequestSwitchModel.fire(payload.model);
+		}));
+
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
 			this.logger.info(`[OpenFile] ${payload.filePath}`);
 			const resolved = path.resolve(payload.filePath);
@@ -440,6 +448,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public updateActiveFile(filePath: string | null) {
 		this.rpcRouter?.setActiveFile(filePath);
+	}
+
+	public sendModelSwitched(model: string, success: boolean) {
+		this.rpcRouter?.sendModelSwitched(model, success);
+	}
+
+	public sendCurrentModel(model: string) {
+		this.rpcRouter?.sendCurrentModel(model);
+	}
+
+	public sendAvailableModels(models: Array<{ id: string; name: string }>) {
+		this.rpcRouter?.sendAvailableModels(models);
 	}
 
 	private async _handleFilePicker() {

@@ -32,6 +32,18 @@ For a faster dev loop, use `npm run watch` in a terminal and the VSIX workflow: 
 
 Logs go to the "Copilot CLI" Output Channel (`Ctrl+Shift+U`).
 
+### Saved Log Files
+
+The `tests/logs/server/` directory contains log files manually saved from the Output Channel for debugging and documentation. To read them as an AI agent:
+
+1. Use `grep` to search for specific events (e.g., `grep -i "model switch\|error\|warn" tests/logs/server/model-change.log`)
+2. Use `head`/`tail` via bash for large files (they can exceed the `view` tool's size limit)
+3. Use `view` with `view_range` to read specific line ranges
+
+Log format: `[LEVEL] TIMESTAMP Message` — levels are `INFO`, `DEBUG`, `WARN`, `ERROR`.
+
+To save a new log: open the Output Channel (`Ctrl+Shift+U` → "Copilot CLI"), click the "..." menu → "Open Output in Editor", then save to `tests/logs/server/<descriptive-name>.log`.
+
 ## Architecture
 
 This is a VS Code sidebar extension that wraps `@github/copilot-sdk` (backend-only, no UI) to provide a chat interface for GitHub Copilot CLI.
@@ -113,6 +125,22 @@ This project uses strict TDD. Tests must import production code, not mocks. A te
 - Webview tests use JSDOM (`tests/helpers/jsdom-setup.js`, `jsdom-component-setup.js`).
 - Test helpers: `createTestDOM()`, `cleanupTestDOM()`, `createMockRpc()`, `createComponentDOM()`.
 - E2E tests (`tests/e2e/`) need a live Copilot SDK connection and compiled output.
+
+## SDK-First Development
+
+The SDK source code lives at `research/copilot-sdk/*`. Before implementing any feature that touches the Copilot SDK (`sdkSessionManager.ts`, session lifecycle, model switching, tool registration, etc.):
+
+1. **Read the SDK source first.** Check `research/copilot-sdk/nodejs/src/` for the proper API — types, RPC methods, session events. The SDK often has purpose-built methods for what you need (e.g., `session.rpc.model.switchTo()` instead of destroy/resume).
+2. **Spike it.** Write a minimal script in `planning/spikes/<topic>/` that calls the SDK directly (no extension, no webview) to prove the behavior. See existing spikes for the pattern.
+3. **Then implement.** Use what the spike proves, not assumptions about how the SDK works.
+
+Key SDK reference files:
+
+- `research/copilot-sdk/nodejs/src/client.ts` — CopilotClient (createSession, resumeSession, listModels)
+- `research/copilot-sdk/nodejs/src/session.ts` — CopilotSession (sendAndWait, destroy, rpc accessor)
+- `research/copilot-sdk/nodejs/src/generated/rpc.ts` — All RPC methods (session.model.switchTo, session.mode.get, etc.)
+- `research/copilot-sdk/nodejs/src/generated/session-events.ts` — All session events (session.model_change, assistant.usage, etc.)
+- `research/copilot-sdk/nodejs/src/types.ts` — SessionConfig, ResumeSessionConfig, ModelInfo
 
 ## Custom Tool Registration
 

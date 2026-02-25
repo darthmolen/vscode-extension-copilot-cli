@@ -43,6 +43,7 @@ async function main() {
 	const activeFileDisplayDistDir = path.join(componentsDistDir, 'ActiveFileDisplay');
 	const planModeControlsDistDir = path.join(componentsDistDir, 'PlanModeControls');
 	const slashCommandPanelDistDir = path.join(componentsDistDir, 'SlashCommandPanel');
+	const modelSelectorDistDir = path.join(componentsDistDir, 'ModelSelector');
 
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
@@ -85,6 +86,9 @@ async function main() {
 	}
 	if (!fs.existsSync(slashCommandPanelDistDir)) {
 		fs.mkdirSync(slashCommandPanelDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(modelSelectorDistDir)) {
+		fs.mkdirSync(modelSelectorDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -186,6 +190,11 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'SlashCommandPanel', 'SlashCommandPanel.js'),
 		path.join(slashCommandPanelDistDir, 'SlashCommandPanel.js')
+	);
+	// ModelSelector component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'ModelSelector', 'ModelSelector.js'),
+		path.join(modelSelectorDistDir, 'ModelSelector.js')
 	);
 
 	// Extension build context
