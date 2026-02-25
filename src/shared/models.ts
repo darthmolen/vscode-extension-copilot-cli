@@ -75,6 +75,7 @@ export interface InitState {
 	planModeStatus: PlanModeStatus | null;
 	workspacePath: string | null;
 	activeFilePath: string | null;
+	currentModel: string | null;
 }
 
 /**

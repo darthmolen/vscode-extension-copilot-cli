@@ -43,6 +43,7 @@ let planMode = false;
 let planReady = false;
 let workspacePath = null;
 let isReasoning = false;
+let lastTokenLimit = 100000; // Track last known token limit for compaction resets
 
 // Create EventBus for component communication
 const eventBus = new EventBus();
@@ -198,6 +199,12 @@ eventBus.on('openFile', (filePath) => {
 // Save mermaid diagram to disk
 eventBus.on('saveMermaidImage', (data) => {
 	rpc.saveMermaidImage(data);
+});
+
+// Model switching
+eventBus.on('modelSelected', (model) => {
+	console.log('[Model] Switch requested:', model);
+	rpc.switchModel(model);
 });
 
 // Listen for input:sendMessage events from InputArea component
@@ -412,8 +419,9 @@ export function handleUsageInfoMessage(payload) {
 	if (payload.data.currentTokens !== undefined && payload.data.tokenLimit !== undefined) {
 		const used = payload.data.currentTokens;
 		const limit = payload.data.tokenLimit;
+		lastTokenLimit = limit;
 		const windowPct = Math.round((used / limit) * 100);
-		
+
 		// Update metrics via InputArea (which contains StatusBar)
 		inputArea.updateUsageWindow(windowPct, used, limit);
 		inputArea.updateUsageUsed(used);
@@ -444,9 +452,19 @@ export function handleStatusMessage(payload) {
 	
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
-		console.log('[METRICS] Resetting session-level metrics');
-		inputArea.updateUsageWindow(0, 0, 1);
-		inputArea.updateUsageUsed(0);
+		const postTokens = payload.data.postCompactionTokens;
+		if (postTokens !== undefined && postTokens > 0 && lastTokenLimit > 0) {
+			// Compaction reset: show post-compaction values, not zero
+			const windowPct = Math.round((postTokens / lastTokenLimit) * 100);
+			console.log(`[METRICS] Compaction reset: ${postTokens} tokens, ${windowPct}% window`);
+			inputArea.updateUsageWindow(windowPct, postTokens, lastTokenLimit);
+			inputArea.updateUsageUsed(postTokens);
+		} else {
+			// New session reset: zero out
+			console.log('[METRICS] Resetting session-level metrics');
+			inputArea.updateUsageWindow(0, 0, 1);
+			inputArea.updateUsageUsed(0);
+		}
 	}
 	
 	if (status === 'plan_mode_enabled') {
@@ -525,6 +543,25 @@ export function handleInitMessage(payload) {
 	}
 	
 	setSessionActive(payload.sessionActive);
+
+	// Set current model if provided
+	if (payload.currentModel) {
+		inputArea.setCurrentModel(payload.currentModel);
+	}
+}
+
+function handleModelSwitchedMessage(payload) {
+	if (payload.success) {
+		inputArea.setCurrentModel(payload.model);
+	}
+}
+
+function handleCurrentModelMessage(payload) {
+	inputArea.setCurrentModel(payload.model);
+}
+
+function handleAvailableModelsMessage(payload) {
+	inputArea.setAvailableModels(payload.models);
 }
 
 function setThinking(isThinking) {
@@ -565,6 +602,9 @@ rpc.onUsageInfo(handleUsageInfoMessage);
 rpc.onResetPlanMode(handleResetPlanModeMessage);
 rpc.onStatus(handleStatusMessage);
 rpc.onFilesSelected(handleFilesSelectedMessage);
+rpc.onModelSwitched(handleModelSwitchedMessage);
+rpc.onCurrentModel(handleCurrentModelMessage);
+rpc.onAvailableModels(handleAvailableModelsMessage);
 rpc.onInit(handleInitMessage);
 
 // Notify extension that webview is ready (skip in test mode)

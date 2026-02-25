@@ -2,6 +2,28 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.3.0] - 2026-02-24
+
+### ✨ Features
+
+- **Mid-session model switching** — New ModelSelector dropdown in the controls bar lets you switch models without losing conversation context. The SDK resumes the session with the new model, preserving all previous messages and tool state.
+- **Tier-grouped model selector** — Models are grouped by cost tier (Fast/Standard/Premium) instead of vendor, with multiplier badges (e.g., 0.5x, 1x, 3x) showing the request cost of each model. Multiplier data flows from the SDK through the full pipeline.
+- **Responsive header** — Session toolbar adapts to narrow sidebars. The "Session:" label wraps above the dropdown instead of truncating the session name. All header text standardized to 12px.
+- **Queued message indicator** — When you send a message while the AI is still processing, the extension now tracks queued state internally via `pending_messages.modified` SDK events. Foundation for a visible queue indicator in a future release.
+
+### 🛡️ Reliability
+
+- **SDK 0.1.26 permission handler** — Added `onPermissionRequest: approveAll` to all session creation and resume paths. SDK 0.1.26 silently denies all tool operations without this handler. The `availableTools` whitelist and `--yolo` flag continue to control policy at the CLI level.
+- **Client name header** — All sessions now include `clientName: 'vscode-copilot-cli'` for proper UA identification in SDK telemetry.
+- **Fixed `--yolo` flag logic** — The `--yolo` CLI flag is now only passed when `yolo=true` AND no `allowTools`/`denyTools` policy is configured. Previously, `--yolo` would override user-defined tool policies.
+- **Compaction metric accuracy** — After context compaction, usage metrics now reflect post-compaction token counts instead of resetting to zero. The Remaining (account-level) metric is untouched since compaction only affects the session window.
+
+### 🔧 Internal
+
+- **New SDK event handling** — Added explicit handlers for `session.compaction_start`, `session.compaction_complete`, `pending_messages.modified`, and logging for `subagent.*`, `hook.*`, `skill.invoked`, `session.model_change` events.
+- **Removed `--no-auto-update` flag** — No longer needed with SDK 0.1.26 which manages CLI version compatibility internally.
+- **`currentModel` in init payload** — The webview now receives the current model ID on initialization and webview reconnect, enabling the ModelSelector to show the correct state immediately.
+
 ## [3.2.0] - 2026-02-23
 
 ### ✨ Features

@@ -28,6 +28,7 @@ export class BackendState {
     private workspacePath: string | null = null;
     private activeFilePath: string | null = null;
     private sessionStartTime: number | null = null;
+    private currentModel: string | null = null;
 
     // Session management
     public setSessionId(id: string | null): void {
@@ -116,6 +117,14 @@ export class BackendState {
         return this.activeFilePath;
     }
 
+    public setCurrentModel(model: string | null): void {
+        this.currentModel = model;
+    }
+
+    public getCurrentModel(): string | null {
+        return this.currentModel;
+    }
+
     // Get full state for webview sync
     public getFullState(): {
         sessionId: string | null;
@@ -124,6 +133,7 @@ export class BackendState {
         planModeStatus: PlanModeStatus | null;
         workspacePath: string | null;
         activeFilePath: string | null;
+        currentModel: string | null;
     } {
         return {
             sessionId: this.sessionId,
@@ -131,7 +141,8 @@ export class BackendState {
             messages: this.getMessages(),
             planModeStatus: this.getPlanModeStatus(),
             workspacePath: this.workspacePath,
-            activeFilePath: this.activeFilePath
+            activeFilePath: this.activeFilePath,
+            currentModel: this.currentModel
         };
     }
 
@@ -142,6 +153,7 @@ export class BackendState {
         this.messages = [];
         this.planModeStatus = null;
         this.sessionStartTime = null;
+        this.currentModel = null;
         // Keep workspace/active file as they're environment-level state
     }
 

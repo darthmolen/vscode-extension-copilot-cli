@@ -811,7 +811,15 @@ try {
 
 2. **Watch Output Channel**: `Ctrl+Shift+U` → "Copilot CLI"
 
-3. **Check session files**:
+3. **Read saved log files**: The `tests/logs/server/` directory contains log files manually saved from the Output Channel. As an AI agent, read them with:
+   - `grep -i "keyword" tests/logs/server/<name>.log` — search for specific events
+   - `bash head -N` / `tail -N` for large files (they can exceed the `view` tool's size limit)
+   - `view` with `view_range` for specific line ranges
+   - Log format: `[LEVEL] TIMESTAMP Message` (levels: `INFO`, `DEBUG`, `WARN`, `ERROR`)
+
+   To save a new log: Output Channel → "..." menu → "Open Output in Editor" → save to `tests/logs/server/<descriptive-name>.log`
+
+4. **Check session files**:
 ```bash
 # View conversation history
 cat ~/.copilot/session-state/<session-id>/events.jsonl
@@ -1029,6 +1037,15 @@ When in doubt, bump minor. A "small feature" is still a feature.
 - `session.idle` - Session ready for input
 
 ## Project Philosophy
+
+### Thoughtful & Useful
+
+This extension's identity is "thoughtful" — we prioritize presenting meaningful, well-organized information over shipping fast. Every UI element should help the user make better decisions.
+
+- **Group by usefulness, not by data source.** Models are grouped by cost tier (Fast/Standard/Premium), not by vendor. The user cares about "how much does this cost me?" not "who made this model?"
+- **Show decision-relevant data.** Multiplier badges tell users the cost implication of switching models. Don't hide information that affects their choices.
+- **Don't become the Swiss Army knife.** Every feature we add should have a clear reason to exist and present its information thoughtfully. We are not a generic wrapper — we are a focused, opinionated tool.
+- **Useful > Fast.** When choosing between shipping quickly and shipping something genuinely helpful, always choose helpful. A half-baked feature with missing context damages trust.
 
 ### Innovation Over Waiting
 

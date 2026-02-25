@@ -34,10 +34,12 @@ class SessionToolbar {
 				<h2 class="session-toolbar__title">Copilot CLI</h2>
 				<div class="session-selector session-toolbar__selector-group">
 					<label for="sessionDropdown" class="session-toolbar__label">Session:</label>
-					<select id="sessionDropdown" class="session-toolbar__select" aria-label="Select session">
-						<option value="">No session</option>
-					</select>
-					<button id="newSessionBtn" class="new-session-btn session-toolbar__btn session-toolbar__btn--new" title="New Session" aria-label="Create new session">+</button>
+					<div class="session-selector__controls">
+						<select id="sessionDropdown" class="session-toolbar__select" aria-label="Select session">
+							<option value="">No session</option>
+						</select>
+						<button id="newSessionBtn" class="new-session-btn session-toolbar__btn session-toolbar__btn--new" title="New Session" aria-label="Create new session">+</button>
+					</div>
 				</div>
 				<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan disabled" title="View Plan" aria-label="View plan.md file" disabled>📋</button>
 			</div>

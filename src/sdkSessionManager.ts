@@ -111,12 +111,15 @@ export async function selectFallbackModel(
     }
 }
 
+let approveAll: any;
+
 async function loadSDK() {
     if (!CopilotClient) {
         const sdk = await import('@github/copilot-sdk');
         CopilotClient = sdk.CopilotClient;
         CopilotSession = sdk.CopilotSession;
         defineTool = sdk.defineTool;
+        approveAll = sdk.approveAll;
     }
 }
 
@@ -151,15 +154,18 @@ export interface ToolExecutionState {
 }
 
 export interface StatusData {
-    status: 'thinking' | 'ready' | 'exited' | 'stopped' | 'aborted' | 'session_expired' | 
-            'plan_mode_enabled' | 'plan_mode_disabled' | 'plan_accepted' | 'plan_rejected' | 
-            'plan_ready' | 'reset_metrics' | 'session_resume_failed' | 'authentication_required';
+    status: 'thinking' | 'ready' | 'exited' | 'stopped' | 'aborted' | 'session_expired' |
+            'plan_mode_enabled' | 'plan_mode_disabled' | 'plan_accepted' | 'plan_rejected' |
+            'plan_ready' | 'reset_metrics' | 'session_resume_failed' | 'authentication_required' |
+            'message_queued' | 'model_switched' | 'model_switch_failed';
     turnId?: string;
     sessionId?: string;  // For session ready
     newSessionId?: string;  // For session_expired
     reason?: string;  // For session_resume_failed
     resetMetrics?: boolean;  // For reset_metrics
+    postCompactionTokens?: number;  // For reset_metrics after compaction
     summary?: string | null;  // For plan_ready
+    model?: string;  // For model_switched / model_switch_failed
 }
 
 export interface FileChangeData {
@@ -229,6 +235,7 @@ export class SDKSessionManager implements vscode.Disposable {
     private toolExecutions: Map<string, ToolExecutionState> = new Map();
     private sdkLoaded: boolean = false;
     private lastMessageIntent: string | undefined;  // Store intent from report_intent tool calls
+    private _isInTurn: boolean = false;  // Track if AI is currently processing a turn
     
     // Plan mode: dual session support
     private currentMode: SessionMode = 'work';
@@ -311,6 +318,12 @@ export class SDKSessionManager implements vscode.Disposable {
         sessionId: string,
         resumeOptions: any
     ): Promise<any> {
+        // Inject SDK 0.1.26 required fields into resume options
+        resumeOptions = {
+            ...resumeOptions,
+            onPermissionRequest: approveAll,
+            clientName: 'vscode-copilot-cli',
+        };
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
         
@@ -432,13 +445,14 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.sdkLoaded = true;
             }
             const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
+            const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
+            const useYolo = yolo && !hasToolPolicy;
 
             this.client = new CopilotClient({
                 logLevel: 'info',
                 cliPath,
                 cliArgs: [
-                    '--no-auto-update',
-                    ...(yolo ? ['--yolo'] : []),
+                    ...(useYolo ? ['--yolo'] : []),
                 ],
                 cwd: this.workingDirectory,
                 autoStart: true,
@@ -468,6 +482,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     this.session = await this.attemptSessionResumeWithUserRecovery(
                         this.sessionId,
                         {
+                            model: this.config.model || undefined,
                             tools: this.getCustomTools(),
                             hooks: this.getSessionHooks(),
                             ...(hasMcpServers ? { mcpServers } : {}),
@@ -655,11 +670,13 @@ export class SDKSessionManager implements vscode.Disposable {
                 break;
             
             case 'assistant.turn_start':
+                this._isInTurn = true;
                 this.logger.debug(`Assistant turn ${event.data.turnId} started`);
                 this._onDidChangeStatus.fire({ status: 'thinking', turnId: event.data.turnId });
                 break;
-            
+
             case 'assistant.turn_end':
+                this._isInTurn = false;
                 this.logger.debug(`Assistant turn ${event.data.turnId} ended`);
                 this._onDidChangeStatus.fire({ status: 'ready', turnId: event.data.turnId });
                 break;
@@ -696,6 +713,54 @@ export class SDKSessionManager implements vscode.Disposable {
                         this._onDidUpdateUsage.fire({ remainingPercentage: quota.remainingPercentage });
                     }
                 }
+                break;
+
+            case 'session.compaction_start':
+                this.logger.info('[Compaction] Compaction started');
+                break;
+
+            case 'session.compaction_complete': {
+                const { success, postCompactionTokens, preCompactionTokens } = event.data;
+                this.logger.info(`[Compaction] Complete: success=${success}, tokens ${preCompactionTokens} → ${postCompactionTokens}`);
+                if (success) {
+                    this._onDidChangeStatus.fire({
+                        status: 'reset_metrics',
+                        resetMetrics: true,
+                        postCompactionTokens: postCompactionTokens ?? 0,
+                    });
+                }
+                break;
+            }
+
+            case 'pending_messages.modified':
+                if (this._isInTurn) {
+                    this.logger.info('[Queue] Message queued while AI is processing');
+                    this._onDidChangeStatus.fire({ status: 'message_queued' });
+                }
+                break;
+
+            // New SDK events — log for observability
+            case 'user.message':
+            case 'assistant.message_delta':
+            case 'assistant.usage':
+                break;  // High-frequency events, already logged at debug level above
+
+            case 'session.model_change':
+                this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                if (event.data.newModel) {
+                    this.config.model = event.data.newModel;
+                    this._onDidChangeStatus.fire({ status: 'model_switched', model: event.data.newModel });
+                }
+                break;
+
+            case 'subagent.started':
+            case 'subagent.completed':
+            case 'subagent.failed':
+            case 'subagent.selected':
+            case 'hook.start':
+            case 'hook.end':
+            case 'skill.invoked':
+                this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
                 break;
 
             default:
@@ -1185,13 +1250,14 @@ export class SDKSessionManager implements vscode.Disposable {
 
         const cliPath = this.resolveCliPath();
         const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
+        const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
+        const useYolo = yolo && !hasToolPolicy;
 
         this.client = new CopilotClient({
             logLevel: 'info',
             cliPath,
             cliArgs: [
-                '--no-auto-update',
-                ...(yolo ? ['--yolo'] : []),
+                ...(useYolo ? ['--yolo'] : []),
             ],
             cwd: this.workingDirectory,
             autoStart: true,
@@ -1200,6 +1266,36 @@ export class SDKSessionManager implements vscode.Disposable {
         this.modelCapabilitiesService.clearCache();
         await this.modelCapabilitiesService.initialize(this.client);
         this.logger.info('[Client Recreate] Fresh CopilotClient created');
+    }
+
+    /**
+     * Switch the model mid-session. Destroys current session and resumes
+     * with the new model, preserving conversation context.
+     */
+    public async switchModel(newModel: string): Promise<void> {
+        if (newModel === this.config.model) {
+            return; // No-op if same model
+        }
+
+        const previousModel = this.config.model;
+        this.logger.info(`[Model Switch] Switching from "${previousModel}" to "${newModel}"`);
+
+        try {
+            const result = await this.session.rpc.model.switchTo({ modelId: newModel });
+            this.config.model = newModel;
+            this.logger.info(`[Model Switch] Successfully switched to "${result.modelId}"`);
+            // Note: model_switched status is fired by the session.model_change event handler
+        } catch (error) {
+            this.logger.error(`[Model Switch] Failed to switch to "${newModel}": ${error instanceof Error ? error.message : error}`);
+            this._onDidChangeStatus.fire({ status: 'model_switch_failed', model: previousModel });
+        }
+    }
+
+    /**
+     * Get the current model ID.
+     */
+    public getCurrentModel(): string | undefined {
+        return this.config.model;
     }
 
     public async stop(): Promise<void> {
@@ -1653,6 +1749,13 @@ export class SDKSessionManager implements vscode.Disposable {
      * best alternative. Notifies the user via both chat and OS-level toast.
      */
     private async createSessionWithModelFallback(config: Record<string, unknown>): Promise<any> {
+        // Inject SDK 0.1.26 required fields into every session config
+        config = {
+            ...config,
+            onPermissionRequest: approveAll,
+            clientName: 'vscode-copilot-cli',
+        };
+
         const MAX_FALLBACK_ATTEMPTS = 3;
         const requestedModel = config.model as string | undefined;
         const triedModels = new Set<string>();
@@ -1798,7 +1901,19 @@ export class SDKSessionManager implements vscode.Disposable {
     public getModelCapabilitiesService(): ModelCapabilitiesService {
         return this.modelCapabilitiesService;
     }
-    
+
+    /**
+     * Get available models from the SDK for populating UI dropdowns
+     */
+    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number }>> {
+        try {
+            const models = await this.modelCapabilitiesService.getAllModels();
+            return models.map(m => ({ id: m.id, name: m.name, multiplier: m.billing?.multiplier }));
+        } catch {
+            return [];
+        }
+    }
+
     /**
      * Validate all attachments (delegates to ModelCapabilitiesService)
      * Returns first validation error encountered

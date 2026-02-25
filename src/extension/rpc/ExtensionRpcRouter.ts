@@ -51,6 +51,10 @@ import {
 	OpenFilePayload,
 	PasteImagePayload,
 	SaveMermaidImagePayload,
+	SwitchModelPayload,
+	ModelSwitchedPayload,
+	CurrentModelPayload,
+	AvailableModelsPayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -321,7 +325,41 @@ export class ExtensionRpcRouter {
 		};
 		this.send(message);
 	}
-	
+
+	/**
+	 * Model switch result
+	 */
+	sendModelSwitched(model: string, success: boolean): void {
+		const message: ModelSwitchedPayload = {
+			type: 'modelSwitched',
+			model,
+			success
+		};
+		this.send(message);
+	}
+
+	/**
+	 * Current model notification
+	 */
+	sendCurrentModel(model: string): void {
+		const message: CurrentModelPayload = {
+			type: 'currentModel',
+			model
+		};
+		this.send(message);
+	}
+
+	/**
+	 * Send available models list to webview
+	 */
+	sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>): void {
+		const message: AvailableModelsPayload = {
+			type: 'availableModels',
+			models
+		};
+		this.send(message);
+	}
+
 	// ========================================================================
 	// Receive Handlers (Webview → Extension)
 	// ========================================================================
@@ -472,7 +510,14 @@ export class ExtensionRpcRouter {
 	onOpenFile(handler: MessageHandler<OpenFilePayload>): Disposable {
 		return this.registerHandler('openFile', handler);
 	}
-	
+
+	/**
+	 * Register handler for switchModel
+	 */
+	onSwitchModel(handler: MessageHandler<SwitchModelPayload>): Disposable {
+		return this.registerHandler('switchModel', handler);
+	}
+
 	// ========================================================================
 	// Message Routing
 	// ========================================================================
