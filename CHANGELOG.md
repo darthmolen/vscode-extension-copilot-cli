@@ -7,6 +7,8 @@ All notable changes to the Copilot CLI Chat extension.
 ### ✨ Features
 
 - **Mid-session model switching** — New ModelSelector dropdown in the controls bar lets you switch models without losing conversation context. The SDK resumes the session with the new model, preserving all previous messages and tool state.
+- **Tier-grouped model selector** — Models are grouped by cost tier (Fast/Standard/Premium) instead of vendor, with multiplier badges (e.g., 0.5x, 1x, 3x) showing the request cost of each model. Multiplier data flows from the SDK through the full pipeline.
+- **Responsive header** — Session toolbar adapts to narrow sidebars. The "Session:" label wraps above the dropdown instead of truncating the session name. All header text standardized to 12px.
 - **Queued message indicator** — When you send a message while the AI is still processing, the extension now tracks queued state internally via `pending_messages.modified` SDK events. Foundation for a visible queue indicator in a future release.
 
 ### 🛡️ Reliability

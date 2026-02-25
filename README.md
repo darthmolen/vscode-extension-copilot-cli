@@ -42,7 +42,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
 - **@file References** — Reference files directly in your messages.
-- **Mid-Session Model Switching** — Switch AI models mid-conversation without losing context. The session resumes with the new model, preserving all messages and tool state.
+- **Mid-Session Model Switching** — Switch AI models mid-conversation without losing context. Models are grouped by cost tier (Fast/Standard/Premium) with multiplier badges showing request cost. The session resumes with the new model, preserving all messages and tool state.
 - **17 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
 - **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
 
@@ -56,8 +56,9 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 ### v3.3.0 - Mid-Session Model Switching
 
 - **Model switching without losing context** — New ModelSelector dropdown in the controls bar lets you switch AI models mid-conversation. The SDK resumes the session with the new model, preserving all previous messages and tool state.
+- **Tier-grouped model selector** — Models grouped by cost tier (Fast/Standard/Premium) with multiplier badges (0.5x, 1x, 3x) showing request cost.
+- **Responsive header** — Session toolbar adapts to narrow sidebars; label wraps above the dropdown instead of truncating.
 - **SDK 0.1.26 reliability** — Permission handler, client name header, fixed `--yolo` flag logic, and accurate compaction metrics.
-- **New SDK event handling** — Compaction, queued messages, subagent, hook, skill, and model change events.
 
 ### v3.0.1
 
