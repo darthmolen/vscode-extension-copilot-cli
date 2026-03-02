@@ -10,7 +10,7 @@ npx @vscode/vsce package --no-git-tag-version --allow-star-activation --allow-mi
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n`u{1F5D1} Uninstalling old version..." -ForegroundColor Yellow
-code --uninstall-extension copilot-cli-extension 2>$null
+try { code --uninstall-extension copilot-cli-extension 2>$null } catch {}
 # Ignore failure if not installed
 
 Write-Host "`n`u{1F4E5} Installing new version..." -ForegroundColor Green
