@@ -128,6 +128,18 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 
 ## 📦 Installation
 
+### Prerequisites
+
+⚠️ **Important**: This extension does not bundle the CLI and requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
+
+- **VS Code** 1.108.1 or higher
+- **GitHub Copilot CLI** (standalone `copilot` command)
+  - **Linux/macOS**: `brew install copilot-cli`
+  - **Windows**: `winget install GitHub.Copilot`
+  - **Note**: Requires PowerShell v6+ on Windows
+  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
+- **Active Copilot subscription**
+
 ### From VS Code Marketplace
 
 1. Open VS Code
@@ -140,18 +152,6 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 ```bash
 code --install-extension darthmolen.copilot-cli-extension
 ```
-
-### Prerequisites
-
-- **VS Code** 1.108.1 or higher
-- **GitHub Copilot CLI** (standalone `copilot` command)
-  - **Linux/macOS**: `brew install copilot-cli`
-  - **Windows**: `winget install GitHub.Copilot`
-  - **Note**: Requires PowerShell v6+ on Windows
-  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
-- **Active Copilot subscription**
-
-⚠️ **Important**: This extension requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
 
 ### Troubleshooting: Session Won't Start
 
