@@ -2,6 +2,16 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.3.1] - 2026-02-27
+
+### 🐛 Bug Fixes
+
+- **Fixed CLI not found on Windows (winget installs)** — The CLI path resolver returned the bare default `"copilot"` instead of resolving the full path via `where copilot`. The SDK's `existsSync("copilot")` check (a filesystem check, not a PATH search) then failed with "Copilot CLI not found at copilot". Now the resolver falls through to the PATH lookup, correctly finding winget-installed binaries.
+
+### 🔧 Internal
+
+- **Extracted `resolveCliPath` as testable function** — Moved from a private class method to an exported standalone function with 9 integration tests covering all 4 resolution tiers (user config, SDK bundle, PATH lookup, failure).
+
 ## [3.3.0] - 2026-02-24
 
 ### ✨ Features

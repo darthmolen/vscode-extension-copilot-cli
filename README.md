@@ -53,6 +53,10 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.3.1 - Fix CLI Not Found on Windows (winget)
+
+- **CLI path resolution fix** — Winget-installed Copilot CLI was not detected because the resolver returned bare `"copilot"` instead of resolving the full path via `where`. Now correctly finds the binary on PATH for all installation methods (winget, npm, standalone).
+
 ### v3.3.0 - Mid-Session Model Switching
 
 - **Model switching without losing context** — New ModelSelector dropdown in the controls bar lets you switch AI models mid-conversation. The SDK resumes the session with the new model, preserving all previous messages and tool state.
@@ -124,6 +128,18 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 
 ## 📦 Installation
 
+### Prerequisites
+
+⚠️ **Important**: This extension does not bundle the CLI and requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
+
+- **VS Code** 1.108.1 or higher
+- **GitHub Copilot CLI** (standalone `copilot` command)
+  - **Linux/macOS**: `brew install copilot-cli`
+  - **Windows**: `winget install GitHub.Copilot`
+  - **Note**: Requires PowerShell v6+ on Windows
+  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
+- **Active Copilot subscription**
+
 ### From VS Code Marketplace
 
 1. Open VS Code
@@ -136,18 +152,6 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 ```bash
 code --install-extension darthmolen.copilot-cli-extension
 ```
-
-### Prerequisites
-
-- **VS Code** 1.108.1 or higher
-- **GitHub Copilot CLI** (standalone `copilot` command)
-  - **Linux/macOS**: `brew install copilot-cli`
-  - **Windows**: `winget install GitHub.Copilot`
-  - **Note**: Requires PowerShell v6+ on Windows
-  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
-- **Active Copilot subscription**
-
-⚠️ **Important**: This extension requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
 
 ### Troubleshooting: Session Won't Start
 
