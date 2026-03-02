@@ -111,6 +111,63 @@ export async function selectFallbackModel(
     }
 }
 
+/**
+ * Resolve the Copilot CLI binary path.
+ * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
+ * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
+ * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
+ *
+ * Resolution order:
+ * 1. User-configured path (if explicitly set to something other than the bare default)
+ * 2. SDK-bundled platform-specific binary (@github/copilot-{os}-{arch})
+ * 3. PATH lookup via `which`/`where`
+ * 4. Throw with install instructions
+ */
+export function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {
+    // 1. User-configured path takes priority (skip bare default — it needs PATH resolution)
+    const configured = configuredPath !== undefined
+        ? configuredPath
+        : vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+    if (configured && configured !== 'copilot') {
+        logger.info(`Using configured CLI path: ${configured}`);
+        return configured;
+    }
+
+    // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)
+    // The @github/copilot-{os}-{arch} package exports the native binary directly.
+    // require.resolve() returns the binary path without loading it.
+    // Only works when running from source (dev); installed VSIX has no node_modules.
+    try {
+        const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;
+        const binPath = require.resolve(platformPkg);
+        if (fs.existsSync(binPath)) {
+            logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);
+            return binPath;
+        }
+    } catch {
+        // Platform package not installed — fall through to PATH
+    }
+
+    // 3. Resolve 'copilot' from PATH (cross-platform fallback)
+    try {
+        const cmd = process.platform === 'win32' ? 'where' : 'which';
+        const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
+        if (result) {
+            const resolved = result.split(/\r?\n/)[0];
+            logger.info(`Resolved CLI from PATH: ${resolved}`);
+            return resolved;
+        }
+    } catch {
+        // Not on PATH
+    }
+
+    // 4. Fail with actionable message
+    throw new Error(
+        'Copilot CLI not found on PATH. Install it (see https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) ' +
+        'or set copilotCLI.cliPath in VS Code settings.'
+    );
+}
+
 let approveAll: any;
 
 async function loadSDK() {
@@ -367,55 +424,6 @@ export class SDKSessionManager implements vscode.Disposable {
     }
 
     /**
-     * Resolve the Copilot CLI binary path.
-     * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
-     * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
-     * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
-     */
-    private resolveCliPath(): string {
-        // 1. User-configured path takes priority
-        const configured = vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
-        if (configured) {
-            this.logger.info(`Using configured CLI path: ${configured}`);
-            return configured;
-        }
-
-        // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)
-        // The @github/copilot-{os}-{arch} package exports the native binary directly.
-        // require.resolve() returns the binary path without loading it.
-        // Only works when running from source (dev); installed VSIX has no node_modules.
-        try {
-            const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;
-            const binPath = require.resolve(platformPkg);
-            if (fs.existsSync(binPath)) {
-                this.logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);
-                return binPath;
-            }
-        } catch {
-            // Platform package not installed — fall through to PATH
-        }
-
-        // 3. Resolve 'copilot' from PATH (cross-platform fallback)
-        try {
-            const cmd = process.platform === 'win32' ? 'where' : 'which';
-            const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
-            if (result) {
-                const resolved = result.split(/\r?\n/)[0];
-                this.logger.info(`Resolved CLI from PATH: ${resolved}`);
-                return resolved;
-            }
-        } catch {
-            // Not on PATH
-        }
-
-        // 4. Fail with actionable message
-        throw new Error(
-            'Copilot CLI not found on PATH. Install it (see https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) ' +
-            'or set copilotCLI.cliPath in VS Code settings.'
-        );
-    }
-
-    /**
      * Log the CLI version for diagnostics.
      * Uses --no-auto-update to get the actual binary version, not a
      * runtime-delegated version from ~/.copilot/pkg/.
@@ -436,7 +444,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('Starting SDK Session Manager...');
 
         try {
-            const cliPath = this.resolveCliPath();
+            const cliPath = resolveCliPath(this.logger);
             this.logCliVersion(cliPath);
 
             // Load SDK dynamically
@@ -1248,7 +1256,7 @@ export class SDKSessionManager implements vscode.Disposable {
             this.client = null;
         }
 
-        const cliPath = this.resolveCliPath();
+        const cliPath = resolveCliPath(this.logger);
         const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
         const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
         const useYolo = yolo && !hasToolPolicy;
