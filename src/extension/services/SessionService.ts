@@ -162,10 +162,35 @@ export const SessionService = {
             // Third priority: workspace.yaml summary field
             const yamlPath = path.join(sessionPath, 'workspace.yaml');
             if (fs.existsSync(yamlPath)) {
-                const lines = fs.readFileSync(yamlPath, 'utf-8').split('\n');
-                const summaryLine = lines.find((l: string) => l.startsWith('summary: '));
-                if (summaryLine) {
-                    const summary = summaryLine.substring('summary: '.length).trim();
+                const content = fs.readFileSync(yamlPath, 'utf-8');
+                const lines = content.split('\n');
+                
+                // Find summary: line (may be multiline with |- syntax)
+                const summaryLineIdx = lines.findIndex((l: string) => l.startsWith('summary: '));
+                if (summaryLineIdx !== -1) {
+                    let summary = lines[summaryLineIdx].substring('summary: '.length).trim();
+                    
+                    // Handle multiline YAML (summary: |- or summary: |)
+                    if (summary === '|-' || summary === '|') {
+                        // Collect all indented lines that follow
+                        const summaryLines: string[] = [];
+                        for (let i = summaryLineIdx + 1; i < lines.length; i++) {
+                            const line = lines[i];
+                            // Stop if we hit a non-indented line (next YAML key)
+                            if (line && !line.startsWith(' ') && !line.startsWith('\t')) {
+                                break;
+                            }
+                            // Add indented lines (trim leading spaces)
+                            if (line.trim()) {
+                                summaryLines.push(line.trim());
+                            }
+                        }
+                        summary = summaryLines.join(' ');
+                    }
+                    
+                    // Strip [Active File: ...] prefix if present (added by messageEnhancementService)
+                    summary = summary.replace(/^\[Active File:.*?\]\s*/s, '').trim();
+                    
                     if (summary) {
                         return summary.substring(0, 40);
                     }
