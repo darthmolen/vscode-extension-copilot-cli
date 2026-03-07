@@ -996,6 +996,19 @@ export class SDKSessionManager implements vscode.Disposable {
             
             await this.session.sendAndWait(sendOptions);
             this.logger.info('Message sent and completed successfully');
+
+            // Clean up temp files (pasted images) after SDK has consumed them
+            if (attachments && attachments.length > 0) {
+                for (const att of attachments) {
+                    if (att.path.startsWith(os.tmpdir())) {
+                        try {
+                            fs.unlinkSync(att.path);
+                            fs.rmdirSync(path.dirname(att.path));
+                            this.logger.debug(`[Attachments] Cleaned up temp file: ${att.path}`);
+                        } catch { /* ignore cleanup errors */ }
+                    }
+                }
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             

@@ -556,11 +556,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				webviewUri: webviewUri?.toString() || ''
 			};
 
-			// Schedule temp file cleanup after SDK has had time to consume it
-			setTimeout(() => {
-				try { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }
-			}, 30_000);
-
 			this.logger.info(`[PASTE] Sending pasted image attachment to webview`);
 			this.postMessage({
 				type: 'filesSelected',
