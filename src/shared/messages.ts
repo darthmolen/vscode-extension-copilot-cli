@@ -51,7 +51,8 @@ export type WebviewMessageType =
 	| 'openInCLI'
 	| 'openFile'
 	| 'saveMermaidImage'
-	| 'switchModel';
+	| 'switchModel'
+	| 'renameSession';
 
 /**
  * Send user message to agent
@@ -224,6 +225,11 @@ export interface SwitchModelPayload extends BaseMessage {
 	model: string;
 }
 
+export interface RenameSessionPayload extends BaseMessage {
+	type: 'renameSession';
+	name: string;  // empty string = show input box
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -249,7 +255,8 @@ export type WebviewMessage =
 	| OpenInCLIPayload
 	| OpenFilePayload
 	| SaveMermaidImagePayload
-	| SwitchModelPayload;
+	| SwitchModelPayload
+	| RenameSessionPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -545,7 +552,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'openInCLI',
 		'openFile',
 		'saveMermaidImage',
-		'switchModel'
+		'switchModel',
+		'renameSession'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);

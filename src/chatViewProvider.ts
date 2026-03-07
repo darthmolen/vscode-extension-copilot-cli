@@ -39,6 +39,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
+	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -46,6 +47,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidRequestViewPlan = this._onDidRequestViewPlan.event;
 	readonly onDidBecomeReady = this._onDidBecomeReady.event;
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
+	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
 
 	constructor(extensionUri: vscode.Uri) {
 		this.extensionUri = extensionUri;
@@ -73,6 +75,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			localResourceRoots: [
 				this.extensionUri,
 				vscode.Uri.file(path.join(os.homedir(), '.copilot')),
+				vscode.Uri.file(os.tmpdir()),
 				...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)
 			]
 		};
@@ -319,6 +322,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this._reg(this.rpcRouter.onSwitchModel((payload) => {
 			this.logger.info(`Switch model requested: ${payload.model}`);
 			this._onDidRequestSwitchModel.fire(payload.model);
+		}));
+
+		this._reg(this.rpcRouter.onRenameSession((payload) => {
+			this.logger.info(`Rename session requested: "${payload.name}"`);
+			this._onDidRequestRenameSession.fire(payload.name);
 		}));
 
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {

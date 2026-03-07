@@ -132,10 +132,22 @@ export const SessionService = {
     },
 
     /**
-     * Formats a session label from plan.md heading, falling back to 8-char session ID.
+     * Formats a session label from session-name.txt, plan.md heading,
+     * workspace.yaml summary, or falls back to 8-char session ID.
+     * Priority: session-name.txt > plan.md heading > workspace.yaml summary > UUID prefix
      */
     formatSessionLabel(sessionId: string, sessionPath: string): string {
         try {
+            // Highest priority: session-name.txt (written by /rename command)
+            const namePath = path.join(sessionPath, 'session-name.txt');
+            if (fs.existsSync(namePath)) {
+                const name = fs.readFileSync(namePath, 'utf-8').trim();
+                if (name) {
+                    return name.substring(0, 40);
+                }
+            }
+
+            // Second priority: plan.md heading
             const planPath = path.join(sessionPath, 'plan.md');
             if (fs.existsSync(planPath)) {
                 const planContent = fs.readFileSync(planPath, 'utf-8');
@@ -146,8 +158,21 @@ export const SessionService = {
                     }
                 }
             }
+
+            // Third priority: workspace.yaml summary field
+            const yamlPath = path.join(sessionPath, 'workspace.yaml');
+            if (fs.existsSync(yamlPath)) {
+                const lines = fs.readFileSync(yamlPath, 'utf-8').split('\n');
+                const summaryLine = lines.find((l: string) => l.startsWith('summary: '));
+                if (summaryLine) {
+                    const summary = summaryLine.substring('summary: '.length).trim();
+                    if (summary) {
+                        return summary.substring(0, 40);
+                    }
+                }
+            }
         } catch {
-            // Ignore errors reading plan
+            // Ignore errors reading files
         }
 
         return sessionId.substring(0, 8);

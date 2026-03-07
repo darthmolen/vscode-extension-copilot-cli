@@ -52,6 +52,7 @@ import {
 	PasteImagePayload,
 	SaveMermaidImagePayload,
 	SwitchModelPayload,
+	RenameSessionPayload,
 	ModelSwitchedPayload,
 	CurrentModelPayload,
 	AvailableModelsPayload,
@@ -516,6 +517,13 @@ export class ExtensionRpcRouter {
 	 */
 	onSwitchModel(handler: MessageHandler<SwitchModelPayload>): Disposable {
 		return this.registerHandler('switchModel', handler);
+	}
+
+	/**
+	 * Register handler for renameSession
+	 */
+	onRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {
+		return this.registerHandler('renameSession', handler);
 	}
 
 	// ========================================================================

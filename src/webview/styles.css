@@ -152,6 +152,12 @@ main {
 	flex-shrink: 0; /* Input area never shrinks */
 }
 
+#input-mount.plan-mode-active {
+	outline: 3px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	border-radius: 4px;
+}
+
 .messages {
 	flex: 1;
 	overflow-y: auto;

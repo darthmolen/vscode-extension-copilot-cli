@@ -460,6 +460,13 @@ export class InputArea {
 		// Track state for command validation
 		this.planMode = planMode;
 		this.planReady = planReady;
+
+		// Toggle blue outline on input area container
+		if (planMode) {
+			this.container.classList.add('plan-mode-active');
+		} else {
+			this.container.classList.remove('plan-mode-active');
+		}
 		
 		if (this.planModeControls) {
 			this.planModeControls.setPlanMode(planMode, planReady);

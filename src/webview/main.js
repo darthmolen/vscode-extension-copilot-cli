@@ -207,6 +207,13 @@ eventBus.on('modelSelected', (model) => {
 	rpc.switchModel(model);
 });
 
+// Session rename
+eventBus.on('renameSession', (args) => {
+	console.log('[Slash Command] Rename session (/rename)', args);
+	const name = args && args.length > 0 ? args.join(' ') : '';
+	rpc.renameSession(name);
+});
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));

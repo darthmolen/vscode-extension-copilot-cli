@@ -214,7 +214,7 @@ export interface StatusData {
     status: 'thinking' | 'ready' | 'exited' | 'stopped' | 'aborted' | 'session_expired' |
             'plan_mode_enabled' | 'plan_mode_disabled' | 'plan_accepted' | 'plan_rejected' |
             'plan_ready' | 'reset_metrics' | 'session_resume_failed' | 'authentication_required' |
-            'message_queued' | 'model_switched' | 'model_switch_failed';
+            'message_queued' | 'model_switched' | 'model_switch_failed' | 'session_renamed';
     turnId?: string;
     sessionId?: string;  // For session ready
     newSessionId?: string;  // For session_expired
@@ -223,6 +223,7 @@ export interface StatusData {
     postCompactionTokens?: number;  // For reset_metrics after compaction
     summary?: string | null;  // For plan_ready
     model?: string;  // For model_switched / model_switch_failed
+    name?: string;  // For session_renamed
 }
 
 export interface FileChangeData {
@@ -758,6 +759,22 @@ export class SDKSessionManager implements vscode.Disposable {
                 if (event.data.newModel) {
                     this.config.model = event.data.newModel;
                     this._onDidChangeStatus.fire({ status: 'model_switched', model: event.data.newModel });
+                }
+                break;
+
+            case 'session.title_changed':
+                this.logger.info(`[Rename] Session title changed: "${event.data.title}"`);
+                if (event.data.title && this.sessionId) {
+                    try {
+                        const sessionNamePath = path.join(
+                            os.homedir(), '.copilot', 'session-state',
+                            this.sessionId, 'session-name.txt'
+                        );
+                        fs.writeFileSync(sessionNamePath, event.data.title, 'utf-8');
+                        this._onDidChangeStatus.fire({ status: 'session_renamed', name: event.data.title });
+                    } catch (writeErr) {
+                        this.logger.error(`[Rename] Failed to write session-name.txt: ${writeErr}`);
+                    }
                 }
                 break;
 

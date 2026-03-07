@@ -356,8 +356,8 @@ describe('CommandParser Service - TDD RED Phase', () => {
     it('should return only extension and passthrough commands', () => {
       const commands = parser.getVisibleCommands();
 
-      // 10 extension + 6 passthrough = 16
-      expect(commands).to.have.length(16);
+      // 11 extension (plan, exit, accept, reject, review, diff, mcp, usage, help, model, rename) + 6 passthrough = 17
+      expect(commands).to.have.length(17);
     });
 
     it('should not include not-supported commands', () => {
@@ -384,6 +384,7 @@ describe('CommandParser Service - TDD RED Phase', () => {
       expect(names).to.include('usage');
       expect(names).to.include('help');
       expect(names).to.include('model');
+      expect(names).to.include('rename');
     });
 
     it('should include all passthrough commands', () => {

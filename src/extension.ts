@@ -65,6 +65,30 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('Copilot CLI Extension activated successfully');
 }
 
+/** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
+async function viewPlanFile(): Promise<void> {
+	const planPath = cliManager?.getPlanFilePath();
+	if (!planPath) {
+		vscode.window.showWarningMessage('No active session - cannot view plan.md');
+		return;
+	}
+
+	const fsModule = require('fs');
+	if (!fsModule.existsSync(planPath)) {
+		vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
+		return;
+	}
+
+	try {
+		const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
+		await vscode.window.showTextDocument(doc, { preview: false });
+	} catch (error) {
+		const errorMsg = error instanceof Error ? error.message : String(error);
+		logger.error(`Failed to open plan.md: ${errorMsg}`);
+		vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
+	}
+}
+
 /** Register chatProvider event handlers (message, abort, view plan, ready). */
 function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {
@@ -99,26 +123,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {
-		const planPath = cliManager?.getPlanFilePath();
-		if (!planPath) {
-			vscode.window.showWarningMessage('No active session - cannot view plan.md');
-			return;
-		}
-
-		const fsModule = require('fs');
-		if (!fsModule.existsSync(planPath)) {
-			vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
-			return;
-		}
-
-		try {
-			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
-			await vscode.window.showTextDocument(doc, { preview: false });
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			logger.error(`Failed to open plan.md: ${errorMsg}`);
-			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
-		}
+		await viewPlanFile();
 	}));
 
 	context.subscriptions.push(chatProvider.onDidBecomeReady(async () => {
@@ -149,6 +154,34 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			}
 		} catch (error: any) {
 			logger.error(`[Model Switch] Failed: ${error.message}`);
+		}
+	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestRenameSession(async (name: string) => {
+		logger.info(`[Rename Session] Requested: "${name}"`);
+		let sessionName = name;
+		if (!sessionName) {
+			const input = await vscode.window.showInputBox({
+				prompt: 'Enter a name for this session',
+				placeHolder: 'Session name...',
+				value: ''
+			});
+			if (input === undefined) {
+				return; // User cancelled
+			}
+			sessionName = input;
+		}
+		if (!sessionName) {
+			return; // Empty name, skip
+		}
+		try {
+			if (cliManager) {
+				await cliManager.sendMessage(`/rename ${sessionName}`);
+			} else {
+				logger.warn('[Rename Session] No active session manager');
+			}
+		} catch (error: any) {
+			logger.error(`[Rename Session] Failed: ${error.message}`);
 		}
 	}));
 }
@@ -413,6 +446,8 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				chatProvider.setThinking(true);
 				break;
 			case 'ready':
+				chatProvider.setThinking(false);
+				updateSessionsList();
 				break;
 			case 'exited':
 			case 'stopped':
@@ -438,7 +473,12 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 			case 'plan_accepted':
 			case 'plan_rejected':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				break;
 			case 'plan_ready':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				viewPlanFile();
+				break;
 			case 'reset_metrics':
 				chatProvider.postMessage({ type: 'status', data: statusData });
 				break;
@@ -448,6 +488,10 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 			case 'model_switch_failed':
 				chatProvider.sendModelSwitched(statusData.model || '', false);
+				break;
+			case 'session_renamed':
+				logger.info(`[Rename Session] Renamed to: "${statusData.name}"`);
+				updateSessionsList();
 				break;
 		}
 	})));
