@@ -181,13 +181,13 @@ Add `vscode.Uri.file(os.tmpdir())` to `localResourceRoots`.
 ### Updated Tests
 | File | Change |
 |------|--------|
-| `tests/unit/extension/session-service.test.js` | Added tests for session-name.txt priority, workspace.yaml fallback |
+| `tests/unit/extension/session-service.test.js` | Added tests for session-name.txt priority, workspace.yaml fallback, Active File prefix stripping |
 | `tests/unit/utils/command-parser-registry.test.js` | Updated not-supported count 25→24, removed rename |
 | `tests/unit/utils/command-parser.test.js` | Updated visible commands count 16→17, added rename to extension list |
 
 ### Test Results
 ```
-1156 passing (22s)
+1157 passing (22s)
 3 pending
 3 failing (all pre-existing, unrelated to this change)
 ```
@@ -196,6 +196,37 @@ Pre-existing failures:
 - `should pass resumeFlag=true to CLI manager` — TypeError: logger.show (vscode mock issue)
 - `should reduce session selector min-width in narrow mode` — CSS assertion
 - `should have reduced main.js significantly` — size constraint (was ~550 lines, now 952)
+
+---
+
+## Bugs Fixed During Manual Testing
+
+### Bug: Pasted Image Cleanup Timing
+**Reported:** User pasted image, waited 40s, sent message → "file not found"
+
+**Root Cause:** 30-second setTimeout deleted temp file before user sent message
+
+**Fix:**
+- Removed setTimeout cleanup from `chatViewProvider.ts`
+- Moved cleanup to `sdkSessionManager.ts` after `sendAndWait()` completes
+- Cleanup only happens for temp files (os.tmpdir() check)
+
+**Commit:** `fix: move pasted image cleanup to after sendAndWait()`
+
+### Bug: Session Dropdown Shows "[Active File: ...]"
+**Reported:** Session dropdown displayed `[Active File: /path/to/plan.md]` instead of session name
+
+**Root Cause:**
+- `messageEnhancementService.ts` prepends `[Active File: ...]` to every message
+- CLI uses first message as `workspace.yaml` summary
+- `SessionService.formatSessionLabel()` read summary without stripping prefix
+
+**Fix:**
+- Parse multiline YAML summaries properly (collect all indented lines)
+- Strip `[Active File: ...]` prefix with regex: `/^\[Active File:.*?\]\s*/s`
+- Added test: `strips [Active File: ...] prefix from workspace.yaml summary`
+
+**Commit:** `fix: strip [Active File: ...] prefix from session labels`
 
 ---
 
