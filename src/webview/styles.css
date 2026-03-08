@@ -730,12 +730,8 @@ main {
 }
 
 @keyframes rainbow-cycle {
-	0%, 100% { filter: hue-rotate(0deg) saturate(2); }
-	16.67%   { filter: hue-rotate(60deg) saturate(2); }
-	33.33%   { filter: hue-rotate(120deg) saturate(2); }
-	50%      { filter: hue-rotate(180deg) saturate(2); }
-	66.67%   { filter: hue-rotate(240deg) saturate(2); }
-	83.33%   { filter: hue-rotate(300deg) saturate(2); }
+	0%   { filter: hue-rotate(0deg) saturate(2); }
+	100% { filter: hue-rotate(360deg) saturate(2); }
 }
 
 .thinking,
@@ -759,7 +755,7 @@ main {
 }
 
 .thinking.active .thinking-icon {
-	animation: rainbow-cycle 3s linear infinite;
+	animation: rainbow-cycle 3s linear infinite alternate;
 }
 
 .thinking-icon {
