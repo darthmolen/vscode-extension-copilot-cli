@@ -2,6 +2,28 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.4.0] - 2026-03-08
+
+### ✨ Features
+
+- **`/rename` slash command** — Rename the current session. `/rename My Feature` renames it immediately; `/rename` with no argument shows an input prompt. The name persists in `session-name.txt` and is reflected in the session dropdown. Falls back gracefully when the CLI throws `Workspace not found` on resumed sessions (github/copilot-cli#1865).
+- **`plan_ready` auto-opens plan.md** — When the AI finishes presenting a plan, `plan.md` opens automatically in a new editor tab. No more needing to click the "View Plan" toolbar button.
+- **Blue outline in plan mode** — The input area gets a 3px `var(--vscode-focusBorder)` outline when plan mode is active, making the mode visually distinct.
+- **Animated "Thinking..." indicator** — The thinking prompt now shows a 🧠 emoji cycling through rainbow colors (hue-rotate ping-pong) and "Thinking..." text that pulses bold-white → dim. Smooth 60fps CSS animations.
+- **`startNewSessionInPlanning` config** — New boolean setting (`copilotCLI.startNewSessionInPlanning`, default `false`). When enabled, new sessions automatically start in plan mode. Resume paths are never affected.
+
+### 🐛 Bug Fixes
+
+- **Pasted image "file not found"** — Temp image files were deleted after a 30-second timeout, causing failures if the user sent the message after 30s. Files are now cleaned up after `sendAndWait()` completes instead.
+- **Session labels update live** — The session dropdown now refreshes when a session receives its first AI response (reads from `session-name.txt` > `plan.md` heading > `workspace.yaml` summary > UUID prefix).
+- **Session labels strip `[Active File: ...]` prefix** — The `messageEnhancementService` prepends `[Active File: path]` to every message. The CLI uses the first message as the session title, so session labels were showing this prefix. Now stripped at two points: when the SDK fires `session.title_changed`, and when reading `workspace.yaml` summary.
+- **`/rename` graceful fallback** — CLI throws `Workspace not found` on resumed sessions (github/copilot-cli#1865). `session-name.txt` is now written proactively before sending `/rename` to the CLI, so the label updates even when the CLI fails.
+
+### 🎨 UI Polish
+
+- **Thinking indicator spacing** — Reduced top/bottom padding (`10px/14px → 4px/6px`) so the thinking prompt sits closer to the last message and input box.
+- **Input controls row gap** — Halved the gap between the active-file/model row and the metrics/planning row (`8px → 4px`).
+
 ## [3.3.1] - 2026-02-27
 
 ### 🐛 Bug Fixes

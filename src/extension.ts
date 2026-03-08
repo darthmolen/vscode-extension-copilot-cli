@@ -7,6 +7,8 @@ import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
+import { createAnimationTestPanel } from './animationTestPanel';
+import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 
 let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
@@ -218,6 +220,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', (enabled: boolean) => handleTogglePlanMode(enabled)),
 		vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', () => handleAcceptPlan()),
 		vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', () => handleRejectPlan()),
+		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestLight', () => createAnimationTestPanel('light')),
+		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestDark', () => createAnimationTestPanel('dark')),
 	];
 	context.subscriptions.push(...commands);
 }
@@ -274,6 +278,17 @@ async function handleNewSession(context: vscode.ExtensionContext): Promise<void>
 	chatProvider.resetPlanMode();
 	await startCLISession(context, false);
 	updateSessionsList();
+
+	const config = vscode.workspace.getConfiguration('copilotCLI');
+	if (shouldAutoEnablePlanMode(config.get<boolean>('startNewSessionInPlanning'))) {
+		logger.info('[New Session] startNewSessionInPlanning=true, enabling plan mode');
+		try {
+			await cliManager!.enablePlanMode();
+		} catch (err: any) {
+			logger.error(`[New Session] Failed to auto-enable plan mode: ${err.message}`);
+		}
+	}
+
 	vscode.window.showInformationMessage('New Copilot CLI session started!');
 }
 

@@ -80,6 +80,14 @@
         "command": "copilot-cli-extension.refreshPanel",
         "title": "Copilot CLI: Refresh Chat Panel",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "copilot-cli-extension.openAnimationTestLight",
+        "title": "Copilot CLI: Animation Test (Light)"
+      },
+      {
+        "command": "copilot-cli-extension.openAnimationTestDark",
+        "title": "Copilot CLI: Animation Test (Dark)"
       }
     ],
     "menus": {
@@ -257,6 +265,11 @@
           "type": "boolean",
           "default": false,
           "description": "Disable ask_user tool (agent works autonomously without asking questions)"
+        },
+        "copilotCLI.startNewSessionInPlanning": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically enable plan mode when starting a new session. Has no effect on resumed sessions."
         },
         "copilotCLI.mcpServers": {
           "type": "object",

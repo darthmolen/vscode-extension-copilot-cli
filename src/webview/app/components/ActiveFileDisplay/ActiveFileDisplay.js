@@ -1,6 +1,6 @@
 /**
  * ActiveFileDisplay - Displays the currently active file path
- * 
+ *
  * Responsibility: Show/hide active file information
  * Parent: InputArea
  */
