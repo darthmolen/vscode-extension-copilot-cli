@@ -30,16 +30,15 @@ describe('Animated Thinking Prompt', function () {
         document = dom.window.document;
     });
 
-    it('thinking element has thinking-icon--a span with brain emoji', function () {
-        const iconA = document.querySelector('.thinking-icon--a');
-        assert.ok(iconA, '.thinking-icon--a must exist');
-        assert.strictEqual(iconA.textContent.trim(), '🧠');
+    it('thinking element has thinking-icon span with brain emoji', function () {
+        const icon = document.querySelector('.thinking-icon');
+        assert.ok(icon, '.thinking-icon must exist');
+        assert.strictEqual(icon.textContent.trim(), '🧠');
     });
 
-    it('thinking element has thinking-icon--b span with brain emoji', function () {
-        const iconB = document.querySelector('.thinking-icon--b');
-        assert.ok(iconB, '.thinking-icon--b must exist');
-        assert.strictEqual(iconB.textContent.trim(), '🧠');
+    it('only one brain icon exists', function () {
+        const icons = document.querySelectorAll('.thinking-icon');
+        assert.strictEqual(icons.length, 1, 'exactly one brain icon');
     });
 
     it('thinking element has thinking-text span', function () {
@@ -48,11 +47,9 @@ describe('Animated Thinking Prompt', function () {
         assert.strictEqual(text.textContent.trim(), 'Thinking...');
     });
 
-    it('brain icons have aria-hidden to prevent screen reader duplication', function () {
-        const iconA = document.querySelector('.thinking-icon--a');
-        const iconB = document.querySelector('.thinking-icon--b');
-        assert.strictEqual(iconA.getAttribute('aria-hidden'), 'true');
-        assert.strictEqual(iconB.getAttribute('aria-hidden'), 'true');
+    it('brain icon has aria-hidden to prevent screen reader duplication', function () {
+        const icon = document.querySelector('.thinking-icon');
+        assert.strictEqual(icon.getAttribute('aria-hidden'), 'true');
     });
 
     it('thinking container keeps role=status and aria-live for accessibility', function () {
@@ -64,9 +61,9 @@ describe('Animated Thinking Prompt', function () {
 
     it('icons are inside the thinking container', function () {
         const thinking = document.querySelector('#thinking');
-        const iconA = thinking.querySelector('.thinking-icon--a');
+        const icon = thinking.querySelector('.thinking-icon');
         const text = thinking.querySelector('.thinking-text');
-        assert.ok(iconA, 'icon A must be inside #thinking');
+        assert.ok(icon, '.thinking-icon must be inside #thinking');
         assert.ok(text, '.thinking-text must be inside #thinking');
     });
 });

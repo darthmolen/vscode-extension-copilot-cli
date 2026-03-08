@@ -718,33 +718,24 @@ main {
 /* Thinking indicator animations */
 @keyframes thinking-pulse {
 	0%, 100% {
-		color: var(--vscode-descriptionForeground);
-		font-weight: 400;
-		opacity: 0.6;
+		opacity: 1;
+		font-weight: 600;
+		color: var(--vscode-foreground);
 	}
 	50% {
-		color: var(--vscode-foreground);
-		font-weight: 600;
-		opacity: 1;
+		opacity: 0.3;
+		font-weight: 400;
+		color: var(--vscode-descriptionForeground);
 	}
 }
 
-@keyframes rainbow-cycle-a {
+@keyframes rainbow-cycle {
 	0%, 100% { filter: hue-rotate(0deg) saturate(2); }
 	16.67%   { filter: hue-rotate(60deg) saturate(2); }
 	33.33%   { filter: hue-rotate(120deg) saturate(2); }
 	50%      { filter: hue-rotate(180deg) saturate(2); }
 	66.67%   { filter: hue-rotate(240deg) saturate(2); }
 	83.33%   { filter: hue-rotate(300deg) saturate(2); }
-}
-
-@keyframes rainbow-cycle-b {
-	0%, 100% { color: #ff4444; }
-	16%      { color: #ff9900; }
-	33%      { color: #ffdd00; }
-	50%      { color: #44cc44; }
-	66%      { color: #4488ff; }
-	83%      { color: #aa44ff; }
 }
 
 .thinking,
@@ -764,16 +755,11 @@ main {
 }
 
 .thinking.active .thinking-text {
-	animation: thinking-pulse 2.5s ease-in-out infinite;
+	animation: thinking-pulse 2s ease-in-out infinite;
 }
 
-.thinking.active .thinking-icon--a {
-	animation: rainbow-cycle-a 3s linear infinite;
-}
-
-.thinking.active .thinking-icon--b {
-	animation: rainbow-cycle-b 3s linear infinite;
-	animation-delay: -1.5s;
+.thinking.active .thinking-icon {
+	animation: rainbow-cycle 3s linear infinite;
 }
 
 .thinking-icon {
