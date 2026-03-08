@@ -23,7 +23,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 ### 🎯 Focused by Design
 
 - **In-Stream Diffs** — File edits show compact inline diffs (+/- prefixes) directly in the chat stream. Larger diffs truncate with a "View Diff" button. Review, approve, or redirect the agent without leaving your conversation.
-- **Plan Mode (ACE-FCA)** — Separate planning and implementation into dual sessions. Explore with read-only tools, then hand off a solid plan to your work session.
+- **Plan Mode (ACE-FCA)** — Separate planning and implementation into dual sessions. Explore with read-only tools, then hand off a solid plan to your work session. The input area shows a blue outline when plan mode is active.
 - **Plan Model Selection** — Use different AI models for planning vs. implementation. Think with Opus, build with Sonnet, explore with Haiku.
 - **Reasoning Visibility** — Watch the agent think in real-time with streaming reasoning traces.
 
@@ -52,6 +52,15 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.4.0 - Session Rename, Animated Thinking, and Plan Mode Polish
+
+- **`/rename` slash command** — Rename the current session inline (`/rename My Feature`) or via input prompt (`/rename`). Name persists in `session-name.txt` and updates the session dropdown immediately, even when the CLI fails on resumed sessions.
+- **Animated "Thinking..." indicator** — Rainbow 🧠 emoji (hue-rotate ping-pong) + pulsing "Thinking..." text. Appears immediately when the AI starts processing, including after plan acceptance.
+- **`plan_ready` auto-opens plan.md** — When the AI finishes presenting a plan, `plan.md` opens automatically in a new editor tab.
+- **Blue outline in plan mode** — The input area gets a 3px `var(--vscode-focusBorder)` outline when plan mode is active.
+- **`startNewSessionInPlanning` config** — New boolean setting. When enabled, new sessions automatically start in plan mode (`copilotCLI.startNewSessionInPlanning`, default `false`).
+- **Session label fixes** — Session dropdown no longer shows `[Active File: ...]` prefixes. Labels update live after the first AI response.
 
 ### v3.3.1 - Fix CLI Not Found on Windows (winget)
 
