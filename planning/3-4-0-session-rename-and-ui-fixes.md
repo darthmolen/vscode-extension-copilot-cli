@@ -187,7 +187,7 @@ Add `vscode.Uri.file(os.tmpdir())` to `localResourceRoots`.
 
 ### Test Results
 ```
-1157 passing (22s)
+1161 passing (16s)
 3 pending
 3 failing (all pre-existing, unrelated to this change)
 ```
@@ -227,6 +227,31 @@ Pre-existing failures:
 - Added test: `strips [Active File: ...] prefix from workspace.yaml summary`
 
 **Commit:** `fix: strip [Active File: ...] prefix from session labels`
+
+### Bug: SDK session.title_changed Also Includes Prefix
+**Discovered:** Session dropdown still showed `[Active File: ...]` after first fix
+
+**Root Cause:**
+- SDK fires `session.title_changed` event with auto-generated title from first message
+- Since messageEnhancementService prepends prefix to every message, SDK title includes it
+- This gets written to `session-name.txt` (highest priority for session labels)
+- Previous fix only stripped from `workspace.yaml` (third priority)
+
+**Fix:**
+- Strip `[Active File: ...]` prefix in `session.title_changed` handler
+- Take first non-empty line if title is multiline
+- Write clean title to `session-name.txt`
+- Added 4 tests: `tests/unit/extension/sdk-title-changed-strip-prefix.test.js`
+  - strips prefix from session title
+  - handles title with only prefix and no content
+  - handles title without prefix
+  - takes first line of multiline title after stripping
+
+**Commit:** `fix: strip [Active File: ...] from SDK session.title_changed`
+
+**Defense in Depth:** Now stripping prefix at TWO points:
+1. When SDK fires `session.title_changed` → prevents writing to `session-name.txt`
+2. When reading from `workspace.yaml` summary → fallback if prefix gets through
 
 ---
 
