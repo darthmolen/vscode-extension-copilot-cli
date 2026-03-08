@@ -99,7 +99,7 @@ CLI throws. The `session_renamed` status event fires correctly after our proacti
 |   | [#1865](https://github.com/github/copilot-cli/issues/1865) | copilot-cli | /rename fails with 'Workspace not found' on resumed sessions | OPEN — workaround applied | None |
 | x | [#377](https://github.com/github/copilot-sdk/issues/377) | copilot-sdk | ACP support request (wontfix) | CLOSED | friggeri closed as wontfix |
 |   | [#137](https://github.com/github/copilot-sdk/issues/137) | copilot-sdk | No minimum CLI version docs | OPEN | None (dormant since Jan 23) |
-| + | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | OPEN | **Steve willing to implement** (Feb 12) |
+| + | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | **CLOSED/SHIPPED v0.1.30** | See `planning/backlog/override_builtin_tools.md` |
 
 ## Maintainer Engagement Summary
 
