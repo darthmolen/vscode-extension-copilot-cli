@@ -766,12 +766,23 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Rename] Session title changed: "${event.data.title}"`);
                 if (event.data.title && this.sessionId) {
                     try {
+                        // Strip [Active File: ...] prefix if present (added by messageEnhancementService)
+                        let cleanTitle = event.data.title.replace(/^\[Active File:.*?\]\s*/s, '').trim();
+                        
+                        // If title is multiline, take only the first non-empty line
+                        const lines = cleanTitle.split('\n').map((l: string) => l.trim()).filter((l: string) => l);
+                        if (lines.length > 0) {
+                            cleanTitle = lines[0];
+                        }
+                        
+                        this.logger.debug(`[Rename] Clean title: "${cleanTitle}"`);
+                        
                         const sessionNamePath = path.join(
                             os.homedir(), '.copilot', 'session-state',
                             this.sessionId, 'session-name.txt'
                         );
-                        fs.writeFileSync(sessionNamePath, event.data.title, 'utf-8');
-                        this._onDidChangeStatus.fire({ status: 'session_renamed', name: event.data.title });
+                        fs.writeFileSync(sessionNamePath, cleanTitle, 'utf-8');
+                        this._onDidChangeStatus.fire({ status: 'session_renamed', name: cleanTitle });
                     } catch (writeErr) {
                         this.logger.error(`[Rename] Failed to write session-name.txt: ${writeErr}`);
                     }
