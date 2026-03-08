@@ -503,6 +503,9 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				updateSessionsList();
 				break;
 			case 'plan_accepted':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				chatProvider.setThinking(true); // show immediately; auto-cleared when first CLI response arrives
+				break;
 			case 'plan_rejected':
 				chatProvider.postMessage({ type: 'status', data: statusData });
 				break;

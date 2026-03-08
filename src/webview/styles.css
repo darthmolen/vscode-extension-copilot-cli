@@ -737,7 +737,7 @@ main {
 
 .thinking,
 .message-display__thinking {
-	padding: 4px 12px 6px 12px;
+	padding: 2px 12px 4px 12px;
 	font-style: italic;
 	font-size: 12px;
 	border-radius: 6px;
