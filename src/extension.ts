@@ -174,6 +174,20 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		if (!sessionName) {
 			return; // Empty name, skip
 		}
+
+		// Write session-name.txt proactively — this ensures the session label
+		// updates even if the CLI throws "Workspace not found" (issue #1865).
+		const sessionId = cliManager?.getSessionId();
+		if (sessionId) {
+			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
+			try {
+				SessionService.writeSessionName(sessionPath, sessionName);
+				logger.info(`[Rename Session] Wrote session-name.txt: "${sessionName}"`);
+			} catch (writeErr: any) {
+				logger.warn(`[Rename Session] Could not write session-name.txt: ${writeErr.message}`);
+			}
+		}
+
 		try {
 			if (cliManager) {
 				await cliManager.sendMessage(`/rename ${sessionName}`);
@@ -181,7 +195,9 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 				logger.warn('[Rename Session] No active session manager');
 			}
 		} catch (error: any) {
-			logger.error(`[Rename Session] Failed: ${error.message}`);
+			// CLI may throw "Workspace not found" on resumed sessions (github/copilot-cli#1865).
+			// The session-name.txt written above ensures the label still updates.
+			logger.warn(`[Rename Session] CLI rename failed (session-name.txt fallback applied): ${error.message}`);
 		}
 	}));
 }

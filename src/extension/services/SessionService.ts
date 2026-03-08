@@ -132,6 +132,16 @@ export const SessionService = {
     },
 
     /**
+     * Writes a custom session name to session-name.txt.
+     * This is the highest-priority label source. Use as a fallback when the CLI
+     * cannot rename the session (e.g. "Workspace not found" on resumed sessions).
+     */
+    writeSessionName(sessionPath: string, name: string): void {
+        const namePath = path.join(sessionPath, 'session-name.txt');
+        fs.writeFileSync(namePath, name, 'utf-8');
+    },
+
+    /**
      * Formats a session label from session-name.txt, plan.md heading,
      * workspace.yaml summary, or falls back to 8-char session ID.
      * Priority: session-name.txt > plan.md heading > workspace.yaml summary > UUID prefix
