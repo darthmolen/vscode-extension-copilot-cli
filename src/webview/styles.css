@@ -715,18 +715,71 @@ main {
 }
 
 
+/* Thinking indicator animations */
+@keyframes thinking-pulse {
+	0%, 100% {
+		color: var(--vscode-descriptionForeground);
+		font-weight: 400;
+		opacity: 0.6;
+	}
+	50% {
+		color: var(--vscode-foreground);
+		font-weight: 600;
+		opacity: 1;
+	}
+}
+
+@keyframes rainbow-cycle-a {
+	0%, 100% { filter: hue-rotate(0deg) saturate(2); }
+	16.67%   { filter: hue-rotate(60deg) saturate(2); }
+	33.33%   { filter: hue-rotate(120deg) saturate(2); }
+	50%      { filter: hue-rotate(180deg) saturate(2); }
+	66.67%   { filter: hue-rotate(240deg) saturate(2); }
+	83.33%   { filter: hue-rotate(300deg) saturate(2); }
+}
+
+@keyframes rainbow-cycle-b {
+	0%, 100% { color: #ff4444; }
+	16%      { color: #ff9900; }
+	33%      { color: #ffdd00; }
+	50%      { color: #44cc44; }
+	66%      { color: #4488ff; }
+	83%      { color: #aa44ff; }
+}
+
 .thinking,
 .message-display__thinking {
-	display: none;
-	padding: 10px 12px;
+	padding: 10px 12px 14px 12px;
 	font-style: italic;
-	opacity: 0.7;
 	font-size: 12px;
+	border-radius: 6px;
+	display: none;
+	align-items: center;
+	gap: 6px;
 }
 
 .thinking.active,
 .message-display__thinking.active {
-	display: block;
+	display: flex;
+}
+
+.thinking.active .thinking-text {
+	animation: thinking-pulse 2.5s ease-in-out infinite;
+}
+
+.thinking.active .thinking-icon--a {
+	animation: rainbow-cycle-a 3s linear infinite;
+}
+
+.thinking.active .thinking-icon--b {
+	animation: rainbow-cycle-b 3s linear infinite;
+	animation-delay: -1.5s;
+}
+
+.thinking-icon {
+	font-size: 14px;
+	line-height: 1;
+	flex-shrink: 0;
 }
 
 .input-container {
