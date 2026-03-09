@@ -53,6 +53,14 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.4.1 - Plan Mode Session Recovery
+
+- **Silent session recovery** — When the work session expires during extended planning, the extension silently recreates it instead of showing an error modal. The plan file and kickoff instruction carry over seamlessly.
+- **Meaningful session labels** — Plan acceptance extracts the plan heading (e.g., "v3.4.0 Release Documentation") and writes it to `session-name.txt`. The session dropdown shows intent, not garbled text.
+- **No more doubled SDK events** — `resumeSession()` on an already-active session caused server-side event doubling. Replaced with lightweight `abort()` health check. Filed upstream: [copilot-cli#1933](https://github.com/github/copilot-cli/issues/1933), [copilot-sdk#742](https://github.com/github/copilot-sdk/issues/742).
+- **Faster plan acceptance** — Plan kickoff message is fire-and-forget instead of blocking 60s on idle timeout.
+- **Session dropdown debounced** — No longer rescans 200+ session directories on every CLI turn end.
+
 ### v3.4.0 - Session Rename, Animated Thinking, and Plan Mode Polish
 
 - **`/rename` slash command** — Rename the current session inline (`/rename My Feature`) or via input prompt (`/rename`). Name persists in `session-name.txt` and updates the session dropdown immediately, even when the CLI fails on resumed sessions.

@@ -2,6 +2,20 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.4.1] - 2026-03-09
+
+### 🐛 Bug Fixes
+
+- **Work session "not found" after plan mode** — The CLI server garbage-collects idle sessions (~1-2h TTL). When a work session sat unused during extended planning, `acceptPlan()` would hit "Session not found" and show a recovery modal. Now `disablePlanMode()` proactively verifies the session via a lightweight `abort()` check and silently recreates it if expired. Uses `ensureSessionAlive()` in `sessionErrorUtils.ts` with `classifySessionError()` to distinguish expired sessions from transient errors.
+- **Session label garbled as "l j..."** — The auto-injected kickoff message ("I just finished planning...") was becoming the `workspace.yaml` summary, which truncated to garbage in the dropdown. The kickoff message now leads with the plan heading extracted from `plan.md`'s first `#` line (e.g., "v3.4.0 Release Documentation"). The heading is also written to `session-name.txt` for immediate label priority.
+- **Plan mode logs appear 60s late** — "Plan accepted!" and "Implementation context injected" appeared ~55s after actual acceptance because `acceptPlan()` awaited the kickoff `sendMessage()` which blocked on `sendAndWait()`'s idle timeout. The kickoff is now fire-and-forget with `.catch()` safety net — message delivery is immediate via RPC, no need to wait for idle.
+- **Session dropdown refreshes on every turn** — Every `status: 'ready'` event triggered a full session directory scan (339 sessions, filtered to 214). During agentic execution with 20+ turns, identical data was scanned and pushed to webview repeatedly. Now debounced to once per 30 seconds on `ready` events; explicit triggers (session rename, plan mode, new/switch session) always refresh immediately.
+
+### 🔧 Internal
+
+- **`extractPlanHeading()` + `buildKickoffMessage()`** — Pure functions in `planModeUtils.ts` for plan heading extraction and kickoff message construction. Unit tested with 8 cases.
+- **`ensureSessionAlive()`** — Reusable session health check in `sessionErrorUtils.ts`. Uses lightweight `abort()` to verify session liveness (avoids `resumeSession()` which causes server-side event doubling). Falls back to `createSession()` on `session_expired`, propagates all other errors. Unit tested with 3 cases.
+
 ## [3.4.0] - 2026-03-08
 
 ### ✨ Features

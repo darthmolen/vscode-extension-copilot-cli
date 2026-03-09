@@ -4,6 +4,7 @@ Updated 2026-02-23 with spike findings and corrections.
 Updated 2026-02-23 (evening) — #530 closed, PR #546 has review feedback from Steve.
 Updated 2026-02-24 — #1606 self-closed, PR #546 reworked per Steve's feedback, SDK breaking changes discovered.
 Updated 2026-03-08 — Two new issues filed during v3.4.0 session label work.
+Updated 2026-03-09 — New issue: resumeSession() doubles events on already-active sessions.
 
 ## Key Finding (2026-02-23)
 
@@ -41,6 +42,8 @@ Other changes since 0.1.22:
 | x | 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | CLOSED | [#532](https://github.com/github/copilot-sdk/issues/532) |
 |   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN (no response) | [#1607](https://github.com/github/copilot-cli/issues/1607) |
 |   | 6 | copilot-cli | Bug: session.title_changed event fires with truncated title ("I j...") | OPEN (filed Mar 8) | [#1910](https://github.com/github/copilot-cli/issues/1910) |
+|   | 7 | copilot-cli | Bug: resumeSession() on active session doubles all event notifications | OPEN (filed Mar 9) | [#1933](https://github.com/github/copilot-cli/issues/1933) |
+|   | 8 | copilot-sdk | resumeSession() on active session causes doubled events — SDK should guard | OPEN (filed Mar 9) | [#742](https://github.com/github/copilot-sdk/issues/742) |
 
 Legend: `x` = resolved/closed, `+` = we added follow-up comments, blank = open, no action needed
 
@@ -74,6 +77,172 @@ CLI-side bug we can't fix — session labels will still be short until the CLI t
 **#1865** — `/rename` fails with `Workspace not found` on resumed sessions (v0.0.421). Our workaround:
 write `session-name.txt` proactively before sending `/rename` to CLI, so the label updates even when
 CLI throws. The `session_renamed` status event fires correctly after our proactive write.
+
+**#7 / [#1933](https://github.com/github/copilot-cli/issues/1933)** — `resumeSession()` on an already-active session doubles all `session.event` notifications.
+Reproduced with bare-bones spike (`planning/spikes/resume-event-doubling/`): `createSession` → `sendAndWait`
+(events single) → `resumeSession` on same ID → `sendAndWait` (7 of 8 event types doubled, 1.9x total).
+Only `session.idle` stays single. Root cause: server-side `session.resume` re-registers the session for
+event notifications without checking for existing subscription on the same connection. Workaround: use
+`session.abort()` as lightweight liveness check instead of `resumeSession()`.
+
+<details>
+<summary>Draft issue body for copilot-cli</summary>
+
+**Title:** `session.resume` on active session doubles `session.event` notifications
+
+**Body:**
+
+## Bug
+
+Calling `session.resume` on a session that is already active on the same client connection causes all subsequent `session.event` JSON-RPC notifications to fire **twice** for that session. The doubling persists until the CLI process restarts.
+
+## Reproduction
+
+Minimal SDK script (requires Node 22.5+):
+
+```javascript
+const { CopilotClient, approveAll } = await import('@github/copilot-sdk');
+
+const client = new CopilotClient({ cwd: process.cwd(), autoStart: true });
+
+// Phase 1: create + send — events are SINGLE
+const session = await client.createSession({
+    model: 'claude-sonnet-4-5',
+    onPermissionRequest: approveAll,
+});
+
+let count1 = 0;
+const unsub1 = session.on(() => count1++);
+await session.sendAndWait({ prompt: 'Say hello' });
+unsub1();
+console.log(`Phase 1 events: ${count1}`); // ~9
+
+// Phase 2: resume same session + send — events are DOUBLED
+const resumed = await client.resumeSession(session.sessionId, {
+    onPermissionRequest: approveAll,
+});
+
+let count2 = 0;
+const unsub2 = resumed.on(() => count2++);
+await resumed.sendAndWait({ prompt: 'Say hello again' });
+unsub2();
+console.log(`Phase 2 events: ${count2}`); // ~17 (1.9x)
+```
+
+## Expected
+
+Event counts should be the same in both phases. `session.resume` on an already-active session should be idempotent with respect to event subscriptions.
+
+## Actual
+
+After `session.resume`, 7 of 8 event types fire twice per occurrence:
+- `user.message`, `assistant.message`, `assistant.turn_start`, `assistant.turn_end`, `assistant.usage`, `session.usage_info`, `pending_messages.modified` — all doubled
+- `session.idle` — stays single (different code path?)
+
+## Impact
+
+Any SDK client that uses `resumeSession()` as a health check (to verify a session is still alive before sending a message) will get doubled events for the rest of the session lifetime. This causes duplicate UI rendering, duplicate tool executions, and doubled state updates.
+
+## Environment
+
+- CLI: v0.0.421 (latest as of Mar 2026)
+- SDK: v0.1.22
+- Node: v24.13.1
+
+## Workaround
+
+Use `session.abort()` as a lightweight liveness check instead of `resumeSession()`. `abort()` is a no-op on idle sessions and throws if the session has been garbage-collected — same signal, no side effects.
+
+</details>
+
+**#8 / [#742](https://github.com/github/copilot-sdk/issues/742)** — SDK-level guard for the same doubling bug. Even if the CLI server
+fixes the duplicate subscription, the SDK should protect callers from this footgun. Two possible
+SDK-level fixes: (1) `resumeSession()` checks `this.sessions.has(sessionId)` and returns the
+existing `CopilotSession` instead of creating a duplicate, or (2) `resumeSession()` deletes the
+old session from the Map before creating the new one (ensuring the server-side subscription is
+replaced, not duplicated). Option 1 is cleaner — callers who want to re-configure can destroy first.
+
+Filed at SDK level because Steve (Sphephen) actually responds. CLI team is 0-for-6.
+
+<details>
+<summary>Draft issue body for copilot-sdk</summary>
+
+**Title:** `resumeSession()` on already-active session causes doubled events — SDK should guard
+
+**Body:**
+
+## Problem
+
+Calling `client.resumeSession(sessionId)` on a session that's already active (created via `createSession()` on the same connection) causes all subsequent `session.event` notifications to fire **twice**. This is a server-side issue (the CLI registers a second event subscription without deduplicating), but the SDK can and should protect callers.
+
+## Reproduction
+
+```javascript
+const { CopilotClient, approveAll } = await import('@github/copilot-sdk');
+const client = new CopilotClient({ cwd: process.cwd(), autoStart: true });
+
+const session = await client.createSession({
+    model: 'claude-sonnet-4-5',
+    onPermissionRequest: approveAll,
+});
+
+// Events are single here ✅
+let count1 = 0;
+const unsub1 = session.on(() => count1++);
+await session.sendAndWait({ prompt: 'Say hello' });
+unsub1();
+
+// Resume the SAME active session
+const resumed = await client.resumeSession(session.sessionId, {
+    onPermissionRequest: approveAll,
+});
+
+// Events are now doubled ❌
+let count2 = 0;
+const unsub2 = resumed.on(() => count2++);
+await resumed.sendAndWait({ prompt: 'Say hello again' });
+unsub2();
+
+console.log(count1, count2); // ~9, ~17
+```
+
+## Suggested Fix
+
+In `client.ts` `resumeSession()`, check if the session already exists in the local `sessions` Map before sending `session.resume` to the server:
+
+```typescript
+async resumeSession(sessionId: string, config: ResumeSessionConfig): Promise<CopilotSession> {
+    // Guard: if we already have a live session for this ID, return it
+    const existing = this.sessions.get(sessionId);
+    if (existing) {
+        // Re-register handlers if config changed
+        existing.registerTools(config.tools);
+        existing.registerPermissionHandler(config.onPermissionRequest);
+        if (config.hooks) existing.registerHooks(config.hooks);
+        return existing;
+    }
+
+    // ... existing resumeSession logic for truly new sessions
+}
+```
+
+This prevents the server-side duplicate subscription while still allowing callers to update tools/permissions. Callers who genuinely want a fresh session can `destroy()` first.
+
+## Impact
+
+Any SDK caller that uses `resumeSession()` as a health check (verify session is alive before sending a message) gets silently broken — doubled events for the rest of the session. We discovered this when implementing plan-mode session recovery in a VS Code extension.
+
+## Workaround
+
+We use `session.abort()` as a lightweight liveness check instead of `resumeSession()`. `abort()` is a no-op on idle sessions and throws `"Session not found"` if the session was garbage-collected. Same signal, no side effects.
+
+## Environment
+
+- SDK: v0.1.22
+- CLI: v0.0.421
+- Node: v24.13.1
+
+</details>
 
 ## Comments Added
 

@@ -16,6 +16,7 @@ let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatViewProvider;
+let lastDropdownRefresh = 0;
 
 /** Wraps an event handler with try/catch to prevent one handler error from breaking others. */
 function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => void {
@@ -478,7 +479,9 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 			case 'ready':
 				chatProvider.setThinking(false);
-				updateSessionsList();
+				if (Date.now() - lastDropdownRefresh > 30_000) {
+					updateSessionsList();
+				}
 				break;
 			case 'exited':
 			case 'stopped':
@@ -764,6 +767,7 @@ function getCLIConfig(): CLIConfig {
 }
 
 function updateSessionsList() {
+	lastDropdownRefresh = Date.now();
 	try {
 		const config = vscode.workspace.getConfiguration('copilotCLI');
 		const filterByFolder = config.get<boolean>('filterSessionsByFolder', true);

@@ -18,8 +18,10 @@ import {
     ErrorType,
     attemptSessionResumeWithRetry,
     showSessionRecoveryDialog,
-    withTimeout
+    withTimeout,
+    ensureSessionAlive
 } from './sessionErrorUtils';
+import { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
@@ -36,7 +38,7 @@ export function parseCliVersion(output: string): string | null {
 }
 
 /** Fallback model used when configured model is unsupported or mistyped */
-export const FALLBACK_MODEL = 'claude-sonnet-4.5';
+export const FALLBACK_MODEL = 'claude-sonnet-4.6';
 
 /**
  * Preferred model order for fallback selection.
@@ -971,7 +973,7 @@ export class SDKSessionManager implements vscode.Disposable {
         return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
     }
 
-    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false): Promise<void> {
+    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
         }
@@ -998,7 +1000,7 @@ export class SDKSessionManager implements vscode.Disposable {
         }
         
         // Enhance message with active file context and process @file references
-        const enhancedMessage = await this.messageEnhancementService.enhanceMessageWithContext(message);
+        const enhancedMessage = skipEnhancement ? message : await this.messageEnhancementService.enhanceMessageWithContext(message);
         
         this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
         
@@ -1616,11 +1618,63 @@ export class SDKSessionManager implements vscode.Disposable {
         // Resume work session
         this.sessionId = this.workSessionId;
         this.currentMode = 'work';
-        
+
         this.logger.info(`✅ Plan mode disabled! Resumed work session: ${this.sessionId}`);
-        
-        // Re-setup event handlers for work session (they were unsubscribed when plan mode started)
-        this.setActiveSession(this.workSession);
+
+        // Verify work session is still alive (CLI server may have GC'd it during planning)
+        // Uses abort() as lightweight check — NOT resumeSession() which causes
+        // server-side event doubling on already-active sessions
+        let verifiedSession = this.workSession;
+        try {
+            const mcpServers = this.getEnabledMCPServers();
+            const hasMcpServers = Object.keys(mcpServers).length > 0;
+
+            const result = await ensureSessionAlive(
+                this.workSession,
+                () => this.createSessionWithModelFallback({
+                    model: this.config.model || undefined,
+                    tools: this.getCustomTools(),
+                    hooks: this.getSessionHooks(),
+                    ...(hasMcpServers ? { mcpServers } : {}),
+                }),
+                this.logger
+            );
+
+            verifiedSession = result.session;
+            if (result.wasRecreated) {
+                this.sessionId = result.sessionId;
+                this.workSessionId = result.sessionId;
+                this.logger.info(`[Plan Mode] Work session recreated: ${this.sessionId}`);
+            }
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            if (msg.toLowerCase().includes('connection') || msg.toLowerCase().includes('disposed')) {
+                this.logger.error('[Plan Mode] Connection dead during health check, recreating session', error instanceof Error ? error : undefined);
+                try {
+                    const mcpServers = this.getEnabledMCPServers();
+                    const hasMcpServers = Object.keys(mcpServers).length > 0;
+                    const newSession = await this.createSessionWithModelFallback({
+                        model: this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    verifiedSession = newSession;
+                    this.sessionId = newSession.sessionId;
+                    this.workSessionId = newSession.sessionId;
+                    this.logger.info(`[Plan Mode] Work session recreated after connection failure: ${this.sessionId}`);
+                } catch (recreateError) {
+                    this.logger.error('[Plan Mode] Failed to recreate session', recreateError instanceof Error ? recreateError : undefined);
+                }
+            } else {
+                this.logger.error('[Plan Mode] Failed to verify work session health', error instanceof Error ? error : undefined);
+            }
+        }
+
+        // Update session state and subscribe to events — exactly once
+        this.session = verifiedSession;
+        this.workSession = verifiedSession;
+        this.setActiveSession(verifiedSession);
         
         // Notify UI
         this.logger.info('[Plan Mode] Emitting plan_mode_disabled status event');
@@ -1661,17 +1715,37 @@ export class SDKSessionManager implements vscode.Disposable {
         this._onDidChangeStatus.fire({ status: 'plan_accepted' });
         this.logger.info('[Plan Mode] plan_accepted event emitted');
         
-        // Auto-inject context message to start implementation
-        this.logger.info('[Plan Mode] Auto-injecting implementation context...');
-        await this.sendMessage(
-            `I just finished planning and accepted the plan. The plan is located at: ${planPath}\n\n` +
-            `Please read the plan file and begin implementation. Review the tasks and start executing them.`,
-            undefined, // no attachments
-            false      // isRetry
-        );
-        this.logger.info('[Plan Mode] Implementation context injected');
-        
-        this.logger.info('[Plan Mode] ✅ Plan accepted!');
+        // Extract plan heading for meaningful session label + kickoff message
+        let planHeading: string | null = null;
+        try {
+            if (fs.existsSync(planPath)) {
+                const planContent = fs.readFileSync(planPath, 'utf-8');
+                planHeading = extractPlanHeading(planContent);
+            }
+        } catch {
+            this.logger.warn('[Plan Mode] Could not read plan.md for heading extraction');
+        }
+
+        // Write heading as session name so dropdown shows intent, not garbled text
+        if (planHeading) {
+            try {
+                const sessionPath = path.join(homeDir, '.copilot', 'session-state', this.sessionId!);
+                SessionService.writeSessionName(sessionPath, planHeading);
+                this.logger.info(`[Plan Mode] Wrote session name: ${planHeading}`);
+            } catch {
+                this.logger.warn('[Plan Mode] Could not write session-name.txt');
+            }
+        }
+
+        // Auto-inject kickoff message — line 1 is the plan heading (becomes session label)
+        const kickoffMessage = buildKickoffMessage(planHeading, planPath);
+        this.logger.info('[Plan Mode] ✅ Plan accepted! Injecting implementation context...');
+        // Fire-and-forget: message delivery is immediate via RPC. sendAndWait() only
+        // blocks waiting for session.idle, which we don't need for a kickoff.
+        this.sendMessage(kickoffMessage, undefined, false, true).catch(err => {
+            this.logger.warn('[Plan Mode] Kickoff message error (non-fatal)',
+                err instanceof Error ? err : undefined);
+        });
     }
     
     /**

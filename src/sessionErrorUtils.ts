@@ -294,3 +294,32 @@ export async function showSessionRecoveryDialog(
     // User chose "Start New Session" or dismissed (undefined) -> new session
     return choice === 'Try Again' ? 'retry' : 'new';
 }
+
+/**
+ * Verifies a session is alive using a lightweight abort() check.
+ * If the session has expired (CLI GC'd it), silently creates a new one.
+ * Non-expired errors (network, etc.) are propagated for the caller to handle.
+ *
+ * Uses abort() instead of resumeSession() because resumeSession() re-registers
+ * server-side event subscriptions, causing doubled events on already-active sessions.
+ * abort() is a no-op on idle sessions and throws if the session is dead.
+ */
+export async function ensureSessionAlive(
+    existingSession: { sessionId: string; abort: () => Promise<void> },
+    createSessionFn: () => Promise<any>,
+    logger?: { info: (...args: any[]) => void; warn: (...args: any[]) => void }
+): Promise<{ session: any; sessionId: string; wasRecreated: boolean }> {
+    try {
+        await existingSession.abort();
+        logger?.info(`[Session] Work session ${existingSession.sessionId} verified alive`);
+        return { session: existingSession, sessionId: existingSession.sessionId, wasRecreated: false };
+    } catch (error) {
+        const errorType = classifySessionError(error instanceof Error ? error : new Error(String(error)));
+        if (errorType === 'session_expired') {
+            logger?.warn(`[Session] Work session ${existingSession.sessionId} expired, recreating silently`);
+            const newSession = await createSessionFn();
+            return { session: newSession, sessionId: newSession.sessionId, wasRecreated: true };
+        }
+        throw error;
+    }
+}

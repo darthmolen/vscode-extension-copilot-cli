@@ -178,8 +178,8 @@ describe('Smart Model Fallback', function () {
     });
 
     describe('FALLBACK_MODEL', function () {
-        it('should be claude-sonnet-4.5', function () {
-            assert.strictEqual(FALLBACK_MODEL, 'claude-sonnet-4.5');
+        it('should be claude-sonnet-4.6', function () {
+            assert.strictEqual(FALLBACK_MODEL, 'claude-sonnet-4.6');
         });
     });
 });
