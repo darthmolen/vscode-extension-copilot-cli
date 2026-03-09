@@ -129,7 +129,7 @@ export class CommandParser {
 				description: 'Log out'
 			}],
 			
-			// Not supported commands (25)
+			// Not supported commands (23)
 			['clear', { type: 'not-supported' }],
 			['new', { type: 'not-supported' }],
 			['resume', { type: 'not-supported' }],

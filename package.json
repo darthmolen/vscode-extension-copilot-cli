@@ -98,6 +98,16 @@
           "when": "editorFocus"
         }
       ],
+      "commandPalette": [
+        {
+          "command": "copilot-cli-extension.openAnimationTestLight",
+          "when": "config.copilotCLI.devMode"
+        },
+        {
+          "command": "copilot-cli-extension.openAnimationTestDark",
+          "when": "config.copilotCLI.devMode"
+        }
+      ],
       "view/title": [
         {
           "command": "copilot-cli-extension.newSession",
@@ -114,6 +124,11 @@
     "configuration": {
       "title": "Copilot CLI",
       "properties": {
+        "copilotCLI.devMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable developer mode (shows animation test commands and other dev tools)"
+        },
         "copilotCLI.cliPath": {
           "type": "string",
           "default": "copilot",

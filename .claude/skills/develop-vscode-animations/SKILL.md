@@ -27,7 +27,7 @@ The project includes `src/animationTestPanel.ts` — a factory that creates `vsc
 **Workflow:**
 1. Edit `src/animationTestPanel.ts` with the animation you want to test
 2. Include both a large-scale preview (48px+) and an actual-size preview (12px)
-3. Run `npm run compile` then reload the Extension Development Host
+3. Run `./test-extension.sh` to build and install the updated extension, then reload the VS Code window (Command Palette → "Developer: Reload Window")
 4. Open both light and dark panels to compare
 
 The panels are self-contained — all CSS is inline, no dependency on `styles.css`. This lets you tweak animations in isolation before porting to production CSS.

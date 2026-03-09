@@ -75,6 +75,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			localResourceRoots: [
 				this.extensionUri,
 				vscode.Uri.file(path.join(os.homedir(), '.copilot')),
+				// Full tmpdir needed: pasted images go into random copilot-paste-<uuid> subdirs
 				vscode.Uri.file(os.tmpdir()),
 				...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)
 			]

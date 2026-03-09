@@ -776,13 +776,17 @@ export class SDKSessionManager implements vscode.Disposable {
                         }
                         
                         this.logger.debug(`[Rename] Clean title: "${cleanTitle}"`);
-                        
-                        const sessionNamePath = path.join(
-                            os.homedir(), '.copilot', 'session-state',
-                            this.sessionId, 'session-name.txt'
-                        );
-                        fs.writeFileSync(sessionNamePath, cleanTitle, 'utf-8');
-                        this._onDidChangeStatus.fire({ status: 'session_renamed', name: cleanTitle });
+
+                        if (cleanTitle) {
+                            const sessionNamePath = path.join(
+                                os.homedir(), '.copilot', 'session-state',
+                                this.sessionId, 'session-name.txt'
+                            );
+                            fs.writeFileSync(sessionNamePath, cleanTitle, 'utf-8');
+                            this._onDidChangeStatus.fire({ status: 'session_renamed', name: cleanTitle });
+                        } else {
+                            this.logger.debug('[Rename] Skipping session-name.txt write: cleanTitle is empty');
+                        }
                     } catch (writeErr) {
                         this.logger.error(`[Rename] Failed to write session-name.txt: ${writeErr}`);
                     }
@@ -1011,7 +1015,7 @@ export class SDKSessionManager implements vscode.Disposable {
             // Clean up temp files (pasted images) after SDK has consumed them
             if (attachments && attachments.length > 0) {
                 for (const att of attachments) {
-                    if (att.path.startsWith(os.tmpdir())) {
+                    if (path.basename(path.dirname(att.path)).startsWith('copilot-paste-')) {
                         try {
                             fs.unlinkSync(att.path);
                             fs.rmdirSync(path.dirname(att.path));

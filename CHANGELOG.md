@@ -26,7 +26,7 @@ All notable changes to the Copilot CLI Chat extension.
 
 ### 🔧 Internal
 
-- **`develop-vscode-animations` skill** — New session skill documenting the animation test panel workflow. `src/animationTestPanel.ts` creates disposable light/dark WebviewPanel tabs for rapid CSS animation iteration directly in the Extension Development Host. The skill covers: hue-rotate rainbow patterns, smooth text pulse (opacity + color), `animation-direction: alternate` ping-pong, common pitfalls (emoji vs CSS `color:`, explicit stop jerk at loop boundary), and input area card styling.
+- **`develop-vscode-animations` skill** — New session skill documenting the animation test panel workflow. `src/animationTestPanel.ts` creates disposable light/dark WebviewPanel tabs for rapid CSS animation iteration while developing the extension using the standard VSIX build-and-install workflow. The skill covers: hue-rotate rainbow patterns, smooth text pulse (opacity + color), `animation-direction: alternate` ping-pong, common pitfalls (emoji vs CSS `color:`, explicit stop jerk at loop boundary), and input area card styling.
 
 ## [3.3.1] - 2026-02-27
 
