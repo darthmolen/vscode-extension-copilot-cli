@@ -7,6 +7,8 @@ import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
+import { createAnimationTestPanel } from './animationTestPanel';
+import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 
 let cliManager: SDKSessionManager | null = null;
 let logger: Logger;
@@ -65,6 +67,30 @@ export function activate(context: vscode.ExtensionContext) {
 	logger.info('Copilot CLI Extension activated successfully');
 }
 
+/** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
+async function viewPlanFile(): Promise<void> {
+	const planPath = cliManager?.getPlanFilePath();
+	if (!planPath) {
+		vscode.window.showWarningMessage('No active session - cannot view plan.md');
+		return;
+	}
+
+	const fsModule = require('fs');
+	if (!fsModule.existsSync(planPath)) {
+		vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
+		return;
+	}
+
+	try {
+		const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
+		await vscode.window.showTextDocument(doc, { preview: false });
+	} catch (error) {
+		const errorMsg = error instanceof Error ? error.message : String(error);
+		logger.error(`Failed to open plan.md: ${errorMsg}`);
+		vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
+	}
+}
+
 /** Register chatProvider event handlers (message, abort, view plan, ready). */
 function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {
@@ -99,26 +125,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {
-		const planPath = cliManager?.getPlanFilePath();
-		if (!planPath) {
-			vscode.window.showWarningMessage('No active session - cannot view plan.md');
-			return;
-		}
-
-		const fsModule = require('fs');
-		if (!fsModule.existsSync(planPath)) {
-			vscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');
-			return;
-		}
-
-		try {
-			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));
-			await vscode.window.showTextDocument(doc, { preview: false });
-		} catch (error) {
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			logger.error(`Failed to open plan.md: ${errorMsg}`);
-			vscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);
-		}
+		await viewPlanFile();
 	}));
 
 	context.subscriptions.push(chatProvider.onDidBecomeReady(async () => {
@@ -151,6 +158,50 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			logger.error(`[Model Switch] Failed: ${error.message}`);
 		}
 	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestRenameSession(async (name: string) => {
+		logger.info(`[Rename Session] Requested: "${name}"`);
+		let sessionName = name;
+		if (!sessionName) {
+			const input = await vscode.window.showInputBox({
+				prompt: 'Enter a name for this session',
+				placeHolder: 'Session name...',
+				value: ''
+			});
+			if (input === undefined) {
+				return; // User cancelled
+			}
+			sessionName = input;
+		}
+		if (!sessionName) {
+			return; // Empty name, skip
+		}
+
+		// Write session-name.txt proactively — this ensures the session label
+		// updates even if the CLI throws "Workspace not found" (issue #1865).
+		const sessionId = cliManager?.getSessionId();
+		if (sessionId) {
+			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
+			try {
+				SessionService.writeSessionName(sessionPath, sessionName);
+				logger.info(`[Rename Session] Wrote session-name.txt: "${sessionName}"`);
+			} catch (writeErr: any) {
+				logger.warn(`[Rename Session] Could not write session-name.txt: ${writeErr.message}`);
+			}
+		}
+
+		try {
+			if (cliManager) {
+				await cliManager.sendMessage(`/rename ${sessionName}`);
+			} else {
+				logger.warn('[Rename Session] No active session manager');
+			}
+		} catch (error: any) {
+			// CLI may throw "Workspace not found" on resumed sessions (github/copilot-cli#1865).
+			// The session-name.txt written above ensures the label still updates.
+			logger.warn(`[Rename Session] CLI rename failed (session-name.txt fallback applied): ${error.message}`);
+		}
+	}));
 }
 
 /** Register all VS Code commands. */
@@ -169,6 +220,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', (enabled: boolean) => handleTogglePlanMode(enabled)),
 		vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', () => handleAcceptPlan()),
 		vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', () => handleRejectPlan()),
+		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestLight', () => createAnimationTestPanel('light')),
+		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestDark', () => createAnimationTestPanel('dark')),
 	];
 	context.subscriptions.push(...commands);
 }
@@ -225,6 +278,17 @@ async function handleNewSession(context: vscode.ExtensionContext): Promise<void>
 	chatProvider.resetPlanMode();
 	await startCLISession(context, false);
 	updateSessionsList();
+
+	const config = vscode.workspace.getConfiguration('copilotCLI');
+	if (shouldAutoEnablePlanMode(config.get<boolean>('startNewSessionInPlanning'))) {
+		logger.info('[New Session] startNewSessionInPlanning=true, enabling plan mode');
+		try {
+			await cliManager!.enablePlanMode();
+		} catch (err: any) {
+			logger.error(`[New Session] Failed to auto-enable plan mode: ${err.message}`);
+		}
+	}
+
 	vscode.window.showInformationMessage('New Copilot CLI session started!');
 }
 
@@ -413,6 +477,8 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				chatProvider.setThinking(true);
 				break;
 			case 'ready':
+				chatProvider.setThinking(false);
+				updateSessionsList();
 				break;
 			case 'exited':
 			case 'stopped':
@@ -437,8 +503,16 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				updateSessionsList();
 				break;
 			case 'plan_accepted':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				chatProvider.setThinking(true); // show immediately; auto-cleared when first CLI response arrives
+				break;
 			case 'plan_rejected':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				break;
 			case 'plan_ready':
+				chatProvider.postMessage({ type: 'status', data: statusData });
+				viewPlanFile();
+				break;
 			case 'reset_metrics':
 				chatProvider.postMessage({ type: 'status', data: statusData });
 				break;
@@ -448,6 +522,10 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 			case 'model_switch_failed':
 				chatProvider.sendModelSwitched(statusData.model || '', false);
+				break;
+			case 'session_renamed':
+				logger.info(`[Rename Session] Renamed to: "${statusData.name}"`);
+				updateSessionsList();
 				break;
 		}
 	})));

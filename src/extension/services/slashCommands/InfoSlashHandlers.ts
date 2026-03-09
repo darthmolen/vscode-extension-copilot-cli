@@ -104,6 +104,8 @@ export class InfoSlashHandlers {
                 `- \`/review\` - Show plan.md content\n` +
                 `- \`/diff <file1> <file2>\` - Open diff viewer\n\n` +
                 `## Configuration\n` +
+                `- \`/rename [name]\` - Rename this session\n` +
+                `- \`/model\` - Switch AI model\n` +
                 `- \`/mcp\` - Show MCP server config\n` +
                 `- \`/usage\` - Show session metrics\n` +
                 `- \`/help [command]\` - Show this help\n\n` +
@@ -137,6 +139,7 @@ export class InfoSlashHandlers {
             reject: `# /reject - Reject Plan\n\nUsage: \`/reject\`\n\nRejects the current plan and stays in plan mode to revise.\n\nExample: \`/reject\``,
             review: `# /review - Show Plan Content\n\nUsage: \`/review\`\n\nDisplays the current plan.md file content from your session. If no plan exists, shows a friendly message.\n\nExample: \`/review\``,
             diff: `# /diff - Open Diff Viewer\n\nUsage: \`/diff <file1> <file2>\`\n\nOpens VS Code's diff viewer to compare two files side-by-side.\n\nExample: \`/diff src/old.ts src/new.ts\``,
+            rename: `# /rename - Rename Session\n\nUsage: \`/rename [name]\`\n\nRenames the current session. If no name is provided, shows an input box.\n\nExamples:\n- \`/rename My Feature\` - Rename session\n- \`/rename\` - Show input box`,
             mcp: `# /mcp - Show MCP Configuration\n\nUsage: \`/mcp\`\n\nDisplays the Model Context Protocol (MCP) server configuration, showing active servers and their tools.\n\nExample: \`/mcp\``,
             usage: `# /usage - Show Session Metrics\n\nUsage: \`/usage\`\n\nDisplays session statistics including start time, duration, message count, and tool calls.\n\nExample: \`/usage\``,
             help: `# /help - Command Help\n\nUsage: \`/help [command]\`\n\nShows this help message. Optionally specify a command name for detailed help.\n\nExamples:\n- \`/help\` - Show all commands\n- \`/help review\` - Show help for /review`,

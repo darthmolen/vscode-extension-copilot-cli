@@ -39,6 +39,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
+	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -46,6 +47,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidRequestViewPlan = this._onDidRequestViewPlan.event;
 	readonly onDidBecomeReady = this._onDidBecomeReady.event;
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
+	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
 
 	constructor(extensionUri: vscode.Uri) {
 		this.extensionUri = extensionUri;
@@ -73,6 +75,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			localResourceRoots: [
 				this.extensionUri,
 				vscode.Uri.file(path.join(os.homedir(), '.copilot')),
+				// Full tmpdir needed: pasted images go into random copilot-paste-<uuid> subdirs
+				vscode.Uri.file(os.tmpdir()),
 				...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)
 			]
 		};
@@ -321,6 +325,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			this._onDidRequestSwitchModel.fire(payload.model);
 		}));
 
+		this._reg(this.rpcRouter.onRenameSession((payload) => {
+			this.logger.info(`Rename session requested: "${payload.name}"`);
+			this._onDidRequestRenameSession.fire(payload.name);
+		}));
+
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
 			this.logger.info(`[OpenFile] ${payload.filePath}`);
 			const resolved = path.resolve(payload.filePath);
@@ -547,11 +556,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				displayName: fileName,
 				webviewUri: webviewUri?.toString() || ''
 			};
-
-			// Schedule temp file cleanup after SDK has had time to consume it
-			setTimeout(() => {
-				try { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }
-			}, 30_000);
 
 			this.logger.info(`[PASTE] Sending pasted image attachment to webview`);
 			this.postMessage({

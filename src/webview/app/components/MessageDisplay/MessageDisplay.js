@@ -56,7 +56,7 @@ export class MessageDisplay {
                     </div>
                 </div>
             </div>
-            <div class="thinking message-display__thinking" id="thinking" role="status" aria-live="polite">Thinking...</div>
+            <div class="thinking message-display__thinking" id="thinking" role="status" aria-live="polite"><span class="thinking-icon" aria-hidden="true">🧠</span><span class="thinking-text">Thinking...</span></div>
         `;
 
         // Get element references

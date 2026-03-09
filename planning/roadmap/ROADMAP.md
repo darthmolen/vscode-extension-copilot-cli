@@ -12,9 +12,9 @@ Feature roadmap for the VS Code Copilot CLI Extension. Items are roughly ordered
 | :white_check_mark: | Prompt history (up/down arrow cycling, last 20) | 3.2 | 2026-02-23 | 3.2.0 | — |
 | :white_check_mark: | Mid-session model switching | 3.3 | 2026-02-24 | 3.3.0 | [model-selection-dropdown.md](../backlog/model-selection-dropdown.md) |
 | :white_check_mark: | Show when a message is queued, awaiting AI notice | 3.3 | 2026-02-24 | 3.3.0 | — |
-| :construction: | Slash command IntelliSense / auto-complete | 3.4 | — | — | — |
-| :construction: | MCP server management UI | 3.4 | — | — | [mcp-server-management-ui.md](../backlog/mcp-server-management-ui.md) |
-| :construction: | Multi-session support (ACE-FCA workflows) | 3.4 | — | — | — |
+| :construction: | Slash command IntelliSense / auto-complete | 3.5 | — | — | — |
+| :construction: | MCP server management UI | 3.5 | — | — | [mcp-server-management-ui.md](../backlog/mcp-server-management-ui.md) |
+| :construction: | Multi-session support (ACE-FCA workflows) | 3.5 | — | — | — |
 | :construction: | Multiple agents — separate virtual windows (tmux-like) | 3.5 | — | — | — |
 | :construction: | User hook support (custom pre/post hooks) | 3.5 | — | — | — |
 | :construction: | Granular permission handler (operation-level policy) | 4.1 | — | — | [granular-permissions.md](../backlog/granular-permissions.md) |

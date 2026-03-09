@@ -214,7 +214,7 @@ export interface StatusData {
     status: 'thinking' | 'ready' | 'exited' | 'stopped' | 'aborted' | 'session_expired' |
             'plan_mode_enabled' | 'plan_mode_disabled' | 'plan_accepted' | 'plan_rejected' |
             'plan_ready' | 'reset_metrics' | 'session_resume_failed' | 'authentication_required' |
-            'message_queued' | 'model_switched' | 'model_switch_failed';
+            'message_queued' | 'model_switched' | 'model_switch_failed' | 'session_renamed';
     turnId?: string;
     sessionId?: string;  // For session ready
     newSessionId?: string;  // For session_expired
@@ -223,6 +223,7 @@ export interface StatusData {
     postCompactionTokens?: number;  // For reset_metrics after compaction
     summary?: string | null;  // For plan_ready
     model?: string;  // For model_switched / model_switch_failed
+    name?: string;  // For session_renamed
 }
 
 export interface FileChangeData {
@@ -761,6 +762,37 @@ export class SDKSessionManager implements vscode.Disposable {
                 }
                 break;
 
+            case 'session.title_changed':
+                this.logger.info(`[Rename] Session title changed: "${event.data.title}"`);
+                if (event.data.title && this.sessionId) {
+                    try {
+                        // Strip [Active File: ...] prefix if present (added by messageEnhancementService)
+                        let cleanTitle = event.data.title.replace(/^\[Active File:.*?\]\s*/s, '').trim();
+                        
+                        // If title is multiline, take only the first non-empty line
+                        const lines = cleanTitle.split('\n').map((l: string) => l.trim()).filter((l: string) => l);
+                        if (lines.length > 0) {
+                            cleanTitle = lines[0];
+                        }
+                        
+                        this.logger.debug(`[Rename] Clean title: "${cleanTitle}"`);
+
+                        if (cleanTitle) {
+                            const sessionNamePath = path.join(
+                                os.homedir(), '.copilot', 'session-state',
+                                this.sessionId, 'session-name.txt'
+                            );
+                            fs.writeFileSync(sessionNamePath, cleanTitle, 'utf-8');
+                            this._onDidChangeStatus.fire({ status: 'session_renamed', name: cleanTitle });
+                        } else {
+                            this.logger.debug('[Rename] Skipping session-name.txt write: cleanTitle is empty');
+                        }
+                    } catch (writeErr) {
+                        this.logger.error(`[Rename] Failed to write session-name.txt: ${writeErr}`);
+                    }
+                }
+                break;
+
             case 'subagent.started':
             case 'subagent.completed':
             case 'subagent.failed':
@@ -979,6 +1011,19 @@ export class SDKSessionManager implements vscode.Disposable {
             
             await this.session.sendAndWait(sendOptions);
             this.logger.info('Message sent and completed successfully');
+
+            // Clean up temp files (pasted images) after SDK has consumed them
+            if (attachments && attachments.length > 0) {
+                for (const att of attachments) {
+                    if (path.basename(path.dirname(att.path)).startsWith('copilot-paste-')) {
+                        try {
+                            fs.unlinkSync(att.path);
+                            fs.rmdirSync(path.dirname(att.path));
+                            this.logger.debug(`[Attachments] Cleaned up temp file: ${att.path}`);
+                        } catch { /* ignore cleanup errors */ }
+                    }
+                }
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             

@@ -268,6 +268,17 @@ class WebviewRpcClient {
 		});
 	}
 
+	/**
+	 * Rename the current session
+	 * @param {string} name - New session name (empty string = show input box)
+	 */
+	renameSession(name) {
+		this._send({
+			type: 'renameSession',
+			name: name || ''
+		});
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================

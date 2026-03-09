@@ -376,6 +376,126 @@ describe('SessionService', function () {
             // Should fall back to session ID prefix
             assert.strictEqual(label, 'session-');
         });
+
+        // Feature 2 (Bug Fix A): session-name.txt takes top priority
+        it('returns session-name.txt contents when present (highest priority)', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-with-name-file',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }],
+                    planContent: '# Plan heading\n\nDetails here.'
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-with-name-file');
+            // Write session-name.txt
+            fs.writeFileSync(path.join(sessionPath, 'session-name.txt'), 'My Custom Name');
+
+            const label = SessionService.formatSessionLabel('session-with-name-file', sessionPath);
+            // session-name.txt should take priority over plan.md heading
+            assert.strictEqual(label, 'My Custom Name');
+        });
+
+        it('truncates session-name.txt to 40 characters', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-with-long-name',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-with-long-name');
+            const longName = 'This is a very long session name that definitely exceeds forty characters';
+            fs.writeFileSync(path.join(sessionPath, 'session-name.txt'), longName);
+
+            const label = SessionService.formatSessionLabel('session-with-long-name', sessionPath);
+            assert.ok(label.length <= 40, `Label "${label}" should be at most 40 characters`);
+        });
+
+        // Bug Fix A: workspace.yaml summary as fallback
+        it('falls back to workspace.yaml summary when no plan.md heading', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-with-yaml',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                    // no planContent
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-with-yaml');
+            // Write workspace.yaml with summary
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                'version: 1\ncwd: /tmp\nsummary: Fix authentication bug\n');
+
+            const label = SessionService.formatSessionLabel('session-with-yaml', sessionPath);
+            assert.strictEqual(label, 'Fix authentication bug');
+        });
+
+        it('workspace.yaml summary is truncated to 40 characters', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-yaml-long',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-yaml-long');
+            const longSummary = 'This is a very long workspace summary that exceeds forty characters easily';
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                `version: 1\ncwd: /tmp\nsummary: ${longSummary}\n`);
+
+            const label = SessionService.formatSessionLabel('session-yaml-long', sessionPath);
+            assert.ok(label.length <= 40, `Label "${label}" should be at most 40 characters`);
+        });
+
+        it('plan.md heading takes priority over workspace.yaml summary', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-both',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }],
+                    planContent: '# Plan heading\n\nDetails.'
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-both');
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                'version: 1\ncwd: /tmp\nsummary: Workspace summary\n');
+
+            const label = SessionService.formatSessionLabel('session-both', sessionPath);
+            assert.strictEqual(label, 'Plan heading');
+        });
+
+        it('falls back to session ID prefix when no plan.md, no session-name.txt, and no workspace.yaml', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'abcdef99-3456-7890-abcd-ef1234567890',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'abcdef99-3456-7890-abcd-ef1234567890');
+            const label = SessionService.formatSessionLabel(
+                'abcdef99-3456-7890-abcd-ef1234567890', sessionPath
+            );
+            assert.strictEqual(label, 'abcdef99');
+        });
+
+        it('strips [Active File: ...] prefix from workspace.yaml summary', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'session-active-file-prefix',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+
+            const sessionPath = path.join(sessionStateDir, 'session-active-file-prefix');
+            // Multiline YAML with Active File prefix (as generated by CLI)
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                'version: 1\ncwd: /tmp\nsummary: |-\n  [Active File: /some/path/file.ts]\n\n  I just finished planning\n');
+
+            const label = SessionService.formatSessionLabel('session-active-file-prefix', sessionPath);
+            assert.strictEqual(label, 'I just finished planning');
+        });
     });
 
     // ---------------------------------------------------------------------------

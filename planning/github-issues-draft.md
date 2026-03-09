@@ -3,6 +3,7 @@
 Updated 2026-02-23 with spike findings and corrections.
 Updated 2026-02-23 (evening) — #530 closed, PR #546 has review feedback from Steve.
 Updated 2026-02-24 — #1606 self-closed, PR #546 reworked per Steve's feedback, SDK breaking changes discovered.
+Updated 2026-03-08 — Two new issues filed during v3.4.0 session label work.
 
 ## Key Finding (2026-02-23)
 
@@ -39,6 +40,7 @@ Other changes since 0.1.22:
 | + | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | PR REWORKED, AWAITING REVIEW | [#528](https://github.com/github/copilot-sdk/issues/528) → [PR #546](https://github.com/github/copilot-sdk/pull/546) |
 | x | 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | CLOSED | [#532](https://github.com/github/copilot-sdk/issues/532) |
 |   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN (no response) | [#1607](https://github.com/github/copilot-cli/issues/1607) |
+|   | 6 | copilot-cli | Bug: session.title_changed event fires with truncated title ("I j...") | OPEN (filed Mar 8) | [#1910](https://github.com/github/copilot-cli/issues/1910) |
 
 Legend: `x` = resolved/closed, `+` = we added follow-up comments, blank = open, no action needed
 
@@ -63,6 +65,16 @@ but rejected the broader claim. Would need a narrower re-file to pursue.
 
 **#1607** — No response. Triage label only. Leaving open — security issues should stay until addressed.
 
+**#1910** — Filed Mar 8 during v3.4.0 work. When a session receives its first message, the CLI
+auto-generates a title from that message and fires `session.title_changed`. The title is truncated
+to ~5 characters plus `...` (e.g. `"I j..."`). Our workaround: strip `[Active File: ...]` prefix in
+the `session.title_changed` handler and take the first non-empty line. The truncation itself is a
+CLI-side bug we can't fix — session labels will still be short until the CLI team fixes it.
+
+**#1865** — `/rename` fails with `Workspace not found` on resumed sessions (v0.0.421). Our workaround:
+write `session-name.txt` proactively before sending `/rename` to CLI, so the label updates even when
+CLI throws. The `session_renamed` status event fires correctly after our proactive write.
+
 ## Comments Added
 
 | | Issue | Repo | What we added | Date | Link |
@@ -84,9 +96,10 @@ but rejected the broader claim. Would need a narrower re-file to pursue.
 |   | [#989](https://github.com/github/copilot-cli/issues/989) | copilot-cli | ACP incorrect tool IDs in permission requests | OPEN | None (3 community confirmations) |
 |   | [#1574](https://github.com/github/copilot-cli/issues/1574) | copilot-cli | ACP agent ignores custom tools | OPEN | None |
 |   | [#728](https://github.com/github/copilot-cli/issues/728) | copilot-cli | Model selection not reflected in responses | OPEN | andyfeller (Dec 2025, cosmetic) |
+|   | [#1865](https://github.com/github/copilot-cli/issues/1865) | copilot-cli | /rename fails with 'Workspace not found' on resumed sessions | OPEN — workaround applied | None |
 | x | [#377](https://github.com/github/copilot-sdk/issues/377) | copilot-sdk | ACP support request (wontfix) | CLOSED | friggeri closed as wontfix |
 |   | [#137](https://github.com/github/copilot-sdk/issues/137) | copilot-sdk | No minimum CLI version docs | OPEN | None (dormant since Jan 23) |
-| + | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | OPEN | **Steve willing to implement** (Feb 12) |
+| + | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | **CLOSED/SHIPPED v0.1.30** | See `planning/backlog/override_builtin_tools.md` |
 
 ## Maintainer Engagement Summary
 

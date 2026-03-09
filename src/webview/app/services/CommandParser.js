@@ -84,6 +84,12 @@ export class CommandParser {
 				category: 'config',
 				description: 'Switch model'
 			}],
+			['rename', {
+				type: 'extension',
+				event: 'renameSession',
+				category: 'config',
+				description: 'Rename this session'
+			}],
 
 			// CLI Passthrough commands (6)
 			['delegate', {
@@ -123,11 +129,10 @@ export class CommandParser {
 				description: 'Log out'
 			}],
 			
-			// Not supported commands (25)
+			// Not supported commands (23)
 			['clear', { type: 'not-supported' }],
 			['new', { type: 'not-supported' }],
 			['resume', { type: 'not-supported' }],
-			['rename', { type: 'not-supported' }],
 			['session', { type: 'not-supported' }],
 			['add-dir', { type: 'not-supported' }],
 			['list-dirs', { type: 'not-supported' }],

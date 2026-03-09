@@ -77,10 +77,10 @@ describe('CommandParser - Command Registry (TDD RED Phase)', () => {
 		});
 	});
 
-	describe('Not Supported Commands (25 total)', () => {
+	describe('Not Supported Commands (24 total)', () => {
 		const notSupportedCommands = [
 			// Session management
-			'clear', 'new', 'resume', 'rename', 'session',
+			'clear', 'new', 'resume', 'session',
 			// Context & files
 			'add-dir', 'list-dirs', 'cwd', 'cd', 'context', 'compact',
 			// Advanced config
