@@ -481,7 +481,6 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				chatProvider.setThinking(false);
 				if (Date.now() - lastDropdownRefresh > 30_000) {
 					updateSessionsList();
-					lastDropdownRefresh = Date.now();
 				}
 				break;
 			case 'exited':
@@ -768,6 +767,7 @@ function getCLIConfig(): CLIConfig {
 }
 
 function updateSessionsList() {
+	lastDropdownRefresh = Date.now();
 	try {
 		const config = vscode.workspace.getConfiguration('copilotCLI');
 		const filterByFolder = config.get<boolean>('filterSessionsByFolder', true);

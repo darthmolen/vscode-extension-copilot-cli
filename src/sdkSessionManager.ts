@@ -973,7 +973,7 @@ export class SDKSessionManager implements vscode.Disposable {
         return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
     }
 
-    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false): Promise<void> {
+    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
         }
@@ -1000,7 +1000,7 @@ export class SDKSessionManager implements vscode.Disposable {
         }
         
         // Enhance message with active file context and process @file references
-        const enhancedMessage = await this.messageEnhancementService.enhanceMessageWithContext(message);
+        const enhancedMessage = skipEnhancement ? message : await this.messageEnhancementService.enhanceMessageWithContext(message);
         
         this.logger.info(`[SDK Call] About to call session.sendAndWait with prompt (first 200 chars): ${enhancedMessage.substring(0, 200)}`);
         
@@ -1647,8 +1647,28 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Plan Mode] Work session recreated: ${this.sessionId}`);
             }
         } catch (error) {
-            this.logger.error('[Plan Mode] Failed to verify work session health', error instanceof Error ? error : undefined);
-            // verifiedSession remains this.workSession (stale but best we have)
+            const msg = error instanceof Error ? error.message : String(error);
+            if (msg.toLowerCase().includes('connection') || msg.toLowerCase().includes('disposed')) {
+                this.logger.error('[Plan Mode] Connection dead during health check, recreating session', error instanceof Error ? error : undefined);
+                try {
+                    const mcpServers = this.getEnabledMCPServers();
+                    const hasMcpServers = Object.keys(mcpServers).length > 0;
+                    const newSession = await this.createSessionWithModelFallback({
+                        model: this.config.model || undefined,
+                        tools: this.getCustomTools(),
+                        hooks: this.getSessionHooks(),
+                        ...(hasMcpServers ? { mcpServers } : {}),
+                    });
+                    verifiedSession = newSession;
+                    this.sessionId = newSession.sessionId;
+                    this.workSessionId = newSession.sessionId;
+                    this.logger.info(`[Plan Mode] Work session recreated after connection failure: ${this.sessionId}`);
+                } catch (recreateError) {
+                    this.logger.error('[Plan Mode] Failed to recreate session', recreateError instanceof Error ? recreateError : undefined);
+                }
+            } else {
+                this.logger.error('[Plan Mode] Failed to verify work session health', error instanceof Error ? error : undefined);
+            }
         }
 
         // Update session state and subscribe to events — exactly once
@@ -1722,7 +1742,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('[Plan Mode] ✅ Plan accepted! Injecting implementation context...');
         // Fire-and-forget: message delivery is immediate via RPC. sendAndWait() only
         // blocks waiting for session.idle, which we don't need for a kickoff.
-        this.sendMessage(kickoffMessage, undefined, false).catch(err => {
+        this.sendMessage(kickoffMessage, undefined, false, true).catch(err => {
             this.logger.warn('[Plan Mode] Kickoff message error (non-fatal)',
                 err instanceof Error ? err : undefined);
         });

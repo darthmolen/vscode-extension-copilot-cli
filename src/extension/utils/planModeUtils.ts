@@ -19,7 +19,7 @@ export function shouldAutoEnablePlanMode(configValue: boolean | null | undefined
 export function extractPlanHeading(planContent: string): string | null {
     for (const line of planContent.split('\n')) {
         const trimmed = line.trimStart();
-        if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+        if (trimmed.startsWith('# ')) {
             const heading = trimmed.substring(2).trim();
             return heading || null;
         }
