@@ -548,6 +548,9 @@ export class SDKSessionManager implements vscode.Disposable {
             }
 
             this.logger.info(`Session active: ${this.sessionId}`);
+
+            // Ensure the dropdown always shows a readable name — never a raw UUID.
+            SessionService.ensureSessionName(path.join(os.homedir(), '.copilot', 'session-state', this.sessionId!));
             
             // Initialize work session tracking (always starts in work mode)
             this.workSession = this.session;

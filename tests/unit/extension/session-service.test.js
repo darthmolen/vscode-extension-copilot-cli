@@ -649,4 +649,76 @@ describe('SessionService', function () {
             assert.strictEqual(unfilteredResult, 'project-b-session');
         });
     });
+
+    // ---------------------------------------------------------------------------
+    // ensureSessionName()
+    // ---------------------------------------------------------------------------
+    describe('ensureSessionName()', function () {
+
+        it('writes a default session-name.txt when none exists', function () {
+            const sessionPath = path.join(tmpDir, 'new-session');
+            fs.mkdirSync(sessionPath, { recursive: true });
+
+            SessionService.ensureSessionName(sessionPath);
+
+            const nameFile = path.join(sessionPath, 'session-name.txt');
+            assert.ok(fs.existsSync(nameFile), 'session-name.txt must be created');
+            const content = fs.readFileSync(nameFile, 'utf-8').trim();
+            assert.ok(content.startsWith('Session \u2013'), `Default name must start with "Session –", got: "${content}"`);
+        });
+
+        it('does NOT overwrite an existing session-name.txt (no-clobber)', function () {
+            const sessionPath = path.join(tmpDir, 'named-session');
+            fs.mkdirSync(sessionPath, { recursive: true });
+            fs.writeFileSync(path.join(sessionPath, 'session-name.txt'), 'My Existing Name');
+
+            SessionService.ensureSessionName(sessionPath);
+
+            const content = fs.readFileSync(path.join(sessionPath, 'session-name.txt'), 'utf-8').trim();
+            assert.strictEqual(content, 'My Existing Name', 'Existing session-name.txt must not be overwritten');
+        });
+
+        it('uses workspace.yaml created_at date when available', function () {
+            const sessionPath = path.join(tmpDir, 'yaml-session');
+            fs.mkdirSync(sessionPath, { recursive: true });
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                'id: yaml-session\ncreated_at: 2026-01-15T14:37:00.000Z\n');
+
+            SessionService.ensureSessionName(sessionPath);
+
+            const content = fs.readFileSync(path.join(sessionPath, 'session-name.txt'), 'utf-8').trim();
+            assert.ok(content.includes('Jan'), `Name should contain "Jan" for Jan 15, got: "${content}"`);
+            assert.ok(content.startsWith('Session \u2013'), `Name must start with "Session –", got: "${content}"`);
+        });
+
+        it('falls back to current date when workspace.yaml has no created_at', function () {
+            const sessionPath = path.join(tmpDir, 'no-date-session');
+            fs.mkdirSync(sessionPath, { recursive: true });
+            fs.writeFileSync(path.join(sessionPath, 'workspace.yaml'),
+                'id: no-date-session\ncwd: /home/user/project\n');
+
+            SessionService.ensureSessionName(sessionPath);
+
+            const content = fs.readFileSync(path.join(sessionPath, 'session-name.txt'), 'utf-8').trim();
+            assert.ok(content.startsWith('Session \u2013'), `Name must start with "Session –", got: "${content}"`);
+        });
+
+        it('falls back to current date when no workspace.yaml exists', function () {
+            const sessionPath = path.join(tmpDir, 'bare-session');
+            fs.mkdirSync(sessionPath, { recursive: true });
+
+            SessionService.ensureSessionName(sessionPath);
+
+            const content = fs.readFileSync(path.join(sessionPath, 'session-name.txt'), 'utf-8').trim();
+            assert.ok(content.startsWith('Session \u2013'), `Name must start with "Session –", got: "${content}"`);
+        });
+
+        it('handles errors gracefully (non-existent directory)', function () {
+            const sessionPath = path.join(tmpDir, 'ghost-session');
+            // Do NOT create the directory
+            assert.doesNotThrow(() => {
+                SessionService.ensureSessionName(sessionPath);
+            }, 'ensureSessionName must not throw for missing directories');
+        });
+    });
 });
