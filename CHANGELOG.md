@@ -2,6 +2,18 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.4.2] - 2026-03-10
+
+### 🐛 Bug Fixes
+
+- **Session dropdown showed raw GUIDs** — New sessions displayed an 8-char UUID prefix (e.g., `e38dbdaf`) and resumed sessions showed garbled text (e.g., `l j...`) because `session-name.txt` was only written reactively. Now `SessionService.ensureSessionName()` writes a readable default (`Session – Mar 10, 2:37 PM`) on every session start, no-clobber, sourcing the date from `workspace.yaml`'s `created_at` if available. Old sessions without a name are backfilled on next resume.
+- **Plan mode reverted dropdown to GUID** — When entering plan mode, the newly-created plan session directory had no `session-name.txt`, causing the dropdown to fall through to the UUID prefix. `enablePlanMode()` now mirrors the work session's name with a `Plan:` prefix (e.g., `Plan: v3.4.2 – Session Title`).
+
+### 🔧 Internal
+
+- **`SessionService.ensureSessionName(sessionPath)`** — New no-throw guard method. Writes default name only if `session-name.txt` absent; parses `workspace.yaml` `created_at` for accurate timestamp. 6 unit tests.
+- **Plan session name mirroring** — `enablePlanMode()` reads work session `session-name.txt` and writes prefixed copy to plan session dir. 3 wiring tests.
+
 ## [3.4.1] - 2026-03-09
 
 ### 🐛 Bug Fixes
