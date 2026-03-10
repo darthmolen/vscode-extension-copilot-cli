@@ -53,6 +53,12 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.4.2 - Session Dropdown Name Fix
+
+- **No more GUIDs in dropdown** — New and resumed sessions now always show a readable name (`Session – Mar 10, 2:37 PM`) instead of a raw 8-char UUID. The name is written once to `session-name.txt` on session start and never clobbered by subsequent renames or plan-accept.
+- **Plan mode shows readable name** — Entering plan mode now mirrors the work session's name with a `Plan:` prefix (e.g., `Plan: v3.4.2 – Session Title`) instead of reverting to a GUID.
+- **Backfill** — Old sessions without a `session-name.txt` get a default name the next time they are resumed.
+
 ### v3.4.1 - Plan Mode Session Recovery
 
 - **Silent session recovery** — When the work session expires during extended planning, the extension silently recreates it instead of showing an error modal. The plan file and kickoff instruction carry over seamlessly.

@@ -548,6 +548,9 @@ export class SDKSessionManager implements vscode.Disposable {
             }
 
             this.logger.info(`Session active: ${this.sessionId}`);
+
+            // Ensure the dropdown always shows a readable name — never a raw UUID.
+            SessionService.ensureSessionName(path.join(os.homedir(), '.copilot', 'session-state', this.sessionId!));
             
             // Initialize work session tracking (always starts in work mode)
             this.workSession = this.session;
@@ -1524,7 +1527,29 @@ export class SDKSessionManager implements vscode.Disposable {
             });
             
             this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
-            
+
+            // Mirror the work session's readable name to the plan session so the dropdown
+            // never shows a raw GUID when switching into plan mode.
+            try {
+                const homeDir = os.homedir();
+                const workNamePath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!, 'session-name.txt');
+                const planSessionPath = path.join(homeDir, '.copilot', 'session-state', planSessionId);
+                const planNamePath = path.join(planSessionPath, 'session-name.txt');
+                if (fs.existsSync(workNamePath) && !fs.existsSync(planNamePath)) {
+                    const workName = fs.readFileSync(workNamePath, 'utf-8').trim();
+                    if (workName) {
+                        fs.writeFileSync(planNamePath, `Plan: ${workName}`, 'utf-8');
+                        this.logger.info(`[Plan Mode]   Wrote plan session name: "Plan: ${workName}"`);
+                    }
+                }
+            } catch (nameErr) {
+                if (nameErr instanceof Error) {
+                    this.logger.warn('[Plan Mode]   Could not mirror session name', nameErr);
+                } else {
+                    this.logger.warn(`[Plan Mode]   Could not mirror session name: ${String(nameErr)}`);
+                }
+            }
+
             this.logger.info(`[Plan Mode] Step 7/7: Activate plan session`);
             this.sessionId = planSessionId;
             this.currentMode = 'plan';

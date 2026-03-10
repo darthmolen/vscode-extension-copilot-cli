@@ -142,6 +142,41 @@ export const SessionService = {
     },
 
     /**
+     * Writes a readable default name to session-name.txt only if one does not already exist.
+     * Uses workspace.yaml created_at if available, otherwise current date.
+     * Never throws — safe to call in any lifecycle context.
+     */
+    ensureSessionName(sessionPath: string): void {
+        try {
+            const namePath = path.join(sessionPath, 'session-name.txt');
+            if (fs.existsSync(namePath)) {
+                return; // no-clobber
+            }
+
+            let date = new Date();
+            const yamlPath = path.join(sessionPath, 'workspace.yaml');
+            if (fs.existsSync(yamlPath)) {
+                try {
+                    const yamlContent = fs.readFileSync(yamlPath, 'utf-8');
+                    const match = yamlContent.match(/^created_at:\s*(.+)$/m);
+                    if (match) {
+                        const parsed = new Date(match[1].trim());
+                        if (!isNaN(parsed.getTime())) {
+                            date = parsed;
+                        }
+                    }
+                } catch { /* use current date */ }
+            }
+
+            const formatted = date.toLocaleString('en-US', {
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            });
+            fs.writeFileSync(namePath, `Session \u2013 ${formatted}`, 'utf-8');
+        } catch { /* never throw */ }
+    },
+
+    /**
      * Formats a session label from session-name.txt, plan.md heading,
      * workspace.yaml summary, or falls back to 8-char session ID.
      * Priority: session-name.txt > plan.md heading > workspace.yaml summary > UUID prefix
