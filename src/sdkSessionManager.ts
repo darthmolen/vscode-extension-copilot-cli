@@ -1534,15 +1534,20 @@ export class SDKSessionManager implements vscode.Disposable {
                 const homeDir = os.homedir();
                 const workNamePath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!, 'session-name.txt');
                 const planSessionPath = path.join(homeDir, '.copilot', 'session-state', planSessionId);
-                if (fs.existsSync(workNamePath)) {
+                const planNamePath = path.join(planSessionPath, 'session-name.txt');
+                if (fs.existsSync(workNamePath) && !fs.existsSync(planNamePath)) {
                     const workName = fs.readFileSync(workNamePath, 'utf-8').trim();
                     if (workName) {
-                        fs.writeFileSync(path.join(planSessionPath, 'session-name.txt'), `Plan: ${workName}`, 'utf-8');
+                        fs.writeFileSync(planNamePath, `Plan: ${workName}`, 'utf-8');
                         this.logger.info(`[Plan Mode]   Wrote plan session name: "Plan: ${workName}"`);
                     }
                 }
             } catch (nameErr) {
-                this.logger.warn(`[Plan Mode]   Could not mirror session name: ${nameErr}`);
+                if (nameErr instanceof Error) {
+                    this.logger.warn('[Plan Mode]   Could not mirror session name', nameErr);
+                } else {
+                    this.logger.warn(`[Plan Mode]   Could not mirror session name: ${String(nameErr)}`);
+                }
             }
 
             this.logger.info(`[Plan Mode] Step 7/7: Activate plan session`);

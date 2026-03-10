@@ -31,7 +31,6 @@ describe('SDKSessionManager.enablePlanMode() – plan session name mirroring', f
     });
 
     it('prefixes the plan session name with "Plan: "', function () {
-        const callIdx = sourceCode.indexOf('Plan: ');
         // Look specifically in the enablePlanMode region
         const enableIdx = sourceCode.indexOf('enablePlanMode');
         const regionStart = sourceCode.indexOf('Plan session created successfully', enableIdx);
