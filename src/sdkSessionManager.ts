@@ -1527,7 +1527,24 @@ export class SDKSessionManager implements vscode.Disposable {
             });
             
             this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
-            
+
+            // Mirror the work session's readable name to the plan session so the dropdown
+            // never shows a raw GUID when switching into plan mode.
+            try {
+                const homeDir = os.homedir();
+                const workNamePath = path.join(homeDir, '.copilot', 'session-state', this.workSessionId!, 'session-name.txt');
+                const planSessionPath = path.join(homeDir, '.copilot', 'session-state', planSessionId);
+                if (fs.existsSync(workNamePath)) {
+                    const workName = fs.readFileSync(workNamePath, 'utf-8').trim();
+                    if (workName) {
+                        fs.writeFileSync(path.join(planSessionPath, 'session-name.txt'), `Plan: ${workName}`, 'utf-8');
+                        this.logger.info(`[Plan Mode]   Wrote plan session name: "Plan: ${workName}"`);
+                    }
+                }
+            } catch (nameErr) {
+                this.logger.warn(`[Plan Mode]   Could not mirror session name: ${nameErr}`);
+            }
+
             this.logger.info(`[Plan Mode] Step 7/7: Activate plan session`);
             this.sessionId = planSessionId;
             this.currentMode = 'plan';
