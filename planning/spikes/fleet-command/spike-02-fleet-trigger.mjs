@@ -159,10 +159,10 @@ async function main() {
 	});
 
 	// Simple /fleet prompt — just two small independent tasks
-	log('Sending: /fleet echo "a" > /tmp/spike-fleet-a.txt && echo "b" > /tmp/spike-fleet-b.txt');
+	log('Sending /fleet with four real source files (independent analysis tasks)...');
 	try {
 		await session.sendAndWait({
-			prompt: '/fleet Create two files: /tmp/spike-fleet-a.txt containing "a" and /tmp/spike-fleet-b.txt containing "b"',
+			prompt: '/fleet For each of the following four source files, independently: (1) write a one-paragraph summary of its purpose, (2) list its top exported symbols (functions, classes, types), (3) identify one architectural risk or improvement. The files have zero interdependencies — process them in parallel. Files: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts',
 		});
 		log('  sendAndWait completed');
 		findings.push('EXP3: /fleet via sendAndWait: SUCCESS');
@@ -214,50 +214,82 @@ async function main() {
 	findings.push(`EXP4: /tasks response event types: ${JSON.stringify([...new Set(taskResponseEvents.map((e) => e.type))])}`);
 
 	// ============================================================
-	//  EXPERIMENT 5: Plan mode + fleet combo
+	//  EXPERIMENT 5: Dual-session plan → fleet (mirrors our extension)
 	// ============================================================
-	separator('EXPERIMENT 5: Plan mode → fleet');
+	separator('EXPERIMENT 5: Dual-session plan → fleet (extension architecture)');
 
-	// Enter plan mode, create a plan, then try to fleet-execute it
-	log('Entering plan mode...');
+	// This mirrors sdkSessionManager.ts:
+	//   workSession = session A (the "real" session, never destroyed)
+	//   planSession = session B (restricted tools, writes plan.md, then destroyed)
+	//   "Accept + Fleet" = destroy B → resume A → sendMessage('/fleet ...')
+
+	const workSession = await client.createSession({
+		onPermissionRequest: approveAll,
+		clientName: 'spike-plan-work',
+	});
+	log(`  Work session created: ${workSession.sessionId}`);
+
+	// Simulate plan session: separate session that produces a plan
+	const planSession = await client.createSession({
+		onPermissionRequest: approveAll,
+		clientName: 'spike-plan-plan',
+		availableTools: ['plan_bash_explore', 'view', 'glob', 'grep'],
+	});
+	log(`  Plan session created: ${planSession.sessionId}`);
+
+	let planText = '';
 	try {
-		const modeResult = await session.rpc.mode.get();
-		log(`  Current mode: ${JSON.stringify(modeResult)}`);
-
-		// Try to switch to plan mode
-		if (session.rpc.mode.set) {
-			await session.rpc.mode.set({ mode: 'plan' });
-			log('  Switched to plan mode via rpc.mode.set');
-		} else {
-			log('  rpc.mode.set not available, trying sendAndWait...');
-			await session.sendAndWait({ prompt: '/plan' });
-			log('  Sent /plan command');
-		}
-
-		// Create a simple plan
-		await session.sendAndWait({
-			prompt: 'Create a plan to make three text files in /tmp/spike-fleet-plan/ with different content each',
+		// Ask plan session to produce a concrete plan
+		const planEvents = [];
+		planSession.on((event) => {
+			if (event.type === 'assistant.text') planEvents.push(event.data?.text || '');
 		});
-		log('  Plan created');
-
-		// Now try to fleet-execute the plan
-		log('  Sending /fleet to execute the plan...');
-		const planFleetEvents = [];
-		session.on((event) => {
-			if (event.type.startsWith('subagent.') || event.type.startsWith('fleet.')) {
-				planFleetEvents.push({ type: event.type, data: event.data });
-			}
+		await planSession.sendAndWait({
+			prompt: 'Create a brief implementation plan (3-4 independent tasks) for adding a /fleet slash command to a VS Code extension. Each task should be completely independent so they can be parallelized.',
 		});
-
-		await session.sendAndWait({
-			prompt: '/fleet implement the plan',
-		});
-		log(`  Plan fleet execution completed. Subagent events: ${planFleetEvents.length}`);
-		findings.push(`EXP5: Plan + fleet: ${planFleetEvents.length} subagent events`);
+		planText = planEvents.join('');
+		log(`  Plan session produced plan (${planText.length} chars)`);
+		findings.push(`EXP5: Plan session produced plan: ${planText.length > 0 ? 'YES' : 'NO'} (${planText.length} chars)`);
 	} catch (err) {
-		log(`  Plan + fleet failed: ${err.message}`);
-		findings.push(`EXP5: Plan + fleet FAILED: ${err.message}`);
+		log(`  Plan session error: ${err.message}`);
+		findings.push(`EXP5: Plan session FAILED: ${err.message}`);
 	}
+
+	// Simulate "Accept + Fleet": destroy plan session, then fleet on work session
+	log('  Destroying plan session (simulating disablePlanMode)...');
+	try {
+		await planSession.destroy();
+		log('  Plan session destroyed ✓');
+		findings.push('EXP5: Plan session destroy: SUCCESS');
+	} catch (err) {
+		log(`  Plan session destroy error: ${err.message}`);
+		findings.push(`EXP5: Plan session destroy FAILED: ${err.message}`);
+	}
+
+	// Now fleet on the work session — mirror of sendMessage('/fleet implement the plan')
+	log('  Sending /fleet to work session (simulating acceptAndFleet)...');
+	const dualSessionFleetEvents = [];
+	workSession.on((event) => {
+		if (event.type.startsWith('subagent.') || event.type.startsWith('fleet.')) {
+			dualSessionFleetEvents.push({ type: event.type, data: event.data });
+			log(`  [DUAL-SESSION FLEET] ${event.type}: ${JSON.stringify(event.data).substring(0, 200)}`);
+		}
+	});
+
+	try {
+		await workSession.sendAndWait({
+			prompt: `/fleet ${planText.length > 100 ? 'Implement this plan: ' + planText.substring(0, 500) : 'For each of the following four source files, independently analyze its purpose and list top exports. Files are independent — process in parallel: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts'}`,
+		});
+		log(`  Work session fleet completed. Subagent events: ${dualSessionFleetEvents.length}`);
+		findings.push(`EXP5: Dual-session fleet subagent events: ${dualSessionFleetEvents.length}`);
+		findings.push(`EXP5: Dual-session fleet event types: ${JSON.stringify(dualSessionFleetEvents.map(e => e.type))}`);
+	} catch (err) {
+		log(`  Work session fleet error: ${err.message}`);
+		findings.push(`EXP5: Dual-session fleet FAILED: ${err.message}`);
+	}
+
+	// Cleanup
+	try { await workSession.destroy(); } catch (_) {}
 
 	// ============================================================
 	//  SUMMARY
@@ -274,6 +306,7 @@ async function main() {
 		sessionId: session.sessionId,
 		findings,
 		fleetEvents,
+		dualSessionFleetEvents,
 	};
 
 	const outputPath = join(RESULTS_DIR, 'spike-02-output.json');

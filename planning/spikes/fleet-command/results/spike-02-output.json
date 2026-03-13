@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-03-12T02:48:15.641Z",
+  "spike": "spike-02-fleet-trigger",
+  "sessionId": "90223719-341c-43bc-9e4b-021a6bf66851",
+  "findings": [
+    "EXP1: session.rpc keys: [\"model\",\"mode\",\"plan\",\"workspace\",\"fleet\"]",
+    "EXP1: session.rpc.fleet keys: [\"start\"]",
+    "EXP1: session.rpc.tasks: NOT FOUND",
+    "EXP1: session.rpc.subagent: NOT FOUND",
+    "EXP1: session.rpc.agent: NOT FOUND",
+    "EXP2: Fleet-related session properties: []",
+    "EXP3: /fleet via sendAndWait: FAILED: Timeout after 60000ms waiting for session.idle",
+    "EXP3: Fleet-related events: []",
+    "EXP4: /tasks via sendAndWait: FAILED: Timeout after 60000ms waiting for session.idle",
+    "EXP4: /tasks response event types: []",
+    "EXP5: Plan session FAILED: Timeout after 60000ms waiting for session.idle",
+    "EXP5: Plan session destroy: SUCCESS",
+    "EXP5: Dual-session fleet FAILED: Timeout after 60000ms waiting for session.idle"
+  ],
+  "fleetEvents": [],
+  "dualSessionFleetEvents": [
+    {
+      "type": "subagent.started",
+      "data": {
+        "toolCallId": "tooluse_t9Vw2NOLQZjauUBvU5urf7",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent",
+        "agentDescription": "Fast codebase exploration and answering questions. Uses grep, glob, and view tools in a separate context window to search files and understand code structure. Returns focused answers under 300 words. Safe to call in parallel.\n"
+      }
+    },
+    {
+      "type": "subagent.started",
+      "data": {
+        "toolCallId": "tooluse_qnbsnNpsujID7CB3EjhOfk",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent",
+        "agentDescription": "Fast codebase exploration and answering questions. Uses grep, glob, and view tools in a separate context window to search files and understand code structure. Returns focused answers under 300 words. Safe to call in parallel.\n"
+      }
+    },
+    {
+      "type": "subagent.started",
+      "data": {
+        "toolCallId": "tooluse_0iXFFjgfmjx0JZ5WJ5xRgz",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent",
+        "agentDescription": "Fast codebase exploration and answering questions. Uses grep, glob, and view tools in a separate context window to search files and understand code structure. Returns focused answers under 300 words. Safe to call in parallel.\n"
+      }
+    },
+    {
+      "type": "subagent.started",
+      "data": {
+        "toolCallId": "tooluse_svmvVklZOOAmXdEDMBuHR6",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent",
+        "agentDescription": "Fast codebase exploration and answering questions. Uses grep, glob, and view tools in a separate context window to search files and understand code structure. Returns focused answers under 300 words. Safe to call in parallel.\n"
+      }
+    },
+    {
+      "type": "subagent.completed",
+      "data": {
+        "toolCallId": "tooluse_t9Vw2NOLQZjauUBvU5urf7",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent"
+      }
+    },
+    {
+      "type": "subagent.completed",
+      "data": {
+        "toolCallId": "tooluse_svmvVklZOOAmXdEDMBuHR6",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent"
+      }
+    },
+    {
+      "type": "subagent.completed",
+      "data": {
+        "toolCallId": "tooluse_0iXFFjgfmjx0JZ5WJ5xRgz",
+        "agentName": "explore",
+        "agentDisplayName": "Explore Agent"
+      }
+    }
+  ]
+}

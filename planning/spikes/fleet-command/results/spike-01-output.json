@@ -1,0 +1,925 @@
+{
+  "timestamp": "2026-03-12T02:44:26.033Z",
+  "spike": "spike-01-fleet-events",
+  "sessionId": "79dc2624-4da2-4f36-9e36-da7e2d249816",
+  "findings": [
+    "EXP1: /fleet via sendAndWait completed successfully",
+    "EXP2: Total events: 48",
+    "EXP2: Unique event types: [\"pending_messages.modified\",\"user.message\",\"assistant.turn_start\",\"session.usage_info\",\"assistant.usage\",\"assistant.message\",\"assistant.reasoning\",\"tool.execution_start\",\"tool.execution_complete\",\"assistant.turn_end\",\"session.idle\"]",
+    "EXP2: Subagent event count: 0",
+    "EXP2: No fleet-level wrapper events found"
+  ],
+  "allEvents": [
+    {
+      "timestamp": "2026-03-12T02:43:35.542Z",
+      "type": "pending_messages.modified",
+      "data": {}
+    },
+    {
+      "timestamp": "2026-03-12T02:43:35.542Z",
+      "type": "pending_messages.modified",
+      "data": {}
+    },
+    {
+      "timestamp": "2026-03-12T02:43:36.627Z",
+      "type": "user.message",
+      "data": {
+        "content": "/fleet For each of the following four source files, independently: (1) write a one-paragraph summary of its purpose, (2) list its top exported symbols (functions, classes, types), (3) identify one architectural risk or improvement. The files have zero interdependencies — process them in parallel. Files: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts",
+        "transformedContent": "<current_datetime>2026-03-12T02:43:36.184Z</current_datetime>\n\n/fleet For each of the following four source files, independently: (1) write a one-paragraph summary of its purpose, (2) list its top exported symbols (functions, classes, types), (3) identify one architectural risk or improvement. The files have zero interdependencies — process them in parallel. Files: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts\n\n<reminder>\n<sql_tables>No tables currently exist. Default tables (todos, todo_deps) will be created automatically when you first use the SQL tool.</sql_tables>\n</reminder>",
+        "attachments": []
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:36.628Z",
+      "type": "assistant.turn_start",
+      "data": {
+        "turnId": "0"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:36.628Z",
+      "type": "session.usage_info",
+      "data": {
+        "tokenLimit": 128000,
+        "currentTokens": 21131,
+        "messagesLength": 2
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.913Z",
+      "type": "assistant.usage",
+      "data": {
+        "model": "claude-sonnet-4.6",
+        "inputTokens": 24792,
+        "outputTokens": 333,
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "cost": 1,
+        "duration": 4292,
+        "initiator": "user",
+        "apiCallId": "9cfced1b-750e-4a3d-97dd-a9a80e13993e",
+        "providerCallId": "B308:321C0A:80612A:9650F2:69B22857",
+        "quotaSnapshots": {
+          "chat": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "completions": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "premium_interactions": {
+            "isUnlimitedEntitlement": false,
+            "entitlementRequests": 1500,
+            "usedRequests": 89,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 94.1,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "assistant.message",
+      "data": {
+        "messageId": "43921ab9-f741-4540-b6a7-bbcd125be749",
+        "content": "",
+        "toolRequests": [
+          {
+            "toolCallId": "tooluse_NeSWcolXkICxpHt42EI9XH",
+            "name": "report_intent",
+            "arguments": {
+              "intent": "Analyzing four source files"
+            },
+            "type": "function"
+          },
+          {
+            "toolCallId": "tooluse_3v4e7K8KDC79KWvULQO2xe",
+            "name": "view",
+            "arguments": {
+              "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts"
+            },
+            "type": "function"
+          },
+          {
+            "toolCallId": "tooluse_VVnRgiVo0CaS3zbyHxDV5z",
+            "name": "view",
+            "arguments": {
+              "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts"
+            },
+            "type": "function"
+          },
+          {
+            "toolCallId": "tooluse_7OcyQEOY6fXmF1McmYXRt0",
+            "name": "view",
+            "arguments": {
+              "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts"
+            },
+            "type": "function"
+          },
+          {
+            "toolCallId": "tooluse_DDtP5pZZyYEADda7MraxHJ",
+            "name": "view",
+            "arguments": {
+              "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts"
+            },
+            "type": "function"
+          }
+        ],
+        "reasoningOpaque": "B3NsCnjxvSpCysxootiTZIVX/kQAXfCfbh0kUnISFmfNxroDIwpeePBbwgQdFP3hLrhPCsSuKAYQdNdYM9ReAB7MCuCS1sJNQ6P/NGgGSUx5iGav7HFZg2JxVZ869MpUAxtofxBd/CdXlpunYXK6Aw5wbcg1kng6lfBmbUZbMpDRH+8POlaxJy+jsPsMruyTsjCz1mx1fZxyd1VDY41hi9HKacKiLd68V9wQ3bJE3oNSFqyZayFcWBKFelFeEoStgier6x1/MLdkzoSfxyptdGuvKSTB8tXxnWTAv1U337FfSIWj/blY6NNqyhfHCNRQBdPdn9pSf2csZREiDneRdzYbmVy9vOF+G85mIrdA/ikqIn2eMiSzQL2WCimniP37ytFLqrdI0bMkIxCdgWF7xhmDPOz1MU1dDexu3IFuEY6/xPpqp0u9IaJVN7IFuCGRD0jaVRZALhc4HoBnTr5RzoNxQaifaTIsH7uhpeKYDH4pOAyXZSt/z4CxL6DY0v+82AysFxWCJbhrzhvH+zksyF7Y8w0cNUENN9TJ9Kjwhwvg9qZT+Ybj855LGEB7HGVjx/WmrUUZAGMsWwgK7HFXhJufYSjwuS0ID7cbjDBsNNRZVndnPjYb1y6Q/RaPMhVjNxt7J3+CXRvdi6Me7jP/LZbqm/Q3BO6YkZjG8Y0a8udFrCTKW4L45vpHQiIZaYs76kXp4AcwlICFXwkqmln22jj61JvgmsU3gLhMtbTvqjq40ZVpyVsZBsj374gFl8k2o3ErOdb3hv2xod8qXh/jAvsWGYEdBAWAErCDaO0d59LCexAeKT5vz2SEQoDNhw0UclQZ49mZ",
+        "reasoningText": "The user wants me to analyze four files in parallel. Let me read them all simultaneously."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "assistant.reasoning",
+      "data": {
+        "reasoningId": "B3NsCnjxvSpCysxootiTZIVX/kQAXfCfbh0kUnISFmfNxroDIwpeePBbwgQdFP3hLrhPCsSuKAYQdNdYM9ReAB7MCuCS1sJNQ6P/NGgGSUx5iGav7HFZg2JxVZ869MpUAxtofxBd/CdXlpunYXK6Aw5wbcg1kng6lfBmbUZbMpDRH+8POlaxJy+jsPsMruyTsjCz1mx1fZxyd1VDY41hi9HKacKiLd68V9wQ3bJE3oNSFqyZayFcWBKFelFeEoStgier6x1/MLdkzoSfxyptdGuvKSTB8tXxnWTAv1U337FfSIWj/blY6NNqyhfHCNRQBdPdn9pSf2csZREiDneRdzYbmVy9vOF+G85mIrdA/ikqIn2eMiSzQL2WCimniP37ytFLqrdI0bMkIxCdgWF7xhmDPOz1MU1dDexu3IFuEY6/xPpqp0u9IaJVN7IFuCGRD0jaVRZALhc4HoBnTr5RzoNxQaifaTIsH7uhpeKYDH4pOAyXZSt/z4CxL6DY0v+82AysFxWCJbhrzhvH+zksyF7Y8w0cNUENN9TJ9Kjwhwvg9qZT+Ybj855LGEB7HGVjx/WmrUUZAGMsWwgK7HFXhJufYSjwuS0ID7cbjDBsNNRZVndnPjYb1y6Q/RaPMhVjNxt7J3+CXRvdi6Me7jP/LZbqm/Q3BO6YkZjG8Y0a8udFrCTKW4L45vpHQiIZaYs76kXp4AcwlICFXwkqmln22jj61JvgmsU3gLhMtbTvqjq40ZVpyVsZBsj374gFl8k2o3ErOdb3hv2xod8qXh/jAvsWGYEdBAWAErCDaO0d59LCexAeKT5vz2SEQoDNhw0UclQZ49mZ",
+        "content": "The user wants me to analyze four files in parallel. Let me read them all simultaneously."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_NeSWcolXkICxpHt42EI9XH",
+        "toolName": "report_intent",
+        "arguments": {
+          "intent": "Analyzing four source files"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_3v4e7K8KDC79KWvULQO2xe",
+        "toolName": "view",
+        "arguments": {
+          "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_VVnRgiVo0CaS3zbyHxDV5z",
+        "toolName": "view",
+        "arguments": {
+          "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_7OcyQEOY6fXmF1McmYXRt0",
+        "toolName": "view",
+        "arguments": {
+          "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_DDtP5pZZyYEADda7MraxHJ",
+        "toolName": "view",
+        "arguments": {
+          "path": "/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.914Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_NeSWcolXkICxpHt42EI9XH",
+        "success": true,
+        "result": {
+          "content": "Intent logged",
+          "detailedContent": "Analyzing four source files"
+        },
+        "toolTelemetry": {}
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.916Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_3v4e7K8KDC79KWvULQO2xe",
+        "success": true,
+        "result": {
+          "content": "File too large to read at once (32.6 KB). Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the file.",
+          "detailedContent": "File too large to read at once (32.6 KB). Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the file."
+        },
+        "toolTelemetry": {
+          "properties": {
+            "command": "view",
+            "options": "{\"truncateBasedOn\":\"tokenCount\",\"truncateStyle\":\"middle\"}",
+            "inputs": "[\"path\",\"command\"]",
+            "resolvedPathAgainstCwd": "false",
+            "fileExtension": ".ts",
+            "viewType": "file",
+            "largeOutputAvoided": "true",
+            "largeOutputOriginalSizeBytes": "33385"
+          },
+          "metrics": {
+            "resultLength": 220,
+            "resultForLlmLength": 220,
+            "responseTokenLimit": 32000
+          },
+          "restrictedProperties": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.917Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_VVnRgiVo0CaS3zbyHxDV5z",
+        "success": true,
+        "result": {
+          "content": "File too large to read at once (91.3 KB). Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the file.",
+          "detailedContent": "File too large to read at once (91.3 KB). Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the file."
+        },
+        "toolTelemetry": {
+          "properties": {
+            "command": "view",
+            "options": "{\"truncateBasedOn\":\"tokenCount\",\"truncateStyle\":\"middle\"}",
+            "inputs": "[\"path\",\"command\"]",
+            "resolvedPathAgainstCwd": "false",
+            "fileExtension": ".ts",
+            "viewType": "file",
+            "largeOutputAvoided": "true",
+            "largeOutputOriginalSizeBytes": "93498"
+          },
+          "metrics": {
+            "resultLength": 220,
+            "resultForLlmLength": 220,
+            "responseTokenLimit": 32000
+          },
+          "restrictedProperties": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:40.920Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_7OcyQEOY6fXmF1McmYXRt0",
+        "success": true,
+        "result": {
+          "content": "1. import * as vscode from 'vscode';\n2. import * as path from 'path';\n3. import * as os from 'os';\n4. import { Logger } from './logger';\n5. import { getBackendState } from './backendState';\n6. import { ExtensionRpcRouter } from './extension/rpc';\n7. import { DisposableStore } from './utilities/disposable';\n8. import { CodeReviewSlashHandlers } from './extension/services/slashCommands/CodeReviewSlashHandlers';\n9. import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashHandlers';\n10. import { NotSupportedSlashHandlers } from './extension/services/slashCommands/NotSupportedSlashHandlers';\n11. import { CLIPassthroughService } from './extension/services/CLIPassthroughService';\n12. import { SessionService } from './extension/services/SessionService';\n13. import { resolveImagePaths } from './extension/utils/resolveImagePaths';\n14. import * as fs from 'fs';\n15. \n16. export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {\n17. \tpublic static readonly viewType = 'copilot-cli.chatView';\n18. \n19. \tprivate readonly _disposables = new DisposableStore();\n20. \tprivate _view: vscode.WebviewView | undefined;\n21. \tprivate readonly logger: Logger;\n22. \tprivate readonly extensionUri: vscode.Uri;\n23. \tprivate rpcRouter: ExtensionRpcRouter | undefined;\n24. \tprivate isSessionActive: boolean = false;\n25. \tprivate currentWorkspacePath: string | undefined;\n26. \tprivate lastSentMessage: string | undefined;\n27. \tprivate lastSentTime: number = 0;\n28. \tprivate validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;\n29. \n30. \t// Slash command services\n31. \tprivate codeReviewHandlers?: CodeReviewSlashHandlers;\n32. \tprivate infoHandlers?: InfoSlashHandlers;\n33. \tprivate notSupportedHandlers?: NotSupportedSlashHandlers;\n34. \tprivate cliPassthroughService?: CLIPassthroughService;\n35. \n36. \t// Event emitters to replace Set<Function> handlers\n37. \tprivate readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}>());\n38. \tprivate readonly _onDidRequestAbort = this._reg(new vscode.EventEmitter<void>());\n39. \tprivate readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());\n40. \tprivate readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());\n41. \tprivate readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());\n42. \tprivate readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());\n43. \n44. \t// Public events\n45. \treadonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;\n46. \treadonly onDidRequestAbort = this._onDidRequestAbort.event;\n47. \treadonly onDidRequestViewPlan = this._onDidRequestViewPlan.event;\n48. \treadonly onDidBecomeReady = this._onDidBecomeReady.event;\n49. \treadonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;\n50. \treadonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;\n51. \n52. \tconstructor(extensionUri: vscode.Uri) {\n53. \t\tthis.extensionUri = extensionUri;\n54. \t\tthis.logger = Logger.getInstance();\n55. \t}\n56. \n57. \tprivate _reg<T extends vscode.Disposable>(disposable: T): T {\n58. \t\treturn this._disposables.add(disposable);\n59. \t}\n60. \n61. \t/**\n62. \t * Called by VS Code when the sidebar view needs to be rendered.\n63. \t * Replaces the old createOrShow() — VS Code owns the view lifecycle.\n64. \t */\n65. \tpublic resolveWebviewView(\n66. \t\twebviewView: vscode.WebviewView,\n67. \t\t_context: vscode.WebviewViewResolveContext,\n68. \t\t_token: vscode.CancellationToken\n69. \t): void {\n70. \t\tthis._view = webviewView;\n71. \n72. \t\tconst webview = webviewView.webview;\n73. \t\twebview.options = {\n74. \t\t\tenableScripts: true,\n75. \t\t\tlocalResourceRoots: [\n76. \t\t\t\tthis.extensionUri,\n77. \t\t\t\tvscode.Uri.file(path.join(os.homedir(), '.copilot')),\n78. \t\t\t\t// Full tmpdir needed: pasted images go into random copilot-paste-<uuid> subdirs\n79. \t\t\t\tvscode.Uri.file(os.tmpdir()),\n80. \t\t\t\t...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)\n81. \t\t\t]\n82. \t\t};\n83. \n84. \t\t// Listen for visibility changes (replaces onDidChangeViewState)\n85. \t\tthis._reg(webviewView.onDidChangeVisibility(() => {\n86. \t\t\tconst visible = webviewView.visible;\n87. \t\t\tthis.logger.debug(`[Visibility] Sidebar ${visible ? 'shown' : 'hidden'}`);\n88. \t\t}));\n89. \n90. \t\t// Handle view disposal (VS Code closes the sidebar)\n91. \t\twebviewView.onDidDispose(() => {\n92. \t\t\tthis.logger.info('[Sidebar] View disposed by VS Code');\n93. \t\t\tthis._view = undefined;\n94. \t\t\tthis.rpcRouter = undefined;\n95. \t\t});\n96. \n97. \t\t// Setup RPC router and handlers\n98. \t\tthis._setupRpcHandlers(webview);\n99. \n100. \t\t// Set HTML — webview loads and sends 'ready' which RPC handlers catch\n101. \t\twebview.html = this._getHtmlForWebview(webview);\n102. \n103. \t\tthis.logger.info('Sidebar chat view resolved');\n104. \t}\n105. \n106. \t/**\n107. \t * Focus the sidebar view programmatically.\n108. \t * Replaces panel.reveal() for commands like openChat.\n109. \t */\n110. \tpublic show(): void {\n111. \t\tvscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);\n112. \t}\n113. \n114. \t/**\n115. \t * Check if the view is ready to receive messages.\n116. \t */\n117. \tpublic isViewReady(): boolean {\n118. \t\treturn this._view !== undefined && this.rpcRouter !== undefined;\n119. \t}\n120. \n121. \t/**\n122. \t * Extract RPC handler setup into its own method.\n123. \t * Called once when the view is first resolved.\n124. \t */\n125. \tprivate _setupRpcHandlers(webview: vscode.Webview): void {\n126. \t\tthis.rpcRouter = new ExtensionRpcRouter(webview);\n127. \n128. \t\tthis._reg(this.rpcRouter.onReady(() => {\n129. \t\t\tthis.logger.info('Webview is ready');\n130. \n131. \t\t\tconst backendState = getBackendState();\n132. \t\t\tconst fullState = backendState.getFullState();\n133. \n134. \t\t\tthis.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);\n135. \n136. \t\t\tthis.rpcRouter!.sendInit({\n137. \t\t\t\tsessionId: fullState.sessionId,\n138. \t\t\t\tsessionActive: fullState.sessionActive,\n139. \t\t\t\tmessages: fullState.messages as any,\n140. \t\t\t\tplanModeStatus: fullState.planModeStatus,\n141. \t\t\t\tworkspacePath: fullState.workspacePath,\n142. \t\t\t\tactiveFilePath: fullState.activeFilePath,\n143. \t\t\t\tcurrentModel: fullState.currentModel\n144. \t\t\t});\n145. \n146. \t\t\tthis._onDidBecomeReady.fire();\n147. \t\t}));\n148. \n149. \t\tthis._reg(this.rpcRouter.onSendMessage((payload) => {\n150. \t\t\t// Prevent duplicate sends (same message within 1 second)\n151. \t\t\tconst now = Date.now();\n152. \t\t\tif (this.lastSentMessage === payload.text &&\n153. \t\t\t    now - this.lastSentTime < 1000) {\n154. \t\t\t\tthis.logger.warn(`Ignoring duplicate message send: ${payload.text.substring(0, 50)}...`);\n155. \t\t\t\treturn;\n156. \t\t\t}\n157. \t\t\tthis.lastSentMessage = payload.text;\n158. \t\t\tthis.lastSentTime = now;\n159. \n160. \t\t\tthis.logger.info(`User sent message: ${payload.text.substring(0, 100)}...`);\n161. \t\t\tif (payload.attachments && payload.attachments.length > 0) {\n162. \t\t\t\tthis.logger.info(`  with ${payload.attachments.length} attachment(s)`);\n163. \t\t\t}\n164. \t\t\tthis._onDidReceiveUserMessage.fire({\n165. \t\t\t\ttext: payload.text,\n166. \t\t\t\tattachments: payload.attachments\n167. \t\t\t});\n168. \t\t}));\n169. \n170. \t\tthis._reg(this.rpcRouter.onPickFiles(() => {\n171. \t\t\tthis.logger.info('File picker requested from UI');\n172. \t\t\tthis._handleFilePicker();\n173. \t\t}));\n174. \n175. \t\tthis._reg(this.rpcRouter.onPasteImage((payload) => {\n176. \t\t\tthis.logger.info(`Pasted image received: ${payload.fileName}`);\n177. \t\t\tthis._handlePastedImage(payload.dataUri, payload.mimeType, payload.fileName);\n178. \t\t}));\n179. \n180. \t\tthis._reg(this.rpcRouter.onSaveMermaidImage(async (payload) => {\n181. \t\t\tthis.logger.info('Save mermaid image requested');\n182. \t\t\tawait this._handleSaveMermaidImage(payload.svgContent, payload.source);\n183. \t\t}));\n184. \n185. \t\tthis._reg(this.rpcRouter.onAbortMessage(() => {\n186. \t\t\tthis.logger.info('Abort requested from UI');\n187. \t\t\tthis._onDidRequestAbort.fire();\n188. \t\t}));\n189. \n190. \t\tthis._reg(this.rpcRouter.onSwitchSession((payload) => {\n191. \t\t\tthis.logger.info(`Switch session requested: ${payload.sessionId}`);\n192. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.switchSession', payload.sessionId);\n193. \t\t}));\n194. \n195. \t\tthis._reg(this.rpcRouter.onNewSession(() => {\n196. \t\t\tthis.logger.info('New session requested from UI');\n197. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.newSession');\n198. \t\t}));\n199. \n200. \t\tthis._reg(this.rpcRouter.onViewPlan(() => {\n201. \t\t\tthis.logger.info('View plan requested from UI');\n202. \t\t\tthis._onDidRequestViewPlan.fire();\n203. \t\t}));\n204. \n205. \t\tthis._reg(this.rpcRouter.onViewDiff((payload) => {\n206. \t\t\tthis.logger.info(`View diff requested from UI: ${JSON.stringify(payload)}`);\n207. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.viewDiff', payload);\n208. \t\t}));\n209. \n210. \t\tthis._reg(this.rpcRouter.onTogglePlanMode((payload) => {\n211. \t\t\tthis.logger.info(`Plan mode toggle requested: ${payload.enabled}`);\n212. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);\n213. \t\t}));\n214. \n215. \t\tthis._reg(this.rpcRouter.onAcceptPlan(() => {\n216. \t\t\tthis.logger.info('Accept plan requested from UI');\n217. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.acceptPlan');\n218. \t\t}));\n219. \n220. \t\tthis._reg(this.rpcRouter.onRejectPlan(() => {\n221. \t\t\tthis.logger.info('Reject plan requested from UI');\n222. \t\t\tvscode.commands.executeCommand('copilot-cli-extension.rejectPlan');\n223. \t\t}));\n224. \n225. \t\t// Initialize slash command services\n226. \t\t// Create sessionService adapter\n227. \t\tconst sessionService = {\n228. \t\t\tgetCurrentSession: () => {\n229. \t\t\t\tconst backendState = getBackendState();\n230. \t\t\t\tconst sessionId = backendState.getSessionId();\n231. \t\t\t\treturn sessionId ? { id: sessionId } : null;\n232. \t\t\t},\n233. \t\t\tgetPlanPath: (sessionId: string) => {\n234. \t\t\t\tconst sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');\n235. \t\t\t\treturn path.join(sessionStateDir, sessionId, 'plan.md');\n236. \t\t\t}\n237. \t\t};\n238. \n239. \t\tthis.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);\n240. \t\tthis.infoHandlers = new InfoSlashHandlers(undefined, getBackendState()); // MCP config will be undefined for now\n241. \t\tthis.notSupportedHandlers = new NotSupportedSlashHandlers();\n242. \t\tthis.cliPassthroughService = new CLIPassthroughService(vscode);\n243. \n244. \t\t// Handle slash commands from webview\n245. \t\tthis._reg(this.rpcRouter.onShowPlanContent(async () => {\n246. \t\t\tthis.logger.info('Show plan content requested from UI');\n247. \t\t\tconst result = await this.codeReviewHandlers!.handleReview();\n248. \t\t\tif (result.success && result.content) {\n249. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n250. \t\t\t} else if (result.error) {\n251. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n252. \t\t\t}\n253. \t\t}));\n254. \n255. \t\tthis._reg(this.rpcRouter.onOpenDiffView(async (payload) => {\n256. \t\t\tthis.logger.info(`Open diff view requested: ${payload.file1} vs ${payload.file2}`);\n257. \t\t\tconst result = await this.codeReviewHandlers!.handleDiff(payload.file1, payload.file2);\n258. \t\t\tif (!result.success && result.error) {\n259. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n260. \t\t\t}\n261. \t\t}));\n262. \n263. \t\tthis._reg(this.rpcRouter.onShowMcpConfig(async () => {\n264. \t\t\tthis.logger.info('Show MCP config requested from UI');\n265. \t\t\tconst result = await this.infoHandlers!.handleMcp();\n266. \t\t\tif (result.success && result.content) {\n267. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n268. \t\t\t} else if (result.error) {\n269. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n270. \t\t\t}\n271. \t\t}));\n272. \n273. \t\tthis._reg(this.rpcRouter.onShowUsageMetrics(async () => {\n274. \t\t\tthis.logger.info('Show usage metrics requested from UI');\n275. \t\t\tconst result = await this.infoHandlers!.handleUsage();\n276. \t\t\tif (result.success && result.content) {\n277. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n278. \t\t\t} else if (result.error) {\n279. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n280. \t\t\t}\n281. \t\t}));\n282. \n283. \t\tthis._reg(this.rpcRouter.onShowHelp(async (payload) => {\n284. \t\t\tthis.logger.info(`Show help requested from UI: ${payload.command || 'all'}`);\n285. \t\t\tconst result = await this.infoHandlers!.handleHelp(payload.command);\n286. \t\t\tif (result.success && result.content) {\n287. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n288. \t\t\t} else if (result.error) {\n289. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n290. \t\t\t}\n291. \t\t}));\n292. \n293. \t\tthis._reg(this.rpcRouter.onShowNotSupported(async (payload) => {\n294. \t\t\tthis.logger.info(`Not supported command: ${payload.command}`);\n295. \t\t\tconst result = await this.notSupportedHandlers!.handleNotSupported(payload.command);\n296. \t\t\tif (result.success && result.content) {\n297. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n298. \t\t\t}\n299. \t\t}));\n300. \n301. \t\tthis._reg(this.rpcRouter.onOpenInCLI(async (payload) => {\n302. \t\t\tthis.logger.info(`Open in CLI requested: ${payload.command}`);\n303. \t\t\t\n304. \t\t\t// Get current session ID and workspace path\n305. \t\t\tconst backendState = getBackendState();\n306. \t\t\tconst sessionId = backendState.getSessionId();\n307. \t\t\tconst workspacePath = backendState.getWorkspacePath() || this.currentWorkspacePath || null;\n308. \n309. \t\t\tif (!sessionId) {\n310. \t\t\t\tthis.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');\n311. \t\t\t\treturn;\n312. \t\t\t}\n313. \n314. \t\t\tconst result = this.cliPassthroughService!.openCLI(payload.command, sessionId, workspacePath);\n315. \t\t\t\n316. \t\t\tif (result.success && result.instruction) {\n317. \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.instruction);\n318. \t\t\t} else if (result.error) {\n319. \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n320. \t\t\t}\n321. \t\t}));\n322. \n323. \t\tthis._reg(this.rpcRouter.onSwitchModel((payload) => {\n324. \t\t\tthis.logger.info(`Switch model requested: ${payload.model}`);\n325. \t\t\tthis._onDidRequestSwitchModel.fire(payload.model);\n326. \t\t}));\n327. \n328. \t\tthis._reg(this.rpcRouter.onRenameSession((payload) => {\n329. \t\t\tthis.logger.info(`Rename session requested: \"${payload.name}\"`);\n330. \t\t\tthis._onDidRequestRenameSession.fire(payload.name);\n331. \t\t}));\n332. \n333. \t\tthis._reg(this.rpcRouter.onOpenFile(async (payload) => {\n334. \t\t\tthis.logger.info(`[OpenFile] ${payload.filePath}`);\n335. \t\t\tconst resolved = path.resolve(payload.filePath);\n336. \t\t\tconst workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [];\n337. \t\t\tconst sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');\n338. \t\t\tconst allowed = workspaceFolders.some(ws => resolved.startsWith(ws + path.sep)) ||\n339. \t\t\t\tresolved.startsWith(sessionStateDir + path.sep);\n340. \t\t\tif (!allowed) {\n341. \t\t\t\tthis.logger.warn(`[OpenFile] Blocked: path outside workspace and session-state`);\n342. \t\t\t\treturn;\n343. \t\t\t}\n344. \t\t\ttry {\n345. \t\t\t\tconst doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));\n346. \t\t\t\tawait vscode.window.showTextDocument(doc, { preview: true });\n347. \t\t\t} catch (err: any) {\n348. \t\t\t\tthis.logger.warn(`[OpenFile] Failed: ${err.message}`);\n349. \t\t\t}\n350. \t\t}));\n351. \n352. \t\t// Start listening for messages from webview\n353. \t\tthis.rpcRouter.listen();\n354. \t}\n355. \n356. \tpublic postMessage(message: any) {\n357. \t\tif (this._view) {\n358. \t\t\tthis._view.webview.postMessage(message);\n359. \t\t}\n360. \t}\n361. \n362. \tpublic addUserMessage(text: string, attachments?: Array<{displayName: string; webviewUri?: string}>, storeInBackend: boolean = true) {\n363. \t\tif (storeInBackend) {\n364. \t\t\tconst backendState = getBackendState();\n365. \t\t\tbackendState.addMessage({\n366. \t\t\t\trole: 'user',\n367. \t\t\t\ttype: 'user',\n368. \t\t\t\tcontent: text,\n369. \t\t\t\ttimestamp: Date.now()\n370. \t\t\t});\n371. \t\t}\n372. \t\tthis.rpcRouter?.addUserMessage(text, attachments as any);\n373. \t}\n374. \n375. \tpublic addAssistantMessage(text: string, storeInBackend: boolean = true) {\n376. \t\tif (storeInBackend) {\n377. \t\t\tconst backendState = getBackendState();\n378. \t\t\tbackendState.addMessage({\n379. \t\t\t\trole: 'assistant',\n380. \t\t\t\ttype: 'assistant',\n381. \t\t\t\tcontent: text,\n382. \t\t\t\ttimestamp: Date.now()\n383. \t\t\t});\n384. \t\t}\n385. \n386. \t\t// Resolve relative image paths in markdown to webview URIs\n387. \t\tconst resolvedText = this._resolveAssistantImagePaths(text);\n388. \t\tthis.rpcRouter?.addAssistantMessage(resolvedText);\n389. \t}\n390. \n391. \tpublic addReasoningMessage(text: string, storeInBackend: boolean = true) {\n392. \t\tif (storeInBackend) {\n393. \t\t\tconst backendState = getBackendState();\n394. \t\t\tbackendState.addMessage({\n395. \t\t\t\trole: 'assistant',\n396. \t\t\t\ttype: 'reasoning',\n397. \t\t\t\tcontent: text,\n398. \t\t\t\ttimestamp: Date.now()\n399. \t\t\t});\n400. \t\t}\n401. \t\tthis.rpcRouter?.addReasoningMessage(text);\n402. \t}\n403. \n404. \tpublic addToolExecution(toolState: any, storeInBackend: boolean = true) {\n405. \t\tif (storeInBackend) {\n406. \t\t\tconst backendState = getBackendState();\n407. \t\t\tbackendState.addMessage({\n408. \t\t\t\trole: 'assistant',\n409. \t\t\t\ttype: 'tool',\n410. \t\t\t\tcontent: toolState.description || toolState.name || 'Tool execution',\n411. \t\t\t\ttoolName: toolState.name,\n412. \t\t\t\tstatus: 'running',\n413. \t\t\t\ttimestamp: Date.now()\n414. \t\t\t});\n415. \t\t}\n416. \t\tthis.rpcRouter?.toolStart(toolState);\n417. \t}\n418. \n419. \tpublic updateToolExecution(toolState: any) {\n420. \t\tthis.rpcRouter?.toolUpdate(toolState);\n421. \t}\n422. \n423. \tpublic notifyDiffAvailable(data: any) {\n424. \t\tthis.rpcRouter?.sendDiffAvailable(data);\n425. \t}\n426. \n427. \tpublic appendToLastMessage(text: string) {\n428. \t\tthis.rpcRouter?.appendMessage(text);\n429. \t}\n430. \n431. \tpublic setSessionActive(active: boolean) {\n432. \t\tthis.isSessionActive = active;\n433. \t\tthis.rpcRouter?.setSessionActive(active);\n434. \t}\n435. \n436. \tpublic setThinking(isThinking: boolean) {\n437. \t\tthis.rpcRouter?.setThinking(isThinking);\n438. \t}\n439. \n440. \tpublic clearMessages() {\n441. \t\tthis.rpcRouter?.clearMessages();\n442. \t}\n443. \n444. \tpublic resetPlanMode() {\n445. \t\tthis.rpcRouter?.resetPlanMode();\n446. \t}\n447. \n448. \tpublic updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {\n449. \t\tthis.logger?.info(`Updating session dropdown: ${sessions.length} sessions, current=${currentSessionId}`);\n450. \t\tthis.rpcRouter?.updateSessions(sessions as any, currentSessionId);\n451. \t}\n452. \n453. \tpublic setWorkspacePath(workspacePath: string | undefined) {\n454. \t\tthis.currentWorkspacePath = workspacePath;\n455. \t\tthis.rpcRouter?.setWorkspacePath(workspacePath || null);\n456. \t}\n457. \n458. \tpublic updateActiveFile(filePath: string | null) {\n459. \t\tthis.rpcRouter?.setActiveFile(filePath);\n460. \t}\n461. \n462. \tpublic sendModelSwitched(model: string, success: boolean) {\n463. \t\tthis.rpcRouter?.sendModelSwitched(model, success);\n464. \t}\n465. \n466. \tpublic sendCurrentModel(model: string) {\n467. \t\tthis.rpcRouter?.sendCurrentModel(model);\n468. \t}\n469. \n470. \tpublic sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>) {\n471. \t\tthis.rpcRouter?.sendAvailableModels(models);\n472. \t}\n473. \n474. \tprivate async _handleFilePicker() {\n475. \t\tconst options: vscode.OpenDialogOptions = {\n476. \t\t\tcanSelectMany: true,\n477. \t\t\topenLabel: 'Select Images',\n478. \t\t\tfilters: {\n479. \t\t\t\t'Images': ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']\n480. \t\t\t}\n481. \t\t};\n482. \n483. \t\tconst fileUris = await vscode.window.showOpenDialog(options);\n484. \t\tif (fileUris && fileUris.length > 0) {\n485. \t\t\tthis.logger.info(`[ATTACH] User selected ${fileUris.length} file(s)`);\n486. \n487. \t\t\tif (this.validateAttachmentsCallback) {\n488. \t\t\t\tconst filePaths = fileUris.map(uri => uri.fsPath);\n489. \t\t\t\tconst validationResult = await this.validateAttachmentsCallback(filePaths);\n490. \t\t\t\tif (!validationResult.valid) {\n491. \t\t\t\t\tthis.logger.warn(`[ATTACH] Validation failed: ${validationResult.error}`);\n492. \t\t\t\t\tvscode.window.showErrorMessage(validationResult.error || 'Invalid attachment');\n493. \t\t\t\t\treturn;\n494. \t\t\t\t}\n495. \t\t\t} else {\n496. \t\t\t\tthis.logger.warn('[ATTACH] No validation callback registered; blocking attachment');\n497. \t\t\t\tvscode.window.showErrorMessage('File attachments are not ready yet. Please try again in a moment.');\n498. \t\t\t\treturn;\n499. \t\t\t}\n500. \n501. \t\t\tconst attachments = fileUris.map(uri => {\n502. \t\t\t\tconst webviewUri = this._view?.webview.asWebviewUri(uri);\n503. \t\t\t\treturn {\n504. \t\t\t\t\ttype: 'file' as const,\n505. \t\t\t\t\tpath: uri.fsPath,\n506. \t\t\t\t\tdisplayName: uri.fsPath.split(/[/\\\\]/).pop() || 'unknown',\n507. \t\t\t\t\twebviewUri: webviewUri?.toString() || ''\n508. \t\t\t\t};\n509. \t\t\t});\n510. \n511. \t\t\tthis.logger.info(`[ATTACH] Sending ${attachments.length} attachments to webview`);\n512. \t\t\tthis.postMessage({\n513. \t\t\t\ttype: 'filesSelected',\n514. \t\t\t\tattachments\n515. \t\t\t});\n516. \t\t} else {\n517. \t\t\tthis.logger.info('File picker cancelled');\n518. \t\t}\n519. \t}\n520. \n521. \tprivate async _handlePastedImage(dataUri: string, _mimeType: string, fileName: string) {\n522. \t\ttry {\n523. \t\t\t// Extract base64 data from data URI\n524. \t\t\tconst base64Data = dataUri.split(',')[1];\n525. \t\t\tif (!base64Data) {\n526. \t\t\t\tthis.logger.warn('[PASTE] Invalid data URI — no base64 portion');\n527. \t\t\t\treturn;\n528. \t\t\t}\n529. \n530. \t\t\tconst buffer = Buffer.from(base64Data, 'base64');\n531. \n532. \t\t\t// Write to temp file\n533. \t\t\tconst tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-paste-'));\n534. \t\t\tconst tempFilePath = path.join(tempDir, fileName);\n535. \t\t\tfs.writeFileSync(tempFilePath, buffer);\n536. \t\t\tthis.logger.info(`[PASTE] Wrote temp file: ${tempFilePath} (${buffer.length} bytes)`);\n537. \n538. \t\t\t// Validate via the same callback as file picker\n539. \t\t\tif (this.validateAttachmentsCallback) {\n540. \t\t\t\tconst validationResult = await this.validateAttachmentsCallback([tempFilePath]);\n541. \t\t\t\tif (!validationResult.valid) {\n542. \t\t\t\t\tthis.logger.warn(`[PASTE] Validation failed: ${validationResult.error}`);\n543. \t\t\t\t\tvscode.window.showErrorMessage(validationResult.error || 'Invalid image');\n544. \t\t\t\t\t// Clean up temp file\n545. \t\t\t\t\ttry { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }\n546. \t\t\t\t\treturn;\n547. \t\t\t\t}\n548. \t\t\t}\n549. \n550. \t\t\t// Create webview URI and send back as filesSelected (reuses existing flow)\n551. \t\t\tconst fileUri = vscode.Uri.file(tempFilePath);\n552. \t\t\tconst webviewUri = this._view?.webview.asWebviewUri(fileUri);\n553. \t\t\tconst attachment = {\n554. \t\t\t\ttype: 'file' as const,\n555. \t\t\t\tpath: tempFilePath,\n556. \t\t\t\tdisplayName: fileName,\n557. \t\t\t\twebviewUri: webviewUri?.toString() || ''\n558. \t\t\t};\n559. \n560. \t\t\tthis.logger.info(`[PASTE] Sending pasted image attachment to webview`);\n561. \t\t\tthis.postMessage({\n562. \t\t\t\ttype: 'filesSelected',\n563. \t\t\t\tattachments: [attachment]\n564. \t\t\t});\n565. \t\t} catch (error) {\n566. \t\t\tthis.logger.error('[PASTE] Failed to handle pasted image', error instanceof Error ? error : undefined);\n567. \t\t}\n568. \t}\n569. \n570. \tprivate async _handleSaveMermaidImage(svgContent: string, source: string) {\n571. \t\ttry {\n572. \t\t\tconst options: vscode.SaveDialogOptions = {\n573. \t\t\t\tfilters: svgContent\n574. \t\t\t\t\t? { 'SVG Image': ['svg'], 'Mermaid Source': ['mmd'] }\n575. \t\t\t\t\t: { 'Mermaid Source': ['mmd'] }\n576. \t\t\t};\n577. \t\t\tconst workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri;\n578. \t\t\tif (workspaceFolderUri) {\n579. \t\t\t\toptions.defaultUri = vscode.Uri.joinPath(workspaceFolderUri, 'diagram');\n580. \t\t\t}\n581. \t\t\tconst uri = await vscode.window.showSaveDialog(options);\n582. \t\t\tif (!uri) {\n583. \t\t\t\tthis.logger.info('[Mermaid] Save cancelled');\n584. \t\t\t\treturn;\n585. \t\t\t}\n586. \n587. \t\t\tconst isMmd = uri.fsPath.endsWith('.mmd');\n588. \t\t\tconst content = isMmd ? source : svgContent;\n589. \t\t\tawait vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));\n590. \t\t\tvscode.window.showInformationMessage(`Saved mermaid ${isMmd ? 'source' : 'image'} to ${path.basename(uri.fsPath)}`);\n591. \t\t\tthis.logger.info(`[Mermaid] Saved ${isMmd ? 'source' : 'SVG'} to ${uri.fsPath}`);\n592. \t\t} catch (error) {\n593. \t\t\tthis.logger.error('[Mermaid] Failed to save', error instanceof Error ? error : undefined);\n594. \t\t\tvscode.window.showErrorMessage('Failed to save mermaid diagram');\n595. \t\t}\n596. \t}\n597. \n598. \tprivate _resolveAssistantImagePaths(text: string): string {\n599. \t\tconst backendState = getBackendState();\n600. \t\tconst sessionId = backendState.getSessionId();\n601. \t\tif (!sessionId || !this._view?.webview) {\n602. \t\t\tthis.logger?.debug(`[ImageResolve] Skipped: sessionId=${!!sessionId} webview=${!!this._view?.webview}`);\n603. \t\t\treturn text;\n604. \t\t}\n605. \n606. \t\tconst sessionDir = path.join(os.homedir(), '.copilot', 'session-state', sessionId);\n607. \t\tconst webview = this._view.webview;\n608. \n609. \t\tconst additionalDirs: string[] = [];\n610. \t\tif (this.currentWorkspacePath) {\n611. \t\t\tadditionalDirs.push(this.currentWorkspacePath);\n612. \t\t}\n613. \n614. \t\tthis.logger?.debug(`[ImageResolve] Input: \"${text.substring(0, 100)}\" sessionDir=${sessionDir} additionalDirs=${JSON.stringify(additionalDirs)}`);\n615. \n616. \t\tconst result = resolveImagePaths(text, sessionDir, (absolutePath: string) => {\n617. \t\t\tconst exists = fs.existsSync(absolutePath);\n618. \t\t\tthis.logger?.debug(`[ImageResolve] Check: ${absolutePath} exists=${exists}`);\n619. \t\t\tif (!exists) {\n620. \t\t\t\treturn null;\n621. \t\t\t}\n622. \t\t\tconst fileUri = vscode.Uri.file(absolutePath);\n623. \t\t\tconst uri = webview.asWebviewUri(fileUri).toString();\n624. \t\t\tthis.logger?.debug(`[ImageResolve] Resolved: ${uri}`);\n625. \t\t\treturn uri;\n626. \t\t}, additionalDirs);\n627. \n628. \t\tif (result !== text) {\n629. \t\t\tthis.logger?.info(`[ImageResolve] Resolved image paths in message`);\n630. \t\t\tthis.logger?.debug(`[ImageResolve] Output: \"${result.substring(0, 200)}\"`);\n631. \t\t}\n632. \n633. \t\treturn result;\n634. \t}\n635. \n636. \tpublic setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) {\n637. \t\tthis.validateAttachmentsCallback = callback;\n638. \t\tthis.logger?.info('Attachment validation callback registered');\n639. \t}\n640. \n641. \t/**\n642. \t * Force refresh the webview content.\n643. \t * For sidebar views, we can't dispose/recreate — just reset the HTML.\n644. \t */\n645. \tpublic forceRecreate() {\n646. \t\tif (this._view) {\n647. \t\t\tthis._view.webview.html = this._getHtmlForWebview(this._view.webview);\n648. \t\t\tthis.resetPlanMode();\n649. \t\t}\n650. \t}\n651. \n652. \tpublic dispose(): void {\n653. \t\tthis._disposables.dispose();\n654. \t\tthis.rpcRouter = undefined;\n655. \t\t// Don't dispose _view — VS Code owns the sidebar view lifecycle\n656. \t}\n657. \n658. \tprivate _getHtmlForWebview(webview: vscode.Webview) {\n659. \t\tconst nonce = getNonce();\n660. \n661. \t\tconst styleUri = webview.asWebviewUri(\n662. \t\t\tvscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'styles.css')\n663. \t\t);\n664. \t\tconst scriptUri = webview.asWebviewUri(\n665. \t\t\tvscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'main.js')\n666. \t\t);\n667. \n668. \t\treturn `<!DOCTYPE html>\n669. <html lang=\"en\">\n670. <head>\n671. \t<meta charset=\"UTF-8\">\n672. \t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n673. \t<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource} https://cdn.jsdelivr.net; img-src ${webview.cspSource} data:; font-src ${webview.cspSource} data:;\">\n674. \t<title>Copilot CLI Chat</title>\n675. \t<script nonce=\"${nonce}\" src=\"https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js\"></script>\n676. \t<link rel=\"stylesheet\" href=\"${styleUri}\">\n677. </head>\n678. <body>\n679. \t<!-- Component Mount Points - Components render themselves here -->\n680. \t<div id=\"session-toolbar-mount\"></div>\n681. \n682. \t<main role=\"main\">\n683. \t\t<div id=\"messages-mount\"></div>\n684. \t\t<div id=\"acceptance-mount\"></div>\n685. \t\t<div id=\"input-mount\"></div>\n686. \t</main>\n687. \n688. \t<script type=\"module\" nonce=\"${nonce}\" src=\"${scriptUri}\"></script>\n689. </body>\n690. </html>`;\n691. \t}\n692. \n693. }\n694. \n695. function getNonce() {\n696. \tlet text = '';\n697. \tconst possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';\n698. \tfor (let i = 0; i < 32; i++) {\n699. \t\ttext += possible.charAt(Math.floor(Math.random() * possible.length));\n700. \t}\n701. \treturn text;\n702. }\n703. ",
+          "detailedContent": "\ndiff --git a/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts b/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts\nindex 0000000..0000000 100644\n--- a/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts\n+++ b/home/smolen/dev/vscode-copilot-cli-extension/src/chatViewProvider.ts\n@@ -1,703 +1,703 @@\n import * as vscode from 'vscode';\n import * as path from 'path';\n import * as os from 'os';\n import { Logger } from './logger';\n import { getBackendState } from './backendState';\n import { ExtensionRpcRouter } from './extension/rpc';\n import { DisposableStore } from './utilities/disposable';\n import { CodeReviewSlashHandlers } from './extension/services/slashCommands/CodeReviewSlashHandlers';\n import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashHandlers';\n import { NotSupportedSlashHandlers } from './extension/services/slashCommands/NotSupportedSlashHandlers';\n import { CLIPassthroughService } from './extension/services/CLIPassthroughService';\n import { SessionService } from './extension/services/SessionService';\n import { resolveImagePaths } from './extension/utils/resolveImagePaths';\n import * as fs from 'fs';\n \n export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {\n \tpublic static readonly viewType = 'copilot-cli.chatView';\n \n \tprivate readonly _disposables = new DisposableStore();\n \tprivate _view: vscode.WebviewView | undefined;\n \tprivate readonly logger: Logger;\n \tprivate readonly extensionUri: vscode.Uri;\n \tprivate rpcRouter: ExtensionRpcRouter | undefined;\n \tprivate isSessionActive: boolean = false;\n \tprivate currentWorkspacePath: string | undefined;\n \tprivate lastSentMessage: string | undefined;\n \tprivate lastSentTime: number = 0;\n \tprivate validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;\n \n \t// Slash command services\n \tprivate codeReviewHandlers?: CodeReviewSlashHandlers;\n \tprivate infoHandlers?: InfoSlashHandlers;\n \tprivate notSupportedHandlers?: NotSupportedSlashHandlers;\n \tprivate cliPassthroughService?: CLIPassthroughService;\n \n \t// Event emitters to replace Set<Function> handlers\n \tprivate readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}>());\n \tprivate readonly _onDidRequestAbort = this._reg(new vscode.EventEmitter<void>());\n \tprivate readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());\n \tprivate readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());\n \tprivate readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());\n \tprivate readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());\n \n \t// Public events\n \treadonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;\n \treadonly onDidRequestAbort = this._onDidRequestAbort.event;\n \treadonly onDidRequestViewPlan = this._onDidRequestViewPlan.event;\n \treadonly onDidBecomeReady = this._onDidBecomeReady.event;\n \treadonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;\n \treadonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;\n \n \tconstructor(extensionUri: vscode.Uri) {\n \t\tthis.extensionUri = extensionUri;\n \t\tthis.logger = Logger.getInstance();\n \t}\n \n \tprivate _reg<T extends vscode.Disposable>(disposable: T): T {\n \t\treturn this._disposables.add(disposable);\n \t}\n \n \t/**\n \t * Called by VS Code when the sidebar view needs to be rendered.\n \t * Replaces the old createOrShow() — VS Code owns the view lifecycle.\n \t */\n \tpublic resolveWebviewView(\n \t\twebviewView: vscode.WebviewView,\n \t\t_context: vscode.WebviewViewResolveContext,\n \t\t_token: vscode.CancellationToken\n \t): void {\n \t\tthis._view = webviewView;\n \n \t\tconst webview = webviewView.webview;\n \t\twebview.options = {\n \t\t\tenableScripts: true,\n \t\t\tlocalResourceRoots: [\n \t\t\t\tthis.extensionUri,\n \t\t\t\tvscode.Uri.file(path.join(os.homedir(), '.copilot')),\n \t\t\t\t// Full tmpdir needed: pasted images go into random copilot-paste-<uuid> subdirs\n \t\t\t\tvscode.Uri.file(os.tmpdir()),\n \t\t\t\t...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri)\n \t\t\t]\n \t\t};\n \n \t\t// Listen for visibility changes (replaces onDidChangeViewState)\n \t\tthis._reg(webviewView.onDidChangeVisibility(() => {\n \t\t\tconst visible = webviewView.visible;\n \t\t\tthis.logger.debug(`[Visibility] Sidebar ${visible ? 'shown' : 'hidden'}`);\n \t\t}));\n \n \t\t// Handle view disposal (VS Code closes the sidebar)\n \t\twebviewView.onDidDispose(() => {\n \t\t\tthis.logger.info('[Sidebar] View disposed by VS Code');\n \t\t\tthis._view = undefined;\n \t\t\tthis.rpcRouter = undefined;\n \t\t});\n \n \t\t// Setup RPC router and handlers\n \t\tthis._setupRpcHandlers(webview);\n \n \t\t// Set HTML — webview loads and sends 'ready' which RPC handlers catch\n \t\twebview.html = this._getHtmlForWebview(webview);\n \n \t\tthis.logger.info('Sidebar chat view resolved');\n \t}\n \n \t/**\n \t * Focus the sidebar view programmatically.\n \t * Replaces panel.reveal() for commands like openChat.\n \t */\n \tpublic show(): void {\n \t\tvscode.commands.executeCommand(`${ChatViewProvider.viewType}.focus`);\n \t}\n \n \t/**\n \t * Check if the view is ready to receive messages.\n \t */\n \tpublic isViewReady(): boolean {\n \t\treturn this._view !== undefined && this.rpcRouter !== undefined;\n \t}\n \n \t/**\n \t * Extract RPC handler setup into its own method.\n \t * Called once when the view is first resolved.\n \t */\n \tprivate _setupRpcHandlers(webview: vscode.Webview): void {\n \t\tthis.rpcRouter = new ExtensionRpcRouter(webview);\n \n \t\tthis._reg(this.rpcRouter.onReady(() => {\n \t\t\tthis.logger.info('Webview is ready');\n \n \t\t\tconst backendState = getBackendState();\n \t\t\tconst fullState = backendState.getFullState();\n \n \t\t\tthis.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);\n \n \t\t\tthis.rpcRouter!.sendInit({\n \t\t\t\tsessionId: fullState.sessionId,\n \t\t\t\tsessionActive: fullState.sessionActive,\n \t\t\t\tmessages: fullState.messages as any,\n \t\t\t\tplanModeStatus: fullState.planModeStatus,\n \t\t\t\tworkspacePath: fullState.workspacePath,\n \t\t\t\tactiveFilePath: fullState.activeFilePath,\n \t\t\t\tcurrentModel: fullState.currentModel\n \t\t\t});\n \n \t\t\tthis._onDidBecomeReady.fire();\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onSendMessage((payload) => {\n \t\t\t// Prevent duplicate sends (same message within 1 second)\n \t\t\tconst now = Date.now();\n \t\t\tif (this.lastSentMessage === payload.text &&\n \t\t\t    now - this.lastSentTime < 1000) {\n \t\t\t\tthis.logger.warn(`Ignoring duplicate message send: ${payload.text.substring(0, 50)}...`);\n \t\t\t\treturn;\n \t\t\t}\n \t\t\tthis.lastSentMessage = payload.text;\n \t\t\tthis.lastSentTime = now;\n \n \t\t\tthis.logger.info(`User sent message: ${payload.text.substring(0, 100)}...`);\n \t\t\tif (payload.attachments && payload.attachments.length > 0) {\n \t\t\t\tthis.logger.info(`  with ${payload.attachments.length} attachment(s)`);\n \t\t\t}\n \t\t\tthis._onDidReceiveUserMessage.fire({\n \t\t\t\ttext: payload.text,\n \t\t\t\tattachments: payload.attachments\n \t\t\t});\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onPickFiles(() => {\n \t\t\tthis.logger.info('File picker requested from UI');\n \t\t\tthis._handleFilePicker();\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onPasteImage((payload) => {\n \t\t\tthis.logger.info(`Pasted image received: ${payload.fileName}`);\n \t\t\tthis._handlePastedImage(payload.dataUri, payload.mimeType, payload.fileName);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onSaveMermaidImage(async (payload) => {\n \t\t\tthis.logger.info('Save mermaid image requested');\n \t\t\tawait this._handleSaveMermaidImage(payload.svgContent, payload.source);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onAbortMessage(() => {\n \t\t\tthis.logger.info('Abort requested from UI');\n \t\t\tthis._onDidRequestAbort.fire();\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onSwitchSession((payload) => {\n \t\t\tthis.logger.info(`Switch session requested: ${payload.sessionId}`);\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.switchSession', payload.sessionId);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onNewSession(() => {\n \t\t\tthis.logger.info('New session requested from UI');\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.newSession');\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onViewPlan(() => {\n \t\t\tthis.logger.info('View plan requested from UI');\n \t\t\tthis._onDidRequestViewPlan.fire();\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onViewDiff((payload) => {\n \t\t\tthis.logger.info(`View diff requested from UI: ${JSON.stringify(payload)}`);\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.viewDiff', payload);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onTogglePlanMode((payload) => {\n \t\t\tthis.logger.info(`Plan mode toggle requested: ${payload.enabled}`);\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onAcceptPlan(() => {\n \t\t\tthis.logger.info('Accept plan requested from UI');\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.acceptPlan');\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onRejectPlan(() => {\n \t\t\tthis.logger.info('Reject plan requested from UI');\n \t\t\tvscode.commands.executeCommand('copilot-cli-extension.rejectPlan');\n \t\t}));\n \n \t\t// Initialize slash command services\n \t\t// Create sessionService adapter\n \t\tconst sessionService = {\n \t\t\tgetCurrentSession: () => {\n \t\t\t\tconst backendState = getBackendState();\n \t\t\t\tconst sessionId = backendState.getSessionId();\n \t\t\t\treturn sessionId ? { id: sessionId } : null;\n \t\t\t},\n \t\t\tgetPlanPath: (sessionId: string) => {\n \t\t\t\tconst sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');\n \t\t\t\treturn path.join(sessionStateDir, sessionId, 'plan.md');\n \t\t\t}\n \t\t};\n \n \t\tthis.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);\n \t\tthis.infoHandlers = new InfoSlashHandlers(undefined, getBackendState()); // MCP config will be undefined for now\n \t\tthis.notSupportedHandlers = new NotSupportedSlashHandlers();\n \t\tthis.cliPassthroughService = new CLIPassthroughService(vscode);\n \n \t\t// Handle slash commands from webview\n \t\tthis._reg(this.rpcRouter.onShowPlanContent(async () => {\n \t\t\tthis.logger.info('Show plan content requested from UI');\n \t\t\tconst result = await this.codeReviewHandlers!.handleReview();\n \t\t\tif (result.success && result.content) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n \t\t\t} else if (result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onOpenDiffView(async (payload) => {\n \t\t\tthis.logger.info(`Open diff view requested: ${payload.file1} vs ${payload.file2}`);\n \t\t\tconst result = await this.codeReviewHandlers!.handleDiff(payload.file1, payload.file2);\n \t\t\tif (!result.success && result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onShowMcpConfig(async () => {\n \t\t\tthis.logger.info('Show MCP config requested from UI');\n \t\t\tconst result = await this.infoHandlers!.handleMcp();\n \t\t\tif (result.success && result.content) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n \t\t\t} else if (result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onShowUsageMetrics(async () => {\n \t\t\tthis.logger.info('Show usage metrics requested from UI');\n \t\t\tconst result = await this.infoHandlers!.handleUsage();\n \t\t\tif (result.success && result.content) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n \t\t\t} else if (result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onShowHelp(async (payload) => {\n \t\t\tthis.logger.info(`Show help requested from UI: ${payload.command || 'all'}`);\n \t\t\tconst result = await this.infoHandlers!.handleHelp(payload.command);\n \t\t\tif (result.success && result.content) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n \t\t\t} else if (result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onShowNotSupported(async (payload) => {\n \t\t\tthis.logger.info(`Not supported command: ${payload.command}`);\n \t\t\tconst result = await this.notSupportedHandlers!.handleNotSupported(payload.command);\n \t\t\tif (result.success && result.content) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.content);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onOpenInCLI(async (payload) => {\n \t\t\tthis.logger.info(`Open in CLI requested: ${payload.command}`);\n \t\t\t\n \t\t\t// Get current session ID and workspace path\n \t\t\tconst backendState = getBackendState();\n \t\t\tconst sessionId = backendState.getSessionId();\n \t\t\tconst workspacePath = backendState.getWorkspacePath() || this.currentWorkspacePath || null;\n \n \t\t\tif (!sessionId) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');\n \t\t\t\treturn;\n \t\t\t}\n \n \t\t\tconst result = this.cliPassthroughService!.openCLI(payload.command, sessionId, workspacePath);\n \t\t\t\n \t\t\tif (result.success && result.instruction) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(result.instruction);\n \t\t\t} else if (result.error) {\n \t\t\t\tthis.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);\n \t\t\t}\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onSwitchModel((payload) => {\n \t\t\tthis.logger.info(`Switch model requested: ${payload.model}`);\n \t\t\tthis._onDidRequestSwitchModel.fire(payload.model);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onRenameSession((payload) => {\n \t\t\tthis.logger.info(`Rename session requested: \"${payload.name}\"`);\n \t\t\tthis._onDidRequestRenameSession.fire(payload.name);\n \t\t}));\n \n \t\tthis._reg(this.rpcRouter.onOpenFile(async (payload) => {\n \t\t\tthis.logger.info(`[OpenFile] ${payload.filePath}`);\n \t\t\tconst resolved = path.resolve(payload.filePath);\n \t\t\tconst workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [];\n \t\t\tconst sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');\n \t\t\tconst allowed = workspaceFolders.some(ws => resolved.startsWith(ws + path.sep)) ||\n \t\t\t\tresolved.startsWith(sessionStateDir + path.sep);\n \t\t\tif (!allowed) {\n \t\t\t\tthis.logger.warn(`[OpenFile] Blocked: path outside workspace and session-state`);\n \t\t\t\treturn;\n \t\t\t}\n \t\t\ttry {\n \t\t\t\tconst doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));\n \t\t\t\tawait vscode.window.showTextDocument(doc, { preview: true });\n \t\t\t} catch (err: any) {\n \t\t\t\tthis.logger.warn(`[OpenFile] Failed: ${err.message}`);\n \t\t\t}\n \t\t}));\n \n \t\t// Start listening for messages from webview\n \t\tthis.rpcRouter.listen();\n \t}\n \n \tpublic postMessage(message: any) {\n \t\tif (this._view) {\n \t\t\tthis._view.webview.postMessage(message);\n \t\t}\n \t}\n \n \tpublic addUserMessage(text: string, attachments?: Array<{displayName: string; webviewUri?: string}>, storeInBackend: boolean = true) {\n \t\tif (storeInBackend) {\n \t\t\tconst backendState = getBackendState();\n \t\t\tbackendState.addMessage({\n \t\t\t\trole: 'user',\n \t\t\t\ttype: 'user',\n \t\t\t\tcontent: text,\n \t\t\t\ttimestamp: Date.now()\n \t\t\t});\n \t\t}\n \t\tthis.rpcRouter?.addUserMessage(text, attachments as any);\n \t}\n \n \tpublic addAssistantMessage(text: string, storeInBackend: boolean = true) {\n \t\tif (storeInBackend) {\n \t\t\tconst backendState = getBackendState();\n \t\t\tbackendState.addMessage({\n \t\t\t\trole: 'assistant',\n \t\t\t\ttype: 'assistant',\n \t\t\t\tcontent: text,\n \t\t\t\ttimestamp: Date.now()\n \t\t\t});\n \t\t}\n \n \t\t// Resolve relative image paths in markdown to webview URIs\n \t\tconst resolvedText = this._resolveAssistantImagePaths(text);\n \t\tthis.rpcRouter?.addAssistantMessage(resolvedText);\n \t}\n \n \tpublic addReasoningMessage(text: string, storeInBackend: boolean = true) {\n \t\tif (storeInBackend) {\n \t\t\tconst backendState = getBackendState();\n \t\t\tbackendState.addMessage({\n \t\t\t\trole: 'assistant',\n \t\t\t\ttype: 'reasoning',\n \t\t\t\tcontent: text,\n \t\t\t\ttimestamp: Date.now()\n \t\t\t});\n \t\t}\n \t\tthis.rpcRouter?.addReasoningMessage(text);\n \t}\n \n \tpublic addToolExecution(toolState: any, storeInBackend: boolean = true) {\n \t\tif (storeInBackend) {\n \t\t\tconst backendState = getBackendState();\n \t\t\tbackendState.addMessage({\n \t\t\t\trole: 'assistant',\n \t\t\t\ttype: 'tool',\n \t\t\t\tcontent: toolState.description || toolState.name || 'Tool execution',\n \t\t\t\ttoolName: toolState.name,\n \t\t\t\tstatus: 'running',\n \t\t\t\ttimestamp: Date.now()\n \t\t\t});\n \t\t}\n \t\tthis.rpcRouter?.toolStart(toolState);\n \t}\n \n \tpublic updateToolExecution(toolState: any) {\n \t\tthis.rpcRouter?.toolUpdate(toolState);\n \t}\n \n \tpublic notifyDiffAvailable(data: any) {\n \t\tthis.rpcRouter?.sendDiffAvailable(data);\n \t}\n \n \tpublic appendToLastMessage(text: string) {\n \t\tthis.rpcRouter?.appendMessage(text);\n \t}\n \n \tpublic setSessionActive(active: boolean) {\n \t\tthis.isSessionActive = active;\n \t\tthis.rpcRouter?.setSessionActive(active);\n \t}\n \n \tpublic setThinking(isThinking: boolean) {\n \t\tthis.rpcRouter?.setThinking(isThinking);\n \t}\n \n \tpublic clearMessages() {\n \t\tthis.rpcRouter?.clearMessages();\n \t}\n \n \tpublic resetPlanMode() {\n \t\tthis.rpcRouter?.resetPlanMode();\n \t}\n \n \tpublic updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {\n \t\tthis.logger?.info(`Updating session dropdown: ${sessions.length} sessions, current=${currentSessionId}`);\n \t\tthis.rpcRouter?.updateSessions(sessions as any, currentSessionId);\n \t}\n \n \tpublic setWorkspacePath(workspacePath: string | undefined) {\n \t\tthis.currentWorkspacePath = workspacePath;\n \t\tthis.rpcRouter?.setWorkspacePath(workspacePath || null);\n \t}\n \n \tpublic updateActiveFile(filePath: string | null) {\n \t\tthis.rpcRouter?.setActiveFile(filePath);\n \t}\n \n \tpublic sendModelSwitched(model: string, success: boolean) {\n \t\tthis.rpcRouter?.sendModelSwitched(model, success);\n \t}\n \n \tpublic sendCurrentModel(model: string) {\n \t\tthis.rpcRouter?.sendCurrentModel(model);\n \t}\n \n \tpublic sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>) {\n \t\tthis.rpcRouter?.sendAvailableModels(models);\n \t}\n \n \tprivate async _handleFilePicker() {\n \t\tconst options: vscode.OpenDialogOptions = {\n \t\t\tcanSelectMany: true,\n \t\t\topenLabel: 'Select Images',\n \t\t\tfilters: {\n \t\t\t\t'Images': ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']\n \t\t\t}\n \t\t};\n \n \t\tconst fileUris = await vscode.window.showOpenDialog(options);\n \t\tif (fileUris && fileUris.length > 0) {\n \t\t\tthis.logger.info(`[ATTACH] User selected ${fileUris.length} file(s)`);\n \n \t\t\tif (this.validateAttachmentsCallback) {\n \t\t\t\tconst filePaths = fileUris.map(uri => uri.fsPath);\n \t\t\t\tconst validationResult = await this.validateAttachmentsCallback(filePaths);\n \t\t\t\tif (!validationResult.valid) {\n \t\t\t\t\tthis.logger.warn(`[ATTACH] Validation failed: ${validationResult.error}`);\n \t\t\t\t\tvscode.window.showErrorMessage(validationResult.error || 'Invalid attachment');\n \t\t\t\t\treturn;\n \t\t\t\t}\n \t\t\t} else {\n \t\t\t\tthis.logger.warn('[ATTACH] No validation callback registered; blocking attachment');\n \t\t\t\tvscode.window.showErrorMessage('File attachments are not ready yet. Please try again in a moment.');\n \t\t\t\treturn;\n \t\t\t}\n \n \t\t\tconst attachments = fileUris.map(uri => {\n \t\t\t\tconst webviewUri = this._view?.webview.asWebviewUri(uri);\n \t\t\t\treturn {\n \t\t\t\t\ttype: 'file' as const,\n \t\t\t\t\tpath: uri.fsPath,\n \t\t\t\t\tdisplayName: uri.fsPath.split(/[/\\\\]/).pop() || 'unknown',\n \t\t\t\t\twebviewUri: webviewUri?.toString() || ''\n \t\t\t\t};\n \t\t\t});\n \n \t\t\tthis.logger.info(`[ATTACH] Sending ${attachments.length} attachments to webview`);\n \t\t\tthis.postMessage({\n \t\t\t\ttype: 'filesSelected',\n \t\t\t\tattachments\n \t\t\t});\n \t\t} else {\n \t\t\tthis.logger.info('File picker cancelled');\n \t\t}\n \t}\n \n \tprivate async _handlePastedImage(dataUri: string, _mimeType: string, fileName: string) {\n \t\ttry {\n \t\t\t// Extract base64 data from data URI\n \t\t\tconst base64Data = dataUri.split(',')[1];\n \t\t\tif (!base64Data) {\n \t\t\t\tthis.logger.warn('[PASTE] Invalid data URI — no base64 portion');\n \t\t\t\treturn;\n \t\t\t}\n \n \t\t\tconst buffer = Buffer.from(base64Data, 'base64');\n \n \t\t\t// Write to temp file\n \t\t\tconst tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-paste-'));\n \t\t\tconst tempFilePath = path.join(tempDir, fileName);\n \t\t\tfs.writeFileSync(tempFilePath, buffer);\n \t\t\tthis.logger.info(`[PASTE] Wrote temp file: ${tempFilePath} (${buffer.length} bytes)`);\n \n \t\t\t// Validate via the same callback as file picker\n \t\t\tif (this.validateAttachmentsCallback) {\n \t\t\t\tconst validationResult = await this.validateAttachmentsCallback([tempFilePath]);\n \t\t\t\tif (!validationResult.valid) {\n \t\t\t\t\tthis.logger.warn(`[PASTE] Validation failed: ${validationResult.error}`);\n \t\t\t\t\tvscode.window.showErrorMessage(validationResult.error || 'Invalid image');\n \t\t\t\t\t// Clean up temp file\n \t\t\t\t\ttry { fs.unlinkSync(tempFilePath); fs.rmdirSync(tempDir); } catch { /* ignore */ }\n \t\t\t\t\treturn;\n \t\t\t\t}\n \t\t\t}\n \n \t\t\t// Create webview URI and send back as filesSelected (reuses existing flow)\n \t\t\tconst fileUri = vscode.Uri.file(tempFilePath);\n \t\t\tconst webviewUri = this._view?.webview.asWebviewUri(fileUri);\n \t\t\tconst attachment = {\n \t\t\t\ttype: 'file' as const,\n \t\t\t\tpath: tempFilePath,\n \t\t\t\tdisplayName: fileName,\n \t\t\t\twebviewUri: webviewUri?.toString() || ''\n \t\t\t};\n \n \t\t\tthis.logger.info(`[PASTE] Sending pasted image attachment to webview`);\n \t\t\tthis.postMessage({\n \t\t\t\ttype: 'filesSelected',\n \t\t\t\tattachments: [attachment]\n \t\t\t});\n \t\t} catch (error) {\n \t\t\tthis.logger.error('[PASTE] Failed to handle pasted image', error instanceof Error ? error : undefined);\n \t\t}\n \t}\n \n \tprivate async _handleSaveMermaidImage(svgContent: string, source: string) {\n \t\ttry {\n \t\t\tconst options: vscode.SaveDialogOptions = {\n \t\t\t\tfilters: svgContent\n \t\t\t\t\t? { 'SVG Image': ['svg'], 'Mermaid Source': ['mmd'] }\n \t\t\t\t\t: { 'Mermaid Source': ['mmd'] }\n \t\t\t};\n \t\t\tconst workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri;\n \t\t\tif (workspaceFolderUri) {\n \t\t\t\toptions.defaultUri = vscode.Uri.joinPath(workspaceFolderUri, 'diagram');\n \t\t\t}\n \t\t\tconst uri = await vscode.window.showSaveDialog(options);\n \t\t\tif (!uri) {\n \t\t\t\tthis.logger.info('[Mermaid] Save cancelled');\n \t\t\t\treturn;\n \t\t\t}\n \n \t\t\tconst isMmd = uri.fsPath.endsWith('.mmd');\n \t\t\tconst content = isMmd ? source : svgContent;\n \t\t\tawait vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));\n \t\t\tvscode.window.showInformationMessage(`Saved mermaid ${isMmd ? 'source' : 'image'} to ${path.basename(uri.fsPath)}`);\n \t\t\tthis.logger.info(`[Mermaid] Saved ${isMmd ? 'source' : 'SVG'} to ${uri.fsPath}`);\n \t\t} catch (error) {\n \t\t\tthis.logger.error('[Mermaid] Failed to save', error instanceof Error ? error : undefined);\n \t\t\tvscode.window.showErrorMessage('Failed to save mermaid diagram');\n \t\t}\n \t}\n \n \tprivate _resolveAssistantImagePaths(text: string): string {\n \t\tconst backendState = getBackendState();\n \t\tconst sessionId = backendState.getSessionId();\n \t\tif (!sessionId || !this._view?.webview) {\n \t\t\tthis.logger?.debug(`[ImageResolve] Skipped: sessionId=${!!sessionId} webview=${!!this._view?.webview}`);\n \t\t\treturn text;\n \t\t}\n \n \t\tconst sessionDir = path.join(os.homedir(), '.copilot', 'session-state', sessionId);\n \t\tconst webview = this._view.webview;\n \n \t\tconst additionalDirs: string[] = [];\n \t\tif (this.currentWorkspacePath) {\n \t\t\tadditionalDirs.push(this.currentWorkspacePath);\n \t\t}\n \n \t\tthis.logger?.debug(`[ImageResolve] Input: \"${text.substring(0, 100)}\" sessionDir=${sessionDir} additionalDirs=${JSON.stringify(additionalDirs)}`);\n \n \t\tconst result = resolveImagePaths(text, sessionDir, (absolutePath: string) => {\n \t\t\tconst exists = fs.existsSync(absolutePath);\n \t\t\tthis.logger?.debug(`[ImageResolve] Check: ${absolutePath} exists=${exists}`);\n \t\t\tif (!exists) {\n \t\t\t\treturn null;\n \t\t\t}\n \t\t\tconst fileUri = vscode.Uri.file(absolutePath);\n \t\t\tconst uri = webview.asWebviewUri(fileUri).toString();\n \t\t\tthis.logger?.debug(`[ImageResolve] Resolved: ${uri}`);\n \t\t\treturn uri;\n \t\t}, additionalDirs);\n \n \t\tif (result !== text) {\n \t\t\tthis.logger?.info(`[ImageResolve] Resolved image paths in message`);\n \t\t\tthis.logger?.debug(`[ImageResolve] Output: \"${result.substring(0, 200)}\"`);\n \t\t}\n \n \t\treturn result;\n \t}\n \n \tpublic setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) {\n \t\tthis.validateAttachmentsCallback = callback;\n \t\tthis.logger?.info('Attachment validation callback registered');\n \t}\n \n \t/**\n \t * Force refresh the webview content.\n \t * For sidebar views, we can't dispose/recreate — just reset the HTML.\n \t */\n \tpublic forceRecreate() {\n \t\tif (this._view) {\n \t\t\tthis._view.webview.html = this._getHtmlForWebview(this._view.webview);\n \t\t\tthis.resetPlanMode();\n \t\t}\n \t}\n \n \tpublic dispose(): void {\n \t\tthis._disposables.dispose();\n \t\tthis.rpcRouter = undefined;\n \t\t// Don't dispose _view — VS Code owns the sidebar view lifecycle\n \t}\n \n \tprivate _getHtmlForWebview(webview: vscode.Webview) {\n \t\tconst nonce = getNonce();\n \n \t\tconst styleUri = webview.asWebviewUri(\n \t\t\tvscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'styles.css')\n \t\t);\n \t\tconst scriptUri = webview.asWebviewUri(\n \t\t\tvscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'main.js')\n \t\t);\n \n \t\treturn `<!DOCTYPE html>\n <html lang=\"en\">\n <head>\n \t<meta charset=\"UTF-8\">\n \t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n \t<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource} https://cdn.jsdelivr.net; img-src ${webview.cspSource} data:; font-src ${webview.cspSource} data:;\">\n \t<title>Copilot CLI Chat</title>\n \t<script nonce=\"${nonce}\" src=\"https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js\"></script>\n \t<link rel=\"stylesheet\" href=\"${styleUri}\">\n </head>\n <body>\n \t<!-- Component Mount Points - Components render themselves here -->\n \t<div id=\"session-toolbar-mount\"></div>\n \n \t<main role=\"main\">\n \t\t<div id=\"messages-mount\"></div>\n \t\t<div id=\"acceptance-mount\"></div>\n \t\t<div id=\"input-mount\"></div>\n \t</main>\n \n \t<script type=\"module\" nonce=\"${nonce}\" src=\"${scriptUri}\"></script>\n </body>\n </html>`;\n \t}\n \n }\n \n function getNonce() {\n \tlet text = '';\n \tconst possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';\n \tfor (let i = 0; i < 32; i++) {\n \t\ttext += possible.charAt(Math.floor(Math.random() * possible.length));\n \t}\n \treturn text;\n }\n \n"
+        },
+        "toolTelemetry": {
+          "properties": {
+            "command": "view",
+            "options": "{\"truncateBasedOn\":\"tokenCount\",\"truncateStyle\":\"middle\"}",
+            "inputs": "[\"path\",\"command\"]",
+            "resolvedPathAgainstCwd": "false",
+            "fileExtension": ".ts",
+            "viewType": "file"
+          },
+          "metrics": {
+            "resultLength": 28507,
+            "resultForLlmLength": 28507,
+            "responseTokenLimit": 32000
+          },
+          "restrictedProperties": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:41.047Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_DDtP5pZZyYEADda7MraxHJ",
+        "success": true,
+        "result": {
+          "content": "1. /**\n2.  * Extension RPC Router\n3.  * \n4.  * Provides type-safe message passing from extension to webview.\n5.  * Handles routing of incoming webview messages to registered handlers.\n6.  */\n7. \n8. import * as vscode from 'vscode';\n9. import {\n10. \tExtensionMessage,\n11. \tWebviewMessage,\n12. \tWebviewMessageType,\n13. \tInitPayload,\n14. \tUserMessagePayload,\n15. \tAssistantMessagePayload,\n16. \tReasoningMessagePayload,\n17. \tToolStartPayload,\n18. \tToolUpdatePayload,\n19. \tStreamChunkPayload,\n20. \tStreamEndPayload,\n21. \tClearMessagesPayload,\n22. \tSessionStatusPayload,\n23. \tUpdateSessionsPayload,\n24. \tThinkingPayload,\n25. \tResetPlanModePayload,\n26. \tWorkspacePathPayload,\n27. \tActiveFileChangedPayload,\n28. \tDiffAvailablePayload,\n29. \tAppendMessagePayload,\n30. \tAttachmentValidationPayload,\n31. \tStatusPayload,\n32. \tUsageInfoPayload,\n33. \tSendMessagePayload,\n34. \tAbortMessagePayload,\n35. \tReadyPayload,\n36. \tSwitchSessionPayload,\n37. \tNewSessionPayload,\n38. \tViewPlanPayload,\n39. \tViewDiffPayload,\n40. \tTogglePlanModePayload,\n41. \tAcceptPlanPayload,\n42. \tRejectPlanPayload,\n43. \tPickFilesPayload,\n44. \tShowPlanContentPayload,\n45. \tOpenDiffViewPayload,\n46. \tShowMcpConfigPayload,\n47. \tShowUsageMetricsPayload,\n48. \tShowHelpPayload,\n49. \tShowNotSupportedPayload,\n50. \tOpenInCLIPayload,\n51. \tOpenFilePayload,\n52. \tPasteImagePayload,\n53. \tSaveMermaidImagePayload,\n54. \tSwitchModelPayload,\n55. \tRenameSessionPayload,\n56. \tModelSwitchedPayload,\n57. \tCurrentModelPayload,\n58. \tAvailableModelsPayload,\n59. \tSession,\n60. \tAttachment,\n61. \tToolState,\n62. \tInitState,\n63. \tUsageInfo\n64. } from '../../shared';\n65. \n66. /**\n67.  * Type for message handlers\n68.  */\n69. type MessageHandler<T> = (payload: T) => void | Promise<void>;\n70. \n71. /**\n72.  * Disposable subscription\n73.  */\n74. interface Disposable {\n75. \tdispose(): void;\n76. }\n77. \n78. /**\n79.  * Extension RPC Router\n80.  * \n81.  * Manages type-safe bidirectional communication between extension and webview.\n82.  */\n83. export class ExtensionRpcRouter {\n84. \tprivate handlers = new Map<WebviewMessageType, MessageHandler<any>>();\n85. \t\n86. \t// Message tracking for debugging\n87. \tprivate incomingMessageCount = 0;\n88. \tprivate outgoingMessageCount = 0;\n89. \tprivate messageCountByType = new Map<string, number>();\n90. \tprivate lastReportedAt = 0;\n91. \tprivate readonly REPORT_INTERVAL = 100; // Log every 100 messages\n92. \t\n93. \tconstructor(\n94. \t\tprivate webview: vscode.Webview\n95. \t) {}\n96. \t\n97. \t// ========================================================================\n98. \t// Send Methods (Extension → Webview)\n99. \t// ========================================================================\n100. \t\n101. \t/**\n102. \t * Initialize webview with full state\n103. \t */\n104. \tsendInit(state: InitState): void {\n105. \t\tconst message: InitPayload = {\n106. \t\t\ttype: 'init',\n107. \t\t\t...state\n108. \t\t};\n109. \t\tthis.send(message);\n110. \t}\n111. \t\n112. \t/**\n113. \t * Add user message to chat\n114. \t */\n115. \taddUserMessage(text: string, attachments?: Attachment[]): void {\n116. \t\tconst message: UserMessagePayload = {\n117. \t\t\ttype: 'userMessage',\n118. \t\t\ttext,\n119. \t\t\tattachments\n120. \t\t};\n121. \t\tthis.send(message);\n122. \t}\n123. \t\n124. \t/**\n125. \t * Add assistant message to chat\n126. \t */\n127. \taddAssistantMessage(text: string): void {\n128. \t\tconst message: AssistantMessagePayload = {\n129. \t\t\ttype: 'assistantMessage',\n130. \t\t\ttext\n131. \t\t};\n132. \t\tthis.send(message);\n133. \t}\n134. \t\n135. \t/**\n136. \t * Add reasoning message to chat\n137. \t */\n138. \taddReasoningMessage(text: string): void {\n139. \t\tconst message: ReasoningMessagePayload = {\n140. \t\t\ttype: 'reasoningMessage',\n141. \t\t\ttext\n142. \t\t};\n143. \t\tthis.send(message);\n144. \t}\n145. \t\n146. \t/**\n147. \t * Tool execution started\n148. \t */\n149. \ttoolStart(toolState: ToolState): void {\n150. \t\tconst message: ToolStartPayload = {\n151. \t\t\ttype: 'toolStart',\n152. \t\t\ttoolState\n153. \t\t};\n154. \t\tthis.send(message);\n155. \t}\n156. \t\n157. \t/**\n158. \t * Tool execution progress\n159. \t */\n160. \ttoolUpdate(toolState: ToolState): void {\n161. \t\tconst message: ToolUpdatePayload = {\n162. \t\t\ttype: 'toolUpdate',\n163. \t\t\ttoolState\n164. \t\t};\n165. \t\tthis.send(message);\n166. \t}\n167. \t\n168. \t/**\n169. \t * Stream chunk of assistant response\n170. \t */\n171. \tstreamChunk(chunk: string): void {\n172. \t\tconst message: StreamChunkPayload = {\n173. \t\t\ttype: 'streamChunk',\n174. \t\t\tchunk\n175. \t\t};\n176. \t\tthis.send(message);\n177. \t}\n178. \t\n179. \t/**\n180. \t * Stream completed\n181. \t */\n182. \tstreamEnd(): void {\n183. \t\tconst message: StreamEndPayload = {\n184. \t\t\ttype: 'streamEnd'\n185. \t\t};\n186. \t\tthis.send(message);\n187. \t}\n188. \t\n189. \t/**\n190. \t * Clear all messages\n191. \t */\n192. \tclearMessages(): void {\n193. \t\tconst message: ClearMessagesPayload = {\n194. \t\t\ttype: 'clearMessages'\n195. \t\t};\n196. \t\tthis.send(message);\n197. \t}\n198. \t\n199. \t/**\n200. \t * Update session status\n201. \t */\n202. \tsetSessionActive(active: boolean): void {\n203. \t\tconst message: SessionStatusPayload = {\n204. \t\t\ttype: 'sessionStatus',\n205. \t\t\tactive\n206. \t\t};\n207. \t\tthis.send(message);\n208. \t}\n209. \t\n210. \t/**\n211. \t * Update session list\n212. \t */\n213. \tupdateSessions(sessions: Session[], currentSessionId: string | null): void {\n214. \t\tconst message: UpdateSessionsPayload = {\n215. \t\t\ttype: 'updateSessions',\n216. \t\t\tsessions,\n217. \t\t\tcurrentSessionId\n218. \t\t};\n219. \t\tthis.send(message);\n220. \t}\n221. \t\n222. \t/**\n223. \t * Agent is thinking\n224. \t */\n225. \tsetThinking(isThinking: boolean): void {\n226. \t\tconst message: ThinkingPayload = {\n227. \t\t\ttype: 'thinking',\n228. \t\t\tisThinking\n229. \t\t};\n230. \t\tthis.send(message);\n231. \t}\n232. \t\n233. \t/**\n234. \t * Reset plan mode UI\n235. \t */\n236. \tresetPlanMode(): void {\n237. \t\tconst message: ResetPlanModePayload = {\n238. \t\t\ttype: 'resetPlanMode'\n239. \t\t};\n240. \t\tthis.send(message);\n241. \t}\n242. \t\n243. \t/**\n244. \t * Update workspace path\n245. \t */\n246. \tsetWorkspacePath(path: string | null): void {\n247. \t\tconst message: WorkspacePathPayload = {\n248. \t\t\ttype: 'workspacePath',\n249. \t\t\tpath\n250. \t\t};\n251. \t\tthis.send(message);\n252. \t}\n253. \t\n254. \t/**\n255. \t * Active file changed\n256. \t */\n257. \tsetActiveFile(filePath: string | null): void {\n258. \t\tconst message: ActiveFileChangedPayload = {\n259. \t\t\ttype: 'activeFileChanged',\n260. \t\t\tfilePath\n261. \t\t};\n262. \t\tthis.send(message);\n263. \t}\n264. \t\n265. \t/**\n266. \t * Send diff available data to webview\n267. \t * \n268. \t * Forwards complete diff information including tool ID and file paths.\n269. \t * Webview uses toolCallId to locate the tool element and add diff button.\n270. \t */\n271. \tsendDiffAvailable(diffData: { toolCallId: string; beforeUri: string; afterUri: string; title: string; diffLines?: Array<{ type: 'add' | 'remove' | 'context'; text: string }>; diffTruncated?: boolean; diffTotalLines?: number }): void {\n272. \t\tconst message: DiffAvailablePayload = {\n273. \t\t\ttype: 'diffAvailable',\n274. \t\t\ttoolCallId: diffData.toolCallId,\n275. \t\t\tbeforeUri: diffData.beforeUri,\n276. \t\t\tafterUri: diffData.afterUri,\n277. \t\t\ttitle: diffData.title,\n278. \t\t\tdiffLines: diffData.diffLines,\n279. \t\t\tdiffTruncated: diffData.diffTruncated,\n280. \t\t\tdiffTotalLines: diffData.diffTotalLines\n281. \t\t};\n282. \t\tthis.send(message);\n283. \t}\n284. \t\n285. \t/**\n286. \t * Append to last message\n287. \t */\n288. \tappendMessage(text: string): void {\n289. \t\tconst message: AppendMessagePayload = {\n290. \t\t\ttype: 'appendMessage',\n291. \t\t\ttext\n292. \t\t};\n293. \t\tthis.send(message);\n294. \t}\n295. \t\n296. \t/**\n297. \t * Attachment validation result\n298. \t */\n299. \tattachmentValidation(valid: boolean, error: string | null): void {\n300. \t\tconst message: AttachmentValidationPayload = {\n301. \t\t\ttype: 'attachmentValidation',\n302. \t\t\tvalid,\n303. \t\t\terror\n304. \t\t};\n305. \t\tthis.send(message);\n306. \t}\n307. \t\n308. \t/**\n309. \t * General status update\n310. \t */\n311. \tsetStatus(statusMessage: string): void {\n312. \t\tconst message: StatusPayload = {\n313. \t\t\ttype: 'status',\n314. \t\t\tmessage: statusMessage\n315. \t\t};\n316. \t\tthis.send(message);\n317. \t}\n318. \t\n319. \t/**\n320. \t * Usage information\n321. \t */\n322. \tsetUsageInfo(usage: UsageInfo): void {\n323. \t\tconst message: UsageInfoPayload = {\n324. \t\t\ttype: 'usage_info',\n325. \t\t\tusage\n326. \t\t};\n327. \t\tthis.send(message);\n328. \t}\n329. \n330. \t/**\n331. \t * Model switch result\n332. \t */\n333. \tsendModelSwitched(model: string, success: boolean): void {\n334. \t\tconst message: ModelSwitchedPayload = {\n335. \t\t\ttype: 'modelSwitched',\n336. \t\t\tmodel,\n337. \t\t\tsuccess\n338. \t\t};\n339. \t\tthis.send(message);\n340. \t}\n341. \n342. \t/**\n343. \t * Current model notification\n344. \t */\n345. \tsendCurrentModel(model: string): void {\n346. \t\tconst message: CurrentModelPayload = {\n347. \t\t\ttype: 'currentModel',\n348. \t\t\tmodel\n349. \t\t};\n350. \t\tthis.send(message);\n351. \t}\n352. \n353. \t/**\n354. \t * Send available models list to webview\n355. \t */\n356. \tsendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>): void {\n357. \t\tconst message: AvailableModelsPayload = {\n358. \t\t\ttype: 'availableModels',\n359. \t\t\tmodels\n360. \t\t};\n361. \t\tthis.send(message);\n362. \t}\n363. \n364. \t// ========================================================================\n365. \t// Receive Handlers (Webview → Extension)\n366. \t// ========================================================================\n367. \t\n368. \t/**\n369. \t * Register handler for sendMessage\n370. \t */\n371. \tonSendMessage(handler: MessageHandler<SendMessagePayload>): Disposable {\n372. \t\treturn this.registerHandler('sendMessage', handler);\n373. \t}\n374. \t\n375. \t/**\n376. \t * Register handler for abortMessage\n377. \t */\n378. \tonAbortMessage(handler: MessageHandler<AbortMessagePayload>): Disposable {\n379. \t\treturn this.registerHandler('abortMessage', handler);\n380. \t}\n381. \t\n382. \t/**\n383. \t * Register handler for ready\n384. \t */\n385. \tonReady(handler: MessageHandler<ReadyPayload>): Disposable {\n386. \t\treturn this.registerHandler('ready', handler);\n387. \t}\n388. \t\n389. \t/**\n390. \t * Register handler for switchSession\n391. \t */\n392. \tonSwitchSession(handler: MessageHandler<SwitchSessionPayload>): Disposable {\n393. \t\treturn this.registerHandler('switchSession', handler);\n394. \t}\n395. \t\n396. \t/**\n397. \t * Register handler for newSession\n398. \t */\n399. \tonNewSession(handler: MessageHandler<NewSessionPayload>): Disposable {\n400. \t\treturn this.registerHandler('newSession', handler);\n401. \t}\n402. \t\n403. \t/**\n404. \t * Register handler for viewPlan\n405. \t */\n406. \tonViewPlan(handler: MessageHandler<ViewPlanPayload>): Disposable {\n407. \t\treturn this.registerHandler('viewPlan', handler);\n408. \t}\n409. \t\n410. \t/**\n411. \t * Register handler for viewDiff\n412. \t */\n413. \tonViewDiff(handler: MessageHandler<ViewDiffPayload>): Disposable {\n414. \t\treturn this.registerHandler('viewDiff', handler);\n415. \t}\n416. \t\n417. \t/**\n418. \t * Register handler for togglePlanMode\n419. \t */\n420. \tonTogglePlanMode(handler: MessageHandler<TogglePlanModePayload>): Disposable {\n421. \t\treturn this.registerHandler('togglePlanMode', handler);\n422. \t}\n423. \t\n424. \t/**\n425. \t * Register handler for acceptPlan\n426. \t */\n427. \tonAcceptPlan(handler: MessageHandler<AcceptPlanPayload>): Disposable {\n428. \t\treturn this.registerHandler('acceptPlan', handler);\n429. \t}\n430. \t\n431. \t/**\n432. \t * Register handler for rejectPlan\n433. \t */\n434. \tonRejectPlan(handler: MessageHandler<RejectPlanPayload>): Disposable {\n435. \t\treturn this.registerHandler('rejectPlan', handler);\n436. \t}\n437. \t\n438. \t/**\n439. \t * Register handler for pickFiles\n440. \t */\n441. \tonPickFiles(handler: MessageHandler<PickFilesPayload>): Disposable {\n442. \t\treturn this.registerHandler('pickFiles', handler);\n443. \t}\n444. \t\n445. \t/**\n446. \t * Register handler for pasteImage\n447. \t */\n448. \tonPasteImage(handler: MessageHandler<PasteImagePayload>): Disposable {\n449. \t\treturn this.registerHandler('pasteImage', handler);\n450. \t}\n451. \n452. \t/**\n453. \t * Register handler for saveMermaidImage\n454. \t */\n455. \tonSaveMermaidImage(handler: MessageHandler<SaveMermaidImagePayload>): Disposable {\n456. \t\treturn this.registerHandler('saveMermaidImage', handler);\n457. \t}\n458. \n459. \t/**\n460. \t * Register handler for showPlanContent\n461. \t */\n462. \tonShowPlanContent(handler: MessageHandler<ShowPlanContentPayload>): Disposable {\n463. \t\treturn this.registerHandler('showPlanContent', handler);\n464. \t}\n465. \t\n466. \t/**\n467. \t * Register handler for openDiffView\n468. \t */\n469. \tonOpenDiffView(handler: MessageHandler<OpenDiffViewPayload>): Disposable {\n470. \t\treturn this.registerHandler('openDiffView', handler);\n471. \t}\n472. \t\n473. \t/**\n474. \t * Register handler for showMcpConfig\n475. \t */\n476. \tonShowMcpConfig(handler: MessageHandler<ShowMcpConfigPayload>): Disposable {\n477. \t\treturn this.registerHandler('showMcpConfig', handler);\n478. \t}\n479. \t\n480. \t/**\n481. \t * Register handler for showUsageMetrics\n482. \t */\n483. \tonShowUsageMetrics(handler: MessageHandler<ShowUsageMetricsPayload>): Disposable {\n484. \t\treturn this.registerHandler('showUsageMetrics', handler);\n485. \t}\n486. \t\n487. \t/**\n488. \t * Register handler for showHelp\n489. \t */\n490. \tonShowHelp(handler: MessageHandler<ShowHelpPayload>): Disposable {\n491. \t\treturn this.registerHandler('showHelp', handler);\n492. \t}\n493. \t\n494. \t/**\n495. \t * Register handler for showNotSupported\n496. \t */\n497. \tonShowNotSupported(handler: MessageHandler<ShowNotSupportedPayload>): Disposable {\n498. \t\treturn this.registerHandler('showNotSupported', handler);\n499. \t}\n500. \t\n501. \t/**\n502. \t * Register handler for openInCLI\n503. \t */\n504. \tonOpenInCLI(handler: MessageHandler<OpenInCLIPayload>): Disposable {\n505. \t\treturn this.registerHandler('openInCLI', handler);\n506. \t}\n507. \n508. \t/**\n509. \t * Register handler for openFile\n510. \t */\n511. \tonOpenFile(handler: MessageHandler<OpenFilePayload>): Disposable {\n512. \t\treturn this.registerHandler('openFile', handler);\n513. \t}\n514. \n515. \t/**\n516. \t * Register handler for switchModel\n517. \t */\n518. \tonSwitchModel(handler: MessageHandler<SwitchModelPayload>): Disposable {\n519. \t\treturn this.registerHandler('switchModel', handler);\n520. \t}\n521. \n522. \t/**\n523. \t * Register handler for renameSession\n524. \t */\n525. \tonRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {\n526. \t\treturn this.registerHandler('renameSession', handler);\n527. \t}\n528. \n529. \t// ========================================================================\n530. \t// Message Routing\n531. \t// ========================================================================\n532. \t\n533. \t/**\n534. \t * Route incoming webview message to registered handler\n535. \t */\n536. \troute(message: WebviewMessage): void {\n537. \t\t// Track incoming messages\n538. \t\tthis.incomingMessageCount++;\n539. \t\tthis.trackMessageType(`IN:${message.type}`);\n540. \t\t\n541. \t\t// Report periodically\n542. \t\tif (this.incomingMessageCount % this.REPORT_INTERVAL === 0) {\n543. \t\t\tthis.reportMessageStats('INCOMING');\n544. \t\t}\n545. \t\t\n546. \t\tconst handler = this.handlers.get(message.type as WebviewMessageType);\n547. \t\t\n548. \t\tif (handler) {\n549. \t\t\ttry {\n550. \t\t\t\thandler(message);\n551. \t\t\t} catch (error) {\n552. \t\t\t\tconsole.error(`Error in handler for ${message.type}:`, error);\n553. \t\t\t}\n554. \t\t} else {\n555. \t\t\tconsole.warn(`No handler registered for message type: ${message.type}`);\n556. \t\t}\n557. \t}\n558. \t\n559. \t/**\n560. \t * Set up webview message listener\n561. \t * Call this once to start routing messages\n562. \t */\n563. \tlisten(): Disposable {\n564. \t\treturn this.webview.onDidReceiveMessage((message: WebviewMessage) => {\n565. \t\t\tthis.route(message);\n566. \t\t});\n567. \t}\n568. \t\n569. \t// ========================================================================\n570. \t// Private Methods\n571. \t// ========================================================================\n572. \t\n573. \t/**\n574. \t * Send message to webview\n575. \t */\n576. \tprivate send(message: ExtensionMessage): void {\n577. \t\t// Track outgoing messages\n578. \t\tthis.outgoingMessageCount++;\n579. \t\tthis.trackMessageType(`OUT:${message.type}`);\n580. \t\t\n581. \t\t// Report periodically\n582. \t\tif (this.outgoingMessageCount % this.REPORT_INTERVAL === 0) {\n583. \t\t\tthis.reportMessageStats('OUTGOING');\n584. \t\t}\n585. \t\t\n586. \t\tthis.webview.postMessage(message);\n587. \t}\n588. \t\n589. \t/**\n590. \t * Register a message handler\n591. \t */\n592. \tprivate registerHandler<T extends WebviewMessage>(\n593. \t\ttype: WebviewMessageType,\n594. \t\thandler: MessageHandler<T>\n595. \t): Disposable {\n596. \t\t// Only allow one handler per type (last one wins)\n597. \t\tthis.handlers.set(type, handler as MessageHandler<any>);\n598. \t\t\n599. \t\treturn {\n600. \t\t\tdispose: () => {\n601. \t\t\t\tif (this.handlers.get(type) === handler) {\n602. \t\t\t\t\tthis.handlers.delete(type);\n603. \t\t\t\t}\n604. \t\t\t}\n605. \t\t};\n606. \t}\n607. \t\n608. \t/**\n609. \t * Track message type count\n610. \t */\n611. \tprivate trackMessageType(type: string): void {\n612. \t\tconst count = this.messageCountByType.get(type) || 0;\n613. \t\tthis.messageCountByType.set(type, count + 1);\n614. \t}\n615. \t\n616. \t/**\n617. \t * Report message statistics\n618. \t */\n619. \tprivate reportMessageStats(direction: 'INCOMING' | 'OUTGOING'): void {\n620. \t\tconst now = Date.now();\n621. \t\tconst timeSinceLastReport = now - this.lastReportedAt;\n622. \t\t\n623. \t\tconsole.log('='.repeat(80));\n624. \t\tconsole.log(`[MESSAGE DEBUG] ${direction} Message Stats`);\n625. \t\tconsole.log(`Total incoming: ${this.incomingMessageCount}`);\n626. \t\tconsole.log(`Total outgoing: ${this.outgoingMessageCount}`);\n627. \t\tconsole.log(`Time since last report: ${timeSinceLastReport}ms`);\n628. \t\tconsole.log('Breakdown by type:');\n629. \t\t\n630. \t\t// Sort by count descending\n631. \t\tconst sortedTypes = Array.from(this.messageCountByType.entries())\n632. \t\t\t.sort((a, b) => b[1] - a[1]);\n633. \t\t\n634. \t\tfor (const [type, count] of sortedTypes) {\n635. \t\t\tconsole.log(`  ${type}: ${count}`);\n636. \t\t}\n637. \t\t\n638. \t\tconsole.log('='.repeat(80));\n639. \t\tthis.lastReportedAt = now;\n640. \t}\n641. \t\n642. \t/**\n643. \t * Get current message statistics (useful for manual inspection)\n644. \t */\n645. \tpublic getMessageStats(): { incoming: number; outgoing: number; byType: Map<string, number> } {\n646. \t\treturn {\n647. \t\t\tincoming: this.incomingMessageCount,\n648. \t\t\toutgoing: this.outgoingMessageCount,\n649. \t\t\tbyType: new Map(this.messageCountByType)\n650. \t\t};\n651. \t}\n652. }\n653. ",
+          "detailedContent": "\ndiff --git a/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts b/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts\nindex 0000000..0000000 100644\n--- a/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts\n+++ b/home/smolen/dev/vscode-copilot-cli-extension/src/extension/rpc/ExtensionRpcRouter.ts\n@@ -1,653 +1,653 @@\n /**\n  * Extension RPC Router\n  * \n  * Provides type-safe message passing from extension to webview.\n  * Handles routing of incoming webview messages to registered handlers.\n  */\n \n import * as vscode from 'vscode';\n import {\n \tExtensionMessage,\n \tWebviewMessage,\n \tWebviewMessageType,\n \tInitPayload,\n \tUserMessagePayload,\n \tAssistantMessagePayload,\n \tReasoningMessagePayload,\n \tToolStartPayload,\n \tToolUpdatePayload,\n \tStreamChunkPayload,\n \tStreamEndPayload,\n \tClearMessagesPayload,\n \tSessionStatusPayload,\n \tUpdateSessionsPayload,\n \tThinkingPayload,\n \tResetPlanModePayload,\n \tWorkspacePathPayload,\n \tActiveFileChangedPayload,\n \tDiffAvailablePayload,\n \tAppendMessagePayload,\n \tAttachmentValidationPayload,\n \tStatusPayload,\n \tUsageInfoPayload,\n \tSendMessagePayload,\n \tAbortMessagePayload,\n \tReadyPayload,\n \tSwitchSessionPayload,\n \tNewSessionPayload,\n \tViewPlanPayload,\n \tViewDiffPayload,\n \tTogglePlanModePayload,\n \tAcceptPlanPayload,\n \tRejectPlanPayload,\n \tPickFilesPayload,\n \tShowPlanContentPayload,\n \tOpenDiffViewPayload,\n \tShowMcpConfigPayload,\n \tShowUsageMetricsPayload,\n \tShowHelpPayload,\n \tShowNotSupportedPayload,\n \tOpenInCLIPayload,\n \tOpenFilePayload,\n \tPasteImagePayload,\n \tSaveMermaidImagePayload,\n \tSwitchModelPayload,\n \tRenameSessionPayload,\n \tModelSwitchedPayload,\n \tCurrentModelPayload,\n \tAvailableModelsPayload,\n \tSession,\n \tAttachment,\n \tToolState,\n \tInitState,\n \tUsageInfo\n } from '../../shared';\n \n /**\n  * Type for message handlers\n  */\n type MessageHandler<T> = (payload: T) => void | Promise<void>;\n \n /**\n  * Disposable subscription\n  */\n interface Disposable {\n \tdispose(): void;\n }\n \n /**\n  * Extension RPC Router\n  * \n  * Manages type-safe bidirectional communication between extension and webview.\n  */\n export class ExtensionRpcRouter {\n \tprivate handlers = new Map<WebviewMessageType, MessageHandler<any>>();\n \t\n \t// Message tracking for debugging\n \tprivate incomingMessageCount = 0;\n \tprivate outgoingMessageCount = 0;\n \tprivate messageCountByType = new Map<string, number>();\n \tprivate lastReportedAt = 0;\n \tprivate readonly REPORT_INTERVAL = 100; // Log every 100 messages\n \t\n \tconstructor(\n \t\tprivate webview: vscode.Webview\n \t) {}\n \t\n \t// ========================================================================\n \t// Send Methods (Extension → Webview)\n \t// ========================================================================\n \t\n \t/**\n \t * Initialize webview with full state\n \t */\n \tsendInit(state: InitState): void {\n \t\tconst message: InitPayload = {\n \t\t\ttype: 'init',\n \t\t\t...state\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Add user message to chat\n \t */\n \taddUserMessage(text: string, attachments?: Attachment[]): void {\n \t\tconst message: UserMessagePayload = {\n \t\t\ttype: 'userMessage',\n \t\t\ttext,\n \t\t\tattachments\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Add assistant message to chat\n \t */\n \taddAssistantMessage(text: string): void {\n \t\tconst message: AssistantMessagePayload = {\n \t\t\ttype: 'assistantMessage',\n \t\t\ttext\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Add reasoning message to chat\n \t */\n \taddReasoningMessage(text: string): void {\n \t\tconst message: ReasoningMessagePayload = {\n \t\t\ttype: 'reasoningMessage',\n \t\t\ttext\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Tool execution started\n \t */\n \ttoolStart(toolState: ToolState): void {\n \t\tconst message: ToolStartPayload = {\n \t\t\ttype: 'toolStart',\n \t\t\ttoolState\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Tool execution progress\n \t */\n \ttoolUpdate(toolState: ToolState): void {\n \t\tconst message: ToolUpdatePayload = {\n \t\t\ttype: 'toolUpdate',\n \t\t\ttoolState\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Stream chunk of assistant response\n \t */\n \tstreamChunk(chunk: string): void {\n \t\tconst message: StreamChunkPayload = {\n \t\t\ttype: 'streamChunk',\n \t\t\tchunk\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Stream completed\n \t */\n \tstreamEnd(): void {\n \t\tconst message: StreamEndPayload = {\n \t\t\ttype: 'streamEnd'\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Clear all messages\n \t */\n \tclearMessages(): void {\n \t\tconst message: ClearMessagesPayload = {\n \t\t\ttype: 'clearMessages'\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Update session status\n \t */\n \tsetSessionActive(active: boolean): void {\n \t\tconst message: SessionStatusPayload = {\n \t\t\ttype: 'sessionStatus',\n \t\t\tactive\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Update session list\n \t */\n \tupdateSessions(sessions: Session[], currentSessionId: string | null): void {\n \t\tconst message: UpdateSessionsPayload = {\n \t\t\ttype: 'updateSessions',\n \t\t\tsessions,\n \t\t\tcurrentSessionId\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Agent is thinking\n \t */\n \tsetThinking(isThinking: boolean): void {\n \t\tconst message: ThinkingPayload = {\n \t\t\ttype: 'thinking',\n \t\t\tisThinking\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Reset plan mode UI\n \t */\n \tresetPlanMode(): void {\n \t\tconst message: ResetPlanModePayload = {\n \t\t\ttype: 'resetPlanMode'\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Update workspace path\n \t */\n \tsetWorkspacePath(path: string | null): void {\n \t\tconst message: WorkspacePathPayload = {\n \t\t\ttype: 'workspacePath',\n \t\t\tpath\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Active file changed\n \t */\n \tsetActiveFile(filePath: string | null): void {\n \t\tconst message: ActiveFileChangedPayload = {\n \t\t\ttype: 'activeFileChanged',\n \t\t\tfilePath\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Send diff available data to webview\n \t * \n \t * Forwards complete diff information including tool ID and file paths.\n \t * Webview uses toolCallId to locate the tool element and add diff button.\n \t */\n \tsendDiffAvailable(diffData: { toolCallId: string; beforeUri: string; afterUri: string; title: string; diffLines?: Array<{ type: 'add' | 'remove' | 'context'; text: string }>; diffTruncated?: boolean; diffTotalLines?: number }): void {\n \t\tconst message: DiffAvailablePayload = {\n \t\t\ttype: 'diffAvailable',\n \t\t\ttoolCallId: diffData.toolCallId,\n \t\t\tbeforeUri: diffData.beforeUri,\n \t\t\tafterUri: diffData.afterUri,\n \t\t\ttitle: diffData.title,\n \t\t\tdiffLines: diffData.diffLines,\n \t\t\tdiffTruncated: diffData.diffTruncated,\n \t\t\tdiffTotalLines: diffData.diffTotalLines\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Append to last message\n \t */\n \tappendMessage(text: string): void {\n \t\tconst message: AppendMessagePayload = {\n \t\t\ttype: 'appendMessage',\n \t\t\ttext\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Attachment validation result\n \t */\n \tattachmentValidation(valid: boolean, error: string | null): void {\n \t\tconst message: AttachmentValidationPayload = {\n \t\t\ttype: 'attachmentValidation',\n \t\t\tvalid,\n \t\t\terror\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * General status update\n \t */\n \tsetStatus(statusMessage: string): void {\n \t\tconst message: StatusPayload = {\n \t\t\ttype: 'status',\n \t\t\tmessage: statusMessage\n \t\t};\n \t\tthis.send(message);\n \t}\n \t\n \t/**\n \t * Usage information\n \t */\n \tsetUsageInfo(usage: UsageInfo): void {\n \t\tconst message: UsageInfoPayload = {\n \t\t\ttype: 'usage_info',\n \t\t\tusage\n \t\t};\n \t\tthis.send(message);\n \t}\n \n \t/**\n \t * Model switch result\n \t */\n \tsendModelSwitched(model: string, success: boolean): void {\n \t\tconst message: ModelSwitchedPayload = {\n \t\t\ttype: 'modelSwitched',\n \t\t\tmodel,\n \t\t\tsuccess\n \t\t};\n \t\tthis.send(message);\n \t}\n \n \t/**\n \t * Current model notification\n \t */\n \tsendCurrentModel(model: string): void {\n \t\tconst message: CurrentModelPayload = {\n \t\t\ttype: 'currentModel',\n \t\t\tmodel\n \t\t};\n \t\tthis.send(message);\n \t}\n \n \t/**\n \t * Send available models list to webview\n \t */\n \tsendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>): void {\n \t\tconst message: AvailableModelsPayload = {\n \t\t\ttype: 'availableModels',\n \t\t\tmodels\n \t\t};\n \t\tthis.send(message);\n \t}\n \n \t// ========================================================================\n \t// Receive Handlers (Webview → Extension)\n \t// ========================================================================\n \t\n \t/**\n \t * Register handler for sendMessage\n \t */\n \tonSendMessage(handler: MessageHandler<SendMessagePayload>): Disposable {\n \t\treturn this.registerHandler('sendMessage', handler);\n \t}\n \t\n \t/**\n \t * Register handler for abortMessage\n \t */\n \tonAbortMessage(handler: MessageHandler<AbortMessagePayload>): Disposable {\n \t\treturn this.registerHandler('abortMessage', handler);\n \t}\n \t\n \t/**\n \t * Register handler for ready\n \t */\n \tonReady(handler: MessageHandler<ReadyPayload>): Disposable {\n \t\treturn this.registerHandler('ready', handler);\n \t}\n \t\n \t/**\n \t * Register handler for switchSession\n \t */\n \tonSwitchSession(handler: MessageHandler<SwitchSessionPayload>): Disposable {\n \t\treturn this.registerHandler('switchSession', handler);\n \t}\n \t\n \t/**\n \t * Register handler for newSession\n \t */\n \tonNewSession(handler: MessageHandler<NewSessionPayload>): Disposable {\n \t\treturn this.registerHandler('newSession', handler);\n \t}\n \t\n \t/**\n \t * Register handler for viewPlan\n \t */\n \tonViewPlan(handler: MessageHandler<ViewPlanPayload>): Disposable {\n \t\treturn this.registerHandler('viewPlan', handler);\n \t}\n \t\n \t/**\n \t * Register handler for viewDiff\n \t */\n \tonViewDiff(handler: MessageHandler<ViewDiffPayload>): Disposable {\n \t\treturn this.registerHandler('viewDiff', handler);\n \t}\n \t\n \t/**\n \t * Register handler for togglePlanMode\n \t */\n \tonTogglePlanMode(handler: MessageHandler<TogglePlanModePayload>): Disposable {\n \t\treturn this.registerHandler('togglePlanMode', handler);\n \t}\n \t\n \t/**\n \t * Register handler for acceptPlan\n \t */\n \tonAcceptPlan(handler: MessageHandler<AcceptPlanPayload>): Disposable {\n \t\treturn this.registerHandler('acceptPlan', handler);\n \t}\n \t\n \t/**\n \t * Register handler for rejectPlan\n \t */\n \tonRejectPlan(handler: MessageHandler<RejectPlanPayload>): Disposable {\n \t\treturn this.registerHandler('rejectPlan', handler);\n \t}\n \t\n \t/**\n \t * Register handler for pickFiles\n \t */\n \tonPickFiles(handler: MessageHandler<PickFilesPayload>): Disposable {\n \t\treturn this.registerHandler('pickFiles', handler);\n \t}\n \t\n \t/**\n \t * Register handler for pasteImage\n \t */\n \tonPasteImage(handler: MessageHandler<PasteImagePayload>): Disposable {\n \t\treturn this.registerHandler('pasteImage', handler);\n \t}\n \n \t/**\n \t * Register handler for saveMermaidImage\n \t */\n \tonSaveMermaidImage(handler: MessageHandler<SaveMermaidImagePayload>): Disposable {\n \t\treturn this.registerHandler('saveMermaidImage', handler);\n \t}\n \n \t/**\n \t * Register handler for showPlanContent\n \t */\n \tonShowPlanContent(handler: MessageHandler<ShowPlanContentPayload>): Disposable {\n \t\treturn this.registerHandler('showPlanContent', handler);\n \t}\n \t\n \t/**\n \t * Register handler for openDiffView\n \t */\n \tonOpenDiffView(handler: MessageHandler<OpenDiffViewPayload>): Disposable {\n \t\treturn this.registerHandler('openDiffView', handler);\n \t}\n \t\n \t/**\n \t * Register handler for showMcpConfig\n \t */\n \tonShowMcpConfig(handler: MessageHandler<ShowMcpConfigPayload>): Disposable {\n \t\treturn this.registerHandler('showMcpConfig', handler);\n \t}\n \t\n \t/**\n \t * Register handler for showUsageMetrics\n \t */\n \tonShowUsageMetrics(handler: MessageHandler<ShowUsageMetricsPayload>): Disposable {\n \t\treturn this.registerHandler('showUsageMetrics', handler);\n \t}\n \t\n \t/**\n \t * Register handler for showHelp\n \t */\n \tonShowHelp(handler: MessageHandler<ShowHelpPayload>): Disposable {\n \t\treturn this.registerHandler('showHelp', handler);\n \t}\n \t\n \t/**\n \t * Register handler for showNotSupported\n \t */\n \tonShowNotSupported(handler: MessageHandler<ShowNotSupportedPayload>): Disposable {\n \t\treturn this.registerHandler('showNotSupported', handler);\n \t}\n \t\n \t/**\n \t * Register handler for openInCLI\n \t */\n \tonOpenInCLI(handler: MessageHandler<OpenInCLIPayload>): Disposable {\n \t\treturn this.registerHandler('openInCLI', handler);\n \t}\n \n \t/**\n \t * Register handler for openFile\n \t */\n \tonOpenFile(handler: MessageHandler<OpenFilePayload>): Disposable {\n \t\treturn this.registerHandler('openFile', handler);\n \t}\n \n \t/**\n \t * Register handler for switchModel\n \t */\n \tonSwitchModel(handler: MessageHandler<SwitchModelPayload>): Disposable {\n \t\treturn this.registerHandler('switchModel', handler);\n \t}\n \n \t/**\n \t * Register handler for renameSession\n \t */\n \tonRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {\n \t\treturn this.registerHandler('renameSession', handler);\n \t}\n \n \t// ========================================================================\n \t// Message Routing\n \t// ========================================================================\n \t\n \t/**\n \t * Route incoming webview message to registered handler\n \t */\n \troute(message: WebviewMessage): void {\n \t\t// Track incoming messages\n \t\tthis.incomingMessageCount++;\n \t\tthis.trackMessageType(`IN:${message.type}`);\n \t\t\n \t\t// Report periodically\n \t\tif (this.incomingMessageCount % this.REPORT_INTERVAL === 0) {\n \t\t\tthis.reportMessageStats('INCOMING');\n \t\t}\n \t\t\n \t\tconst handler = this.handlers.get(message.type as WebviewMessageType);\n \t\t\n \t\tif (handler) {\n \t\t\ttry {\n \t\t\t\thandler(message);\n \t\t\t} catch (error) {\n \t\t\t\tconsole.error(`Error in handler for ${message.type}:`, error);\n \t\t\t}\n \t\t} else {\n \t\t\tconsole.warn(`No handler registered for message type: ${message.type}`);\n \t\t}\n \t}\n \t\n \t/**\n \t * Set up webview message listener\n \t * Call this once to start routing messages\n \t */\n \tlisten(): Disposable {\n \t\treturn this.webview.onDidReceiveMessage((message: WebviewMessage) => {\n \t\t\tthis.route(message);\n \t\t});\n \t}\n \t\n \t// ========================================================================\n \t// Private Methods\n \t// ========================================================================\n \t\n \t/**\n \t * Send message to webview\n \t */\n \tprivate send(message: ExtensionMessage): void {\n \t\t// Track outgoing messages\n \t\tthis.outgoingMessageCount++;\n \t\tthis.trackMessageType(`OUT:${message.type}`);\n \t\t\n \t\t// Report periodically\n \t\tif (this.outgoingMessageCount % this.REPORT_INTERVAL === 0) {\n \t\t\tthis.reportMessageStats('OUTGOING');\n \t\t}\n \t\t\n \t\tthis.webview.postMessage(message);\n \t}\n \t\n \t/**\n \t * Register a message handler\n \t */\n \tprivate registerHandler<T extends WebviewMessage>(\n \t\ttype: WebviewMessageType,\n \t\thandler: MessageHandler<T>\n \t): Disposable {\n \t\t// Only allow one handler per type (last one wins)\n \t\tthis.handlers.set(type, handler as MessageHandler<any>);\n \t\t\n \t\treturn {\n \t\t\tdispose: () => {\n \t\t\t\tif (this.handlers.get(type) === handler) {\n \t\t\t\t\tthis.handlers.delete(type);\n \t\t\t\t}\n \t\t\t}\n \t\t};\n \t}\n \t\n \t/**\n \t * Track message type count\n \t */\n \tprivate trackMessageType(type: string): void {\n \t\tconst count = this.messageCountByType.get(type) || 0;\n \t\tthis.messageCountByType.set(type, count + 1);\n \t}\n \t\n \t/**\n \t * Report message statistics\n \t */\n \tprivate reportMessageStats(direction: 'INCOMING' | 'OUTGOING'): void {\n \t\tconst now = Date.now();\n \t\tconst timeSinceLastReport = now - this.lastReportedAt;\n \t\t\n \t\tconsole.log('='.repeat(80));\n \t\tconsole.log(`[MESSAGE DEBUG] ${direction} Message Stats`);\n \t\tconsole.log(`Total incoming: ${this.incomingMessageCount}`);\n \t\tconsole.log(`Total outgoing: ${this.outgoingMessageCount}`);\n \t\tconsole.log(`Time since last report: ${timeSinceLastReport}ms`);\n \t\tconsole.log('Breakdown by type:');\n \t\t\n \t\t// Sort by count descending\n \t\tconst sortedTypes = Array.from(this.messageCountByType.entries())\n \t\t\t.sort((a, b) => b[1] - a[1]);\n \t\t\n \t\tfor (const [type, count] of sortedTypes) {\n \t\t\tconsole.log(`  ${type}: ${count}`);\n \t\t}\n \t\t\n \t\tconsole.log('='.repeat(80));\n \t\tthis.lastReportedAt = now;\n \t}\n \t\n \t/**\n \t * Get current message statistics (useful for manual inspection)\n \t */\n \tpublic getMessageStats(): { incoming: number; outgoing: number; byType: Map<string, number> } {\n \t\treturn {\n \t\t\tincoming: this.incomingMessageCount,\n \t\t\toutgoing: this.outgoingMessageCount,\n \t\t\tbyType: new Map(this.messageCountByType)\n \t\t};\n \t}\n }\n \n"
+        },
+        "toolTelemetry": {
+          "properties": {
+            "command": "view",
+            "options": "{\"truncateBasedOn\":\"tokenCount\",\"truncateStyle\":\"middle\"}",
+            "inputs": "[\"path\",\"command\"]",
+            "resolvedPathAgainstCwd": "false",
+            "fileExtension": ".ts",
+            "viewType": "file"
+          },
+          "metrics": {
+            "resultLength": 18221,
+            "resultForLlmLength": 18221,
+            "responseTokenLimit": 32000
+          },
+          "restrictedProperties": {}
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:41.048Z",
+      "type": "assistant.turn_end",
+      "data": {
+        "turnId": "0"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:41.048Z",
+      "type": "assistant.turn_start",
+      "data": {
+        "turnId": "1"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:41.048Z",
+      "type": "session.usage_info",
+      "data": {
+        "tokenLimit": 128000,
+        "currentTokens": 34381,
+        "messagesLength": 8
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:45.940Z",
+      "type": "assistant.usage",
+      "data": {
+        "model": "claude-sonnet-4.6",
+        "inputTokens": 42743,
+        "outputTokens": 192,
+        "cacheReadTokens": 24295,
+        "cacheWriteTokens": 0,
+        "cost": 1,
+        "duration": 4892,
+        "initiator": "agent",
+        "apiCallId": "319c689f-9c0a-42a3-a371-41c1cd098b9f",
+        "providerCallId": "B308:321C0A:806E80:965F7D:69B2285C",
+        "quotaSnapshots": {
+          "chat": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "completions": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "premium_interactions": {
+            "isUnlimitedEntitlement": false,
+            "entitlementRequests": 1500,
+            "usedRequests": 89,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 94.1,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:45.940Z",
+      "type": "assistant.message",
+      "data": {
+        "messageId": "c27087f6-45b7-443a-b758-34ee1d11c7eb",
+        "content": "Now let me read the large files in chunks:",
+        "toolRequests": [
+          {
+            "toolCallId": "tooluse_gY4K5vC33kBeEaA1DEDetX",
+            "name": "bash",
+            "arguments": {
+              "command": "head -150 /home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts && echo \"---BREAK---\" && head -150 /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts",
+              "description": "Read tops of large files"
+            },
+            "type": "function"
+          }
+        ],
+        "reasoningOpaque": "FbfXsPg3VorTSifinBK8moVdAcEFnTRJWReo6cgvkRfX/MeTSDjhGymuUmZLnkf0RGSlEAIzkWblSuewYSryGOiMKqNOhVPTK75ryWDcMSMwWkTDFGzRFDp70P2SQ9aIPjb1QWbKtK91u8DZJxijfRHCfXa6nSF4F/JwXyd+oSkADHRNz9RyVbnT5IvA0Ma8vlqE4vnOv1qNa+n8WdsFq9EwS8fX/flV60vv83sfCO6XurpIhHmr7ZAjWjUhAHqzVTp0mTVGcPiYnx3B+jNIOLsiyQQvaUZN950jpJbpYSvkcHddrto7/FXgXqxHOnmJBR6MgKy0kDUHQXvL7ww2t+opoSBpcAFeGwSTRn3KANZQBcSZggpHc+nxXglV5Pfo5AEnwXyOHAmlUGTfHez4jy/vPB36hH7ML/Jz7UjAmRGDPGL8cyyThHhwvd3DYMmoXw+DT3mZEYE5BFyRpC36mO81uw7LQBhh7lhKi2nXQcVY4dCo+i9xgWWe4vW7Wn/dt97JTlpk4kVVF2YZ+KwwKInhVrkE17EMSdiMl5q2pfjWpn3W8Y7gNycTuAHLRDZLNBms56ZoCDh1qnRPH+RJ9JaIxgYEJS1sh7X5wYbgKuz8g/h558d4cG+a/WFLMLm7vNjDYFGO15IV+ToK+EfFQ7380UsOq8Y53ijhRb4s21M728nKhseCZ1M5m72RtTaLbMSNuER5XQPY/yfgJFg1dS6s/KU5dQP74WbUyLrvv4PVRrroPchyx/hzbNXVBUb7+DuFBGGfz7IAES6fMHK79ERi2J31QYAAhBHNbxlZY9V2DNfNcU0lo2uJirgBwUmqQI6rpjx3iq5f46TdzSke/WNfLIA1ckbqCi+1WesZ/V2NMg==",
+        "reasoningText": "Now I need to read the large files in sections. Let me read extension.ts and sdkSessionManager.ts in chunks."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:45.940Z",
+      "type": "assistant.reasoning",
+      "data": {
+        "reasoningId": "FbfXsPg3VorTSifinBK8moVdAcEFnTRJWReo6cgvkRfX/MeTSDjhGymuUmZLnkf0RGSlEAIzkWblSuewYSryGOiMKqNOhVPTK75ryWDcMSMwWkTDFGzRFDp70P2SQ9aIPjb1QWbKtK91u8DZJxijfRHCfXa6nSF4F/JwXyd+oSkADHRNz9RyVbnT5IvA0Ma8vlqE4vnOv1qNa+n8WdsFq9EwS8fX/flV60vv83sfCO6XurpIhHmr7ZAjWjUhAHqzVTp0mTVGcPiYnx3B+jNIOLsiyQQvaUZN950jpJbpYSvkcHddrto7/FXgXqxHOnmJBR6MgKy0kDUHQXvL7ww2t+opoSBpcAFeGwSTRn3KANZQBcSZggpHc+nxXglV5Pfo5AEnwXyOHAmlUGTfHez4jy/vPB36hH7ML/Jz7UjAmRGDPGL8cyyThHhwvd3DYMmoXw+DT3mZEYE5BFyRpC36mO81uw7LQBhh7lhKi2nXQcVY4dCo+i9xgWWe4vW7Wn/dt97JTlpk4kVVF2YZ+KwwKInhVrkE17EMSdiMl5q2pfjWpn3W8Y7gNycTuAHLRDZLNBms56ZoCDh1qnRPH+RJ9JaIxgYEJS1sh7X5wYbgKuz8g/h558d4cG+a/WFLMLm7vNjDYFGO15IV+ToK+EfFQ7380UsOq8Y53ijhRb4s21M728nKhseCZ1M5m72RtTaLbMSNuER5XQPY/yfgJFg1dS6s/KU5dQP74WbUyLrvv4PVRrroPchyx/hzbNXVBUb7+DuFBGGfz7IAES6fMHK79ERi2J31QYAAhBHNbxlZY9V2DNfNcU0lo2uJirgBwUmqQI6rpjx3iq5f46TdzSke/WNfLIA1ckbqCi+1WesZ/V2NMg==",
+        "content": "Now I need to read the large files in sections. Let me read extension.ts and sdkSessionManager.ts in chunks."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:45.940Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_gY4K5vC33kBeEaA1DEDetX",
+        "toolName": "bash",
+        "arguments": {
+          "command": "head -150 /home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts && echo \"---BREAK---\" && head -150 /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts",
+          "description": "Read tops of large files"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:46.598Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_gY4K5vC33kBeEaA1DEDetX",
+        "success": true,
+        "result": {
+          "content": "import * as vscode from 'vscode';\nimport * as path from 'path';\nimport * as os from 'os';\nimport { SDKSessionManager, CLIConfig } from './sdkSessionManager';\nimport { Logger } from './logger';\nimport { ChatViewProvider } from './chatViewProvider';\nimport { getBackendState, BackendState } from './backendState';\nimport { SessionService } from './extension/services/SessionService';\nimport { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';\nimport { createAnimationTestPanel } from './animationTestPanel';\nimport { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';\n\nlet cliManager: SDKSessionManager | null = null;\nlet logger: Logger;\nlet statusBarItem: vscode.StatusBarItem;\nlet backendState: BackendState;\nlet lastKnownTextEditor: vscode.TextEditor | undefined;\nlet chatProvider: ChatViewProvider;\nlet lastDropdownRefresh = 0;\n\n/** Wraps an event handler with try/catch to prevent one handler error from breaking others. */\nfunction safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => void {\n\treturn (data: T) => {\n\t\ttry {\n\t\t\thandler(data);\n\t\t} catch (error) {\n\t\t\tLogger.getInstance().error(`[Event Handler] Error in ${name}: ${error instanceof Error ? error.message : error}`);\n\t\t}\n\t};\n}\n\nexport function activate(context: vscode.ExtensionContext) {\n\tlogger = Logger.getInstance();\n\tbackendState = getBackendState();\n\n\t// Create chat provider and register as sidebar webview\n\tchatProvider = new ChatViewProvider(context.extensionUri);\n\tcontext.subscriptions.push(chatProvider);\n\tcontext.subscriptions.push(\n\t\tvscode.window.registerWebviewViewProvider(\n\t\t\tChatViewProvider.viewType,\n\t\t\tchatProvider,\n\t\t\t{ webviewOptions: { retainContextWhenHidden: true } }\n\t\t)\n\t);\n\n\tlogger.info('Copilot CLI Extension activating...');\n\n\t// Track active file changes\n\tcontext.subscriptions.push(\n\t\tvscode.window.onDidChangeActiveTextEditor(editor => updateActiveFile(editor))\n\t);\n\n\t// Status bar\n\tstatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);\n\tstatusBarItem.text = \"$(comment-discussion) Copilot CLI\";\n\tstatusBarItem.tooltip = \"Open Copilot CLI Chat\";\n\tstatusBarItem.command = 'copilot-cli-extension.openChat';\n\tstatusBarItem.show();\n\tcontext.subscriptions.push(statusBarItem);\n\n\t// Register chat provider event handlers\n\tregisterChatProviderHandlers(context);\n\n\t// Register all VS Code commands\n\tregisterCommands(context);\n\n\tlogger.info('Copilot CLI Extension activated successfully');\n}\n\n/** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */\nasync function viewPlanFile(): Promise<void> {\n\tconst planPath = cliManager?.getPlanFilePath();\n\tif (!planPath) {\n\t\tvscode.window.showWarningMessage('No active session - cannot view plan.md');\n\t\treturn;\n\t}\n\n\tconst fsModule = require('fs');\n\tif (!fsModule.existsSync(planPath)) {\n\t\tvscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');\n\t\treturn;\n\t}\n\n\ttry {\n\t\tconst doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));\n\t\tawait vscode.window.showTextDocument(doc, { preview: false });\n\t} catch (error) {\n\t\tconst errorMsg = error instanceof Error ? error.message : String(error);\n\t\tlogger.error(`Failed to open plan.md: ${errorMsg}`);\n\t\tvscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);\n\t}\n}\n\n/** Register chatProvider event handlers (message, abort, view plan, ready). */\nfunction registerChatProviderHandlers(context: vscode.ExtensionContext): void {\n\tcontext.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {\n\t\tlogger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);\n\n\t\tconst displayAttachments = data.attachments?.map(att => ({\n\t\t\tdisplayName: att.displayName || att.path.split(/[/\\\\]/).pop() || 'unknown',\n\t\t\twebviewUri: undefined\n\t\t}));\n\n\t\tchatProvider.addUserMessage(data.text, displayAttachments);\n\t\tchatProvider.setThinking(true);\n\n\t\tif (cliManager && cliManager.isRunning()) {\n\t\t\tcliManager.sendMessage(data.text, data.attachments);\n\t\t} else {\n\t\t\tchatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');\n\t\t\tchatProvider.setThinking(false);\n\t\t}\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestAbort(async () => {\n\t\tlogger.info('Abort requested by user');\n\t\tif (cliManager && cliManager.isRunning()) {\n\t\t\ttry {\n\t\t\t\tawait cliManager.abortMessage();\n\t\t\t} catch (error) {\n\t\t\t\tlogger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);\n\t\t\t\tvscode.window.showErrorMessage('Failed to abort message');\n\t\t\t}\n\t\t}\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {\n\t\tawait viewPlanFile();\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidBecomeReady(async () => {\n\t\t// Auto-resume CLI session when webview becomes ready (e.g., after Developer Reload)\n\t\tawait resumeAndStartSession(context);\n\n\t\t// Re-send init — the first send (from onReady) was empty because backendState wasn't populated yet\n\t\tconst fullState = backendState.getFullState();\n\t\tchatProvider.postMessage({\n\t\t\ttype: 'init',\n\t\t\tsessionId: fullState.sessionId,\n\t\t\tsessionActive: fullState.sessionActive,\n\t\t\tmessages: fullState.messages,\n\t\t\tplanModeStatus: fullState.planModeStatus,\n\t\t\tworkspacePath: fullState.workspacePath,\n\t\t\tactiveFilePath: fullState.activeFilePath,\n\t\t\tcurrentModel: fullState.currentModel\n\t\t});\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestSwitchModel(async (model: string) => {\n---BREAK---\nimport * as vscode from 'vscode';\nimport * as fs from 'fs';\nimport * as path from 'path';\nimport { execFileSync } from 'child_process';\nimport { Logger } from './logger';\nimport { SessionService } from './extension/services/SessionService';\nimport * as os from 'os';\nimport { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';\nimport { PlanModeToolsService } from './extension/services/planModeToolsService';\nimport { MessageEnhancementService } from './extension/services/messageEnhancementService';\nimport { FileSnapshotService } from './extension/services/fileSnapshotService';\nimport { MCPConfigurationService } from './extension/services/mcpConfigurationService';\nimport { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';\nimport { BufferedEmitter } from './utilities/bufferedEmitter';\nimport {\n    classifySessionError,\n    checkAuthEnvVars,\n    ErrorType,\n    attemptSessionResumeWithRetry,\n    showSessionRecoveryDialog,\n    withTimeout,\n    ensureSessionAlive\n} from './sessionErrorUtils';\nimport { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';\n\n// Dynamic import for SDK (ESM module)\nlet CopilotClient: any;\nlet CopilotSession: any;\nlet defineTool: any;\n\n/**\n * Parse CLI version from `copilot --version` output.\n * Handles formats: \"copilot version 0.0.403\", \"0.0.403\", with trailing whitespace.\n */\nexport function parseCliVersion(output: string): string | null {\n    const match = output.trim().match(/(\\d+\\.\\d+\\.\\d+)/);\n    return match ? match[1] : null;\n}\n\n/** Fallback model used when configured model is unsupported or mistyped */\nexport const FALLBACK_MODEL = 'claude-sonnet-4.6';\n\n/**\n * Preferred model order for fallback selection.\n * When the requested model is unavailable, we pick the first model from this\n * list that appears in the user's available models.\n */\nexport const MODEL_PREFERENCE_ORDER = [\n    'claude-sonnet-4.6',\n    'claude-sonnet-4.5',\n    'gpt-5',\n    'claude-haiku-4.5',\n    'gpt-5-mini',\n    'claude-opus-4.6',\n    'gpt-4.1',\n];\n\n/**\n * Select the best fallback model from the user's available models.\n *\n * Strategy:\n * 1. Query available models via ModelCapabilitiesService\n * 2. Walk MODEL_PREFERENCE_ORDER; return first match not excluded\n * 3. If no preferred model matches, return first available\n * 4. If getAllModels() fails or returns empty, return FALLBACK_MODEL\n */\nexport async function selectFallbackModel(\n    modelCapabilitiesService: ModelCapabilitiesService,\n    excludeModels: Set<string>,\n    logger?: Logger\n): Promise<string> {\n    try {\n        const availableModels = await modelCapabilitiesService.getAllModels();\n\n        if (!availableModels || availableModels.length === 0) {\n            logger?.warn('[Model Fallback] No models returned from getAllModels(), using hardcoded fallback');\n            return FALLBACK_MODEL;\n        }\n\n        const availableIds = new Set(availableModels.map(m => m.id));\n        logger?.info(`[Model Fallback] Available models: [${Array.from(availableIds).join(', ')}]`);\n\n        // Remove all models that have already failed\n        for (const excluded of excludeModels) {\n            availableIds.delete(excluded);\n        }\n\n        if (availableIds.size === 0) {\n            logger?.warn('[Model Fallback] No models available after excluding failed models');\n            return FALLBACK_MODEL;\n        }\n\n        // Walk preference list, return first match\n        for (const preferred of MODEL_PREFERENCE_ORDER) {\n            if (availableIds.has(preferred)) {\n                logger?.info(`[Model Fallback] Selected preferred model: ${preferred}`);\n                return preferred;\n            }\n        }\n\n        // No preferred model available — use first available (not excluded)\n        const firstAvailable = availableModels.find(m => !excludeModels.has(m.id))?.id;\n        if (firstAvailable) {\n            logger?.info(`[Model Fallback] No preferred model available, using first available: ${firstAvailable}`);\n            return firstAvailable;\n        }\n\n        return FALLBACK_MODEL;\n    } catch (error) {\n        logger?.error('[Model Fallback] getAllModels() failed, using hardcoded fallback',\n            error instanceof Error ? error : undefined);\n        return FALLBACK_MODEL;\n    }\n}\n\n/**\n * Resolve the Copilot CLI binary path.\n * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks\n * in CJS bundles (esbuild for VS Code). We bypass it by always providing an\n * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528\n *\n * Resolution order:\n * 1. User-configured path (if explicitly set to something other than the bare default)\n * 2. SDK-bundled platform-specific binary (@github/copilot-{os}-{arch})\n * 3. PATH lookup via `which`/`where`\n * 4. Throw with install instructions\n */\nexport function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {\n    // 1. User-configured path takes priority (skip bare default — it needs PATH resolution)\n    const configured = configuredPath !== undefined\n        ? configuredPath\n        : vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');\n    if (configured && configured !== 'copilot') {\n        logger.info(`Using configured CLI path: ${configured}`);\n        return configured;\n    }\n\n    // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)\n    // The @github/copilot-{os}-{arch} package exports the native binary directly.\n    // require.resolve() returns the binary path without loading it.\n    // Only works when running from source (dev); installed VSIX has no node_modules.\n    try {\n        const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;\n        const binPath = require.resolve(platformPkg);\n        if (fs.existsSync(binPath)) {\n            logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);\n            return binPath;\n        }\n    } catch {\n        // Platform package not installed — fall through to PATH\n<exited with exit code 0>",
+          "detailedContent": "import * as vscode from 'vscode';\nimport * as path from 'path';\nimport * as os from 'os';\nimport { SDKSessionManager, CLIConfig } from './sdkSessionManager';\nimport { Logger } from './logger';\nimport { ChatViewProvider } from './chatViewProvider';\nimport { getBackendState, BackendState } from './backendState';\nimport { SessionService } from './extension/services/SessionService';\nimport { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';\nimport { createAnimationTestPanel } from './animationTestPanel';\nimport { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';\n\nlet cliManager: SDKSessionManager | null = null;\nlet logger: Logger;\nlet statusBarItem: vscode.StatusBarItem;\nlet backendState: BackendState;\nlet lastKnownTextEditor: vscode.TextEditor | undefined;\nlet chatProvider: ChatViewProvider;\nlet lastDropdownRefresh = 0;\n\n/** Wraps an event handler with try/catch to prevent one handler error from breaking others. */\nfunction safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => void {\n\treturn (data: T) => {\n\t\ttry {\n\t\t\thandler(data);\n\t\t} catch (error) {\n\t\t\tLogger.getInstance().error(`[Event Handler] Error in ${name}: ${error instanceof Error ? error.message : error}`);\n\t\t}\n\t};\n}\n\nexport function activate(context: vscode.ExtensionContext) {\n\tlogger = Logger.getInstance();\n\tbackendState = getBackendState();\n\n\t// Create chat provider and register as sidebar webview\n\tchatProvider = new ChatViewProvider(context.extensionUri);\n\tcontext.subscriptions.push(chatProvider);\n\tcontext.subscriptions.push(\n\t\tvscode.window.registerWebviewViewProvider(\n\t\t\tChatViewProvider.viewType,\n\t\t\tchatProvider,\n\t\t\t{ webviewOptions: { retainContextWhenHidden: true } }\n\t\t)\n\t);\n\n\tlogger.info('Copilot CLI Extension activating...');\n\n\t// Track active file changes\n\tcontext.subscriptions.push(\n\t\tvscode.window.onDidChangeActiveTextEditor(editor => updateActiveFile(editor))\n\t);\n\n\t// Status bar\n\tstatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);\n\tstatusBarItem.text = \"$(comment-discussion) Copilot CLI\";\n\tstatusBarItem.tooltip = \"Open Copilot CLI Chat\";\n\tstatusBarItem.command = 'copilot-cli-extension.openChat';\n\tstatusBarItem.show();\n\tcontext.subscriptions.push(statusBarItem);\n\n\t// Register chat provider event handlers\n\tregisterChatProviderHandlers(context);\n\n\t// Register all VS Code commands\n\tregisterCommands(context);\n\n\tlogger.info('Copilot CLI Extension activated successfully');\n}\n\n/** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */\nasync function viewPlanFile(): Promise<void> {\n\tconst planPath = cliManager?.getPlanFilePath();\n\tif (!planPath) {\n\t\tvscode.window.showWarningMessage('No active session - cannot view plan.md');\n\t\treturn;\n\t}\n\n\tconst fsModule = require('fs');\n\tif (!fsModule.existsSync(planPath)) {\n\t\tvscode.window.showInformationMessage('No plan.md file exists yet. Enter plan mode and create a plan first.');\n\t\treturn;\n\t}\n\n\ttry {\n\t\tconst doc = await vscode.workspace.openTextDocument(vscode.Uri.file(planPath));\n\t\tawait vscode.window.showTextDocument(doc, { preview: false });\n\t} catch (error) {\n\t\tconst errorMsg = error instanceof Error ? error.message : String(error);\n\t\tlogger.error(`Failed to open plan.md: ${errorMsg}`);\n\t\tvscode.window.showErrorMessage(`Could not open plan.md: ${errorMsg}`);\n\t}\n}\n\n/** Register chatProvider event handlers (message, abort, view plan, ready). */\nfunction registerChatProviderHandlers(context: vscode.ExtensionContext): void {\n\tcontext.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {\n\t\tlogger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);\n\n\t\tconst displayAttachments = data.attachments?.map(att => ({\n\t\t\tdisplayName: att.displayName || att.path.split(/[/\\\\]/).pop() || 'unknown',\n\t\t\twebviewUri: undefined\n\t\t}));\n\n\t\tchatProvider.addUserMessage(data.text, displayAttachments);\n\t\tchatProvider.setThinking(true);\n\n\t\tif (cliManager && cliManager.isRunning()) {\n\t\t\tcliManager.sendMessage(data.text, data.attachments);\n\t\t} else {\n\t\t\tchatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');\n\t\t\tchatProvider.setThinking(false);\n\t\t}\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestAbort(async () => {\n\t\tlogger.info('Abort requested by user');\n\t\tif (cliManager && cliManager.isRunning()) {\n\t\t\ttry {\n\t\t\t\tawait cliManager.abortMessage();\n\t\t\t} catch (error) {\n\t\t\t\tlogger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);\n\t\t\t\tvscode.window.showErrorMessage('Failed to abort message');\n\t\t\t}\n\t\t}\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {\n\t\tawait viewPlanFile();\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidBecomeReady(async () => {\n\t\t// Auto-resume CLI session when webview becomes ready (e.g., after Developer Reload)\n\t\tawait resumeAndStartSession(context);\n\n\t\t// Re-send init — the first send (from onReady) was empty because backendState wasn't populated yet\n\t\tconst fullState = backendState.getFullState();\n\t\tchatProvider.postMessage({\n\t\t\ttype: 'init',\n\t\t\tsessionId: fullState.sessionId,\n\t\t\tsessionActive: fullState.sessionActive,\n\t\t\tmessages: fullState.messages,\n\t\t\tplanModeStatus: fullState.planModeStatus,\n\t\t\tworkspacePath: fullState.workspacePath,\n\t\t\tactiveFilePath: fullState.activeFilePath,\n\t\t\tcurrentModel: fullState.currentModel\n\t\t});\n\t}));\n\n\tcontext.subscriptions.push(chatProvider.onDidRequestSwitchModel(async (model: string) => {\n---BREAK---\nimport * as vscode from 'vscode';\nimport * as fs from 'fs';\nimport * as path from 'path';\nimport { execFileSync } from 'child_process';\nimport { Logger } from './logger';\nimport { SessionService } from './extension/services/SessionService';\nimport * as os from 'os';\nimport { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';\nimport { PlanModeToolsService } from './extension/services/planModeToolsService';\nimport { MessageEnhancementService } from './extension/services/messageEnhancementService';\nimport { FileSnapshotService } from './extension/services/fileSnapshotService';\nimport { MCPConfigurationService } from './extension/services/mcpConfigurationService';\nimport { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';\nimport { BufferedEmitter } from './utilities/bufferedEmitter';\nimport {\n    classifySessionError,\n    checkAuthEnvVars,\n    ErrorType,\n    attemptSessionResumeWithRetry,\n    showSessionRecoveryDialog,\n    withTimeout,\n    ensureSessionAlive\n} from './sessionErrorUtils';\nimport { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';\n\n// Dynamic import for SDK (ESM module)\nlet CopilotClient: any;\nlet CopilotSession: any;\nlet defineTool: any;\n\n/**\n * Parse CLI version from `copilot --version` output.\n * Handles formats: \"copilot version 0.0.403\", \"0.0.403\", with trailing whitespace.\n */\nexport function parseCliVersion(output: string): string | null {\n    const match = output.trim().match(/(\\d+\\.\\d+\\.\\d+)/);\n    return match ? match[1] : null;\n}\n\n/** Fallback model used when configured model is unsupported or mistyped */\nexport const FALLBACK_MODEL = 'claude-sonnet-4.6';\n\n/**\n * Preferred model order for fallback selection.\n * When the requested model is unavailable, we pick the first model from this\n * list that appears in the user's available models.\n */\nexport const MODEL_PREFERENCE_ORDER = [\n    'claude-sonnet-4.6',\n    'claude-sonnet-4.5',\n    'gpt-5',\n    'claude-haiku-4.5',\n    'gpt-5-mini',\n    'claude-opus-4.6',\n    'gpt-4.1',\n];\n\n/**\n * Select the best fallback model from the user's available models.\n *\n * Strategy:\n * 1. Query available models via ModelCapabilitiesService\n * 2. Walk MODEL_PREFERENCE_ORDER; return first match not excluded\n * 3. If no preferred model matches, return first available\n * 4. If getAllModels() fails or returns empty, return FALLBACK_MODEL\n */\nexport async function selectFallbackModel(\n    modelCapabilitiesService: ModelCapabilitiesService,\n    excludeModels: Set<string>,\n    logger?: Logger\n): Promise<string> {\n    try {\n        const availableModels = await modelCapabilitiesService.getAllModels();\n\n        if (!availableModels || availableModels.length === 0) {\n            logger?.warn('[Model Fallback] No models returned from getAllModels(), using hardcoded fallback');\n            return FALLBACK_MODEL;\n        }\n\n        const availableIds = new Set(availableModels.map(m => m.id));\n        logger?.info(`[Model Fallback] Available models: [${Array.from(availableIds).join(', ')}]`);\n\n        // Remove all models that have already failed\n        for (const excluded of excludeModels) {\n            availableIds.delete(excluded);\n        }\n\n        if (availableIds.size === 0) {\n            logger?.warn('[Model Fallback] No models available after excluding failed models');\n            return FALLBACK_MODEL;\n        }\n\n        // Walk preference list, return first match\n        for (const preferred of MODEL_PREFERENCE_ORDER) {\n            if (availableIds.has(preferred)) {\n                logger?.info(`[Model Fallback] Selected preferred model: ${preferred}`);\n                return preferred;\n            }\n        }\n\n        // No preferred model available — use first available (not excluded)\n        const firstAvailable = availableModels.find(m => !excludeModels.has(m.id))?.id;\n        if (firstAvailable) {\n            logger?.info(`[Model Fallback] No preferred model available, using first available: ${firstAvailable}`);\n            return firstAvailable;\n        }\n\n        return FALLBACK_MODEL;\n    } catch (error) {\n        logger?.error('[Model Fallback] getAllModels() failed, using hardcoded fallback',\n            error instanceof Error ? error : undefined);\n        return FALLBACK_MODEL;\n    }\n}\n\n/**\n * Resolve the Copilot CLI binary path.\n * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks\n * in CJS bundles (esbuild for VS Code). We bypass it by always providing an\n * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528\n *\n * Resolution order:\n * 1. User-configured path (if explicitly set to something other than the bare default)\n * 2. SDK-bundled platform-specific binary (@github/copilot-{os}-{arch})\n * 3. PATH lookup via `which`/`where`\n * 4. Throw with install instructions\n */\nexport function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {\n    // 1. User-configured path takes priority (skip bare default — it needs PATH resolution)\n    const configured = configuredPath !== undefined\n        ? configuredPath\n        : vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');\n    if (configured && configured !== 'copilot') {\n        logger.info(`Using configured CLI path: ${configured}`);\n        return configured;\n    }\n\n    // 2. SDK-bundled platform-specific binary (matches SDK's @github/copilot dependency)\n    // The @github/copilot-{os}-{arch} package exports the native binary directly.\n    // require.resolve() returns the binary path without loading it.\n    // Only works when running from source (dev); installed VSIX has no node_modules.\n    try {\n        const platformPkg = `@github/copilot-${process.platform}-${process.arch}`;\n        const binPath = require.resolve(platformPkg);\n        if (fs.existsSync(binPath)) {\n            logger.info(`Resolved CLI from SDK bundle: ${binPath} (${platformPkg})`);\n            return binPath;\n        }\n    } catch {\n        // Platform package not installed — fall through to PATH\n<exited with exit code 0>"
+        },
+        "toolTelemetry": {
+          "properties": {
+            "customTimeout": "false",
+            "executionMode": "sync",
+            "detached": "false"
+          },
+          "metrics": {
+            "commandTimeout": 30000
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:46.599Z",
+      "type": "assistant.turn_end",
+      "data": {
+        "turnId": "1"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:46.599Z",
+      "type": "assistant.turn_start",
+      "data": {
+        "turnId": "2"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:46.599Z",
+      "type": "session.usage_info",
+      "data": {
+        "tokenLimit": 128000,
+        "currentTokens": 37174,
+        "messagesLength": 10
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:50.766Z",
+      "type": "assistant.usage",
+      "data": {
+        "model": "claude-sonnet-4.6",
+        "inputTokens": 46383,
+        "outputTokens": 214,
+        "cacheReadTokens": 42742,
+        "cacheWriteTokens": 0,
+        "cost": 1,
+        "duration": 4169,
+        "initiator": "agent",
+        "apiCallId": "a4c9736c-51fe-4004-9a9d-e4ce0cd7c680",
+        "providerCallId": "B308:321C0A:807F01:9672F1:69B22861",
+        "quotaSnapshots": {
+          "chat": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "completions": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "premium_interactions": {
+            "isUnlimitedEntitlement": false,
+            "entitlementRequests": 1500,
+            "usedRequests": 89,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 94.1,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:50.766Z",
+      "type": "assistant.message",
+      "data": {
+        "messageId": "6eede9cb-7a3d-40e2-9295-b0ecbe0bf6a5",
+        "content": "",
+        "toolRequests": [
+          {
+            "toolCallId": "tooluse_AsGYZ9RrE0aDcGJ9tMN9jL",
+            "name": "bash",
+            "arguments": {
+              "command": "grep -n \"^export\\|^  public\\|^class \\|^interface \\|^type \" /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts | head -60 && echo \"---\" && grep -n \"^export\\|^  public\\|^class \" /home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts | head -40",
+              "description": "Get exported symbols from both files"
+            },
+            "type": "function"
+          }
+        ],
+        "reasoningOpaque": "mIi67taJMbALOVxfXz2xBqqyb+6faGpq01qIzHz56uE3CYrolMnsjmfEbpjo1dGd2AeAcwkqixRm0JmKbh7opGio2MOLLFcSlO5dT0Vu17zbG/pFPJPjIRepDjf5Rnq7DwHnr51Mt+tZ6SArL55Bw4fRsDXtytDmuGGgHm5bdxOMhd3fQgkg9pCbPTmeHD5gdx+abfTFZiXBkbo1Sv4UiYRjA5chu07821ztsLF2ZAd1/sEQUWCaVxUcXvWsQGryJNSfQ2lElysYRUEZ+y1vWM5RyfQpqVdU//q+V98jifs+4p6Cgtdqr00bkC9P512pg1R8bILxOkjCxS/x3o+zGEUpRmpctDrRsFkBvQ/uiOkgNvFuUhVr/1i+2s7vzRrkrz+MgtCjv+7Vx+jh9+rAJkehZlFyjGSRBckAGo/fMLZM0DgSKBv+kfQ1znqscXW2WZFT33/RAR2aV4CyeOsUktHwodWBQVGWOTzcL53bB4yRZeYUL/GS3zHcZFBkGsYVqtwDiE8SBhUVaeTPU/T24cfV0siVOwEJvpvaG9+pJthBA9qQF7+47Lhijq0GW9wC54TCARgSGUrnBwo8DW1cYFLIJ92O+Y1OKWdUXZ94O0NuzFySP6iyMXCfY+9AgycBayzFxbgwbs/+RMlhFaAaqjM1FKsmW6LKaS2gD0iFp/OIOFcaups4UApFtT/2MLaFm2Ex7K3qdJDj5n04/iaUxo4FSjLHspm6LHsdMvC7uOmRjxG6drL4o3n76CZEHdk8kf8CmnzbT8416Y5gqHUswttD7P0deW+hEkbBPwExCqjilZNyEhIJpuzaYAR5eV8ty9ZXmz1N5+Omlw==",
+        "reasoningText": "Let me now get more of the sdkSessionManager.ts to understand its exports and key features."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:50.766Z",
+      "type": "assistant.reasoning",
+      "data": {
+        "reasoningId": "mIi67taJMbALOVxfXz2xBqqyb+6faGpq01qIzHz56uE3CYrolMnsjmfEbpjo1dGd2AeAcwkqixRm0JmKbh7opGio2MOLLFcSlO5dT0Vu17zbG/pFPJPjIRepDjf5Rnq7DwHnr51Mt+tZ6SArL55Bw4fRsDXtytDmuGGgHm5bdxOMhd3fQgkg9pCbPTmeHD5gdx+abfTFZiXBkbo1Sv4UiYRjA5chu07821ztsLF2ZAd1/sEQUWCaVxUcXvWsQGryJNSfQ2lElysYRUEZ+y1vWM5RyfQpqVdU//q+V98jifs+4p6Cgtdqr00bkC9P512pg1R8bILxOkjCxS/x3o+zGEUpRmpctDrRsFkBvQ/uiOkgNvFuUhVr/1i+2s7vzRrkrz+MgtCjv+7Vx+jh9+rAJkehZlFyjGSRBckAGo/fMLZM0DgSKBv+kfQ1znqscXW2WZFT33/RAR2aV4CyeOsUktHwodWBQVGWOTzcL53bB4yRZeYUL/GS3zHcZFBkGsYVqtwDiE8SBhUVaeTPU/T24cfV0siVOwEJvpvaG9+pJthBA9qQF7+47Lhijq0GW9wC54TCARgSGUrnBwo8DW1cYFLIJ92O+Y1OKWdUXZ94O0NuzFySP6iyMXCfY+9AgycBayzFxbgwbs/+RMlhFaAaqjM1FKsmW6LKaS2gD0iFp/OIOFcaups4UApFtT/2MLaFm2Ex7K3qdJDj5n04/iaUxo4FSjLHspm6LHsdMvC7uOmRjxG6drL4o3n76CZEHdk8kf8CmnzbT8416Y5gqHUswttD7P0deW+hEkbBPwExCqjilZNyEhIJpuzaYAR5eV8ty9ZXmz1N5+Omlw==",
+        "content": "Let me now get more of the sdkSessionManager.ts to understand its exports and key features."
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:50.766Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_AsGYZ9RrE0aDcGJ9tMN9jL",
+        "toolName": "bash",
+        "arguments": {
+          "command": "grep -n \"^export\\|^  public\\|^class \\|^interface \\|^type \" /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts | head -60 && echo \"---\" && grep -n \"^export\\|^  public\\|^class \" /home/smolen/dev/vscode-copilot-cli-extension/src/extension.ts | head -40",
+          "description": "Get exported symbols from both files"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:51.536Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_AsGYZ9RrE0aDcGJ9tMN9jL",
+        "success": true,
+        "result": {
+          "content": "35:export function parseCliVersion(output: string): string | null {\n41:export const FALLBACK_MODEL = 'claude-sonnet-4.6';\n48:export const MODEL_PREFERENCE_ORDER = [\n67:export async function selectFallbackModel(\n128:export function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {\n185:export interface CLIConfig {\n202:export interface ToolExecutionState {\n215:export interface StatusData {\n231:export interface FileChangeData {\n236:export interface DiffData {\n243:export interface UsageData {\n250:type SessionMode = 'work' | 'plan';\n252:export class SDKSessionManager implements vscode.Disposable {\n---\n32:export function activate(context: vscode.ExtensionContext) {\n870:export function deactivate() {\n880:export { SDKSessionManager } from './sdkSessionManager';\n881:export { BackendState, getBackendState } from './backendState';\n882:export { updateSessionsList }; // Exported for testing\n883:export { ExtensionRpcRouter } from './extension/rpc';\n884:export { Logger } from './logger';\n<exited with exit code 0>",
+          "detailedContent": "35:export function parseCliVersion(output: string): string | null {\n41:export const FALLBACK_MODEL = 'claude-sonnet-4.6';\n48:export const MODEL_PREFERENCE_ORDER = [\n67:export async function selectFallbackModel(\n128:export function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {\n185:export interface CLIConfig {\n202:export interface ToolExecutionState {\n215:export interface StatusData {\n231:export interface FileChangeData {\n236:export interface DiffData {\n243:export interface UsageData {\n250:type SessionMode = 'work' | 'plan';\n252:export class SDKSessionManager implements vscode.Disposable {\n---\n32:export function activate(context: vscode.ExtensionContext) {\n870:export function deactivate() {\n880:export { SDKSessionManager } from './sdkSessionManager';\n881:export { BackendState, getBackendState } from './backendState';\n882:export { updateSessionsList }; // Exported for testing\n883:export { ExtensionRpcRouter } from './extension/rpc';\n884:export { Logger } from './logger';\n<exited with exit code 0>"
+        },
+        "toolTelemetry": {
+          "properties": {
+            "customTimeout": "false",
+            "executionMode": "sync",
+            "detached": "false"
+          },
+          "metrics": {
+            "commandTimeout": 30000
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:51.537Z",
+      "type": "assistant.turn_end",
+      "data": {
+        "turnId": "2"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:51.537Z",
+      "type": "assistant.turn_start",
+      "data": {
+        "turnId": "3"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:51.537Z",
+      "type": "session.usage_info",
+      "data": {
+        "tokenLimit": 128000,
+        "currentTokens": 37581,
+        "messagesLength": 12
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:54.824Z",
+      "type": "assistant.usage",
+      "data": {
+        "model": "claude-sonnet-4.6",
+        "inputTokens": 46912,
+        "outputTokens": 123,
+        "cacheReadTokens": 46382,
+        "cacheWriteTokens": 0,
+        "cost": 1,
+        "duration": 3288,
+        "initiator": "agent",
+        "apiCallId": "1e315e38-493b-4f34-8ed5-2cd0a24f6987",
+        "providerCallId": "B308:321C0A:808EDD:968504:69B22866",
+        "quotaSnapshots": {
+          "chat": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "completions": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "premium_interactions": {
+            "isUnlimitedEntitlement": false,
+            "entitlementRequests": 1500,
+            "usedRequests": 89,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 94.1,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:54.824Z",
+      "type": "assistant.message",
+      "data": {
+        "messageId": "c4334fe2-da4b-4605-97d7-19aed23544ad",
+        "content": "",
+        "toolRequests": [
+          {
+            "toolCallId": "tooluse_0J3xuM22jOkKtEPXSoVdMo",
+            "name": "bash",
+            "arguments": {
+              "command": "grep -n \"public \\|readonly on\" /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts | grep -v \"\\/\\/\" | head -40",
+              "description": "Get public members of SDKSessionManager"
+            },
+            "type": "function"
+          }
+        ]
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:54.824Z",
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "tooluse_0J3xuM22jOkKtEPXSoVdMo",
+        "toolName": "bash",
+        "arguments": {
+          "command": "grep -n \"public \\|readonly on\" /home/smolen/dev/vscode-copilot-cli-extension/src/sdkSessionManager.ts | grep -v \"\\/\\/\" | head -40",
+          "description": "Get public members of SDKSessionManager"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:55.474Z",
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "tooluse_0J3xuM22jOkKtEPXSoVdMo",
+        "success": true,
+        "result": {
+          "content": "263:    readonly onDidReceiveOutput = this._onDidReceiveOutput.event;\n266:    readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;\n269:    readonly onDidReceiveError = this._onDidReceiveError.event;\n272:    readonly onDidChangeStatus = this._onDidChangeStatus.event;\n275:    readonly onDidStartTool = this._onDidStartTool.event;\n278:    readonly onDidUpdateTool = this._onDidUpdateTool.event;\n281:    readonly onDidCompleteTool = this._onDidCompleteTool.event;\n284:    readonly onDidChangeFile = this._onDidChangeFile.event;\n287:    readonly onDidProduceDiff = this._onDidProduceDiff.event;\n290:    readonly onDidUpdateUsage = this._onDidUpdateUsage.event;\n446:    public async start(): Promise<void> {\n917:    public cleanupDiffSnapshot(toolCallId: string): void {\n925:    public getDiffEmitCallback(): (diffData: DiffData) => void {\n935:    public getFileSnapshotService(): FileSnapshotService {\n979:    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false): Promise<void> {\n1230:    public async abortMessage(): Promise<void> {\n1249:    public isRunning(): boolean {\n1333:    public async switchModel(newModel: string): Promise<void> {\n1355:    public getCurrentModel(): string | undefined {\n1359:    public async stop(): Promise<void> {\n1392:    public async restart(): Promise<void> {\n1397:    public getSessionId(): string | null {\n1401:    public getCurrentMode(): SessionMode {\n1410:    public async enablePlanMode(): Promise<void> {\n1617:    public async disablePlanMode(): Promise<void> {\n1716:    public async acceptPlan(): Promise<void> {\n1779:    public async rejectPlan(): Promise<void> {\n1818:    public getWorkspacePath(): string | undefined {\n1826:    public getWorkSessionWorkspacePath(): string | undefined {\n1839:    public getPlanFilePath(): string | undefined {\n1853:    public getPlanModeAvailableTools(): string[] | undefined {\n1874:    public getToolExecutions(): ToolExecutionState[] {\n2013:    public async supportsVision(): Promise<boolean> {\n2023:    public async getMaxImages(): Promise<number> {\n2033:    public async getMaxImageSize(): Promise<number> {\n2043:    public async getSupportedMediaTypes(): Promise<string[]> {\n2053:    public getModelCapabilitiesService(): ModelCapabilitiesService {\n2060:    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number }>> {\n2073:    public async validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }> {\n2080:    public dispose(): void {\n<exited with exit code 0>",
+          "detailedContent": "263:    readonly onDidReceiveOutput = this._onDidReceiveOutput.event;\n266:    readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;\n269:    readonly onDidReceiveError = this._onDidReceiveError.event;\n272:    readonly onDidChangeStatus = this._onDidChangeStatus.event;\n275:    readonly onDidStartTool = this._onDidStartTool.event;\n278:    readonly onDidUpdateTool = this._onDidUpdateTool.event;\n281:    readonly onDidCompleteTool = this._onDidCompleteTool.event;\n284:    readonly onDidChangeFile = this._onDidChangeFile.event;\n287:    readonly onDidProduceDiff = this._onDidProduceDiff.event;\n290:    readonly onDidUpdateUsage = this._onDidUpdateUsage.event;\n446:    public async start(): Promise<void> {\n917:    public cleanupDiffSnapshot(toolCallId: string): void {\n925:    public getDiffEmitCallback(): (diffData: DiffData) => void {\n935:    public getFileSnapshotService(): FileSnapshotService {\n979:    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false): Promise<void> {\n1230:    public async abortMessage(): Promise<void> {\n1249:    public isRunning(): boolean {\n1333:    public async switchModel(newModel: string): Promise<void> {\n1355:    public getCurrentModel(): string | undefined {\n1359:    public async stop(): Promise<void> {\n1392:    public async restart(): Promise<void> {\n1397:    public getSessionId(): string | null {\n1401:    public getCurrentMode(): SessionMode {\n1410:    public async enablePlanMode(): Promise<void> {\n1617:    public async disablePlanMode(): Promise<void> {\n1716:    public async acceptPlan(): Promise<void> {\n1779:    public async rejectPlan(): Promise<void> {\n1818:    public getWorkspacePath(): string | undefined {\n1826:    public getWorkSessionWorkspacePath(): string | undefined {\n1839:    public getPlanFilePath(): string | undefined {\n1853:    public getPlanModeAvailableTools(): string[] | undefined {\n1874:    public getToolExecutions(): ToolExecutionState[] {\n2013:    public async supportsVision(): Promise<boolean> {\n2023:    public async getMaxImages(): Promise<number> {\n2033:    public async getMaxImageSize(): Promise<number> {\n2043:    public async getSupportedMediaTypes(): Promise<string[]> {\n2053:    public getModelCapabilitiesService(): ModelCapabilitiesService {\n2060:    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number }>> {\n2073:    public async validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }> {\n2080:    public dispose(): void {\n<exited with exit code 0>"
+        },
+        "toolTelemetry": {
+          "properties": {
+            "customTimeout": "false",
+            "executionMode": "sync",
+            "detached": "false"
+          },
+          "metrics": {
+            "commandTimeout": 30000
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:55.474Z",
+      "type": "assistant.turn_end",
+      "data": {
+        "turnId": "3"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:55.474Z",
+      "type": "assistant.turn_start",
+      "data": {
+        "turnId": "4"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:43:55.474Z",
+      "type": "session.usage_info",
+      "data": {
+        "tokenLimit": 128000,
+        "currentTokens": 38294,
+        "messagesLength": 14
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:44:26.030Z",
+      "type": "assistant.usage",
+      "data": {
+        "model": "claude-sonnet-4.6",
+        "inputTokens": 47832,
+        "outputTokens": 1413,
+        "cacheReadTokens": 46911,
+        "cacheWriteTokens": 0,
+        "cost": 1,
+        "duration": 30553,
+        "initiator": "agent",
+        "apiCallId": "3398b085-54d5-461f-82b5-bb3fa57f5bb3",
+        "providerCallId": "B308:321C0A:809A9B:9692E1:69B2286A",
+        "quotaSnapshots": {
+          "chat": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "completions": {
+            "isUnlimitedEntitlement": true,
+            "entitlementRequests": -1,
+            "usedRequests": 0,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 100,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          },
+          "premium_interactions": {
+            "isUnlimitedEntitlement": false,
+            "entitlementRequests": 1500,
+            "usedRequests": 89,
+            "usageAllowedWithExhaustedQuota": false,
+            "overage": 0,
+            "overageAllowedWithExhaustedQuota": false,
+            "remainingPercentage": 94.1,
+            "resetDate": "2026-04-01T00:00:00.000Z"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:44:26.031Z",
+      "type": "assistant.message",
+      "data": {
+        "messageId": "0d776d3b-1851-46ed-8f17-f37fe4c94ea5",
+        "content": "Here are the four independent analyses:\n\n---\n\n## `src/extension.ts`\n\n**Purpose:** The VS Code extension entry point and orchestrator. It registers the `activate`/`deactivate` lifecycle hooks, creates the `ChatViewProvider` sidebar, registers all VS Code commands (new session, switch session, plan mode, diff viewer, etc.), wires `SDKSessionManager` event streams to the webview, and manages global state like the status bar item and active file tracking.\n\n**Top exported symbols:**\n- `activate(context)` — extension entry point\n- `deactivate()` — cleanup hook\n- Re-exports: `SDKSessionManager`, `BackendState`/`getBackendState`, `updateSessionsList`, `ExtensionRpcRouter`, `Logger`\n\n**Architectural risk:** The file is a monolith (~870 lines) that mixes command registration, event wiring, session lifecycle, and UI orchestration in one place. If any command handler throws, the `safeHandler` wrapper silently swallows it — errors are logged but never surfaced to the user. The more pressing structural risk is that `cliManager` and `chatProvider` are module-level globals, making testability very difficult and creating implicit shared state across features.\n\n---\n\n## `src/sdkSessionManager.ts`\n\n**Purpose:** The backend SDK session lifecycle manager. It wraps `@github/copilot-sdk` to create, resume, and destroy CLI sessions; stream assistant output and tool events to the extension via 10 `BufferedEmitter`-backed events; manage model switching and fallback; and implement dual-session plan mode (work + plan sessions with restricted tool access).\n\n**Top exported symbols:**\n- `SDKSessionManager` class — the main session manager with 30+ public methods\n- `CLIConfig`, `ToolExecutionState`, `StatusData`, `FileChangeData`, `DiffData`, `UsageData` interfaces\n- `parseCliVersion()`, `resolveCliPath()`, `selectFallbackModel()` utility functions\n- `FALLBACK_MODEL`, `MODEL_PREFERENCE_ORDER` constants\n\n**Architectural risk:** At ~2,100 lines, this file has severe single-responsibility violations — it handles session creation, tool registration, model fallback, plan mode, file snapshotting, diff generation, message enhancement, and error recovery all in one class. The plan mode `enablePlanMode()`/`disablePlanMode()` methods alone span ~400 lines. This makes it extremely hard to test individual behaviors in isolation; a failure in any one area (e.g., model fallback) requires navigating the entire file to debug.\n\n---\n\n## `src/chatViewProvider.ts`\n\n**Purpose:** The VS Code `WebviewViewProvider` that owns the sidebar chat UI. It resolves the webview HTML (loading `dist/webview/main.js` and CSS), instantiates the `ExtensionRpcRouter`, registers all inbound RPC handlers from the webview (messages, file picker, paste, slash commands, session/model switching), and exposes a rich public API (`addAssistantMessage`, `toolStart`, `sendDiffAvailable`, etc.) that `extension.ts` calls to push content into the UI.\n\n**Top exported symbols:**\n- `ChatViewProvider` class (implements `WebviewViewProvider`, `Disposable`)\n  - Key public methods: `resolveWebviewView()`, `show()`, `addUserMessage()`, `addAssistantMessage()`, `addReasoningMessage()`, `addToolExecution()`, `updateToolExecution()`, `notifyDiffAvailable()`, `setSessionActive()`, `setThinking()`, `sendAvailableModels()`, `forceRecreate()`\n- `getNonce()` (module-private)\n\n**Architectural risk:** The provider acts as both a webview lifecycle manager *and* a message bus facade for the entire extension. The `_setupRpcHandlers()` method registers ~25 handlers inline, mixing slash-command business logic, file I/O (pasted images, mermaid saves), and security enforcement (`onOpenFile` path check) in one 230-line method. This makes it nearly impossible to unit test individual handlers. The slash command services (`codeReviewHandlers`, `infoHandlers`, etc.) are instantiated inside `_setupRpcHandlers` rather than injected, making them untestable.\n\n---\n\n## `src/extension/rpc/ExtensionRpcRouter.ts`\n\n**Purpose:** The type-safe bidirectional RPC bridge between the VS Code extension host and the webview. It wraps `vscode.Webview.postMessage`/`onDidReceiveMessage` with strongly-typed send methods (18 outbound: `sendInit`, `addAssistantMessage`, `toolStart`, `sendDiffAvailable`, etc.) and typed handler registration methods (21 inbound: `onSendMessage`, `onReady`, `onViewDiff`, etc.), plus lightweight message-count telemetry.\n\n**Top exported symbols:**\n- `ExtensionRpcRouter` class\n  - Send side: `sendInit`, `addUserMessage`, `addAssistantMessage`, `addReasoningMessage`, `toolStart`, `toolUpdate`, `sendDiffAvailable`, `sendModelSwitched`, `sendAvailableModels`, + 9 more\n  - Receive side: `onSendMessage`, `onReady`, `onViewDiff`, `onTogglePlanMode`, `onSwitchModel`, + 16 more\n  - Utilities: `listen()`, `route()`, `getMessageStats()`\n\n**Architectural risk:** The handler map enforces \"last one wins\" (`registerHandler` silently replaces any existing handler for a given type) with no warning in production code. If two consumers register for the same message type, the first is silently dropped — a dangerous footgun as the codebase grows. The periodic stats are logged via `console.log` (not the project's `Logger`) and fire at a fixed 100-message interval, making them noisy in production while providing no alerting on handler-not-found conditions.",
+        "toolRequests": []
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:44:26.031Z",
+      "type": "assistant.turn_end",
+      "data": {
+        "turnId": "4"
+      }
+    },
+    {
+      "timestamp": "2026-03-12T02:44:26.031Z",
+      "type": "session.idle",
+      "data": {}
+    }
+  ],
+  "subagentEvents": [],
+  "eventTypesSeen": [
+    "pending_messages.modified",
+    "user.message",
+    "assistant.turn_start",
+    "session.usage_info",
+    "assistant.usage",
+    "assistant.message",
+    "assistant.reasoning",
+    "tool.execution_start",
+    "tool.execution_complete",
+    "assistant.turn_end",
+    "session.idle"
+  ],
+  "eventSequence": [
+    {
+      "type": "assistant.usage",
+      "timestamp": "2026-03-12T02:43:40.913Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:40.914Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:40.916Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:40.917Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:40.920Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:41.047Z"
+    },
+    {
+      "type": "assistant.usage",
+      "timestamp": "2026-03-12T02:43:45.940Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:45.940Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:46.598Z"
+    },
+    {
+      "type": "assistant.usage",
+      "timestamp": "2026-03-12T02:43:50.766Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:50.766Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:51.536Z"
+    },
+    {
+      "type": "assistant.usage",
+      "timestamp": "2026-03-12T02:43:54.824Z"
+    },
+    {
+      "type": "tool.execution_start",
+      "timestamp": "2026-03-12T02:43:54.824Z"
+    },
+    {
+      "type": "tool.execution_complete",
+      "timestamp": "2026-03-12T02:43:55.474Z"
+    },
+    {
+      "type": "assistant.usage",
+      "timestamp": "2026-03-12T02:44:26.030Z"
+    }
+  ]
+}

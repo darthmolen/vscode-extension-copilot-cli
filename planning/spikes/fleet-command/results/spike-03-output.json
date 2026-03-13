@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-03-12T02:52:11.763Z",
+  "spike": "spike-03-subagent-access",
+  "findings": [
+    "EXP1: Tool events with subagent ID: 0",
+    "EXP2: No tool.start events",
+    "EXP3: session.abort() available: YES",
+    "EXP3: Events after abort: []",
+    "EXP3: subagent.failed after abort: 0"
+  ],
+  "subagentTimeline": {},
+  "abortEvents": [],
+  "toolEventsWithSubagent": []
+}

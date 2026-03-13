@@ -86,7 +86,7 @@ async function main() {
 	log('Sending /fleet command...');
 	try {
 		await session.sendAndWait({
-			prompt: '/fleet Create three files in /tmp/spike-fleet-test/: hello.txt with "hello", world.txt with "world", and test.txt with "test". Each file is independent.',
+			prompt: '/fleet For each of the following four source files, independently: (1) write a one-paragraph summary of its purpose, (2) list its top exported symbols (functions, classes, types), (3) identify one architectural risk or improvement. The files have zero interdependencies — process them in parallel. Files: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts',
 		});
 		log('Fleet command completed.');
 		findings.push('EXP1: /fleet via sendAndWait completed successfully');

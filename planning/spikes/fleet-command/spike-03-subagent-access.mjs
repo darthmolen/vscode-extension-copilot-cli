@@ -106,7 +106,7 @@ async function main() {
 	log('Sending /fleet with multi-file task...');
 	try {
 		await session.sendAndWait({
-			prompt: '/fleet Create four files in /tmp/spike-fleet-03/: file1.txt with content "alpha", file2.txt with "beta", file3.txt with "gamma", file4.txt with "delta". Each file is completely independent.',
+			prompt: '/fleet For each of the following four source files, independently: (1) write a one-paragraph summary of its purpose, (2) list its top exported symbols (functions, classes, types), (3) identify one architectural risk or improvement. The files have zero interdependencies — process them in parallel. Files: src/extension.ts, src/sdkSessionManager.ts, src/chatViewProvider.ts, src/extension/rpc/ExtensionRpcRouter.ts',
 		});
 		log('Fleet execution completed.');
 	} catch (err) {
