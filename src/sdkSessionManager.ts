@@ -689,6 +689,12 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.handleToolComplete(event);
                 break;
 
+            case 'tool.execution_partial_result':
+                // Incremental (cumulative) stdout/stderr from a running tool.
+                // Stored for future "live output" feature — see planning/backlog/stream-tool-output-on-request.md
+                this.logger.debug(`[Tool Output] ${event.data.toolCallId}: ${event.data.partialOutput?.length ?? 0} chars`);
+                break;
+
             case 'session.error':
                 this._onDidReceiveError.fire(event.data.message);
                 break;
