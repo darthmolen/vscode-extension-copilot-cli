@@ -58,6 +58,7 @@ import {
 	CurrentModelPayload,
 	AvailableModelsPayload,
 	TaskCompletePayload,
+	MessageDeltaPayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -126,10 +127,11 @@ export class ExtensionRpcRouter {
 	/**
 	 * Add assistant message to chat
 	 */
-	addAssistantMessage(text: string): void {
+	addAssistantMessage(text: string, messageId?: string): void {
 		const message: AssistantMessagePayload = {
 			type: 'assistantMessage',
-			text
+			text,
+			messageId
 		};
 		this.send(message);
 	}
@@ -367,6 +369,15 @@ export class ExtensionRpcRouter {
 		const message: TaskCompletePayload = {
 			type: 'taskComplete',
 			summary
+		};
+		this.send(message);
+	}
+
+	sendMessageDelta(messageId: string, deltaContent: string): void {
+		const message: MessageDeltaPayload = {
+			type: 'messageDelta',
+			messageId,
+			deltaContent
 		};
 		this.send(message);
 	}

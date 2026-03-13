@@ -1511,3 +1511,18 @@ button.stop-button:hover {
 .tier-premium {
 	color: var(--vscode-editorWarning-foreground);
 }
+
+/* Streaming progressive rendering */
+.streaming-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.streaming-fade-in {
+    animation: streamingFadeIn 150ms ease forwards;
+}
+
+@keyframes streamingFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}

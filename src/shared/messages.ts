@@ -295,7 +295,8 @@ export type ExtensionMessageType =
 	| 'modelSwitched'
 	| 'currentModel'
 	| 'availableModels'
-	| 'taskComplete';
+	| 'taskComplete'
+	| 'messageDelta';
 
 /**
  * Initialize webview with full state
@@ -326,6 +327,7 @@ export interface UserMessagePayload extends BaseMessage {
 export interface AssistantMessagePayload extends BaseMessage {
 	type: 'assistantMessage';
 	text: string;
+	messageId?: string;
 }
 
 /**
@@ -334,6 +336,15 @@ export interface AssistantMessagePayload extends BaseMessage {
 export interface ReasoningMessagePayload extends BaseMessage {
 	type: 'reasoningMessage';
 	text: string;
+}
+
+/**
+ * Streaming delta chunk for progressive rendering
+ */
+export interface MessageDeltaPayload extends BaseMessage {
+	type: 'messageDelta';
+	messageId: string;
+	deltaContent: string;
 }
 
 /**
@@ -532,7 +543,8 @@ export type ExtensionMessage =
 	| ModelSwitchedPayload
 	| CurrentModelPayload
 	| AvailableModelsPayload
-	| TaskCompletePayload;
+	| TaskCompletePayload
+	| MessageDeltaPayload;
 
 // ============================================================================
 // Type Guards
@@ -608,7 +620,8 @@ export function isExtensionMessage(message: any): message is ExtensionMessage {
 		'modelSwitched',
 		'currentModel',
 		'availableModels',
-		'taskComplete'
+		'taskComplete',
+		'messageDelta'
 	];
 
 	return validTypes.includes(message.type as ExtensionMessageType);

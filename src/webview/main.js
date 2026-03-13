@@ -328,6 +328,7 @@ export function handleAssistantMessageMessage(payload) {
 	eventBus.emit('message:add', {
 		role: 'assistant',
 		content: payload.text,
+		messageId: payload.messageId,
 		timestamp: Date.now()
 	});
 	setThinking(false);
@@ -622,6 +623,10 @@ rpc.onInit(handleInitMessage);
 rpc.onTaskComplete((data) => {
 	console.log('[Task Complete] summary:', data.summary);
 	eventBus.emit('task:complete', { summary: data.summary });
+});
+
+rpc.onMessageDelta((data) => {
+	eventBus.emit('message:delta', { messageId: data.messageId, deltaContent: data.deltaContent });
 });
 
 // Notify extension that webview is ready (skip in test mode)

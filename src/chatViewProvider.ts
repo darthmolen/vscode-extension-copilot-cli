@@ -381,7 +381,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.addUserMessage(text, attachments as any);
 	}
 
-	public addAssistantMessage(text: string, storeInBackend: boolean = true) {
+	public addAssistantMessage(text: string, messageId?: string, storeInBackend: boolean = true) {
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
@@ -394,7 +394,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 		// Resolve relative image paths in markdown to webview URIs
 		const resolvedText = this._resolveAssistantImagePaths(text);
-		this.rpcRouter?.addAssistantMessage(resolvedText);
+		this.rpcRouter?.addAssistantMessage(resolvedText, messageId);
 	}
 
 	public addReasoningMessage(text: string, storeInBackend: boolean = true) {
@@ -482,6 +482,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public sendTaskComplete(summary?: string) {
 		this.rpcRouter?.sendTaskComplete(summary);
+	}
+
+	public sendMessageDelta(messageId: string, deltaContent: string): void {
+		this.rpcRouter?.sendMessageDelta(messageId, deltaContent);
 	}
 
 	private async _handleFilePicker() {

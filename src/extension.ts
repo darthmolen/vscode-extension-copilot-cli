@@ -477,9 +477,9 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 
 /** Wire all 10 granular event subscriptions from the SDK manager to the UI. */
 function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager): void {
-	context.subscriptions.push(manager.onDidReceiveOutput(safeHandler('onDidReceiveOutput', (content) => {
-		logger.debug(`[CLI Output] ${content}`);
-		chatProvider.addAssistantMessage(content);
+	context.subscriptions.push(manager.onDidReceiveOutput(safeHandler('onDidReceiveOutput', (data) => {
+		logger.debug(`[CLI Output] ${data.content}`);
+		chatProvider.addAssistantMessage(data.content, data.messageId);
 		chatProvider.setThinking(false);
 	})));
 
@@ -621,6 +621,10 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	context.subscriptions.push(manager.onDidTaskComplete(safeHandler('onDidTaskComplete', (data) => {
 		logger.info(`[Task Complete] summary=${data.summary}`);
 		chatProvider.sendTaskComplete(data.summary);
+	})));
+
+	context.subscriptions.push(manager.onDidMessageDelta(safeHandler('onDidMessageDelta', (data) => {
+		chatProvider.sendMessageDelta(data.messageId, data.deltaContent);
 	})));
 }
 

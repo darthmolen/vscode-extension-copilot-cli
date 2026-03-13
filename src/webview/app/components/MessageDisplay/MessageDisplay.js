@@ -38,6 +38,10 @@ export class MessageDisplay {
 
         this.render();
 
+        // Streaming state: tracks in-progress assistant bubbles keyed by messageId
+        // Each entry: { el, contentEl, deltaCount, buffer, renderedUpTo }
+        this.streamingBubbles = new Map();
+
         // Create ToolExecution as child component - owns tool rendering
         this.toolExecution = new ToolExecution(this.messagesContainer, eventBus);
 
@@ -69,6 +73,14 @@ export class MessageDisplay {
         // Subscribe to message:add event from EventBus
         this.eventBus.on('message:add', (message) => {
             this.addMessage(message);
+        });
+
+        // Subscribe to message:delta event for streaming progressive rendering
+        this.eventBus.on('message:delta', (data) => {
+            const state = this._getOrCreateStreamingBubble(data.messageId);
+            state.deltaCount++;
+            state.buffer += data.deltaContent;
+            this._renderDeltaProgress(state);
         });
 
         // Subscribe to task:complete event
@@ -229,7 +241,28 @@ export class MessageDisplay {
     }
 
     addMessage(message) {
-        const { role, content, attachments, timestamp } = message;
+        const { role, content, attachments, timestamp, messageId } = message;
+
+        // --- Streaming finalization path ---
+        // If we already have a streaming bubble for this messageId, finalize it.
+        if (role === 'assistant' && messageId && this.streamingBubbles.has(messageId)) {
+            const state = this.streamingBubbles.get(messageId);
+            // Flush remaining buffer
+            const remaining = state.buffer.slice(state.renderedUpTo);
+            if (remaining) {
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(remaining) : remaining);
+            }
+            // Post-process the whole bubble for SVG/mermaid
+            this._renderSvgBlocks(state.el);
+            this._renderMermaidBlocks(state.el);
+            // Remove hidden class (Claude path: bubble was never shown)
+            state.el.classList.remove('streaming-hidden');
+            // Add fade-in animation
+            state.el.classList.add('streaming-fade-in');
+            this.streamingBubbles.delete(messageId);
+            return; // Don't create a duplicate bubble
+        }
 
         // Hide empty state after first message
         if (this.emptyState) {
@@ -314,6 +347,179 @@ export class MessageDisplay {
         `;
 
         this.messagesContainer.appendChild(el);
+    }
+
+    // =========================================================================
+    // Streaming helpers
+    // =========================================================================
+
+    /**
+     * Get or create a streaming bubble state for the given messageId.
+     * @param {string} messageId
+     * @returns {{ el, contentEl, deltaCount, buffer, renderedUpTo }}
+     */
+    _getOrCreateStreamingBubble(messageId) {
+        if (this.streamingBubbles.has(messageId)) {
+            return this.streamingBubbles.get(messageId);
+        }
+        const state = this._createStreamingBubble(messageId);
+        this.streamingBubbles.set(messageId, state);
+        return state;
+    }
+
+    /**
+     * Create a new streaming bubble DOM element and return its state object.
+     * The bubble starts with class `streaming-hidden` (opacity: 0) until
+     * deltaCount reaches 2 (GPT path) or finalization (Claude path).
+     * @param {string} messageId
+     */
+    _createStreamingBubble(messageId) {
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'message message-display__item message-display__item--assistant streaming-hidden';
+        el.setAttribute('role', 'article');
+        el.setAttribute('aria-label', 'Assistant message');
+        el.dataset.messageId = messageId;
+
+        el.innerHTML = `
+            <div class="message-header message-display__header">Assistant</div>
+            <div class="message-content message-display__content"></div>
+        `;
+
+        const contentEl = el.querySelector('.message-display__content');
+        this.messagesContainer.appendChild(el);
+
+        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0 };
+    }
+
+    /**
+     * Called after each new delta chunk. Decides whether to flush safe markdown units.
+     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo }} state
+     */
+    _renderDeltaProgress(state) {
+        if (state.deltaCount < 2) {
+            // Still hidden — accumulate buffer, don't touch DOM
+            return;
+        }
+        if (state.deltaCount === 2) {
+            // Make visible for the first time (GPT path)
+            state.el.classList.remove('streaming-hidden');
+        }
+        this._flushSafeMarkdown(state);
+        this.autoScroll();
+    }
+
+    /**
+     * Streaming state machine: flush completed markdown constructs from the buffer.
+     * Only renders "safe" units — ones where we know the markdown is complete:
+     *   - Paragraphs (terminated by \n\n)
+     *   - Headings (line starting with # terminated by \n)
+     *   - Code fences (``` ... ```)
+     *   - Images (![alt](url))
+     *   - Tables (lines starting with | ... blank line)
+     *
+     * Uses insertAdjacentHTML (not innerHTML+=) to avoid O(n²) re-serialization.
+     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo }} state
+     */
+    _flushSafeMarkdown(state) {
+        const buf = state.buffer;
+        let pos = state.renderedUpTo;
+        let openConstruct = 'none'; // 'none' | 'codeFence' | 'image' | 'table'
+        let unitStart = pos;
+
+        while (pos < buf.length) {
+            const remaining = buf.slice(pos);
+
+            if (openConstruct === 'none') {
+                // Detect code fence open
+                if (remaining.startsWith('```')) {
+                    openConstruct = 'codeFence';
+                    pos += 3;
+                    // Skip language specifier line
+                    const nl = buf.indexOf('\n', pos);
+                    if (nl === -1) break; // Not enough data yet
+                    pos = nl + 1;
+                    continue;
+                }
+                // Detect image open
+                if (remaining.startsWith('![')) {
+                    openConstruct = 'image';
+                    pos += 2;
+                    continue;
+                }
+                // Detect table (line starts with |)
+                if (remaining.startsWith('|')) {
+                    openConstruct = 'table';
+                    pos += 1;
+                    continue;
+                }
+                // Detect heading (line starts with #)
+                if (remaining.startsWith('#')) {
+                    const nl = buf.indexOf('\n', pos);
+                    if (nl === -1) break; // Not enough data yet
+                    pos = nl + 1;
+                    const unit = buf.slice(unitStart, pos);
+                    state.contentEl.insertAdjacentHTML('beforeend',
+                        typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                    state.renderedUpTo = pos;
+                    unitStart = pos;
+                    continue;
+                }
+                // Detect paragraph completion (\n\n)
+                const doubleNl = buf.indexOf('\n\n', pos);
+                if (doubleNl === -1) break; // No complete paragraph yet
+                pos = doubleNl + 2;
+                const unit = buf.slice(unitStart, pos);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+
+            } else if (openConstruct === 'codeFence') {
+                // Look for closing ```
+                const closeIdx = buf.indexOf('```', pos);
+                if (closeIdx === -1) break; // Code fence not closed yet
+                pos = closeIdx + 3;
+                // Skip trailing newline after closing fence
+                if (buf[pos] === '\n') pos++;
+                const unit = buf.slice(unitStart, pos);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else if (openConstruct === 'image') {
+                // Look for closing ) after the (url part
+                const closeIdx = buf.indexOf(')', pos);
+                if (closeIdx === -1) break; // Image not complete yet
+                pos = closeIdx + 1;
+                const unit = buf.slice(unitStart, pos);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else if (openConstruct === 'table') {
+                // Table ends at blank line (double newline)
+                const blankLine = buf.indexOf('\n\n', pos);
+                if (blankLine === -1) break; // Table not complete yet
+                pos = blankLine + 2;
+                const unit = buf.slice(unitStart, pos);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else {
+                pos++;
+            }
+        }
     }
 
     /**

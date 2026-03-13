@@ -263,8 +263,11 @@ export class SDKSessionManager implements vscode.Disposable {
     private readonly _sessionSub = this._reg(new MutableDisposable<vscode.Disposable>());
     
     // Granular event emitters (created once, survive session switches)
-    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<string>());
+    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<{ content: string; messageId: string }>());
     readonly onDidReceiveOutput = this._onDidReceiveOutput.event;
+
+    private readonly _onDidMessageDelta = this._reg(new BufferedEmitter<{ messageId: string; deltaContent: string }>());
+    readonly onDidMessageDelta = this._onDidMessageDelta.event;
     
     private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;
@@ -656,7 +659,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 
                 // Only fire output message if there's actual content
                 if (event.data.content && event.data.content.trim().length > 0) {
-                    this._onDidReceiveOutput.fire(event.data.content);
+                    this._onDidReceiveOutput.fire({ content: event.data.content, messageId: event.data.messageId ?? '' });
                 }
                 break;
 
@@ -665,8 +668,13 @@ export class SDKSessionManager implements vscode.Disposable {
                 break;
 
             case 'user.message':
+                break;
+
             case 'assistant.message_delta':
-                // Streaming message chunks (optional - can enable for real-time streaming)
+                this._onDidMessageDelta.fire({
+                    messageId: event.data.messageId,
+                    deltaContent: event.data.deltaContent,
+                });
                 break;
 
             case 'tool.execution_start':
@@ -1611,7 +1619,7 @@ export class SDKSessionManager implements vscode.Disposable {
             
             // Send visual message to chat
             this.logger.info(`[Plan Mode]   Sending visual message to chat`);
-            this._onDidReceiveOutput.fire(
+            this._onDidReceiveOutput.fire({ content:
                 `🎯 **Entered Plan Mode**\n\n` +
                 `You can now analyze the codebase and design solutions without modifying files.\n\n` +
                 `**To create/update your plan:**\n` +
@@ -1626,8 +1634,8 @@ export class SDKSessionManager implements vscode.Disposable {
                 `- \`bash\` (read-only) - Run safe commands like \`ls\`, \`pwd\`, \`git status\`\n` +
                 `- \`task(agent_type="explore")\` - Dispatch exploration tasks\n` +
                 `- \`web_fetch\` - Fetch documentation\n\n` +
-                `Use **Accept** when ready to implement, or **Reject** to discard changes.`
-            );
+                `Use **Accept** when ready to implement, or **Reject** to discard changes.`,
+                messageId: '' });
             
             this.logger.info('═══════════════════════════════════════════════════════════');
             this.logger.info('✅ PLAN MODE SETUP - COMPLETE');
@@ -1751,7 +1759,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('[Plan Mode] plan_mode_disabled event emitted');
         
         // Send visual message to chat
-        this._onDidReceiveOutput.fire('✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!');
+        this._onDidReceiveOutput.fire({ content: '✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!', messageId: '' });
     }
     
     /**
@@ -1774,7 +1782,7 @@ export class SDKSessionManager implements vscode.Disposable {
         const planPath = path.join(workSessionPath, 'plan.md');
         
         // Send visual message to chat BEFORE exiting plan mode
-        this._onDidReceiveOutput.fire('✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...');
+        this._onDidReceiveOutput.fire({ content: '✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...', messageId: '' });
         
         // Exit plan mode
         await this.disablePlanMode();
@@ -1846,7 +1854,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.planModeSnapshot = null;
         
         // Send visual message to chat BEFORE exiting plan mode
-        this._onDidReceiveOutput.fire('❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...');
+        this._onDidReceiveOutput.fire({ content: '❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...', messageId: '' });
         
         // Exit plan mode
         await this.disablePlanMode();
@@ -1951,6 +1959,7 @@ export class SDKSessionManager implements vscode.Disposable {
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
             onEvent: (event: any) => this._handleSDKEvent(event),
+            streaming: true,
         };
 
         const MAX_FALLBACK_ATTEMPTS = 3;
@@ -2008,13 +2017,13 @@ export class SDKSessionManager implements vscode.Disposable {
             vscode.window.showErrorMessage(
                 `Model "${requestedModel}" is not supported by your account and no supported fallback model could be selected.`
             );
-            this._onDidReceiveOutput.fire(
+            this._onDidReceiveOutput.fire({ content:
                 `**Model Unavailable**\n\n` +
                 `Model \`${requestedModel}\` is not supported by your account, ` +
                 `and no supported fallback model could be selected.\n\n` +
                 `**Models tried:** ${Array.from(triedModels).map(m => `\`${m}\``).join(', ')}\n\n` +
-                `Please update your model in **Settings > Copilot CLI > Model**.`
-            );
+                `Please update your model in **Settings > Copilot CLI > Model**.`,
+                messageId: '' });
             throw error;
         }
     }
@@ -2026,12 +2035,12 @@ export class SDKSessionManager implements vscode.Disposable {
         vscode.window.showWarningMessage(
             `Model "${requestedModel}" is not available. Using "${actualModel}" instead.`
         );
-        this._onDidReceiveOutput.fire(
+        this._onDidReceiveOutput.fire({ content:
             `**Model Fallback**\n\n` +
             `Model \`${requestedModel}\` is not available for your account. ` +
             `Using \`${actualModel}\` instead.\n\n` +
-            `To change your default model, go to **Settings > Copilot CLI > Model**.`
-        );
+            `To change your default model, go to **Settings > Copilot CLI > Model**.`,
+            messageId: '' });
         this.logger.info(`[Model Fallback] Successfully fell back from "${requestedModel}" to "${actualModel}"`);
     }
 

@@ -514,6 +514,15 @@ class WebviewRpcClient {
 		return this._registerHandler('taskComplete', handler);
 	}
 
+	/**
+	 * Register handler for messageDelta (streaming delta chunks)
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onMessageDelta(handler) {
+		return this._registerHandler('messageDelta', handler);
+	}
+
 	// ========================================================================
 	// Private Methods
 	// ========================================================================
