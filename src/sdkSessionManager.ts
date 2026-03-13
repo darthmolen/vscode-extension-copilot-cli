@@ -393,6 +393,7 @@ export class SDKSessionManager implements vscode.Disposable {
             ...resumeOptions,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
+            streaming: true,
         };
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
