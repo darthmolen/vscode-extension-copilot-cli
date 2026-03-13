@@ -71,6 +71,11 @@ export class MessageDisplay {
             this.addMessage(message);
         });
 
+        // Subscribe to task:complete event
+        this.eventBus.on('task:complete', (data) => {
+            this.addTaskComplete(data);
+        });
+
         // Subscribe to reasoning:toggle event
         this.eventBus.on('reasoning:toggle', (enabled) => {
             this.showReasoning = enabled;
@@ -283,6 +288,32 @@ export class MessageDisplay {
 
         this.messagesContainer.appendChild(messageDiv);
         // MutationObserver handles scrolling automatically
+    }
+
+    /**
+     * Render a task-complete callout when session.task_complete fires.
+     * @param {{ summary?: string }} data
+     */
+    addTaskComplete(data) {
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'message message-display__item message-display__item--task-complete';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-label', 'Task complete');
+
+        const summaryHtml = data && data.summary
+            ? `<div class="message-display__task-complete-summary">${escapeHtml(data.summary)}</div>`
+            : '';
+
+        el.innerHTML = `
+            <div class="message-display__task-complete-header">✓ Task Complete</div>
+            ${summaryHtml}
+        `;
+
+        this.messagesContainer.appendChild(el);
     }
 
     /**

@@ -53,9 +53,11 @@ import {
 	SaveMermaidImagePayload,
 	SwitchModelPayload,
 	RenameSessionPayload,
+	CompactPayload,
 	ModelSwitchedPayload,
 	CurrentModelPayload,
 	AvailableModelsPayload,
+	TaskCompletePayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -361,6 +363,14 @@ export class ExtensionRpcRouter {
 		this.send(message);
 	}
 
+	sendTaskComplete(summary?: string): void {
+		const message: TaskCompletePayload = {
+			type: 'taskComplete',
+			summary
+		};
+		this.send(message);
+	}
+
 	// ========================================================================
 	// Receive Handlers (Webview → Extension)
 	// ========================================================================
@@ -524,6 +534,13 @@ export class ExtensionRpcRouter {
 	 */
 	onRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {
 		return this.registerHandler('renameSession', handler);
+	}
+
+	/**
+	 * Register handler for compact
+	 */
+	onCompact(handler: MessageHandler<CompactPayload>): Disposable {
+		return this.registerHandler('compact', handler);
 	}
 
 	// ========================================================================

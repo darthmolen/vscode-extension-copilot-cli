@@ -72,11 +72,11 @@ describe('NotSupportedSlashHandlers', () => {
         expect(result.content).to.include('/user');
     });
 
-    it('handles all 25 not-supported commands', async () => {
+    it('handles all 24 not-supported commands', async () => {
         // All the not-supported commands from the plan
         const notSupportedCommands = [
             'clear', 'new', 'resume', 'rename', 'session',
-            'add-dir', 'list-dirs', 'cwd', 'cd', 'context', 'compact',
+            'add-dir', 'list-dirs', 'cwd', 'cd', 'context',
             'lsp', 'theme', 'terminal-setup', 'init',
             'allow-all', 'yolo', 'reset-allowed-tools',
             'user', 'feedback', 'share', 'experimental', 'ide', 'exit', 'quit'

@@ -52,7 +52,8 @@ export type WebviewMessageType =
 	| 'openFile'
 	| 'saveMermaidImage'
 	| 'switchModel'
-	| 'renameSession';
+	| 'renameSession'
+	| 'compact';
 
 /**
  * Send user message to agent
@@ -230,6 +231,10 @@ export interface RenameSessionPayload extends BaseMessage {
 	name: string;  // empty string = show input box
 }
 
+export interface CompactPayload extends BaseMessage {
+	type: 'compact';
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -256,7 +261,8 @@ export type WebviewMessage =
 	| OpenFilePayload
 	| SaveMermaidImagePayload
 	| SwitchModelPayload
-	| RenameSessionPayload;
+	| RenameSessionPayload
+	| CompactPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -288,7 +294,8 @@ export type ExtensionMessageType =
 	| 'usage_info'
 	| 'modelSwitched'
 	| 'currentModel'
-	| 'availableModels';
+	| 'availableModels'
+	| 'taskComplete';
 
 /**
  * Initialize webview with full state
@@ -491,6 +498,14 @@ export interface AvailableModelsPayload extends BaseMessage {
 }
 
 /**
+ * Session task complete indicator
+ */
+export interface TaskCompletePayload extends BaseMessage {
+	type: 'taskComplete';
+	summary?: string;
+}
+
+/**
  * Union of all extension → webview messages
  */
 export type ExtensionMessage =
@@ -516,7 +531,8 @@ export type ExtensionMessage =
 	| UsageInfoPayload
 	| ModelSwitchedPayload
 	| CurrentModelPayload
-	| AvailableModelsPayload;
+	| AvailableModelsPayload
+	| TaskCompletePayload;
 
 // ============================================================================
 // Type Guards
@@ -553,7 +569,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'openFile',
 		'saveMermaidImage',
 		'switchModel',
-		'renameSession'
+		'renameSession',
+		'compact'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);
@@ -589,7 +606,9 @@ export function isExtensionMessage(message: any): message is ExtensionMessage {
 		'status',
 		'usage_info',
 		'modelSwitched',
-		'currentModel'
+		'currentModel',
+		'availableModels',
+		'taskComplete'
 	];
 
 	return validTypes.includes(message.type as ExtensionMessageType);

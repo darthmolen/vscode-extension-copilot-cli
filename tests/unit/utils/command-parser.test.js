@@ -170,7 +170,7 @@ describe('CommandParser Service - TDD RED Phase', () => {
       emittedEvents = [];
       
       // Track all events
-      ['enterPlanMode', 'exitPlanMode', 'acceptPlan', 'rejectPlan', 'openInCLI', 'showNotSupported'].forEach(eventName => {
+      ['enterPlanMode', 'exitPlanMode', 'acceptPlan', 'rejectPlan', 'openInCLI', 'showNotSupported', 'compact'].forEach(eventName => {
         eventBus.on(eventName, (...args) => {
           emittedEvents.push({ event: eventName, args });
         });
@@ -261,14 +261,13 @@ describe('CommandParser Service - TDD RED Phase', () => {
       expect(emittedEvents[0].args).to.deep.equal([['clear']]);
     });
 
-    it('should emit showNotSupported for not-supported /compact command', () => {
+    it('should emit compact event for /compact command', () => {
       const cmd = { command: 'compact', args: [] };
 
       parser.execute(cmd, eventBus);
 
       expect(emittedEvents).to.have.length(1);
-      expect(emittedEvents[0].event).to.equal('showNotSupported');
-      expect(emittedEvents[0].args).to.deep.equal([['compact']]);
+      expect(emittedEvents[0].event).to.equal('compact');
     });
 
     it('should not emit undefined event for passthrough commands', () => {
@@ -356,8 +355,8 @@ describe('CommandParser Service - TDD RED Phase', () => {
     it('should return only extension and passthrough commands', () => {
       const commands = parser.getVisibleCommands();
 
-      // 11 extension (plan, exit, accept, reject, review, diff, mcp, usage, help, model, rename) + 6 passthrough = 17
-      expect(commands).to.have.length(17);
+      // 12 extension (plan, exit, accept, reject, review, diff, mcp, usage, help, model, rename, compact) + 6 passthrough = 18
+      expect(commands).to.have.length(18);
     });
 
     it('should not include not-supported commands', () => {
@@ -366,8 +365,9 @@ describe('CommandParser Service - TDD RED Phase', () => {
 
       // These are not-supported and should be excluded
       expect(names).to.not.include('clear');
-      expect(names).to.not.include('compact');
       expect(names).to.not.include('quit');
+      // compact is now extension type and IS visible
+      expect(names).to.include('compact');
     });
 
     it('should include all extension commands', () => {

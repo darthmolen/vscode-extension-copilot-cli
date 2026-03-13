@@ -49,6 +49,10 @@ describe('CommandParser - Command Registry (TDD RED Phase)', () => {
 		it('recognizes /model as extension command', () => {
 			expect(parser.getCommandType('model')).to.equal('extension');
 		});
+
+		it('recognizes /compact as extension command', () => {
+			expect(parser.getCommandType('compact')).to.equal('extension');
+		});
 	});
 
 	describe('CLI Passthrough Commands (6 total)', () => {
@@ -77,12 +81,12 @@ describe('CommandParser - Command Registry (TDD RED Phase)', () => {
 		});
 	});
 
-	describe('Not Supported Commands (24 total)', () => {
+	describe('Not Supported Commands (23 total)', () => {
 		const notSupportedCommands = [
 			// Session management
 			'clear', 'new', 'resume', 'session',
 			// Context & files
-			'add-dir', 'list-dirs', 'cwd', 'cd', 'context', 'compact',
+			'add-dir', 'list-dirs', 'cwd', 'cd', 'context',
 			// Advanced config
 			'lsp', 'theme', 'terminal-setup', 'init',
 			// Permissions

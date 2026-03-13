@@ -279,6 +279,12 @@ class WebviewRpcClient {
 		});
 	}
 
+	compact() {
+		this._send({
+			type: 'compact'
+		});
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================
@@ -497,6 +503,15 @@ class WebviewRpcClient {
 	 */
 	onAvailableModels(handler) {
 		return this._registerHandler('availableModels', handler);
+	}
+
+	/**
+	 * Register handler for taskComplete
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onTaskComplete(handler) {
+		return this._registerHandler('taskComplete', handler);
 	}
 
 	// ========================================================================

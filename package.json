@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.4.2",
+  "version": "3.5.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -75,6 +75,10 @@
       {
         "command": "copilot-cli-extension.stopChat",
         "title": "Copilot CLI: Stop Chat Session"
+      },
+      {
+        "command": "copilot-cli-extension.compactSession",
+        "title": "Copilot CLI: Compact Session Context"
       },
       {
         "command": "copilot-cli-extension.refreshPanel",

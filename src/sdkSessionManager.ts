@@ -247,6 +247,10 @@ export interface UsageData {
     messagesLength?: number;
 }
 
+export interface TaskCompleteData {
+    summary?: string;
+}
+
 type SessionMode = 'work' | 'plan';
 
 export class SDKSessionManager implements vscode.Disposable {
@@ -288,6 +292,9 @@ export class SDKSessionManager implements vscode.Disposable {
     
     private readonly _onDidUpdateUsage = this._reg(new BufferedEmitter<UsageData>());
     readonly onDidUpdateUsage = this._onDidUpdateUsage.event;
+
+    private readonly _onDidTaskComplete = this._reg(new BufferedEmitter<TaskCompleteData>());
+    readonly onDidTaskComplete = this._onDidTaskComplete.event;
     
     private logger: Logger;
     private workingDirectory: string;
@@ -806,6 +813,28 @@ export class SDKSessionManager implements vscode.Disposable {
             case 'hook.end':
             case 'skill.invoked':
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'subagent.deselected':
+                this.logger.info(`[SDK Event] subagent.deselected: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'session.background_tasks_changed':
+                this.logger.info(`[SDK Event] session.background_tasks_changed: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'system.notification':
+                this.logger.info(`[SDK Event] system.notification kind=${event.data?.kind?.description}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'permission.requested':
+            case 'permission.completed':
+                this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'session.task_complete':
+                this.logger.info(`[SDK Event] session.task_complete summary=${event.data?.summary}: ${JSON.stringify(event.data)}`);
+                this._onDidTaskComplete.fire({ summary: event.data?.summary });
                 break;
 
             default:
@@ -1354,6 +1383,26 @@ export class SDKSessionManager implements vscode.Disposable {
      */
     public getCurrentModel(): string | undefined {
         return this.config.model;
+    }
+
+    /**
+     * Manually trigger context compaction via rpc.compaction.compact().
+     * Returns token/message counts freed, or null if no session is active.
+     */
+    public async compactSession(): Promise<{ tokensRemoved?: number; messagesRemoved?: number } | null> {
+        if (!this.session) {
+            this.logger.warn('[Compact] No active session');
+            return null;
+        }
+        try {
+            this.logger.info('[Compact] Requesting context compaction...');
+            const result = await this.session.rpc.compaction.compact();
+            this.logger.info(`[Compact] Compaction complete: ${JSON.stringify(result)}`);
+            return result ?? null;
+        } catch (error) {
+            this.logger.error(`[Compact] Compaction failed: ${error instanceof Error ? error.message : error}`);
+            throw error;
+        }
     }
 
     public async stop(): Promise<void> {
@@ -1906,6 +1955,7 @@ export class SDKSessionManager implements vscode.Disposable {
             ...config,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
+            onEvent: (event: any) => this._handleSDKEvent(event),
         };
 
         const MAX_FALLBACK_ATTEMPTS = 3;

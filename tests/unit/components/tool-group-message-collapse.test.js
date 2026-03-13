@@ -217,4 +217,37 @@ describe('Tool Group - Message lifecycle', () => {
             expect(container.querySelectorAll('.tool-group')).to.have.length(1);
         });
     });
+
+    describe('reasoning message closes current tool group', () => {
+        it('should close the tool group when a reasoning message arrives', () => {
+            // Start a tool
+            eventBus.emit('tool:start', {
+                toolCallId: 'tool-1',
+                toolName: 'bash',
+                arguments: { command: 'ls' },
+                status: 'running',
+                startTime: Date.now()
+            });
+
+            expect(container.querySelectorAll('.tool-group')).to.have.length(1);
+
+            // Reasoning message should close the current group
+            eventBus.emit('message:add', {
+                role: 'reasoning',
+                content: 'Let me think about this...',
+                timestamp: Date.now()
+            });
+
+            // Next tool starts a new group
+            eventBus.emit('tool:start', {
+                toolCallId: 'tool-2',
+                toolName: 'bash',
+                arguments: { command: 'pwd' },
+                status: 'running',
+                startTime: Date.now()
+            });
+
+            expect(container.querySelectorAll('.tool-group')).to.have.length(2);
+        });
+    });
 });

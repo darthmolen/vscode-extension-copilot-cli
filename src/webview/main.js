@@ -214,6 +214,12 @@ eventBus.on('renameSession', (args) => {
 	rpc.renameSession(name);
 });
 
+// Session compact
+eventBus.on('compact', () => {
+	console.log('[Slash Command] Compact (/compact)');
+	rpc.compact();
+});
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));
@@ -613,6 +619,10 @@ rpc.onModelSwitched(handleModelSwitchedMessage);
 rpc.onCurrentModel(handleCurrentModelMessage);
 rpc.onAvailableModels(handleAvailableModelsMessage);
 rpc.onInit(handleInitMessage);
+rpc.onTaskComplete((data) => {
+	console.log('[Task Complete] summary:', data.summary);
+	eventBus.emit('task:complete', { summary: data.summary });
+});
 
 // Notify extension that webview is ready (skip in test mode)
 if (typeof window !== 'undefined' && !window.__TESTING__) {

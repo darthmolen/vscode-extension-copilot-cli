@@ -203,6 +203,29 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			logger.warn(`[Rename Session] CLI rename failed (session-name.txt fallback applied): ${error.message}`);
 		}
 	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestCompact(async () => {
+		logger.info('[Compact] Compact requested');
+		if (!cliManager) {
+			chatProvider.addAssistantMessage('⚠ No active session — start a session first.');
+			return;
+		}
+		try {
+			const result = await cliManager.compactSession();
+			if (!result) {
+				chatProvider.addAssistantMessage('✓ Compaction complete.');
+			} else {
+				const { tokensRemoved, messagesRemoved } = result as any;
+				const parts: string[] = [];
+				if (typeof tokensRemoved === 'number') { parts.push(`freed ${tokensRemoved.toLocaleString()} tokens`); }
+				if (typeof messagesRemoved === 'number') { parts.push(`removed ${messagesRemoved} messages`); }
+				const summary = parts.length > 0 ? parts.join(', ') : 'context compacted';
+				chatProvider.addAssistantMessage(`✓ Compaction complete — ${summary}.`);
+			}
+		} catch (error: any) {
+			chatProvider.addAssistantMessage(`⚠ Compaction failed: ${error.message}`);
+		}
+	}));
 }
 
 /** Register all VS Code commands. */
@@ -593,6 +616,11 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {
 		logger.debug(`[Usage Info] ${usageData.currentTokens}/${usageData.tokenLimit}`);
 		chatProvider.postMessage({ type: 'usage_info', data: usageData });
+	})));
+
+	context.subscriptions.push(manager.onDidTaskComplete(safeHandler('onDidTaskComplete', (data) => {
+		logger.info(`[Task Complete] summary=${data.summary}`);
+		chatProvider.postMessage({ type: 'taskComplete', summary: data.summary });
 	})));
 }
 

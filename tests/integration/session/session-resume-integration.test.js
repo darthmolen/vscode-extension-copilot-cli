@@ -204,6 +204,7 @@ describe('Session Resume E2E Integration Test', function () {
 				onDidChangeFile(handler) { return noopEvent(); }
 				onDidProduceDiff(handler) { return noopEvent(); }
 				onDidUpdateUsage(handler) { return noopEvent(); }
+				onDidTaskComplete(handler) { return noopEvent(); }
 			}
 
 			Module.prototype.require = function(id) {

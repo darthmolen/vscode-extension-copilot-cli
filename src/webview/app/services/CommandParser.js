@@ -139,7 +139,7 @@ export class CommandParser {
 			['cwd', { type: 'not-supported' }],
 			['cd', { type: 'not-supported' }],
 			['context', { type: 'not-supported' }],
-			['compact', { type: 'not-supported' }],
+			['compact', { type: 'extension', event: 'compact', category: 'config', description: 'Free context window space' }],
 			['lsp', { type: 'not-supported' }],
 			['theme', { type: 'not-supported' }],
 			['terminal-setup', { type: 'not-supported' }],

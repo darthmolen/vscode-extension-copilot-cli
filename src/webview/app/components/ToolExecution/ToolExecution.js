@@ -27,7 +27,7 @@ export class ToolExecution {
         // This ensures each assistant response gets its own tool group.
         // Individual card expand/collapse state is preserved (tracked by collapsedCards Set).
         this.eventBus.on('message:add', (message) => {
-            if (message.role === 'user' || message.role === 'assistant') {
+            if (message.role === 'user' || message.role === 'assistant' || message.role === 'reasoning') {
                 this.closeCurrentToolGroup();
             }
         });
