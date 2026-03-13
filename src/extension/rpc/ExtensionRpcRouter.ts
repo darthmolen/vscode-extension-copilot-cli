@@ -48,6 +48,7 @@ import {
 	ShowHelpPayload,
 	ShowNotSupportedPayload,
 	OpenInCLIPayload,
+	EnableFleetModePayload,
 	OpenFilePayload,
 	PasteImagePayload,
 	SaveMermaidImagePayload,
@@ -503,6 +504,13 @@ export class ExtensionRpcRouter {
 	 */
 	onOpenInCLI(handler: MessageHandler<OpenInCLIPayload>): Disposable {
 		return this.registerHandler('openInCLI', handler);
+	}
+
+	/**
+	 * Register handler for enableFleetMode
+	 */
+	onEnableFleetMode(handler: MessageHandler<EnableFleetModePayload>): Disposable {
+		return this.registerHandler('enableFleetMode', handler);
 	}
 
 	/**

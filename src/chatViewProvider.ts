@@ -320,6 +320,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			}
 		}));
 
+		this._reg(this.rpcRouter.onEnableFleetMode(async () => {
+			this.logger.info('[Fleet] Fleet mode requested from UI');
+			const sessionId = getBackendState().getSessionId();
+			if (!sessionId) {
+				this.rpcRouter!.addAssistantMessage('No active session. Start a session first.');
+				return;
+			}
+			this._onDidReceiveUserMessage.fire({ text: '/fleet' });
+		}));
+
 		this._reg(this.rpcRouter.onSwitchModel((payload) => {
 			this.logger.info(`Switch model requested: ${payload.model}`);
 			this._onDidRequestSwitchModel.fire(payload.model);

@@ -90,6 +90,12 @@ export class CommandParser {
 				category: 'config',
 				description: 'Rename this session'
 			}],
+			['fleet', {
+				type: 'extension',
+				event: 'enableFleetMode',
+				category: 'cli',
+				description: 'Dispatch parallel agents'
+			}],
 
 			// CLI Passthrough commands (6)
 			['delegate', {

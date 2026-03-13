@@ -49,6 +49,7 @@ export type WebviewMessageType =
 	| 'showHelp'
 	| 'showNotSupported'
 	| 'openInCLI'
+	| 'enableFleetMode'
 	| 'openFile'
 	| 'saveMermaidImage'
 	| 'switchModel'
@@ -200,6 +201,10 @@ export interface OpenInCLIPayload extends BaseMessage {
 	command: string;
 }
 
+export interface EnableFleetModePayload extends BaseMessage {
+	type: 'enableFleetMode';
+}
+
 /**
  * Open a file in the VS Code editor
  */
@@ -253,6 +258,7 @@ export type WebviewMessage =
 	| ShowHelpPayload
 	| ShowNotSupportedPayload
 	| OpenInCLIPayload
+	| EnableFleetModePayload
 	| OpenFilePayload
 	| SaveMermaidImagePayload
 	| SwitchModelPayload
@@ -550,6 +556,7 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'showHelp',
 		'showNotSupported',
 		'openInCLI',
+		'enableFleetMode',
 		'openFile',
 		'saveMermaidImage',
 		'switchModel',
