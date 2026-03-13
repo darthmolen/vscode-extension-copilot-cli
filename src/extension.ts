@@ -620,7 +620,7 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 
 	context.subscriptions.push(manager.onDidTaskComplete(safeHandler('onDidTaskComplete', (data) => {
 		logger.info(`[Task Complete] summary=${data.summary}`);
-		chatProvider.postMessage({ type: 'taskComplete', summary: data.summary });
+		chatProvider.sendTaskComplete(data.summary);
 	})));
 }
 

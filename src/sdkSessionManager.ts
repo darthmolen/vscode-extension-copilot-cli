@@ -664,6 +664,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this._onDidReceiveReasoning.fire(event.data.content);
                 break;
 
+            case 'user.message':
             case 'assistant.message_delta':
                 // Streaming message chunks (optional - can enable for real-time streaming)
                 break;
@@ -759,12 +760,6 @@ export class SDKSessionManager implements vscode.Disposable {
                     this._onDidChangeStatus.fire({ status: 'message_queued' });
                 }
                 break;
-
-            // New SDK events — log for observability
-            case 'user.message':
-            case 'assistant.message_delta':
-            case 'assistant.usage':
-                break;  // High-frequency events, already logged at debug level above
 
             case 'session.model_change':
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);

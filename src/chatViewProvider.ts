@@ -480,6 +480,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.sendAvailableModels(models);
 	}
 
+	public sendTaskComplete(summary?: string) {
+		this.rpcRouter?.sendTaskComplete(summary);
+	}
+
 	private async _handleFilePicker() {
 		const options: vscode.OpenDialogOptions = {
 			canSelectMany: true,
