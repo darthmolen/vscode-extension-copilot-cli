@@ -33,6 +33,12 @@ describe('Session Error Classification', () => {
             const result = classifySessionError(error);
             assert.equal(result, 'session_expired');
         });
+
+        it('should classify "Session file is corrupted" as session_expired', () => {
+            const error = new Error('Request session.resume failed with message: Session file is corrupted (line 2: data.content: Required)');
+            const result = classifySessionError(error);
+            assert.equal(result, 'session_expired');
+        });
     });
 
     describe('session_not_ready errors', () => {

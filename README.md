@@ -53,85 +53,24 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
-### v3.4.2 - Session Dropdown Name Fix
+### v3.5.0 - Streaming Responses, /compact, and Reasoning Streaming
 
-- **No more GUIDs in dropdown** — New and resumed sessions now always show a readable name (`Session – Mar 10, 2:37 PM`) instead of a raw 8-char UUID. The name is written once to `session-name.txt` on session start and never clobbered by subsequent renames or plan-accept.
-- **Plan mode shows readable name** — Entering plan mode now mirrors the work session's name with a `Plan:` prefix (e.g., `Plan: v3.4.2 – Session Title`) instead of reverting to a GUID.
-- **Backfill** — Old sessions without a `session-name.txt` get a default name the next time they are resumed.
+- **Real-time streaming** — Assistant responses render word-by-word as they arrive, not all-at-once when the response completes. A safe markdown state machine flushes completed constructs (paragraphs, headings, code blocks, tables) progressively, with a 1.5s inactivity flush so mid-sentence text before a tool call appears immediately.
+- **Reasoning streaming** — When "Show Reasoning" is enabled, the model's thinking process streams in real-time. Previously reasoning only appeared after the full thought was complete.
+- **`/compact` slash command** — Compact the session context to reduce token usage while preserving key context. Available in both work and plan modes.
+- **Task complete indicator** — A ✓ Task Complete card appears when the agent finishes a multi-step task, providing a clear visual signal that the work is done.
+- **Suppress broken-sentence bubbles** — When the model writes a partial sentence and then immediately calls a tool, the fragment no longer appears as a standalone bubble. It's suppressed until finalized.
+- **Tool description fallback** — Tool cards now show the tool's description when no explicit intent label is available.
+- **`copilotCLI.showReasoning`** — New config to auto-enable "Show Reasoning" on startup (default `false`).
+- **`copilotCLI.streaming`** — New config to disable delta streaming if you prefer responses to appear only when complete (default `true`).
+- **SDK 0.1.32** — Upgraded SDK with 6 new events and improved streaming reliability.
 
-### v3.4.1 - Plan Mode Session Recovery
+### v3.4.3 - Reasoning Styling and Typing Indicator Fix
 
-- **Silent session recovery** — When the work session expires during extended planning, the extension silently recreates it instead of showing an error modal. The plan file and kickoff instruction carry over seamlessly.
-- **Meaningful session labels** — Plan acceptance extracts the plan heading (e.g., "v3.4.0 Release Documentation") and writes it to `session-name.txt`. The session dropdown shows intent, not garbled text.
-- **No more doubled SDK events** — `resumeSession()` on an already-active session caused server-side event doubling. Replaced with lightweight `abort()` health check. Filed upstream: [copilot-cli#1933](https://github.com/github/copilot-cli/issues/1933), [copilot-sdk#742](https://github.com/github/copilot-sdk/issues/742).
-- **Faster plan acceptance** — Plan kickoff message is fire-and-forget instead of blocking 60s on idle timeout.
-- **Session dropdown debounced** — No longer rescans 200+ session directories on every CLI turn end.
+- **Reasoning block styling** — Reasoning content now renders with proper italic formatting and visual distinction from regular assistant messages.
+- **Typing indicator** — The animated "Thinking..." indicator now correctly tracks when the model is actively generating tokens versus waiting between tool calls.
 
-### v3.4.0 - Session Rename, Animated Thinking, and Plan Mode Polish
-
-- **`/rename` slash command** — Rename the current session inline (`/rename My Feature`) or via input prompt (`/rename`). Name persists in `session-name.txt` and updates the session dropdown immediately, even when the CLI fails on resumed sessions.
-- **Animated "Thinking..." indicator** — Rainbow 🧠 emoji (hue-rotate ping-pong) + pulsing "Thinking..." text. Appears immediately when the AI starts processing, including after plan acceptance.
-- **`plan_ready` auto-opens plan.md** — When the AI finishes presenting a plan, `plan.md` opens automatically in a new editor tab.
-- **Blue outline in plan mode** — The input area gets a 3px `var(--vscode-focusBorder)` outline when plan mode is active.
-- **`startNewSessionInPlanning` config** — New boolean setting. When enabled, new sessions automatically start in plan mode (`copilotCLI.startNewSessionInPlanning`, default `false`).
-- **Session label fixes** — Session dropdown no longer shows `[Active File: ...]` prefixes. Labels update live after the first AI response.
-
-### v3.3.1 - Fix CLI Not Found on Windows (winget)
-
-- **CLI path resolution fix** — Winget-installed Copilot CLI was not detected because the resolver returned bare `"copilot"` instead of resolving the full path via `where`. Now correctly finds the binary on PATH for all installation methods (winget, npm, standalone).
-
-### v3.3.0 - Mid-Session Model Switching
-
-- **Model switching without losing context** — New ModelSelector dropdown in the controls bar lets you switch AI models mid-conversation. The SDK resumes the session with the new model, preserving all previous messages and tool state.
-- **Tier-grouped model selector** — Models grouped by cost tier (Fast/Standard/Premium) with multiplier badges (0.5x, 1x, 3x) showing request cost.
-- **Responsive header** — Session toolbar adapts to narrow sidebars; label wraps above the dropdown instead of truncating.
-- **SDK 0.1.26 reliability** — Permission handler, client name header, fixed `--yolo` flag logic, and accurate compaction metrics.
-
-### v3.0.1
-
-- **SDK Upgrade to 0.1.22** — Enables first-class hooks system for reliable tool interception
-- **File Diff Fix** — View Diff now correctly shows original file content via `onPreToolUse` hook (fixes race condition where snapshots captured empty/modified files)
-- **Plan Mode Diff for update_work_plan** — Custom plan-mode tool now emits file diffs when writing plan.md (captures pre-write snapshot and shows Before ↔ After)
-
-### v3.0.0 - Complete Architectural Overhaul 🚀
-
-#### Inline Diffs in Chat Stream
-
-- File edits show compact inline diffs directly in chat (up to 10 lines with +/- prefixes)
-- Larger diffs show "... N more lines" with "View Diff" button for full picture
-- Review, approve, or redirect the agent without leaving the conversation
-- Decision-making stays in the chat flow
-
-#### Slash Commands (41 Commands) with Discovery Panel
-
-- Type `/` in the chat input to see a grouped command reference panel
-- Click any command to insert it, or use the `?` icon next to metrics for full `/help` output
-- `/help` — Show all available commands
-- `/usage` — View session metrics (tokens, context window)
-- `/review` — Show current plan
-- `/diff file1 file2` — Compare two files
-- `/mcp` — Show MCP server configuration
-- And 36 more commands for debugging, inspection, and control
-
-#### Auto-Resume After Reload
-
-- CLI session automatically resumes when VS Code reloads
-- Previous conversation history loads from Copilot CLI's event log
-- No more lost sessions when restarting VS Code
-
-#### Claude Opus 4.6 Support
-
-- Added latest `claude-opus-4.6` and `claude-opus-4.6-fast` models
-- Smart model capability detection for image attachments
-- Now supporting 17 AI models total
-
-#### Reliability & Performance
-
-- Component-based architecture (9 components) for maintainability
-- Type-safe RPC layer (31 message types) eliminates message bugs
-- Service extraction (7 services) with clear boundaries
-- 710+ tests ensure quality (unit, integration, e2e)
-- Memory leak fixed — runs indefinitely without crashes
+> 📋 For a complete history of all changes, see the [CHANGELOG.md](https://github.com/darthmolen/vscode-copilot-cli-extension/blob/main/CHANGELOG.md) on GitHub.
 
 ### 🧠 Copilot Memory
 
@@ -325,7 +264,9 @@ All Copilot CLI flags are configurable via VS Code settings:
   "copilotCLI.allowUrls": [],             // Specific URLs/domains
   "copilotCLI.denyUrls": [],              // Block URLs/domains
   "copilotCLI.addDirs": [],               // Additional allowed directories
-  "copilotCLI.noAskUser": false           // Autonomous mode (no questions)
+  "copilotCLI.noAskUser": false,          // Autonomous mode (no questions)
+  "copilotCLI.showReasoning": false,      // Auto-enable "Show Reasoning" on startup
+  "copilotCLI.streaming": true            // Stream responses as they arrive (false = wait for completion)
 }
 ```
 

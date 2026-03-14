@@ -143,7 +143,8 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			planModeStatus: fullState.planModeStatus,
 			workspacePath: fullState.workspacePath,
 			activeFilePath: fullState.activeFilePath,
-			currentModel: fullState.currentModel
+			currentModel: fullState.currentModel,
+			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 		});
 	}));
 
@@ -201,6 +202,29 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			// CLI may throw "Workspace not found" on resumed sessions (github/copilot-cli#1865).
 			// The session-name.txt written above ensures the label still updates.
 			logger.warn(`[Rename Session] CLI rename failed (session-name.txt fallback applied): ${error.message}`);
+		}
+	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestCompact(async () => {
+		logger.info('[Compact] Compact requested');
+		if (!cliManager) {
+			chatProvider.addAssistantMessage('⚠ No active session — start a session first.');
+			return;
+		}
+		try {
+			const result = await cliManager.compactSession();
+			if (!result) {
+				chatProvider.addAssistantMessage('✓ Compaction complete.');
+			} else {
+				const { tokensRemoved, messagesRemoved } = result as any;
+				const parts: string[] = [];
+				if (typeof tokensRemoved === 'number') { parts.push(`freed ${tokensRemoved.toLocaleString()} tokens`); }
+				if (typeof messagesRemoved === 'number') { parts.push(`removed ${messagesRemoved} messages`); }
+				const summary = parts.length > 0 ? parts.join(', ') : 'context compacted';
+				chatProvider.addAssistantMessage(`✓ Compaction complete — ${summary}.`);
+			}
+		} catch (error: any) {
+			chatProvider.addAssistantMessage(`⚠ Compaction failed: ${error.message}`);
 		}
 	}));
 }
@@ -312,7 +336,8 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 		planModeStatus: fullState.planModeStatus,
 		workspacePath: fullState.workspacePath,
 		activeFilePath: fullState.activeFilePath,
-		currentModel: fullState.currentModel
+		currentModel: fullState.currentModel,
+		showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 	});
 	updateSessionsList();
 }
@@ -454,15 +479,15 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 
 /** Wire all 10 granular event subscriptions from the SDK manager to the UI. */
 function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager): void {
-	context.subscriptions.push(manager.onDidReceiveOutput(safeHandler('onDidReceiveOutput', (content) => {
-		logger.debug(`[CLI Output] ${content}`);
-		chatProvider.addAssistantMessage(content);
+	context.subscriptions.push(manager.onDidReceiveOutput(safeHandler('onDidReceiveOutput', (data) => {
+		logger.debug(`[CLI Output] ${data.content}`);
+		chatProvider.addAssistantMessage(data.content, data.messageId);
 		chatProvider.setThinking(false);
 	})));
 
-	context.subscriptions.push(manager.onDidReceiveReasoning(safeHandler('onDidReceiveReasoning', (content) => {
+	context.subscriptions.push(manager.onDidReceiveReasoning(safeHandler('onDidReceiveReasoning', ({ reasoningId, content }) => {
 		logger.debug(`[Assistant Reasoning] ${content.substring(0, 100)}...`);
-		chatProvider.addReasoningMessage(content);
+		chatProvider.addReasoningMessage(content, true, reasoningId);
 	})));
 
 	context.subscriptions.push(manager.onDidReceiveError(safeHandler('onDidReceiveError', (errorMsg) => {
@@ -593,6 +618,19 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {
 		logger.debug(`[Usage Info] ${usageData.currentTokens}/${usageData.tokenLimit}`);
 		chatProvider.postMessage({ type: 'usage_info', data: usageData });
+	})));
+
+	context.subscriptions.push(manager.onDidTaskComplete(safeHandler('onDidTaskComplete', (data) => {
+		logger.info(`[Task Complete] summary=${data.summary}`);
+		chatProvider.sendTaskComplete(data.summary);
+	})));
+
+	context.subscriptions.push(manager.onDidMessageDelta(safeHandler('onDidMessageDelta', (data) => {
+		chatProvider.sendMessageDelta(data.messageId, data.deltaContent);
+	})));
+
+	context.subscriptions.push(manager.onDidReceiveReasoningDelta(safeHandler('onDidReceiveReasoningDelta', (data) => {
+		chatProvider.sendReasoningDelta(data.reasoningId, data.deltaContent);
 	})));
 }
 
@@ -762,7 +800,8 @@ function getCLIConfig(): CLIConfig {
 		agent: config.get<string>('agent', ''),
 		model: config.get<string>('model', ''),
 		planModel: config.get<string>('planModel', ''),
-		noAskUser: config.get<boolean>('noAskUser', false)
+		noAskUser: config.get<boolean>('noAskUser', false),
+		streaming: config.get<boolean>('streaming', true)
 	};
 }
 

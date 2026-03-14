@@ -52,7 +52,8 @@ export type WebviewMessageType =
 	| 'openFile'
 	| 'saveMermaidImage'
 	| 'switchModel'
-	| 'renameSession';
+	| 'renameSession'
+	| 'compact';
 
 /**
  * Send user message to agent
@@ -230,6 +231,10 @@ export interface RenameSessionPayload extends BaseMessage {
 	name: string;  // empty string = show input box
 }
 
+export interface CompactPayload extends BaseMessage {
+	type: 'compact';
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -256,7 +261,8 @@ export type WebviewMessage =
 	| OpenFilePayload
 	| SaveMermaidImagePayload
 	| SwitchModelPayload
-	| RenameSessionPayload;
+	| RenameSessionPayload
+	| CompactPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -288,7 +294,10 @@ export type ExtensionMessageType =
 	| 'usage_info'
 	| 'modelSwitched'
 	| 'currentModel'
-	| 'availableModels';
+	| 'availableModels'
+	| 'taskComplete'
+	| 'messageDelta'
+	| 'reasoningDelta';
 
 /**
  * Initialize webview with full state
@@ -302,6 +311,7 @@ export interface InitPayload extends BaseMessage {
 	workspacePath: string | null;
 	activeFilePath: string | null;
 	currentModel: string | null;
+	showReasoning?: boolean;
 }
 
 /**
@@ -319,6 +329,7 @@ export interface UserMessagePayload extends BaseMessage {
 export interface AssistantMessagePayload extends BaseMessage {
 	type: 'assistantMessage';
 	text: string;
+	messageId?: string;
 }
 
 /**
@@ -327,6 +338,25 @@ export interface AssistantMessagePayload extends BaseMessage {
 export interface ReasoningMessagePayload extends BaseMessage {
 	type: 'reasoningMessage';
 	text: string;
+	reasoningId?: string;
+}
+
+/**
+ * Streaming delta chunk for progressive rendering
+ */
+export interface MessageDeltaPayload extends BaseMessage {
+	type: 'messageDelta';
+	messageId: string;
+	deltaContent: string;
+}
+
+/**
+ * Streaming delta chunk for reasoning progressive rendering
+ */
+export interface ReasoningDeltaPayload extends BaseMessage {
+	type: 'reasoningDelta';
+	reasoningId: string;
+	deltaContent: string;
 }
 
 /**
@@ -491,6 +521,14 @@ export interface AvailableModelsPayload extends BaseMessage {
 }
 
 /**
+ * Session task complete indicator
+ */
+export interface TaskCompletePayload extends BaseMessage {
+	type: 'taskComplete';
+	summary?: string;
+}
+
+/**
  * Union of all extension → webview messages
  */
 export type ExtensionMessage =
@@ -516,7 +554,10 @@ export type ExtensionMessage =
 	| UsageInfoPayload
 	| ModelSwitchedPayload
 	| CurrentModelPayload
-	| AvailableModelsPayload;
+	| AvailableModelsPayload
+	| TaskCompletePayload
+	| MessageDeltaPayload
+	| ReasoningDeltaPayload;
 
 // ============================================================================
 // Type Guards
@@ -553,7 +594,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'openFile',
 		'saveMermaidImage',
 		'switchModel',
-		'renameSession'
+		'renameSession',
+		'compact'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);
@@ -589,7 +631,11 @@ export function isExtensionMessage(message: any): message is ExtensionMessage {
 		'status',
 		'usage_info',
 		'modelSwitched',
-		'currentModel'
+		'currentModel',
+		'availableModels',
+		'taskComplete',
+		'messageDelta',
+		'reasoningDelta'
 	];
 
 	return validTypes.includes(message.type as ExtensionMessageType);

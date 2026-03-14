@@ -38,6 +38,14 @@ export class MessageDisplay {
 
         this.render();
 
+        // Streaming state: tracks in-progress assistant bubbles keyed by messageId
+        // Each entry: { el, contentEl, deltaCount, buffer, renderedUpTo }
+        this.streamingBubbles = new Map();
+
+        // Reasoning streaming state: tracks in-progress reasoning bubbles keyed by reasoningId
+        // Each entry: { el, contentEl }
+        this.reasoningStreamingBubbles = new Map();
+
         // Create ToolExecution as child component - owns tool rendering
         this.toolExecution = new ToolExecution(this.messagesContainer, eventBus);
 
@@ -71,10 +79,44 @@ export class MessageDisplay {
             this.addMessage(message);
         });
 
+        // Subscribe to message:delta event for streaming progressive rendering
+        this.eventBus.on('message:delta', (data) => {
+            const state = this._getOrCreateStreamingBubble(data.messageId);
+            state.deltaCount++;
+            state.buffer += data.deltaContent;
+            this._renderDeltaProgress(state);
+        });
+
+        // Subscribe to task:complete event
+        this.eventBus.on('task:complete', (data) => {
+            this.addTaskComplete(data);
+        });
+
         // Subscribe to reasoning:toggle event
         this.eventBus.on('reasoning:toggle', (enabled) => {
             this.showReasoning = enabled;
             this.updateReasoningVisibility();
+        });
+
+        // Subscribe to reasoning:delta event for real-time reasoning streaming
+        this.eventBus.on('reasoning:delta', (data) => {
+            if (!this.showReasoning) { return; }
+            let state = this.reasoningStreamingBubbles.get(data.reasoningId);
+            if (!state) {
+                const el = document.createElement('div');
+                el.className = 'message message-display__item message-display__item--reasoning';
+                el.setAttribute('aria-label', 'Assistant reasoning');
+                el.style.display = this.showReasoning ? 'block' : 'none';
+                el.innerHTML = `
+                    <div class="message-header message-display__header" style="font-style: italic;">Assistant Reasoning</div>
+                    <div class="message-content message-display__content" style="font-style: italic;"></div>
+                `;
+                const contentEl = el.querySelector('.message-display__content');
+                this.messagesContainer.appendChild(el);
+                state = { el, contentEl };
+                this.reasoningStreamingBubbles.set(data.reasoningId, state);
+            }
+            state.contentEl.textContent += data.deltaContent;
         });
 
         // Delegated click handler for image file links
@@ -224,7 +266,49 @@ export class MessageDisplay {
     }
 
     addMessage(message) {
-        const { role, content, attachments, timestamp } = message;
+        const { role, content, attachments, timestamp, messageId, reasoningId } = message;
+
+        // --- Streaming finalization path ---
+        // If we already have a streaming bubble for this messageId, finalize it.
+        if (role === 'assistant' && messageId && this.streamingBubbles.has(messageId)) {
+            const state = this.streamingBubbles.get(messageId);
+            // Clear inactivity timer to prevent double-render race
+            if (state.flushTimer !== null) {
+                clearTimeout(state.flushTimer);
+                state.flushTimer = null;
+            }
+            // Flush remaining buffer
+            this._removeTypingIndicator(state);
+            const remaining = state.buffer.slice(state.renderedUpTo);
+            if (remaining) {
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(remaining) : remaining);
+            }
+            // Post-process the whole bubble for SVG/mermaid
+            this._renderSvgBlocks(state.el);
+            this._renderMermaidBlocks(state.el);
+            // Remove hidden class (Claude path: bubble was never shown)
+            state.el.classList.remove('streaming-hidden');
+            // Add fade-in animation
+            state.el.classList.add('streaming-fade-in');
+            this.streamingBubbles.delete(messageId);
+            return; // Don't create a duplicate bubble
+        }
+
+        // --- Reasoning streaming finalization path ---
+        // If we already have a streaming reasoning bubble for this reasoningId, finalize it.
+        if (role === 'reasoning' && reasoningId && this.reasoningStreamingBubbles.has(reasoningId)) {
+            const state = this.reasoningStreamingBubbles.get(reasoningId);
+            // Replace textContent with canonical final text
+            state.contentEl.textContent = content || '';
+            this.reasoningStreamingBubbles.delete(reasoningId);
+            return; // Don't create a duplicate bubble
+        }
+
+        // Guard: skip creating an empty assistant bubble (e.g. finalization signal from Part 2 suppression)
+        if (role === 'assistant' && (!content || !content.trim())) {
+            return;
+        }
 
         // Hide empty state after first message
         if (this.emptyState) {
@@ -283,6 +367,242 @@ export class MessageDisplay {
 
         this.messagesContainer.appendChild(messageDiv);
         // MutationObserver handles scrolling automatically
+    }
+
+    /**
+     * Render a task-complete callout when session.task_complete fires.
+     * @param {{ summary?: string }} data
+     */
+    addTaskComplete(data) {
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'message message-display__item message-display__item--task-complete';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-label', 'Task complete');
+
+        const summaryHtml = data && data.summary
+            ? `<div class="message-display__task-complete-summary">${escapeHtml(data.summary)}</div>`
+            : '';
+
+        el.innerHTML = `
+            <div class="message-display__task-complete-header">✓ Task Complete</div>
+            ${summaryHtml}
+        `;
+
+        this.messagesContainer.appendChild(el);
+    }
+
+    // =========================================================================
+    // Streaming helpers
+    // =========================================================================
+
+    /**
+     * Get or create a streaming bubble state for the given messageId.
+     * @param {string} messageId
+     * @returns {{ el, contentEl, deltaCount, buffer, renderedUpTo, flushTimer }}
+     */
+    _getOrCreateStreamingBubble(messageId) {
+        if (this.streamingBubbles.has(messageId)) {
+            return this.streamingBubbles.get(messageId);
+        }
+        const state = this._createStreamingBubble(messageId);
+        this.streamingBubbles.set(messageId, state);
+        return state;
+    }
+
+    /**
+     * Create a new streaming bubble DOM element and return its state object.
+     * The bubble starts with class `streaming-hidden` (opacity: 0) until
+     * deltaCount reaches 2 (GPT path) or finalization (Claude path).
+     * @param {string} messageId
+     */
+    _createStreamingBubble(messageId) {
+        if (this.emptyState) {
+            this.emptyState.style.display = 'none';
+        }
+
+        const el = document.createElement('div');
+        el.className = 'message message-display__item message-display__item--assistant streaming-hidden';
+        el.setAttribute('role', 'article');
+        el.setAttribute('aria-label', 'Assistant message');
+        el.dataset.messageId = messageId;
+
+        el.innerHTML = `
+            <div class="message-header message-display__header">Assistant</div>
+            <div class="message-content message-display__content"></div>
+        `;
+
+        const contentEl = el.querySelector('.message-display__content');
+        contentEl.innerHTML = '<div class="typing-indicator"><span class="typing-indicator__dot"></span><span class="typing-indicator__dot"></span><span class="typing-indicator__dot"></span></div>';
+        this.messagesContainer.appendChild(el);
+
+        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0, flushTimer: null, typingIndicatorRemoved: false };
+    }
+
+    /**
+     * Remove the typing indicator dots from a streaming bubble (once).
+     */
+    _removeTypingIndicator(state) {
+        if (!state.typingIndicatorRemoved) {
+            const indicator = state.contentEl.querySelector('.typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+            state.typingIndicatorRemoved = true;
+        }
+    }
+
+    /**
+     * Called after each new delta chunk. Decides whether to flush safe markdown units.
+     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo, flushTimer }} state
+     */
+    _renderDeltaProgress(state) {
+        // Reset inactivity timer on every new delta
+        if (state.flushTimer !== null) {
+            clearTimeout(state.flushTimer);
+        }
+        state.flushTimer = setTimeout(() => {
+            state.flushTimer = null;
+            // Force-flush any pending buffer that _flushSafeMarkdown wouldn't emit yet
+            const pending = state.buffer.slice(state.renderedUpTo);
+            if (pending) {
+                this._removeTypingIndicator(state);
+                state.el.classList.remove('streaming-hidden');
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(pending) : pending);
+                state.renderedUpTo = state.buffer.length;
+                this.autoScroll();
+            }
+        }, 1500);
+
+        if (state.deltaCount < 2) {
+            // Still hidden — accumulate buffer, don't touch DOM
+            return;
+        }
+        if (state.deltaCount === 2) {
+            // Make visible for the first time (GPT path)
+            state.el.classList.remove('streaming-hidden');
+        }
+        this._flushSafeMarkdown(state);
+        this.autoScroll();
+    }
+
+    /**
+     * Streaming state machine: flush completed markdown constructs from the buffer.
+     * Only renders "safe" units — ones where we know the markdown is complete:
+     *   - Paragraphs (terminated by \n\n)
+     *   - Headings (line starting with # terminated by \n)
+     *   - Code fences (``` ... ```)
+     *   - Images (![alt](url))
+     *   - Tables (lines starting with | ... blank line)
+     *
+     * Uses insertAdjacentHTML (not innerHTML+=) to avoid O(n²) re-serialization.
+     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo }} state
+     */
+    _flushSafeMarkdown(state) {
+        const buf = state.buffer;
+        let pos = state.renderedUpTo;
+        let openConstruct = 'none'; // 'none' | 'codeFence' | 'image' | 'table'
+        let unitStart = pos;
+
+        while (pos < buf.length) {
+            const remaining = buf.slice(pos);
+
+            if (openConstruct === 'none') {
+                // Detect code fence open
+                if (remaining.startsWith('```')) {
+                    openConstruct = 'codeFence';
+                    pos += 3;
+                    // Skip language specifier line
+                    const nl = buf.indexOf('\n', pos);
+                    if (nl === -1) break; // Not enough data yet
+                    pos = nl + 1;
+                    continue;
+                }
+                // Detect image open
+                if (remaining.startsWith('![')) {
+                    openConstruct = 'image';
+                    pos += 2;
+                    continue;
+                }
+                // Detect table (line starts with |)
+                if (remaining.startsWith('|')) {
+                    openConstruct = 'table';
+                    pos += 1;
+                    continue;
+                }
+                // Detect heading (line starts with #)
+                if (remaining.startsWith('#')) {
+                    const nl = buf.indexOf('\n', pos);
+                    if (nl === -1) break; // Not enough data yet
+                    pos = nl + 1;
+                    const unit = buf.slice(unitStart, pos);
+                    this._removeTypingIndicator(state);
+                    state.contentEl.insertAdjacentHTML('beforeend',
+                        typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                    state.renderedUpTo = pos;
+                    unitStart = pos;
+                    continue;
+                }
+                // Detect paragraph completion (\n\n)
+                const doubleNl = buf.indexOf('\n\n', pos);
+                if (doubleNl === -1) break; // No complete paragraph yet
+                pos = doubleNl + 2;
+                const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+
+            } else if (openConstruct === 'codeFence') {
+                // Look for closing ```
+                const closeIdx = buf.indexOf('```', pos);
+                if (closeIdx === -1) break; // Code fence not closed yet
+                pos = closeIdx + 3;
+                // Skip trailing newline after closing fence
+                if (buf[pos] === '\n') pos++;
+                const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else if (openConstruct === 'image') {
+                // Look for closing ) after the (url part
+                const closeIdx = buf.indexOf(')', pos);
+                if (closeIdx === -1) break; // Image not complete yet
+                pos = closeIdx + 1;
+                const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else if (openConstruct === 'table') {
+                // Table ends at blank line (double newline)
+                const blankLine = buf.indexOf('\n\n', pos);
+                if (blankLine === -1) break; // Table not complete yet
+                pos = blankLine + 2;
+                const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(unit) : unit);
+                state.renderedUpTo = pos;
+                unitStart = pos;
+                openConstruct = 'none';
+
+            } else {
+                pos++;
+            }
+        }
     }
 
     /**

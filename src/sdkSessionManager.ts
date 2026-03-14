@@ -197,6 +197,7 @@ export interface CLIConfig {
     model?: string;
     planModel?: string;
     noAskUser?: boolean;
+    streaming?: boolean;
 }
 
 export interface ToolExecutionState {
@@ -247,6 +248,10 @@ export interface UsageData {
     messagesLength?: number;
 }
 
+export interface TaskCompleteData {
+    summary?: string;
+}
+
 type SessionMode = 'work' | 'plan';
 
 export class SDKSessionManager implements vscode.Disposable {
@@ -259,11 +264,17 @@ export class SDKSessionManager implements vscode.Disposable {
     private readonly _sessionSub = this._reg(new MutableDisposable<vscode.Disposable>());
     
     // Granular event emitters (created once, survive session switches)
-    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<string>());
+    private readonly _onDidReceiveOutput = this._reg(new BufferedEmitter<{ content: string; messageId: string }>());
     readonly onDidReceiveOutput = this._onDidReceiveOutput.event;
+
+    private readonly _onDidMessageDelta = this._reg(new BufferedEmitter<{ messageId: string; deltaContent: string }>());
+    readonly onDidMessageDelta = this._onDidMessageDelta.event;
     
-    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<string>());
+    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<{ reasoningId: string; content: string }>());
     readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;
+
+    private readonly _onDidReceiveReasoningDelta = this._reg(new BufferedEmitter<{ reasoningId: string; deltaContent: string }>());
+    readonly onDidReceiveReasoningDelta = this._onDidReceiveReasoningDelta.event;
     
     private readonly _onDidReceiveError = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveError = this._onDidReceiveError.event;
@@ -288,6 +299,9 @@ export class SDKSessionManager implements vscode.Disposable {
     
     private readonly _onDidUpdateUsage = this._reg(new BufferedEmitter<UsageData>());
     readonly onDidUpdateUsage = this._onDidUpdateUsage.event;
+
+    private readonly _onDidTaskComplete = this._reg(new BufferedEmitter<TaskCompleteData>());
+    readonly onDidTaskComplete = this._onDidTaskComplete.event;
     
     private logger: Logger;
     private workingDirectory: string;
@@ -383,6 +397,7 @@ export class SDKSessionManager implements vscode.Disposable {
             ...resumeOptions,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
+            streaming: this.config.streaming ?? true,
         };
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
@@ -647,18 +662,39 @@ export class SDKSessionManager implements vscode.Disposable {
                     }
                 }
                 
-                // Only fire output message if there's actual content
-                if (event.data.content && event.data.content.trim().length > 0) {
-                    this._onDidReceiveOutput.fire(event.data.content);
+                // Fire output message, conditioned on toolRequests presence.
+                // When toolRequests are present, content is a mid-thought fragment — suppress it.
+                // We still send an empty finalization signal so any streaming bubble gets finalized.
+                // See ADR-006 Decision 3.
+                const hasToolRequests = event.data.toolRequests && event.data.toolRequests.length > 0;
+                const hasContent = event.data.content && event.data.content.trim().length > 0;
+                if (hasContent && !hasToolRequests) {
+                    this._onDidReceiveOutput.fire({ content: event.data.content, messageId: event.data.messageId ?? '' });
+                } else if (hasToolRequests && event.data.messageId) {
+                    // Suppress content but send empty signal to finalize any in-progress streaming bubble
+                    this._onDidReceiveOutput.fire({ content: '', messageId: event.data.messageId });
                 }
                 break;
 
             case 'assistant.reasoning':
-                this._onDidReceiveReasoning.fire(event.data.content);
+                this._onDidReceiveReasoning.fire({ reasoningId: event.data.reasoningId ?? '', content: event.data.content });
+                break;
+
+            case 'assistant.reasoning_delta':
+                this._onDidReceiveReasoningDelta.fire({
+                    reasoningId: event.data.reasoningId,
+                    deltaContent: event.data.deltaContent,
+                });
+                break;
+
+            case 'user.message':
                 break;
 
             case 'assistant.message_delta':
-                // Streaming message chunks (optional - can enable for real-time streaming)
+                this._onDidMessageDelta.fire({
+                    messageId: event.data.messageId,
+                    deltaContent: event.data.deltaContent,
+                });
                 break;
 
             case 'tool.execution_start':
@@ -671,6 +707,12 @@ export class SDKSessionManager implements vscode.Disposable {
 
             case 'tool.execution_complete':
                 this.handleToolComplete(event);
+                break;
+
+            case 'tool.execution_partial_result':
+                // Incremental (cumulative) stdout/stderr from a running tool.
+                // Stored for future "live output" feature — see planning/backlog/stream-tool-output-on-request.md
+                this.logger.debug(`[Tool Output] ${event.data.toolCallId}: ${event.data.partialOutput?.length ?? 0} chars`);
                 break;
 
             case 'session.error':
@@ -753,12 +795,6 @@ export class SDKSessionManager implements vscode.Disposable {
                 }
                 break;
 
-            // New SDK events — log for observability
-            case 'user.message':
-            case 'assistant.message_delta':
-            case 'assistant.usage':
-                break;  // High-frequency events, already logged at debug level above
-
             case 'session.model_change':
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
                 if (event.data.newModel) {
@@ -806,6 +842,28 @@ export class SDKSessionManager implements vscode.Disposable {
             case 'hook.end':
             case 'skill.invoked':
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'subagent.deselected':
+                this.logger.info(`[SDK Event] subagent.deselected: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'session.background_tasks_changed':
+                this.logger.info(`[SDK Event] session.background_tasks_changed: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'system.notification':
+                this.logger.info(`[SDK Event] system.notification kind=${event.data?.kind?.description}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'permission.requested':
+            case 'permission.completed':
+                this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'session.task_complete':
+                this.logger.info(`[SDK Event] session.task_complete summary=${event.data?.summary}: ${JSON.stringify(event.data)}`);
+                this._onDidTaskComplete.fire({ summary: event.data?.summary });
                 break;
 
             default:
@@ -1356,6 +1414,26 @@ export class SDKSessionManager implements vscode.Disposable {
         return this.config.model;
     }
 
+    /**
+     * Manually trigger context compaction via rpc.compaction.compact().
+     * Returns token/message counts freed, or null if no session is active.
+     */
+    public async compactSession(): Promise<{ tokensRemoved?: number; messagesRemoved?: number } | null> {
+        if (!this.session) {
+            this.logger.warn('[Compact] No active session');
+            return null;
+        }
+        try {
+            this.logger.info('[Compact] Requesting context compaction...');
+            const result = await this.session.rpc.compaction.compact();
+            this.logger.info(`[Compact] Compaction complete: ${JSON.stringify(result)}`);
+            return result ?? null;
+        } catch (error) {
+            this.logger.error(`[Compact] Compaction failed: ${error instanceof Error ? error.message : error}`);
+            throw error;
+        }
+    }
+
     public async stop(): Promise<void> {
         this.logger.info('Stopping SDK session manager...');
         
@@ -1567,7 +1645,7 @@ export class SDKSessionManager implements vscode.Disposable {
             
             // Send visual message to chat
             this.logger.info(`[Plan Mode]   Sending visual message to chat`);
-            this._onDidReceiveOutput.fire(
+            this._onDidReceiveOutput.fire({ content:
                 `🎯 **Entered Plan Mode**\n\n` +
                 `You can now analyze the codebase and design solutions without modifying files.\n\n` +
                 `**To create/update your plan:**\n` +
@@ -1582,8 +1660,8 @@ export class SDKSessionManager implements vscode.Disposable {
                 `- \`bash\` (read-only) - Run safe commands like \`ls\`, \`pwd\`, \`git status\`\n` +
                 `- \`task(agent_type="explore")\` - Dispatch exploration tasks\n` +
                 `- \`web_fetch\` - Fetch documentation\n\n` +
-                `Use **Accept** when ready to implement, or **Reject** to discard changes.`
-            );
+                `Use **Accept** when ready to implement, or **Reject** to discard changes.`,
+                messageId: '' });
             
             this.logger.info('═══════════════════════════════════════════════════════════');
             this.logger.info('✅ PLAN MODE SETUP - COMPLETE');
@@ -1707,7 +1785,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('[Plan Mode] plan_mode_disabled event emitted');
         
         // Send visual message to chat
-        this._onDidReceiveOutput.fire('✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!');
+        this._onDidReceiveOutput.fire({ content: '✅ **Exited Plan Mode**\n\nBack to work mode - ready to implement!', messageId: '' });
     }
     
     /**
@@ -1730,7 +1808,7 @@ export class SDKSessionManager implements vscode.Disposable {
         const planPath = path.join(workSessionPath, 'plan.md');
         
         // Send visual message to chat BEFORE exiting plan mode
-        this._onDidReceiveOutput.fire('✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...');
+        this._onDidReceiveOutput.fire({ content: '✅ **Plan Accepted**\n\nPlan changes kept. Exiting plan mode...', messageId: '' });
         
         // Exit plan mode
         await this.disablePlanMode();
@@ -1802,7 +1880,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.planModeSnapshot = null;
         
         // Send visual message to chat BEFORE exiting plan mode
-        this._onDidReceiveOutput.fire('❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...');
+        this._onDidReceiveOutput.fire({ content: '❌ **Plan Rejected**\n\nChanges discarded. Exiting plan mode...', messageId: '' });
         
         // Exit plan mode
         await this.disablePlanMode();
@@ -1906,6 +1984,8 @@ export class SDKSessionManager implements vscode.Disposable {
             ...config,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
+            onEvent: (event: any) => this._handleSDKEvent(event),
+            streaming: this.config.streaming ?? true,
         };
 
         const MAX_FALLBACK_ATTEMPTS = 3;
@@ -1963,13 +2043,13 @@ export class SDKSessionManager implements vscode.Disposable {
             vscode.window.showErrorMessage(
                 `Model "${requestedModel}" is not supported by your account and no supported fallback model could be selected.`
             );
-            this._onDidReceiveOutput.fire(
+            this._onDidReceiveOutput.fire({ content:
                 `**Model Unavailable**\n\n` +
                 `Model \`${requestedModel}\` is not supported by your account, ` +
                 `and no supported fallback model could be selected.\n\n` +
                 `**Models tried:** ${Array.from(triedModels).map(m => `\`${m}\``).join(', ')}\n\n` +
-                `Please update your model in **Settings > Copilot CLI > Model**.`
-            );
+                `Please update your model in **Settings > Copilot CLI > Model**.`,
+                messageId: '' });
             throw error;
         }
     }
@@ -1981,12 +2061,12 @@ export class SDKSessionManager implements vscode.Disposable {
         vscode.window.showWarningMessage(
             `Model "${requestedModel}" is not available. Using "${actualModel}" instead.`
         );
-        this._onDidReceiveOutput.fire(
+        this._onDidReceiveOutput.fire({ content:
             `**Model Fallback**\n\n` +
             `Model \`${requestedModel}\` is not available for your account. ` +
             `Using \`${actualModel}\` instead.\n\n` +
-            `To change your default model, go to **Settings > Copilot CLI > Model**.`
-        );
+            `To change your default model, go to **Settings > Copilot CLI > Model**.`,
+            messageId: '' });
         this.logger.info(`[Model Fallback] Successfully fell back from "${requestedModel}" to "${actualModel}"`);
     }
 

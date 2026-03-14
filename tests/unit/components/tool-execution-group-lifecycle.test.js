@@ -97,17 +97,17 @@ describe('ToolExecution - Tool Group Lifecycle', () => {
         });
     });
 
-    describe('Reasoning message does NOT close tool group', () => {
-        it('should keep tools in same group across reasoning messages', () => {
+    describe('Reasoning message closes tool group (Opportunity C)', () => {
+        it('should start a new tool group after a reasoning message', () => {
             emitToolStart('tool-r1');
 
-            // Reasoning message arrives (not user/assistant)
+            // Reasoning message arrives — closes the current group
             eventBus.emit('message:add', { role: 'reasoning', content: 'Thinking...' });
 
             emitToolStart('tool-r2');
 
             const groups = container.querySelectorAll('.tool-group');
-            expect(groups.length, 'reasoning should not split tool groups').to.equal(1);
+            expect(groups.length, 'reasoning should split tool groups').to.equal(2);
         });
     });
 

@@ -73,13 +73,14 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
 export function classifySessionError(error: Error): ErrorType {
     const msg = error.message.toLowerCase();
     
-    // 1. Session expired/not found patterns (check first - most specific)
-    //    Session doesn't exist anymore or was deleted
-    //    NOT retriable - session is permanently gone
+    // 1. Session expired/not found/corrupted patterns (check first - most specific)
+    //    Session doesn't exist anymore, was deleted, or has an incompatible format
+    //    NOT retriable - session is permanently unresumable
     if ((msg.includes('not found') && msg.includes('session')) || 
         (msg.includes('invalid') && msg.includes('session')) ||
         msg.includes('session does not exist') ||
-        (msg.includes('session') && (msg.includes('expired') || msg.includes('deleted')))) {
+        (msg.includes('session') && (msg.includes('expired') || msg.includes('deleted'))) ||
+        msg.includes('session file is corrupted')) {
         return 'session_expired';
     }
     

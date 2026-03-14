@@ -1,0 +1,248 @@
+SDK loaded.
+
+============================================================
+SCENARIO: 1: streaming:true — simple text response
+============================================================
+Session opts: {
+  "model": "gpt-4.1",
+  "streaming": true
+}
+[CLI subprocess] (node:2756252) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+Session created: ae8216e6-b597-417e-91a4-a8b63ed2f362
+
+Prompt: "Say exactly: "Hello streaming world." Nothing else."
+  [DELTA #1] "{\"messageId\":\"ec7d03c1-cc63-48d9-8aec-fb984476692d\",\"d
+  [MESSAGE] (no text field)
+  [TURN END]
+
+Result text (first 200 chars): (none)
+Total events: 18
+Delta events: 4
+Message events: 1
+
+First delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "ec7d03c1-cc63-48d9-8aec-fb984476692d",
+    "deltaContent": "Hello"
+  },
+  "id": "b8cd0a22-869f-4097-a98d-03494567a279",
+  "timestamp": "2026-03-13T14:13:41.444Z",
+  "parentId": "6f0bd5d0-7489-4a3d-a70d-cbea8135eda0",
+  "ephemeral": true
+}
+Last delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "ec7d03c1-cc63-48d9-8aec-fb984476692d",
+    "deltaContent": "."
+  },
+  "id": "6c49f65f-c672-4cd7-bd20-87ec4e314dab",
+  "timestamp": "2026-03-13T14:13:41.855Z",
+  "parentId": "fcb8423f-c60b-4b46-a2c5-76da7fc753f7",
+  "ephemeral": true
+}
+
+First message shape: {
+  "type": "assistant.message",
+  "data": {
+    "messageId": "ec7d03c1-cc63-48d9-8aec-fb984476692d",
+    "content": "Hello streaming world.",
+    "toolRequests": [],
+    "interactionId": "a606b16c-f193-4f26-8ba2-a7f46379afad",
+    "outputTokens": 6
+  },
+  "id": "ce47f09b-d435-4f7e-ae52-87f1027738c2",
+  "timestamp": "2026-03-13T14:13:41.866Z",
+  "parentId": "282d0a83-9eeb-4f8d-ba04-a709785be714"
+}
+
+All unique event types seen: pending_messages.modified, session.tools_updated, user.message, assistant.turn_start, session.usage_info, assistant.streaming_delta, assistant.message_delta, assistant.usage, assistant.message, assistant.turn_end, session.idle
+
+============================================================
+SCENARIO: 2: streaming:false (default) — simple text response
+============================================================
+Session opts: {
+  "model": "gpt-4.1",
+  "streaming": false
+}
+[CLI subprocess] (node:2756304) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+Session created: 46b057ef-b6cf-4219-bd6a-d1c4930c535a
+
+Prompt: "Say exactly: "Hello streaming world." Nothing else."
+  [MESSAGE] (no text field)
+  [TURN END]
+
+Result text (first 200 chars): (none)
+Total events: 10
+Delta events: 0
+Message events: 1
+
+First message shape: {
+  "type": "assistant.message",
+  "data": {
+    "messageId": "21f96bba-228c-4366-a24c-16f4a35e8921",
+    "content": "Hello streaming world.",
+    "toolRequests": [],
+    "interactionId": "060be940-3d7b-432c-8fb4-c6296d8766d4",
+    "outputTokens": 6
+  },
+  "id": "76a83b79-405c-4c59-936d-a08bdf0d3277",
+  "timestamp": "2026-03-13T14:13:44.953Z",
+  "parentId": "e786f41e-cdf0-4c5c-aaa8-b12b3a347aaf"
+}
+
+All unique event types seen: pending_messages.modified, session.tools_updated, user.message, assistant.turn_start, session.usage_info, assistant.usage, assistant.message, assistant.turn_end, session.idle
+
+============================================================
+SCENARIO: 3: streaming:true — tool-using response
+============================================================
+Session opts: {
+  "model": "gpt-4.1",
+  "streaming": true
+}
+[CLI subprocess] (node:2756345) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+Session created: 0d6f24ae-d31a-4da7-82e1-32dd0f26fcbb
+
+Prompt: "What is the version in package.json? Use a tool to read it, then output only the version string."
+  [MESSAGE] (no text field)
+  [TOOL START] view
+  [TURN END]
+  [DELTA #1] "{\"messageId\":\"f15563d2-01a9-4f04-8bbc-3b5dd4fb6389\",\"d
+  [DELTA #5] "{\"messageId\":\"f15563d2-01a9-4f04-8bbc-3b5dd4fb6389\",\"d
+  [MESSAGE] (no text field)
+  [TURN END]
+
+Result text (first 200 chars): (none)
+Total events: 49
+Delta events: 5
+Message events: 2
+
+First delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "f15563d2-01a9-4f04-8bbc-3b5dd4fb6389",
+    "deltaContent": "3"
+  },
+  "id": "6afb8a01-ed05-404f-992c-f1fa7ca37562",
+  "timestamp": "2026-03-13T14:13:49.755Z",
+  "parentId": "9af83520-96e5-42e4-8cc4-e6f8b35f61f9",
+  "ephemeral": true
+}
+Last delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "f15563d2-01a9-4f04-8bbc-3b5dd4fb6389",
+    "deltaContent": "0"
+  },
+  "id": "aac1f8ea-e8c0-4e9c-821d-0dc99d6ad8eb",
+  "timestamp": "2026-03-13T14:13:49.756Z",
+  "parentId": "63b25029-0610-4c9a-a71e-b49c1ef3cae3",
+  "ephemeral": true
+}
+
+First message shape: {
+  "type": "assistant.message",
+  "data": {
+    "messageId": "f9170599-d55b-4e9e-8c61-67192c7b431e",
+    "content": "",
+    "toolRequests": [
+      {
+        "toolCallId": "call_k6yk6E2JpDpsLRCawsBBs2eG",
+        "name": "view",
+        "arguments": {
+          "path": "/home/smolen/dev/vscode-copilot-cli-extension/package.json"
+        },
+        "type": "function",
+        "intentionSummary": "view the file at /home/smolen/dev/vscode-copilot-cli-extension/package.json."
+      }
+    ],
+    "interactionId": "af609ce1-29a6-41b8-8c8f-e626013699df",
+    "outputTokens": 28
+  },
+  "id": "72215f7c-282b-4981-a47f-dd03bf953abf",
+  "timestamp": "2026-03-13T14:13:48.444Z",
+  "parentId": "3b22e976-c808-4e11-a193-4542bf79c7d5"
+}
+
+All unique event types seen: pending_messages.modified, session.tools_updated, user.message, assistant.turn_start, session.usage_info, assistant.streaming_delta, assistant.usage, assistant.message, tool.execution_start, permission.requested, permission.completed, tool.execution_complete, assistant.turn_end, assistant.message_delta, session.idle
+
+============================================================
+SCENARIO: 4: streaming:true — claude-sonnet-4.5 (reasoning model)
+============================================================
+Session opts: {
+  "model": "claude-sonnet-4.5",
+  "streaming": true
+}
+[CLI subprocess] (node:2756397) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+Session created: 4f32d385-4f9e-4e25-bc8a-e36926e92f7d
+
+Prompt: "Say exactly: "Hello streaming world." Nothing else."
+  [DELTA #1] "{\"messageId\":\"c2a9da32-17aa-457d-88d0-c3fac74f51c6\",\"d
+  [MESSAGE] (no text field)
+  [TURN END]
+
+Result text (first 200 chars): (none)
+Total events: 43
+Delta events: 1
+Message events: 1
+
+First delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "c2a9da32-17aa-457d-88d0-c3fac74f51c6",
+    "deltaContent": "Hello streaming world."
+  },
+  "id": "ab72c927-2707-4807-82c8-f66a70511a83",
+  "timestamp": "2026-03-13T14:13:55.434Z",
+  "parentId": "6b19f800-6a06-4a81-a2b9-64335768c69c",
+  "ephemeral": true
+}
+Last delta shape: {
+  "type": "assistant.message_delta",
+  "data": {
+    "messageId": "c2a9da32-17aa-457d-88d0-c3fac74f51c6",
+    "deltaContent": "Hello streaming world."
+  },
+  "id": "ab72c927-2707-4807-82c8-f66a70511a83",
+  "timestamp": "2026-03-13T14:13:55.434Z",
+  "parentId": "6b19f800-6a06-4a81-a2b9-64335768c69c",
+  "ephemeral": true
+}
+
+First message shape: {
+  "type": "assistant.message",
+  "data": {
+    "messageId": "c2a9da32-17aa-457d-88d0-c3fac74f51c6",
+    "content": "Hello streaming world.",
+    "toolRequests": [],
+    "interactionId": "3be82f75-4d3f-49a6-be7e-8420dd661be0",
+    "reasoningOpaque": "U0+O+VWrcc38loCwsYMLPv5U23WBrep7WMJvV/nCUMvCiA35hZI3SddPyDmwZRyvN//mpOM4TpacR1LgnO3lGdk2j2gqONPsWJM7iQQjR6VeEFYgE+m3XyQe8v4wgoXWRW1dQbdW45I6F61an5GxAyE2Mir+wlHmUfSioux1ef4fjqT7F2LeFYZFZRPshFh+9PY6SbDh1C6fnNGHDgC0iBeejtMMDTJ4weWPH6VbkB0LbNZU3VCmSquR9YsUcAekC/rbIbowfausl0I5/Axt3LYMVFKYoMMrbSLzhdCy0SJTdEm2SqKJb6QxdbnkZm7pAUiKzVI7oeWBsMx7SpjMWmBcgHmPtcTIyikQaM6HLBrcFFln99csbmx1+5J0Ullw1JVEk0cpNuCOp4xx/1kAN0Zt6eOKzkVfUbOaIrfpHy/KMt7M+5JPd27WFN1VmDCd1GJLBXziv7509G533fDKbY4+OgTPBW/Fbj3G1LZJzMP3z+li7aDMF8tPNLhHyY/zaXLhyUkzTCWGPSotbKidy6tYADijpfpNwh2aZooVZa1nmbajeR75mDPopBQ3kYx82y7I/M8nQjJOfz9gF94MXuZz7b8maR62EnaO2g9KFR//EbNoW0qvJKf9fdsyrOiyJzJiQpJtKeBok2vTQdlFDjhZWq4uDkEWF6SSrMaXKWsK9COYEWaiQ5G1ZdLo0LBA7Kvf7an1jYRTm5X6vXSIx+J1yi9I1gtFNcvhLtGEnmzIhL4BFh1DbV30VWHkkcWiVuu7JvbYXjqCwp4oBnoLutNeirve12ThDk4UATBC41cl6afL+MKWbx6RuRqBVH1xfUC8IoBpQSop35Ui3thk3SyFxTUbjNuY6YLw/UnSYk/koe0kNJASDFzcB1sudE4SzbYVDBm4Nr2QOoaF1oxl0WE+l/XCaNF8wyKWJkHrxYsdgC5CswHt1AlkOYDyv9kV5Z22uqgsiCLnUN1mqd6ZFCsQ8ovb48sXIQRxTQw/WB+zsSKiNzMV+4gA9gn3AYrjROEVquijlnvpuYeWwcQpxRF3BJLldg==",
+    "reasoningText": "The user is asking me to say exactly \"Hello streaming world.\" and nothing else. This is a simple request that doesn't require any tools or additional explanation. I should just respond with exactly that phrase.",
+    "outputTokens": 56
+  },
+  "id": "5eaf0a28-b6b8-4ec5-b5b6-441cdc7d0f14",
+  "timestamp": "2026-03-13T14:13:55.486Z",
+  "parentId": "92a46b6c-6dd8-499d-8fe8-2a3bde8dae99"
+}
+
+All unique event types seen: pending_messages.modified, session.tools_updated, user.message, assistant.turn_start, session.usage_info, assistant.streaming_delta, assistant.reasoning_delta, assistant.message_delta, assistant.usage, assistant.message, assistant.reasoning, assistant.turn_end, session.idle
+
+============================================================
+SUMMARY
+============================================================
+S1 (streaming:true,  simple):  4 deltas, 1 messages
+S2 (streaming:false, simple):  0 deltas, 1 messages
+S3 (streaming:true,  tools):   5 deltas, 2 messages
+S4 (streaming:true,  claude):  1 deltas, 1 messages
+
+FINDINGS:
+✅ streaming:true DOES produce assistant.message_delta events
+✅ streaming:false suppresses assistant.message_delta events
+✅ Both message and delta events fire together (can reconstruct full text)
+
+Record these findings in FINDINGS.md before implementing Phase 6b.

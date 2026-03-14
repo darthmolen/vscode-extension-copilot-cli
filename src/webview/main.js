@@ -115,11 +115,10 @@ acceptanceControls.on('swap', () => {
 	console.log('[Swap] Swap original/modified requested');
 });
 
-// StatusBar events (commented out - StatusBar doesn't have reasoning toggle yet)
-// statusBar.on('reasoningToggle', (checked) => {
-// 	showReasoning = handleReasoningToggle(checked, messagesContainer);
-// 	eventBus.emit('reasoning:toggle', checked);
-// });
+// Sync module-level showReasoning from the InputArea checkbox toggle
+eventBus.on('reasoning:toggle', (checked) => {
+	showReasoning = checked;
+});
 
 // Listen for viewDiff events from ToolExecution component
 eventBus.on('viewDiff', (diffData) => {
@@ -212,6 +211,12 @@ eventBus.on('renameSession', (args) => {
 	console.log('[Slash Command] Rename session (/rename)', args);
 	const name = args && args.length > 0 ? args.join(' ') : '';
 	rpc.renameSession(name);
+});
+
+// Session compact
+eventBus.on('compact', () => {
+	console.log('[Slash Command] Compact (/compact)');
+	rpc.compact();
 });
 
 // Listen for input:sendMessage events from InputArea component
@@ -322,6 +327,7 @@ export function handleAssistantMessageMessage(payload) {
 	eventBus.emit('message:add', {
 		role: 'assistant',
 		content: payload.text,
+		messageId: payload.messageId,
 		timestamp: Date.now()
 	});
 	setThinking(false);
@@ -335,6 +341,7 @@ export function handleReasoningMessageMessage(payload) {
 	eventBus.emit('message:add', {
 		role: 'reasoning',
 		content: payload.text,
+		reasoningId: payload.reasoningId,
 		timestamp: Date.now()
 	});
 }
@@ -555,6 +562,12 @@ export function handleInitMessage(payload) {
 	if (payload.currentModel) {
 		inputArea.setCurrentModel(payload.currentModel);
 	}
+
+	// Apply showReasoning config preference
+	const reasoningEnabled = payload.showReasoning ?? false;
+	showReasoning = reasoningEnabled;
+	inputArea.setReasoningEnabled(reasoningEnabled);
+	eventBus.emit('reasoning:toggle', reasoningEnabled);
 }
 
 function handleModelSwitchedMessage(payload) {
@@ -613,6 +626,20 @@ rpc.onModelSwitched(handleModelSwitchedMessage);
 rpc.onCurrentModel(handleCurrentModelMessage);
 rpc.onAvailableModels(handleAvailableModelsMessage);
 rpc.onInit(handleInitMessage);
+rpc.onTaskComplete((data) => {
+	console.log('[Task Complete] summary:', data.summary);
+	eventBus.emit('task:complete', { summary: data.summary });
+});
+
+rpc.onMessageDelta((data) => {
+	eventBus.emit('message:delta', { messageId: data.messageId, deltaContent: data.deltaContent });
+});
+
+rpc.onReasoningDelta((data) => {
+	if (showReasoning) {
+		eventBus.emit('reasoning:delta', { reasoningId: data.reasoningId, deltaContent: data.deltaContent });
+	}
+});
 
 // Notify extension that webview is ready (skip in test mode)
 if (typeof window !== 'undefined' && !window.__TESTING__) {

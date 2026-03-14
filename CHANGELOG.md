@@ -2,6 +2,47 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.5.0] - 2026-03-14
+
+### ✨ Features
+
+- **Real-time streaming responses** — Assistant messages render word-by-word using a safe markdown state machine. Completed constructs (paragraphs, headings, code fences, tables, images) flush progressively. A 1.5s inactivity timer force-flushes any pending buffer so partial text before a tool call appears immediately instead of waiting 60+ seconds for the tool to complete.
+- **Reasoning streaming** — `assistant.reasoning_delta` events now stream reasoning content in real-time when "Show Reasoning" is enabled. Previously reasoning only appeared after the full thought was complete (`assistant.reasoning` finalization). Reasoning bubbles are keyed by `reasoningId` and finalized atomically — no duplicate elements.
+- **`/compact` slash command** — Compact the current session context to reduce token usage while preserving key information. Works in both work and plan modes. Adds `/compact` to the slash command discovery panel and help text.
+- **Task complete indicator** — A ✓ Task Complete card appears in the chat stream when `session.task_complete` fires, providing a clear visual signal that the agent has finished a multi-step task.
+- **`copilotCLI.showReasoning`** — New boolean config (default `false`). When `true`, the "Show Reasoning" checkbox is automatically checked on startup and after session switches. The value travels via the `init` RPC payload.
+- **`copilotCLI.streaming`** — New boolean config (default `true`). Set to `false` to disable delta streaming — responses appear only when complete. Useful for models or workflows where progressive rendering isn't desired.
+- **Tool description fallback** — Tool cards now fall back to `args.description` when no `report_intent` label is available, so tool executions always have a meaningful label.
+
+### 🐛 Bug Fixes
+
+- **Suppress broken-sentence bubbles** — When the model writes a partial sentence and immediately calls a tool (`assistant.message` fires with both `content` and `toolRequests`), the fragment no longer appears as a standalone bubble mid-conversation. An empty finalization signal is still sent so any in-progress streaming bubble is correctly closed.
+- **Empty assistant bubbles** — `MessageDisplay` now guards against creating empty assistant bubbles when `message:add` fires with no content (e.g., the finalization signal from the above fix).
+- **`showReasoning` gate never updated** — The module-level `showReasoning` variable in `main.js` was never synced when the user toggled the checkbox (the `statusBar.on('reasoningToggle', ...)` handler was commented out and never replaced). Fixed with a direct `eventBus.on('reasoning:toggle', ...)` listener. This caused all `reasoningDelta` RPC events to be silently dropped regardless of the toggle state.
+- **`onPermissionRequest` not wired in `createSessionWithModelFallback`** — The `onEvent` handler for new sessions was being set after the session object was already created, causing a race condition where early events were missed. The central config object is now built completely before `createSession` is called.
+- **`assistant.reasoning` breaks open tool groups** — A reasoning event arriving while a tool group was open would leave the group in an inconsistent state. Now correctly closes the current tool group before rendering reasoning content.
+- **Duplicate `assistant.message_delta` / `assistant.usage` switch cases** — Two pairs of duplicate `case` statements in `_handleSDKEvent` were shadowing each other; the second block of each would never execute. Consolidated.
+
+### 🔧 Internal
+
+- **SDK upgraded to 0.1.32** — Adds 6 new handled events: `subagent.deselected`, `session.task_complete`, `session.background_tasks_changed`, `system.notification`, `permission.requested`, `permission.completed`. All events are logged; `session.task_complete` drives the new task complete UI card.
+- **`_onDidReceiveReasoningDelta` BufferedEmitter** — New emitter in `SDKSessionManager`. `_onDidReceiveReasoning` now fires `{reasoningId, content}` (was bare `string`) — all consumers updated atomically.
+- **`ReasoningDeltaPayload`** — New RPC message type in `shared/messages.ts`. `ReasoningMessagePayload` gains optional `reasoningId?` for streaming finalization.
+- **`sendReasoningDelta()`** — New method on `ExtensionRpcRouter` and `ChatViewProvider`.
+- **`onReasoningDelta()`** — New handler registration on `WebviewRpcClient`.
+- **`reasoningStreamingBubbles` Map** — `MessageDisplay` tracks in-flight reasoning bubbles keyed by `reasoningId`. `message:add {role:'reasoning', reasoningId}` finalizes and de-dupes.
+- **`flushTimer` on streaming state** — Each streaming bubble tracks an inactivity timer. Cleared on `message:add` finalization to prevent double-render.
+- **`CompactSlashHandlers`** — New slash command handler module for `/compact`.
+- **ADR-006** — New architecture decision record documenting all streaming decisions: assistant delta streaming, reasoning streaming, broken-bubble suppression, and inactivity flush.
+- **1302 tests** — 26 new tests covering all four features (RED → GREEN validated). Baseline was 29 failing; now 3 pre-existing unrelated failures.
+
+## [3.4.3] - 2026-03-13
+
+### 🐛 Bug Fixes
+
+- **Reasoning block styling** — Reasoning content now renders with proper italic formatting and is visually distinct from regular assistant messages.
+- **Typing indicator accuracy** — The animated "Thinking..." indicator now correctly tracks active token generation versus idle-between-tools state.
+
 ## [3.4.2] - 2026-03-10
 
 ### 🐛 Bug Fixes

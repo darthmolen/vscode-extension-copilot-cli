@@ -8,6 +8,7 @@ import { DisposableStore } from './utilities/disposable';
 import { CodeReviewSlashHandlers } from './extension/services/slashCommands/CodeReviewSlashHandlers';
 import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashHandlers';
 import { NotSupportedSlashHandlers } from './extension/services/slashCommands/NotSupportedSlashHandlers';
+import { CompactSlashHandlers } from './extension/services/slashCommands/CompactSlashHandlers';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
 import { SessionService } from './extension/services/SessionService';
 import { resolveImagePaths } from './extension/utils/resolveImagePaths';
@@ -32,6 +33,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private infoHandlers?: InfoSlashHandlers;
 	private notSupportedHandlers?: NotSupportedSlashHandlers;
 	private cliPassthroughService?: CLIPassthroughService;
+	private compactHandlers?: CompactSlashHandlers;
 
 	// Event emitters to replace Set<Function> handlers
 	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}>());
@@ -40,6 +42,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
+	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -48,6 +51,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidBecomeReady = this._onDidBecomeReady.event;
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
 	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
+	readonly onDidRequestCompact = this._onDidRequestCompact.event;
 
 	constructor(extensionUri: vscode.Uri) {
 		this.extensionUri = extensionUri;
@@ -140,7 +144,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				planModeStatus: fullState.planModeStatus,
 				workspacePath: fullState.workspacePath,
 				activeFilePath: fullState.activeFilePath,
-				currentModel: fullState.currentModel
+				currentModel: fullState.currentModel,
+				showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 			});
 
 			this._onDidBecomeReady.fire();
@@ -330,6 +335,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			this._onDidRequestRenameSession.fire(payload.name);
 		}));
 
+		this._reg(this.rpcRouter.onCompact(() => {
+			this.logger.info('[Compact] Compact requested from UI');
+			this._onDidRequestCompact.fire();
+		}));
+
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
 			this.logger.info(`[OpenFile] ${payload.filePath}`);
 			const resolved = path.resolve(payload.filePath);
@@ -372,7 +382,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.addUserMessage(text, attachments as any);
 	}
 
-	public addAssistantMessage(text: string, storeInBackend: boolean = true) {
+	public addAssistantMessage(text: string, messageId?: string, storeInBackend: boolean = true) {
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
@@ -385,10 +395,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 		// Resolve relative image paths in markdown to webview URIs
 		const resolvedText = this._resolveAssistantImagePaths(text);
-		this.rpcRouter?.addAssistantMessage(resolvedText);
+		this.rpcRouter?.addAssistantMessage(resolvedText, messageId);
 	}
 
-	public addReasoningMessage(text: string, storeInBackend: boolean = true) {
+	public addReasoningMessage(text: string, storeInBackend: boolean = true, reasoningId?: string) {
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
@@ -398,7 +408,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				timestamp: Date.now()
 			});
 		}
-		this.rpcRouter?.addReasoningMessage(text);
+		this.rpcRouter?.addReasoningMessage(text, reasoningId);
 	}
 
 	public addToolExecution(toolState: any, storeInBackend: boolean = true) {
@@ -469,6 +479,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>) {
 		this.rpcRouter?.sendAvailableModels(models);
+	}
+
+	public sendTaskComplete(summary?: string) {
+		this.rpcRouter?.sendTaskComplete(summary);
+	}
+
+	public sendMessageDelta(messageId: string, deltaContent: string): void {
+		this.rpcRouter?.sendMessageDelta(messageId, deltaContent);
+	}
+
+	public sendReasoningDelta(reasoningId: string, deltaContent: string): void {
+		this.rpcRouter?.sendReasoningDelta(reasoningId, deltaContent);
 	}
 
 	private async _handleFilePicker() {

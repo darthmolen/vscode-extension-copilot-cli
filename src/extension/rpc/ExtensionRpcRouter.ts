@@ -53,9 +53,13 @@ import {
 	SaveMermaidImagePayload,
 	SwitchModelPayload,
 	RenameSessionPayload,
+	CompactPayload,
 	ModelSwitchedPayload,
 	CurrentModelPayload,
 	AvailableModelsPayload,
+	TaskCompletePayload,
+	MessageDeltaPayload,
+	ReasoningDeltaPayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -124,10 +128,11 @@ export class ExtensionRpcRouter {
 	/**
 	 * Add assistant message to chat
 	 */
-	addAssistantMessage(text: string): void {
+	addAssistantMessage(text: string, messageId?: string): void {
 		const message: AssistantMessagePayload = {
 			type: 'assistantMessage',
-			text
+			text,
+			messageId
 		};
 		this.send(message);
 	}
@@ -135,10 +140,11 @@ export class ExtensionRpcRouter {
 	/**
 	 * Add reasoning message to chat
 	 */
-	addReasoningMessage(text: string): void {
+	addReasoningMessage(text: string, reasoningId?: string): void {
 		const message: ReasoningMessagePayload = {
 			type: 'reasoningMessage',
-			text
+			text,
+			...(reasoningId ? { reasoningId } : {})
 		};
 		this.send(message);
 	}
@@ -361,6 +367,32 @@ export class ExtensionRpcRouter {
 		this.send(message);
 	}
 
+	sendTaskComplete(summary?: string): void {
+		const message: TaskCompletePayload = {
+			type: 'taskComplete',
+			summary
+		};
+		this.send(message);
+	}
+
+	sendMessageDelta(messageId: string, deltaContent: string): void {
+		const message: MessageDeltaPayload = {
+			type: 'messageDelta',
+			messageId,
+			deltaContent
+		};
+		this.send(message);
+	}
+
+	sendReasoningDelta(reasoningId: string, deltaContent: string): void {
+		const message: ReasoningDeltaPayload = {
+			type: 'reasoningDelta',
+			reasoningId,
+			deltaContent
+		};
+		this.send(message);
+	}
+
 	// ========================================================================
 	// Receive Handlers (Webview → Extension)
 	// ========================================================================
@@ -524,6 +556,13 @@ export class ExtensionRpcRouter {
 	 */
 	onRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {
 		return this.registerHandler('renameSession', handler);
+	}
+
+	/**
+	 * Register handler for compact
+	 */
+	onCompact(handler: MessageHandler<CompactPayload>): Disposable {
+		return this.registerHandler('compact', handler);
 	}
 
 	// ========================================================================
