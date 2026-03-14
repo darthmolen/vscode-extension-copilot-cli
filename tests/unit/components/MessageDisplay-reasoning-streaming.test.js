@@ -143,6 +143,62 @@ describe('MessageDisplay — reasoning streaming (JSDOM)', function () {
     // 4. Backward compat: message:add without reasoningId renders normally
     // =========================================================================
 
+    // =========================================================================
+    // 5. Streaming reasoning bubble has styled header matching finalized bubble
+    // =========================================================================
+
+    it('streaming reasoning bubble has "Assistant Reasoning" header with italic style', function () {
+        eventBus.emit('reasoning:toggle', true);
+
+        eventBus.emit('reasoning:delta', {
+            reasoningId: 'reasoning-styled-001',
+            deltaContent: 'Thinking deeply...'
+        });
+
+        const reasoningEl = md.messagesContainer.querySelector('.message-display__item--reasoning');
+        assert.ok(reasoningEl, 'Reasoning element should exist');
+
+        // Must have styled header matching finalized bubble
+        const header = reasoningEl.querySelector('.message-display__header');
+        assert.ok(header, 'Streaming reasoning bubble must have a .message-display__header');
+        assert.ok(header.textContent.includes('Assistant Reasoning'),
+            'Header must say "Assistant Reasoning"');
+        assert.strictEqual(header.style.fontStyle, 'italic', 'Header must be italic');
+    });
+
+    it('streaming reasoning bubble has "message" class on outer div', function () {
+        eventBus.emit('reasoning:toggle', true);
+
+        eventBus.emit('reasoning:delta', {
+            reasoningId: 'reasoning-styled-002',
+            deltaContent: 'More thinking...'
+        });
+
+        const reasoningEl = md.messagesContainer.querySelector('.message-display__item--reasoning');
+        assert.ok(reasoningEl.classList.contains('message'),
+            'Streaming reasoning bubble must have "message" class');
+    });
+
+    it('streaming reasoning bubble content div has message-display__content class', function () {
+        eventBus.emit('reasoning:toggle', true);
+
+        eventBus.emit('reasoning:delta', {
+            reasoningId: 'reasoning-styled-003',
+            deltaContent: 'Content here'
+        });
+
+        const reasoningEl = md.messagesContainer.querySelector('.message-display__item--reasoning');
+        const contentEl = reasoningEl.querySelector('.message-display__content');
+        assert.ok(contentEl, 'Content div must have .message-display__content class');
+        assert.ok(contentEl.textContent.includes('Content here'),
+            'Content must contain delta text');
+        assert.strictEqual(contentEl.style.fontStyle, 'italic', 'Content must be italic');
+    });
+
+    // =========================================================================
+    // 6. Backward compat: message:add without reasoningId renders normally
+    // =========================================================================
+
     it('renders reasoning element normally when no reasoningId (history replay)', function () {
         // Enable reasoning to see it
         eventBus.emit('reasoning:toggle', true);

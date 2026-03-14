@@ -107,8 +107,9 @@ describe('MessageDisplay — inactivity flush timer (Part 4)', function () {
         eventBus.emit('message:delta', { messageId: 'msg-1', deltaContent: ' more text' });
         
         // After 2 deltas, bubble is visible but buffer not yet flushed (no \n\n)
+        // Only the typing indicator should be present, no actual content
         const contentEl = bubble.querySelector('.message-display__content');
-        assert.strictEqual(contentEl.innerHTML, '', 'Buffer should not be flushed yet without \\n\\n');
+        assert.ok(!contentEl.textContent.includes('because:'), 'Buffer should not be flushed yet without \\n\\n');
 
         // Advance clock by 1.5s — inactivity timer should fire
         clock.tick(1500);

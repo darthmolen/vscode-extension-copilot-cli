@@ -104,11 +104,14 @@ export class MessageDisplay {
             let state = this.reasoningStreamingBubbles.get(data.reasoningId);
             if (!state) {
                 const el = document.createElement('div');
-                el.className = 'message-display__item message-display__item--reasoning';
+                el.className = 'message message-display__item message-display__item--reasoning';
                 el.setAttribute('aria-label', 'Assistant reasoning');
-                const contentEl = document.createElement('div');
-                contentEl.className = 'message-display__reasoning-content';
-                el.appendChild(contentEl);
+                el.style.display = this.showReasoning ? 'block' : 'none';
+                el.innerHTML = `
+                    <div class="message-header message-display__header" style="font-style: italic;">Assistant Reasoning</div>
+                    <div class="message-content message-display__content" style="font-style: italic;"></div>
+                `;
+                const contentEl = el.querySelector('.message-display__content');
                 this.messagesContainer.appendChild(el);
                 state = { el, contentEl };
                 this.reasoningStreamingBubbles.set(data.reasoningId, state);
@@ -275,6 +278,7 @@ export class MessageDisplay {
                 state.flushTimer = null;
             }
             // Flush remaining buffer
+            this._removeTypingIndicator(state);
             const remaining = state.buffer.slice(state.renderedUpTo);
             if (remaining) {
                 state.contentEl.insertAdjacentHTML('beforeend',
@@ -432,9 +436,23 @@ export class MessageDisplay {
         `;
 
         const contentEl = el.querySelector('.message-display__content');
+        contentEl.innerHTML = '<div class="typing-indicator"><span class="typing-indicator__dot"></span><span class="typing-indicator__dot"></span><span class="typing-indicator__dot"></span></div>';
         this.messagesContainer.appendChild(el);
 
-        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0, flushTimer: null };
+        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0, flushTimer: null, typingIndicatorRemoved: false };
+    }
+
+    /**
+     * Remove the typing indicator dots from a streaming bubble (once).
+     */
+    _removeTypingIndicator(state) {
+        if (!state.typingIndicatorRemoved) {
+            const indicator = state.contentEl.querySelector('.typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+            state.typingIndicatorRemoved = true;
+        }
     }
 
     /**
@@ -451,6 +469,7 @@ export class MessageDisplay {
             // Force-flush any pending buffer that _flushSafeMarkdown wouldn't emit yet
             const pending = state.buffer.slice(state.renderedUpTo);
             if (pending) {
+                this._removeTypingIndicator(state);
                 state.el.classList.remove('streaming-hidden');
                 state.contentEl.insertAdjacentHTML('beforeend',
                     typeof marked !== 'undefined' ? marked.parse(pending) : pending);
@@ -521,6 +540,7 @@ export class MessageDisplay {
                     if (nl === -1) break; // Not enough data yet
                     pos = nl + 1;
                     const unit = buf.slice(unitStart, pos);
+                    this._removeTypingIndicator(state);
                     state.contentEl.insertAdjacentHTML('beforeend',
                         typeof marked !== 'undefined' ? marked.parse(unit) : unit);
                     state.renderedUpTo = pos;
@@ -532,6 +552,7 @@ export class MessageDisplay {
                 if (doubleNl === -1) break; // No complete paragraph yet
                 pos = doubleNl + 2;
                 const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
                 state.contentEl.insertAdjacentHTML('beforeend',
                     typeof marked !== 'undefined' ? marked.parse(unit) : unit);
                 state.renderedUpTo = pos;
@@ -545,6 +566,7 @@ export class MessageDisplay {
                 // Skip trailing newline after closing fence
                 if (buf[pos] === '\n') pos++;
                 const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
                 state.contentEl.insertAdjacentHTML('beforeend',
                     typeof marked !== 'undefined' ? marked.parse(unit) : unit);
                 state.renderedUpTo = pos;
@@ -557,6 +579,7 @@ export class MessageDisplay {
                 if (closeIdx === -1) break; // Image not complete yet
                 pos = closeIdx + 1;
                 const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
                 state.contentEl.insertAdjacentHTML('beforeend',
                     typeof marked !== 'undefined' ? marked.parse(unit) : unit);
                 state.renderedUpTo = pos;
@@ -569,6 +592,7 @@ export class MessageDisplay {
                 if (blankLine === -1) break; // Table not complete yet
                 pos = blankLine + 2;
                 const unit = buf.slice(unitStart, pos);
+                this._removeTypingIndicator(state);
                 state.contentEl.insertAdjacentHTML('beforeend',
                     typeof marked !== 'undefined' ? marked.parse(unit) : unit);
                 state.renderedUpTo = pos;
