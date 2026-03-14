@@ -197,6 +197,7 @@ export interface CLIConfig {
     model?: string;
     planModel?: string;
     noAskUser?: boolean;
+    streaming?: boolean;
 }
 
 export interface ToolExecutionState {
@@ -396,7 +397,7 @@ export class SDKSessionManager implements vscode.Disposable {
             ...resumeOptions,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
-            streaming: true,
+            streaming: this.config.streaming ?? true,
         };
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
@@ -1984,7 +1985,7 @@ export class SDKSessionManager implements vscode.Disposable {
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
             onEvent: (event: any) => this._handleSDKEvent(event),
-            streaming: true,
+            streaming: this.config.streaming ?? true,
         };
 
         const MAX_FALLBACK_ATTEMPTS = 3;

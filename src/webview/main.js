@@ -115,11 +115,10 @@ acceptanceControls.on('swap', () => {
 	console.log('[Swap] Swap original/modified requested');
 });
 
-// StatusBar events (commented out - StatusBar doesn't have reasoning toggle yet)
-// statusBar.on('reasoningToggle', (checked) => {
-// 	showReasoning = handleReasoningToggle(checked, messagesContainer);
-// 	eventBus.emit('reasoning:toggle', checked);
-// });
+// Sync module-level showReasoning from the InputArea checkbox toggle
+eventBus.on('reasoning:toggle', (checked) => {
+	showReasoning = checked;
+});
 
 // Listen for viewDiff events from ToolExecution component
 eventBus.on('viewDiff', (diffData) => {
@@ -563,6 +562,12 @@ export function handleInitMessage(payload) {
 	if (payload.currentModel) {
 		inputArea.setCurrentModel(payload.currentModel);
 	}
+
+	// Apply showReasoning config preference
+	const reasoningEnabled = payload.showReasoning ?? false;
+	showReasoning = reasoningEnabled;
+	inputArea.setReasoningEnabled(reasoningEnabled);
+	eventBus.emit('reasoning:toggle', reasoningEnabled);
 }
 
 function handleModelSwitchedMessage(payload) {

@@ -143,7 +143,8 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			planModeStatus: fullState.planModeStatus,
 			workspacePath: fullState.workspacePath,
 			activeFilePath: fullState.activeFilePath,
-			currentModel: fullState.currentModel
+			currentModel: fullState.currentModel,
+			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 		});
 	}));
 
@@ -335,7 +336,8 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 		planModeStatus: fullState.planModeStatus,
 		workspacePath: fullState.workspacePath,
 		activeFilePath: fullState.activeFilePath,
-		currentModel: fullState.currentModel
+		currentModel: fullState.currentModel,
+		showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 	});
 	updateSessionsList();
 }
@@ -798,7 +800,8 @@ function getCLIConfig(): CLIConfig {
 		agent: config.get<string>('agent', ''),
 		model: config.get<string>('model', ''),
 		planModel: config.get<string>('planModel', ''),
-		noAskUser: config.get<boolean>('noAskUser', false)
+		noAskUser: config.get<boolean>('noAskUser', false),
+		streaming: config.get<boolean>('streaming', true)
 	};
 }
 

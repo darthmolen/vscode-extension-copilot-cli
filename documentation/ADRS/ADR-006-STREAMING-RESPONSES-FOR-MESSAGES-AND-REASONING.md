@@ -127,6 +127,6 @@ The timer is cleared in the finalization path to prevent a post-finalization dou
 
 ## Notes
 
-- `showReasoning` toggle is currently a hardcoded `false` default in `main.js`. If we ever persist toggle state or change the default to `true`, the drop-on-gate behavior should be re-evaluated.
+- `showReasoning` is now configurable via `copilotCLI.showReasoning` (default: `false`). The config value is sent in the `init` payload to the webview, which sets both the checkbox and the module-level gate. A bug where the module-level `showReasoning` variable was never updated by the checkbox toggle has been fixed (the `reasoning:toggle` EventBus event now syncs it).
 - The `reasoningText` field in `assistant.message` was observed in production logs (3-5-0-assistant-message-cut-off.log) and is confirmed to be the full reasoning text already delivered via `assistant.reasoning`. The suppression is intentional.
 - **Tool description priority**: `report_intent` (turn-level) takes priority over `args.description` (per-tool). Fall back order: `toolState.intent` → `toolState.arguments.description` → nothing shown.

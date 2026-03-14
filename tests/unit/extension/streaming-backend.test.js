@@ -41,21 +41,20 @@ describe('Phase 6b — Streaming Backend', function () {
     // -------------------------------------------------------------------------
 
     describe('SDKSessionManager — streaming config', function () {
-        it('should have streaming: true in createSessionWithModelFallback central config injection', function () {
-            // The central config spread inside createSessionWithModelFallback() must include streaming: true
-            // so every session (work, plan, model-switch) gets deltas automatically
-            const hasCentralStreaming = sdkSource.includes('streaming: true');
-            assert.ok(hasCentralStreaming, 'streaming: true must be present in sdkSessionManager.ts');
+        it('should have streaming config in createSessionWithModelFallback central config injection', function () {
+            // streaming is now configurable via this.config.streaming ?? true
+            const hasCentralStreaming = sdkSource.includes('this.config.streaming');
+            assert.ok(hasCentralStreaming, 'streaming must be configurable via this.config.streaming in sdkSessionManager.ts');
         });
 
-        it('streaming: true must be near the onPermissionRequest central injection (not a one-off)', function () {
+        it('streaming config must be near the onPermissionRequest central injection (not a one-off)', function () {
             // Find the createSessionWithModelFallback function and verify streaming is in the config spread
             const fnIdx = sdkSource.indexOf('private async createSessionWithModelFallback');
             assert.ok(fnIdx >= 0, 'createSessionWithModelFallback must exist as private async method');
-            // The function body should have both onPermissionRequest and streaming: true near each other
+            // The function body should have both onPermissionRequest and streaming config near each other
             const fnBody = sdkSource.slice(fnIdx, fnIdx + 800);
             assert.ok(fnBody.includes('onPermissionRequest'), 'central config must have onPermissionRequest');
-            assert.ok(fnBody.includes('streaming: true'), 'central config must have streaming: true alongside onPermissionRequest');
+            assert.ok(fnBody.includes('streaming'), 'central config must have streaming alongside onPermissionRequest');
         });
     });
 

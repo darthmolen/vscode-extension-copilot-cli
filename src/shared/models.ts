@@ -76,6 +76,7 @@ export interface InitState {
 	workspacePath: string | null;
 	activeFilePath: string | null;
 	currentModel: string | null;
+	showReasoning?: boolean;
 }
 
 /**

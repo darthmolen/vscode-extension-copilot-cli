@@ -474,6 +474,17 @@ export class InputArea {
 	}
 
 	/**
+	 * Programmatically set the "Show Reasoning" checkbox state.
+	 * Does NOT fire the change event — caller must emit reasoning:toggle manually.
+	 * @param {boolean} enabled
+	 */
+	setReasoningEnabled(enabled) {
+		if (this.reasoningCheckbox) {
+			this.reasoningCheckbox.checked = enabled;
+		}
+	}
+
+	/**
 	 * Delegate to StatusBar child component
 	 * @param {number} percentage
 	 * @param {number} used

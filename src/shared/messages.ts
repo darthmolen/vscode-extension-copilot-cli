@@ -311,6 +311,7 @@ export interface InitPayload extends BaseMessage {
 	workspacePath: string | null;
 	activeFilePath: string | null;
 	currentModel: string | null;
+	showReasoning?: boolean;
 }
 
 /**

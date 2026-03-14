@@ -144,7 +144,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				planModeStatus: fullState.planModeStatus,
 				workspacePath: fullState.workspacePath,
 				activeFilePath: fullState.activeFilePath,
-				currentModel: fullState.currentModel
+				currentModel: fullState.currentModel,
+				showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 			});
 
 			this._onDidBecomeReady.fire();
