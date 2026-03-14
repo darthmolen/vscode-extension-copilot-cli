@@ -42,6 +42,10 @@ export class MessageDisplay {
         // Each entry: { el, contentEl, deltaCount, buffer, renderedUpTo }
         this.streamingBubbles = new Map();
 
+        // Reasoning streaming state: tracks in-progress reasoning bubbles keyed by reasoningId
+        // Each entry: { el, contentEl }
+        this.reasoningStreamingBubbles = new Map();
+
         // Create ToolExecution as child component - owns tool rendering
         this.toolExecution = new ToolExecution(this.messagesContainer, eventBus);
 
@@ -92,6 +96,24 @@ export class MessageDisplay {
         this.eventBus.on('reasoning:toggle', (enabled) => {
             this.showReasoning = enabled;
             this.updateReasoningVisibility();
+        });
+
+        // Subscribe to reasoning:delta event for real-time reasoning streaming
+        this.eventBus.on('reasoning:delta', (data) => {
+            if (!this.showReasoning) { return; }
+            let state = this.reasoningStreamingBubbles.get(data.reasoningId);
+            if (!state) {
+                const el = document.createElement('div');
+                el.className = 'message-display__item message-display__item--reasoning';
+                el.setAttribute('aria-label', 'Assistant reasoning');
+                const contentEl = document.createElement('div');
+                contentEl.className = 'message-display__reasoning-content';
+                el.appendChild(contentEl);
+                this.messagesContainer.appendChild(el);
+                state = { el, contentEl };
+                this.reasoningStreamingBubbles.set(data.reasoningId, state);
+            }
+            state.contentEl.textContent += data.deltaContent;
         });
 
         // Delegated click handler for image file links
@@ -241,12 +263,17 @@ export class MessageDisplay {
     }
 
     addMessage(message) {
-        const { role, content, attachments, timestamp, messageId } = message;
+        const { role, content, attachments, timestamp, messageId, reasoningId } = message;
 
         // --- Streaming finalization path ---
         // If we already have a streaming bubble for this messageId, finalize it.
         if (role === 'assistant' && messageId && this.streamingBubbles.has(messageId)) {
             const state = this.streamingBubbles.get(messageId);
+            // Clear inactivity timer to prevent double-render race
+            if (state.flushTimer !== null) {
+                clearTimeout(state.flushTimer);
+                state.flushTimer = null;
+            }
             // Flush remaining buffer
             const remaining = state.buffer.slice(state.renderedUpTo);
             if (remaining) {
@@ -262,6 +289,21 @@ export class MessageDisplay {
             state.el.classList.add('streaming-fade-in');
             this.streamingBubbles.delete(messageId);
             return; // Don't create a duplicate bubble
+        }
+
+        // --- Reasoning streaming finalization path ---
+        // If we already have a streaming reasoning bubble for this reasoningId, finalize it.
+        if (role === 'reasoning' && reasoningId && this.reasoningStreamingBubbles.has(reasoningId)) {
+            const state = this.reasoningStreamingBubbles.get(reasoningId);
+            // Replace textContent with canonical final text
+            state.contentEl.textContent = content || '';
+            this.reasoningStreamingBubbles.delete(reasoningId);
+            return; // Don't create a duplicate bubble
+        }
+
+        // Guard: skip creating an empty assistant bubble (e.g. finalization signal from Part 2 suppression)
+        if (role === 'assistant' && (!content || !content.trim())) {
+            return;
         }
 
         // Hide empty state after first message
@@ -356,7 +398,7 @@ export class MessageDisplay {
     /**
      * Get or create a streaming bubble state for the given messageId.
      * @param {string} messageId
-     * @returns {{ el, contentEl, deltaCount, buffer, renderedUpTo }}
+     * @returns {{ el, contentEl, deltaCount, buffer, renderedUpTo, flushTimer }}
      */
     _getOrCreateStreamingBubble(messageId) {
         if (this.streamingBubbles.has(messageId)) {
@@ -392,14 +434,31 @@ export class MessageDisplay {
         const contentEl = el.querySelector('.message-display__content');
         this.messagesContainer.appendChild(el);
 
-        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0 };
+        return { el, contentEl, deltaCount: 0, buffer: '', renderedUpTo: 0, flushTimer: null };
     }
 
     /**
      * Called after each new delta chunk. Decides whether to flush safe markdown units.
-     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo }} state
+     * @param {{ el, contentEl, deltaCount, buffer, renderedUpTo, flushTimer }} state
      */
     _renderDeltaProgress(state) {
+        // Reset inactivity timer on every new delta
+        if (state.flushTimer !== null) {
+            clearTimeout(state.flushTimer);
+        }
+        state.flushTimer = setTimeout(() => {
+            state.flushTimer = null;
+            // Force-flush any pending buffer that _flushSafeMarkdown wouldn't emit yet
+            const pending = state.buffer.slice(state.renderedUpTo);
+            if (pending) {
+                state.el.classList.remove('streaming-hidden');
+                state.contentEl.insertAdjacentHTML('beforeend',
+                    typeof marked !== 'undefined' ? marked.parse(pending) : pending);
+                state.renderedUpTo = state.buffer.length;
+                this.autoScroll();
+            }
+        }, 1500);
+
         if (state.deltaCount < 2) {
             // Still hidden — accumulate buffer, don't touch DOM
             return;

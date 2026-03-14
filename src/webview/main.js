@@ -342,6 +342,7 @@ export function handleReasoningMessageMessage(payload) {
 	eventBus.emit('message:add', {
 		role: 'reasoning',
 		content: payload.text,
+		reasoningId: payload.reasoningId,
 		timestamp: Date.now()
 	});
 }
@@ -627,6 +628,12 @@ rpc.onTaskComplete((data) => {
 
 rpc.onMessageDelta((data) => {
 	eventBus.emit('message:delta', { messageId: data.messageId, deltaContent: data.deltaContent });
+});
+
+rpc.onReasoningDelta((data) => {
+	if (showReasoning) {
+		eventBus.emit('reasoning:delta', { reasoningId: data.reasoningId, deltaContent: data.deltaContent });
+	}
 });
 
 // Notify extension that webview is ready (skip in test mode)

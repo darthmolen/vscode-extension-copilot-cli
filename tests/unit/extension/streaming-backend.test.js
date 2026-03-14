@@ -133,8 +133,8 @@ describe('Phase 6b — Streaming Backend', function () {
             // Find the assistant.message case and verify the fire call includes messageId
             const msgIdx = sdkSource.indexOf("case 'assistant.message':");
             assert.ok(msgIdx >= 0, "case 'assistant.message': must exist");
-            // Look for the fire call in that case's body (up to ~500 chars)
-            const caseBody = sdkSource.slice(msgIdx, msgIdx + 1400);
+            // Look for the fire call in that case's body (up to ~2200 chars)
+            const caseBody = sdkSource.slice(msgIdx, msgIdx + 2200);
             assert.ok(
                 caseBody.includes('_onDidReceiveOutput.fire') && caseBody.includes('messageId'),
                 '_onDidReceiveOutput.fire() must include messageId field'

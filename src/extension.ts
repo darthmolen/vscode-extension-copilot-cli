@@ -483,9 +483,9 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 		chatProvider.setThinking(false);
 	})));
 
-	context.subscriptions.push(manager.onDidReceiveReasoning(safeHandler('onDidReceiveReasoning', (content) => {
+	context.subscriptions.push(manager.onDidReceiveReasoning(safeHandler('onDidReceiveReasoning', ({ reasoningId, content }) => {
 		logger.debug(`[Assistant Reasoning] ${content.substring(0, 100)}...`);
-		chatProvider.addReasoningMessage(content);
+		chatProvider.addReasoningMessage(content, true, reasoningId);
 	})));
 
 	context.subscriptions.push(manager.onDidReceiveError(safeHandler('onDidReceiveError', (errorMsg) => {
@@ -625,6 +625,10 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 
 	context.subscriptions.push(manager.onDidMessageDelta(safeHandler('onDidMessageDelta', (data) => {
 		chatProvider.sendMessageDelta(data.messageId, data.deltaContent);
+	})));
+
+	context.subscriptions.push(manager.onDidReceiveReasoningDelta(safeHandler('onDidReceiveReasoningDelta', (data) => {
+		chatProvider.sendReasoningDelta(data.reasoningId, data.deltaContent);
 	})));
 }
 

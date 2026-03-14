@@ -523,6 +523,15 @@ class WebviewRpcClient {
 		return this._registerHandler('messageDelta', handler);
 	}
 
+	/**
+	 * Register handler for reasoningDelta (streaming reasoning chunks)
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onReasoningDelta(handler) {
+		return this._registerHandler('reasoningDelta', handler);
+	}
+
 	// ========================================================================
 	// Private Methods
 	// ========================================================================

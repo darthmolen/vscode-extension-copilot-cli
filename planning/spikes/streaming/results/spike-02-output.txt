@@ -1,0 +1,503 @@
+[CLI subprocess] (node:2850204) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+Found 18 models:
+
+  claude-sonnet-4.6  (?  ?)
+  claude-sonnet-4.5  (?  ?)
+  claude-haiku-4.5  (?  ?)
+  claude-opus-4.6  (?  ?)
+  claude-opus-4.6-fast  (?  ?)
+  claude-opus-4.5  (?  ?)
+  claude-sonnet-4  (?  ?)
+  gemini-3-pro-preview  (?  ?)
+  gpt-5.4  (?  ?)
+  gpt-5.3-codex  (?  ?)
+  gpt-5.2-codex  (?  ?)
+  gpt-5.2  (?  ?)
+  gpt-5.1-codex-max  (?  ?)
+  gpt-5.1-codex  (?  ?)
+  gpt-5.1  (?  ?)
+  gpt-5.1-codex-mini  (?  ?)
+  gpt-5-mini  (?  ?)
+  gpt-4.1  (?  ?)
+
+Testing claude-sonnet-4.6                        ... [CLI subprocess] (node:2850236) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=11  5028ms  content="Hello! How can I help you with the vscod"
+Testing claude-sonnet-4.5                        ... [CLI subprocess] (node:2850282) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=6  7519ms  content="I'm ready to help you with the vscode-co"
+Testing claude-haiku-4.5                         ... [CLI subprocess] (node:2850322) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=55  7388ms  content="I'm ready to help! I'm the GitHub Copilo"
+Testing claude-opus-4.6                          ... [CLI subprocess] (node:2850370) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=6  5320ms  content="Ready to help. What would you like to wo"
+Testing claude-opus-4.6-fast                     ... [CLI subprocess] (node:2850410) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=2  25042ms  content="Hello! What can I help you with today?"
+Testing claude-opus-4.5                          ... [CLI subprocess] (node:2850448) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=16  -16381ms  content="Hello! I'm ready to help you with the vs"
+Testing claude-sonnet-4                          ... [CLI subprocess] (node:2850488) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=28  8738ms  content="Hello! I'm ready to help you work on the"
+Testing gemini-3-pro-preview                     ... [CLI subprocess] (node:2850536) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+⚠️  NO DELTAS  deltas=0  10069ms
+Testing gpt-5.4                                  ... [CLI subprocess] (node:2850578) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=29  6108ms  content="Ready when you are — tell me what you wa"
+Testing gpt-5.3-codex                            ... [CLI subprocess] (node:2850624) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=31  5434ms  content="Thanks — I’ve got the current timestamp "
+Testing gpt-5.2-codex                            ... [CLI subprocess] (node:2850666) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+⚠️  NO DELTAS  deltas=0  10302ms
+Testing gpt-5.2                                  ... [CLI subprocess] (node:2850716) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=81  6288ms  content="What would you like me to do in this rep"
+Testing gpt-5.1-codex-max                        ... [CLI subprocess] (node:2850756) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=40  5908ms  content="Hi! What would you like to work on today"
+Testing gpt-5.1-codex                            ... [CLI subprocess] (node:2850806) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=18  6114ms  content="Thanks for the timestamp update. Let me "
+Testing gpt-5.1                                  ... [CLI subprocess] (node:2850846) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=32  6763ms  content="I'm up to date on your environment and r"
+Testing gpt-5.1-codex-mini                       ... [CLI subprocess] (node:2850883) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=27  6043ms  content="Thanks for the reminder. I’m ready whene"
+Testing gpt-5-mini                               ... [CLI subprocess] (node:2850924) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=114  11038ms  content="Workspace: /home/smolen/dev/vscode-copil"
+Testing gpt-4.1                                  ... [CLI subprocess] (node:2850964) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+✅ STREAMING  deltas=21  4385ms  content="Noted. No action required at this time. "
+
+======================================================================
+SUMMARY
+======================================================================
+
+✅ Streaming (16):
+   claude-sonnet-4.6  (11 deltas)
+   claude-sonnet-4.5  (6 deltas)
+   claude-haiku-4.5  (55 deltas)
+   claude-opus-4.6  (6 deltas)
+   claude-opus-4.6-fast  (2 deltas)
+   claude-opus-4.5  (16 deltas)
+   claude-sonnet-4  (28 deltas)
+   gpt-5.4  (29 deltas)
+   gpt-5.3-codex  (31 deltas)
+   gpt-5.2  (81 deltas)
+   gpt-5.1-codex-max  (40 deltas)
+   gpt-5.1-codex  (18 deltas)
+   gpt-5.1  (32 deltas)
+   gpt-5.1-codex-mini  (27 deltas)
+   gpt-5-mini  (114 deltas)
+   gpt-4.1  (21 deltas)
+
+⚠️  No deltas / atomic (2):
+   gemini-3-pro-preview
+   gpt-5.2-codex
+
+Raw results (JSON):
+[
+  {
+    "model": "claude-sonnet-4.6",
+    "deltaCount": 11,
+    "messageContent": "Hello! How can I help you with the vscode-copilot-cli-extension today?",
+    "error": null,
+    "durationMs": 5028,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-sonnet-4.5",
+    "deltaCount": 6,
+    "messageContent": "I'm ready to help you with the vscode-copilot-cli-extension project. What would you like to work on?",
+    "error": null,
+    "durationMs": 7519,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-haiku-4.5",
+    "deltaCount": 55,
+    "messageContent": "I'm ready to help! I'm the GitHub Copilot CLI assistant working with the vscode-copilot-cli-extension repository.\n\n**What would you like to work on?** I can help with:\n- 🐛 **Fixing bugs** – Identify issues, write tests, implement fixes\n- ✨ **Building features** – Design, plan, implement new functionality\n- 🧪 **Testing** – Write tests, verify behavior, catch regressions\n- 📋 **Planning** – Use `[[PLAN]]` prefix to create structured implementation plans\n- 🔍 **Code exploration** – Answer questions about the codebase\n\nJust tell me what you need, and I'll get started!",
+    "error": null,
+    "durationMs": 7388,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-opus-4.6",
+    "deltaCount": 6,
+    "messageContent": "Ready to help. What would you like to work on?",
+    "error": null,
+    "durationMs": 5320,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-opus-4.6-fast",
+    "deltaCount": 2,
+    "messageContent": "Hello! What can I help you with today?",
+    "error": null,
+    "durationMs": 25042,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-opus-4.5",
+    "deltaCount": 16,
+    "messageContent": "Hello! I'm ready to help you with the vscode-copilot-cli-extension project. What would you like to work on?",
+    "error": null,
+    "durationMs": -16381,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "claude-sonnet-4",
+    "deltaCount": 28,
+    "messageContent": "Hello! I'm ready to help you work on the VS Code Copilot CLI extension. \n\nWhat would you like to work on today? I can help with:\n- 🐛 Bug fixes and debugging\n- ✨ New features or improvements  \n- 📋 Planning and architecture\n- 🧪 Testing and quality assurance\n- 📚 Documentation updates\n\nJust let me know what you need!",
+    "error": null,
+    "durationMs": 8738,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gemini-3-pro-preview",
+    "deltaCount": 0,
+    "messageContent": "",
+    "error": null,
+    "durationMs": 10069,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.intent",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "tool.execution_start",
+      "tool.execution_complete",
+      "skill.invoked",
+      "assistant.turn_end"
+    ]
+  },
+  {
+    "model": "gpt-5.4",
+    "deltaCount": 29,
+    "messageContent": "Ready when you are — tell me what you want to build, fix, or investigate in this repo, and I’ll take it from there.",
+    "error": null,
+    "durationMs": 6108,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.3-codex",
+    "deltaCount": 31,
+    "messageContent": "Thanks — I’ve got the current timestamp and DB reminder.\n\nI’m ready to jump in. What would you like me to work on in this repo?",
+    "error": null,
+    "durationMs": 5434,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.2-codex",
+    "deltaCount": 0,
+    "messageContent": "",
+    "error": null,
+    "durationMs": 10302,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.intent",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "tool.execution_start",
+      "tool.execution_complete",
+      "skill.invoked",
+      "assistant.turn_end"
+    ]
+  },
+  {
+    "model": "gpt-5.2",
+    "deltaCount": 81,
+    "messageContent": "What would you like me to do in this repo?\n\nIf you paste the error/output you’re seeing (or describe the feature/bug + expected behavior), I can:\n- locate the relevant files,\n- write/adjust tests (TDD),\n- implement the fix,\n- run `npm run compile` / `npm test`,\n- and, if needed, package/install via `./test-extension.sh`.",
+    "error": null,
+    "durationMs": 6288,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.1-codex-max",
+    "deltaCount": 40,
+    "messageContent": "Hi! What would you like to work on today in this repo? If you describe the bug or feature, I’ll follow our required workflow (superpowers + TDD) and prepare a plan.",
+    "error": null,
+    "durationMs": 5908,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.1-codex",
+    "deltaCount": 18,
+    "messageContent": "Thanks for the timestamp update. Let me know what you’d like to work on next.",
+    "error": null,
+    "durationMs": 6114,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.1",
+    "deltaCount": 32,
+    "messageContent": "I'm up to date on your environment and ready to work in this repo, with SQL-backed todos available when needed.  \n\nWhat would you like to do next?",
+    "error": null,
+    "durationMs": 6763,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5.1-codex-mini",
+    "deltaCount": 27,
+    "messageContent": "Thanks for the reminder. I’m ready whenever you have a task—just let me know what you’d like me to work on.",
+    "error": null,
+    "durationMs": 6043,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-5-mini",
+    "deltaCount": 114,
+    "messageContent": "Workspace: /home/smolen/dev/vscode-copilot-cli-extension\n\nHow can I help next? Examples:\n- Run tests (npm test) or build (npm run compile)\n- Search code (grep/glob) or open files\n- Create a plan.md for the current session (plan mode)\n- Implement a bugfix or feature (TDD flow)\n- Package & install VSIX (./test-extension.sh)\n\nReply with the task you want and any specifics (file paths, failing test name, or \"create plan\" to start a plan).",
+    "error": null,
+    "durationMs": 11038,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.reasoning_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.reasoning",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  },
+  {
+    "model": "gpt-4.1",
+    "deltaCount": 21,
+    "messageContent": "Noted. No action required at this time. Let me know if you have a task or question!",
+    "error": null,
+    "durationMs": 4385,
+    "eventTypes": [
+      "pending_messages.modified",
+      "session.tools_updated",
+      "user.message",
+      "assistant.turn_start",
+      "session.usage_info",
+      "assistant.streaming_delta",
+      "assistant.message_delta",
+      "assistant.usage",
+      "assistant.message",
+      "assistant.turn_end",
+      "session.idle"
+    ]
+  }
+]

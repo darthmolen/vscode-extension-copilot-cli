@@ -214,7 +214,7 @@ export class ToolExecution {
                 <span class="tool-execution__collapse-indicator">\u25BC</span>
                 <span class="tool-icon tool-execution__icon">${statusIcon}</span>
                 <span class="tool-name tool-execution__name">${this.escapeHtml(toolState.toolName)}</span>
-                ${toolState.intent ? `<span class="tool-intent tool-execution__intent">${this.escapeHtml(toolState.intent)}</span>` : ''}
+                ${(toolState.intent || toolState.arguments?.description) ? `<span class="tool-intent tool-execution__intent">${this.escapeHtml(toolState.intent || toolState.arguments.description)}</span>` : ''}
                 ${duration ? `<span class="tool-duration tool-execution__duration">${duration}</span>` : ''}
                 ${toolState.hasDiff ? `<button class="view-diff-btn tool-execution__diff-btn" data-tool-id="${toolState.toolCallId}">\uD83D\uDCC4 View Diff</button>` : ''}
             </div>

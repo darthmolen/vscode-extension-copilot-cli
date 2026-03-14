@@ -59,6 +59,7 @@ import {
 	AvailableModelsPayload,
 	TaskCompletePayload,
 	MessageDeltaPayload,
+	ReasoningDeltaPayload,
 	Session,
 	Attachment,
 	ToolState,
@@ -139,10 +140,11 @@ export class ExtensionRpcRouter {
 	/**
 	 * Add reasoning message to chat
 	 */
-	addReasoningMessage(text: string): void {
+	addReasoningMessage(text: string, reasoningId?: string): void {
 		const message: ReasoningMessagePayload = {
 			type: 'reasoningMessage',
-			text
+			text,
+			...(reasoningId ? { reasoningId } : {})
 		};
 		this.send(message);
 	}
@@ -377,6 +379,15 @@ export class ExtensionRpcRouter {
 		const message: MessageDeltaPayload = {
 			type: 'messageDelta',
 			messageId,
+			deltaContent
+		};
+		this.send(message);
+	}
+
+	sendReasoningDelta(reasoningId: string, deltaContent: string): void {
+		const message: ReasoningDeltaPayload = {
+			type: 'reasoningDelta',
+			reasoningId,
 			deltaContent
 		};
 		this.send(message);

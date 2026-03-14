@@ -269,8 +269,11 @@ export class SDKSessionManager implements vscode.Disposable {
     private readonly _onDidMessageDelta = this._reg(new BufferedEmitter<{ messageId: string; deltaContent: string }>());
     readonly onDidMessageDelta = this._onDidMessageDelta.event;
     
-    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<string>());
+    private readonly _onDidReceiveReasoning = this._reg(new BufferedEmitter<{ reasoningId: string; content: string }>());
     readonly onDidReceiveReasoning = this._onDidReceiveReasoning.event;
+
+    private readonly _onDidReceiveReasoningDelta = this._reg(new BufferedEmitter<{ reasoningId: string; deltaContent: string }>());
+    readonly onDidReceiveReasoningDelta = this._onDidReceiveReasoningDelta.event;
     
     private readonly _onDidReceiveError = this._reg(new BufferedEmitter<string>());
     readonly onDidReceiveError = this._onDidReceiveError.event;
@@ -658,14 +661,29 @@ export class SDKSessionManager implements vscode.Disposable {
                     }
                 }
                 
-                // Only fire output message if there's actual content
-                if (event.data.content && event.data.content.trim().length > 0) {
+                // Fire output message, conditioned on toolRequests presence.
+                // When toolRequests are present, content is a mid-thought fragment — suppress it.
+                // We still send an empty finalization signal so any streaming bubble gets finalized.
+                // See ADR-006 Decision 3.
+                const hasToolRequests = event.data.toolRequests && event.data.toolRequests.length > 0;
+                const hasContent = event.data.content && event.data.content.trim().length > 0;
+                if (hasContent && !hasToolRequests) {
                     this._onDidReceiveOutput.fire({ content: event.data.content, messageId: event.data.messageId ?? '' });
+                } else if (hasToolRequests && event.data.messageId) {
+                    // Suppress content but send empty signal to finalize any in-progress streaming bubble
+                    this._onDidReceiveOutput.fire({ content: '', messageId: event.data.messageId });
                 }
                 break;
 
             case 'assistant.reasoning':
-                this._onDidReceiveReasoning.fire(event.data.content);
+                this._onDidReceiveReasoning.fire({ reasoningId: event.data.reasoningId ?? '', content: event.data.content });
+                break;
+
+            case 'assistant.reasoning_delta':
+                this._onDidReceiveReasoningDelta.fire({
+                    reasoningId: event.data.reasoningId,
+                    deltaContent: event.data.deltaContent,
+                });
                 break;
 
             case 'user.message':

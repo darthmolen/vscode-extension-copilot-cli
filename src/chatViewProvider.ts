@@ -397,7 +397,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.addAssistantMessage(resolvedText, messageId);
 	}
 
-	public addReasoningMessage(text: string, storeInBackend: boolean = true) {
+	public addReasoningMessage(text: string, storeInBackend: boolean = true, reasoningId?: string) {
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
@@ -407,7 +407,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				timestamp: Date.now()
 			});
 		}
-		this.rpcRouter?.addReasoningMessage(text);
+		this.rpcRouter?.addReasoningMessage(text, reasoningId);
 	}
 
 	public addToolExecution(toolState: any, storeInBackend: boolean = true) {
@@ -486,6 +486,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public sendMessageDelta(messageId: string, deltaContent: string): void {
 		this.rpcRouter?.sendMessageDelta(messageId, deltaContent);
+	}
+
+	public sendReasoningDelta(reasoningId: string, deltaContent: string): void {
+		this.rpcRouter?.sendReasoningDelta(reasoningId, deltaContent);
 	}
 
 	private async _handleFilePicker() {
