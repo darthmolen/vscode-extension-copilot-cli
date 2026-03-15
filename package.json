@@ -358,26 +358,6 @@
           "type": "boolean",
           "default": true,
           "description": "Enable streaming delta events for assistant responses and reasoning (disable to show responses only when complete)"
-        },
-        "copilotCLI.customAgents": {
-          "type": "array",
-          "default": [],
-          "description": "Custom agent definitions. Built-in agents (planner, implementer, reviewer) are always available and non-deletable.",
-          "items": {
-            "type": "object",
-            "required": ["name", "prompt"],
-            "properties": {
-              "name": { "type": "string", "description": "Unique slug used as SDK agent key" },
-              "displayName": { "type": "string", "description": "Human-readable display name" },
-              "description": { "type": "string", "description": "Short description of the agent's role" },
-              "prompt": { "type": "string", "description": "System prompt for the agent" },
-              "tools": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Allowed tool names (comma-separated, null = all tools)"
-              }
-            }
-          }
         }
       }
     }
@@ -409,6 +389,7 @@
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
+    "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.108.1",
@@ -428,6 +409,7 @@
   "dependencies": {
     "@github/copilot-sdk": "^0.1.32",
     "dompurify": "^3.3.1",
+    "js-yaml": "^4.1.0",
     "marked": "^17.0.1",
     "vscode-jsonrpc": "^8.2.1"
   }

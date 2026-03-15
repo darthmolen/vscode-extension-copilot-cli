@@ -96,5 +96,7 @@ export interface CustomAgentDefinition {
 	description?: string;
 	prompt: string;
 	tools?: string[] | null; // null/undefined = all tools
+	model?: string;          // optional model override for this agent
+	scope?: 'global' | 'project'; // where the agent was loaded from (display only)
 	builtIn?: boolean;       // true = non-deletable
 }
