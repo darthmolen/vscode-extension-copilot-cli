@@ -58,7 +58,8 @@ export type WebviewMessageType =
 	| 'getCustomAgents'
 	| 'saveCustomAgent'
 	| 'deleteCustomAgent'
-	| 'selectAgent';
+	| 'selectAgent'
+	| 'agentsPanelClosed';
 
 /**
  * Send user message to agent
@@ -260,6 +261,10 @@ export interface SelectAgentPayload extends BaseMessage {
 	name: string;  // empty string = clear active agent
 }
 
+export interface AgentsPanelClosedPayload extends BaseMessage {
+	type: 'agentsPanelClosed';
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -291,7 +296,8 @@ export type WebviewMessage =
 	| GetCustomAgentsPayload
 	| SaveCustomAgentPayload
 	| DeleteCustomAgentPayload
-	| SelectAgentPayload;
+	| SelectAgentPayload
+	| AgentsPanelClosedPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -642,7 +648,8 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'getCustomAgents',
 		'saveCustomAgent',
 		'deleteCustomAgent',
-		'selectAgent'
+		'selectAgent',
+		'agentsPanelClosed'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);

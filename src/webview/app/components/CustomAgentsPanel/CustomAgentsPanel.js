@@ -20,9 +20,14 @@ class CustomAgentsPanel {
 		this._isOpen = false;
 		this._showingForm = false;
 		this._editingAgent = null;
+		this._mutatedSinceOpen = false;
 
 		this._render();
 		this._attachPanelListeners();
+
+		// Track mutations so hide() can trigger a session reload if needed
+		this.eventBus.on('agents:save', () => { this._mutatedSinceOpen = true; });
+		this.eventBus.on('agents:delete', () => { this._mutatedSinceOpen = true; });
 
 		// Request agents data immediately
 		this.eventBus.emit('agents:request');
@@ -42,6 +47,9 @@ class CustomAgentsPanel {
 	}
 
 	hide() {
+		const mutated = this._mutatedSinceOpen;
+		this._mutatedSinceOpen = false;
+		this.eventBus.emit('agents:panelClosed', { mutated });
 		this._isOpen = false;
 		const el = this.container.querySelector('.custom-agents-panel');
 		if (el) {
@@ -152,6 +160,7 @@ class CustomAgentsPanel {
 			if (!agent.builtIn) {
 				row.querySelector('[data-action="delete"]').addEventListener('click', () => {
 					this.eventBus.emit('agents:delete', agent.name);
+					this._mutatedSinceOpen = true;
 				});
 			}
 
@@ -257,6 +266,7 @@ class CustomAgentsPanel {
 		if (tools) agent.tools = tools;
 
 		this.eventBus.emit('agents:save', agent);
+		this._mutatedSinceOpen = true;
 	}
 }
 

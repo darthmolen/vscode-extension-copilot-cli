@@ -518,6 +518,7 @@ export class SDKSessionManager implements vscode.Disposable {
                             tools: this.getCustomTools(),
                             hooks: this.getSessionHooks(),
                             ...(hasMcpServers ? { mcpServers } : {}),
+                            customAgents: this.customAgentsService.toSDKAgents(),
                         }
                     );
                     this.logger.info('Successfully resumed session');
@@ -1191,6 +1192,7 @@ export class SDKSessionManager implements vscode.Disposable {
                             ]
                         } : {}),
                         ...(hasMcpServers ? { mcpServers } : {}),
+                        customAgents: this.customAgentsService.toSDKAgents(),
                     };
                     
                     // If connection was lost, recreate client before attempting resume
@@ -1363,6 +1365,52 @@ export class SDKSessionManager implements vscode.Disposable {
         if (activeAgent && activeAgent !== this._sessionAgent) {
             this.logger.info(`[Agent] Restoring sticky agent "${activeAgent}" after session (re)creation`);
             await this.selectAgent(activeAgent);
+        }
+    }
+
+    /**
+     * Abort the current session and resume it with a fresh customAgents snapshot.
+     * Used when the CustomAgentsPanel closes after a mutation so changes take effect
+     * without requiring a full window reload.
+     *
+     * No-op when: no active session, or currently in plan mode.
+     */
+    public async reloadAgents(): Promise<void> {
+        if (!this.session || !this.sessionId) {
+            this.logger.info('[Agent Reload] No active session, skipping reload');
+            return;
+        }
+        if (this.currentMode === 'plan') {
+            this.logger.warn('[Agent Reload] In plan mode — skipping. Changes take effect when plan mode exits.');
+            return;
+        }
+        const sessionId = this.sessionId;
+        this.logger.info('[Agent Reload] Reloading agents: destroy + resume');
+        this._onDidChangeStatus.fire({ status: 'thinking' } as any);
+        try {
+            await this.session.destroy();
+            this.session = null;
+            this._sessionAgent = null;
+            const mcpServers = this.getEnabledMCPServers();
+            const hasMcpServers = Object.keys(mcpServers).length > 0;
+            this.session = await this.attemptSessionResumeWithUserRecovery(sessionId, {
+                model: this.config.model || undefined,
+                tools: this.getCustomTools(),
+                hooks: this.getSessionHooks(),
+                ...(hasMcpServers ? { mcpServers } : {}),
+                customAgents: this.customAgentsService.toSDKAgents(),
+            });
+            this.sessionId = this.session.sessionId;
+            this.workSession = this.session;
+            this.workSessionId = this.sessionId;
+            await this._restoreStickyAgentIfNeeded();
+            this.setupSessionEventHandlers();
+            this.logger.info('[Agent Reload] ✅ Session resumed with updated agents');
+            this._onDidChangeStatus.fire({ status: 'ready' } as any);
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            this.logger.error('[Agent Reload] Failed: ' + msg);
+            this._onDidChangeStatus.fire({ status: 'error' } as any);
         }
     }
 

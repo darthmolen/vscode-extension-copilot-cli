@@ -310,6 +310,10 @@ class WebviewRpcClient {
 		this._send({ type: 'selectAgent', name });
 	}
 
+	agentsPanelClosed() {
+		this._send({ type: 'agentsPanelClosed' });
+	}
+
 	// ========================================================================
 	// Receive Handlers (Extension → Webview)
 	// ========================================================================

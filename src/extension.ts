@@ -10,7 +10,7 @@ import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffServ
 import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 
-let cliManager: SDKSessionManager | null = null;
+let sessionManager: SDKSessionManager | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 /** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
 async function viewPlanFile(): Promise<void> {
-	const planPath = cliManager?.getPlanFilePath();
+	const planPath = sessionManager?.getPlanFilePath();
 	if (!planPath) {
 		vscode.window.showWarningMessage('No active session - cannot view plan.md');
 		return;
@@ -105,8 +105,8 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		chatProvider.addUserMessage(data.text, displayAttachments);
 		chatProvider.setThinking(true);
 
-		if (cliManager && cliManager.isRunning()) {
-			cliManager.sendMessage(data.text, data.attachments, false, false, data.agentName);
+		if (sessionManager && sessionManager.isRunning()) {
+			sessionManager.sendMessage(data.text, data.attachments, false, false, data.agentName);
 		} else {
 			chatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
 			chatProvider.setThinking(false);
@@ -115,9 +115,9 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(chatProvider.onDidRequestAbort(async () => {
 		logger.info('Abort requested by user');
-		if (cliManager && cliManager.isRunning()) {
+		if (sessionManager && sessionManager.isRunning()) {
 			try {
-				await cliManager.abortMessage();
+				await sessionManager.abortMessage();
 			} catch (error) {
 				logger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);
 				vscode.window.showErrorMessage('Failed to abort message');
@@ -151,8 +151,8 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(chatProvider.onDidRequestSwitchModel(async (model: string) => {
 		logger.info(`[Model Switch] Requested: ${model}`);
 		try {
-			if (cliManager) {
-				await cliManager.switchModel(model);
+			if (sessionManager) {
+				await sessionManager.switchModel(model);
 			} else {
 				logger.warn('[Model Switch] No active session manager');
 			}
@@ -181,7 +181,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 		// Write session-name.txt proactively — this ensures the session label
 		// updates even if the CLI throws "Workspace not found" (issue #1865).
-		const sessionId = cliManager?.getSessionId();
+		const sessionId = sessionManager?.getSessionId();
 		if (sessionId) {
 			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
 			try {
@@ -193,8 +193,8 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 
 		try {
-			if (cliManager) {
-				await cliManager.sendMessage(`/rename ${sessionName}`);
+			if (sessionManager) {
+				await sessionManager.sendMessage(`/rename ${sessionName}`);
 			} else {
 				logger.warn('[Rename Session] No active session manager');
 			}
@@ -207,12 +207,12 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(chatProvider.onDidRequestCompact(async () => {
 		logger.info('[Compact] Compact requested');
-		if (!cliManager) {
+		if (!sessionManager) {
 			chatProvider.addAssistantMessage('⚠ No active session — start a session first.');
 			return;
 		}
 		try {
-			const result = await cliManager.compactSession();
+			const result = await sessionManager.compactSession();
 			if (!result) {
 				chatProvider.addAssistantMessage('✓ Compaction complete.');
 			} else {
@@ -229,16 +229,20 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(chatProvider.onDidSelectAgent(async (agentName: string | null) => {
-		if (!cliManager) { return; }
+		if (!sessionManager) { return; }
 		try {
 			if (agentName) {
-				await cliManager.selectAgent(agentName);
+				await sessionManager.selectAgent(agentName);
 			} else {
-				await cliManager.deselectAgent();
+				await sessionManager.deselectAgent();
 			}
 		} catch (e: any) {
 			logger.warn(`[Agent] SDK select/deselect failed: ${e.message}`);
 		}
+	}));
+
+	context.subscriptions.push(chatProvider.onDidRequestReloadAgents(async () => {
+		if (sessionManager) { await sessionManager.reloadAgents(); }
 	}));
 }
 
@@ -268,7 +272,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
 /** Shared logic: determine session to resume, load history, start CLI. */
 async function resumeAndStartSession(context: vscode.ExtensionContext): Promise<void> {
-	if (cliManager && cliManager.isRunning()) {
+	if (sessionManager && sessionManager.isRunning()) {
 		return;
 	}
 
@@ -298,7 +302,7 @@ async function handleOpenChat(context: vscode.ExtensionContext): Promise<void> {
 
 async function handleStartChat(context: vscode.ExtensionContext): Promise<void> {
 	chatProvider.show();
-	if (cliManager && cliManager.isRunning()) {
+	if (sessionManager && sessionManager.isRunning()) {
 		vscode.window.showInformationMessage('Copilot CLI session is already running');
 		return;
 	}
@@ -307,9 +311,9 @@ async function handleStartChat(context: vscode.ExtensionContext): Promise<void> 
 }
 
 async function handleNewSession(context: vscode.ExtensionContext): Promise<void> {
-	if (cliManager && cliManager.isRunning()) {
-		await cliManager.stop();
-		cliManager = null;
+	if (sessionManager && sessionManager.isRunning()) {
+		await sessionManager.stop();
+		sessionManager = null;
 	}
 	chatProvider.show();
 	chatProvider.clearMessages();
@@ -321,7 +325,7 @@ async function handleNewSession(context: vscode.ExtensionContext): Promise<void>
 	if (shouldAutoEnablePlanMode(config.get<boolean>('startNewSessionInPlanning'))) {
 		logger.info('[New Session] startNewSessionInPlanning=true, enabling plan mode');
 		try {
-			await cliManager!.enablePlanMode();
+			await sessionManager!.enablePlanMode();
 		} catch (err: any) {
 			logger.error(`[New Session] Failed to auto-enable plan mode: ${err.message}`);
 		}
@@ -332,9 +336,9 @@ async function handleNewSession(context: vscode.ExtensionContext): Promise<void>
 
 async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: string): Promise<void> {
 	logger.info(`Switch Session: ${sessionId}`);
-	if (cliManager && cliManager.isRunning()) {
-		await cliManager.stop();
-		cliManager = null;
+	if (sessionManager && sessionManager.isRunning()) {
+		await sessionManager.stop();
+		sessionManager = null;
 	}
 	chatProvider.resetPlanMode();
 	await startCLISession(context, true, sessionId);
@@ -356,13 +360,13 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 }
 
 async function handleStopChat(): Promise<void> {
-	if (!cliManager || !cliManager.isRunning()) {
+	if (!sessionManager || !sessionManager.isRunning()) {
 		vscode.window.showInformationMessage('No active Copilot CLI session');
 		return;
 	}
 	try {
-		await cliManager.stop();
-		cliManager = null;
+		await sessionManager.stop();
+		sessionManager = null;
 		statusBarItem.text = "$(comment-discussion) Copilot CLI";
 		statusBarItem.tooltip = "Open Copilot CLI Chat";
 		chatProvider.setSessionActive(false);
@@ -400,15 +404,15 @@ async function handleViewDiff(message: any): Promise<void> {
 }
 
 async function handleTogglePlanMode(enabled: boolean): Promise<void> {
-	if (!cliManager || !cliManager.isRunning()) {
+	if (!sessionManager || !sessionManager.isRunning()) {
 		vscode.window.showWarningMessage('No active Copilot CLI session');
 		return;
 	}
 	try {
 		if (enabled) {
-			await cliManager.enablePlanMode();
+			await sessionManager.enablePlanMode();
 		} else {
-			await cliManager.disablePlanMode();
+			await sessionManager.disablePlanMode();
 		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -418,12 +422,12 @@ async function handleTogglePlanMode(enabled: boolean): Promise<void> {
 }
 
 async function handleAcceptPlan(): Promise<void> {
-	if (!cliManager || !cliManager.isRunning()) {
+	if (!sessionManager || !sessionManager.isRunning()) {
 		vscode.window.showWarningMessage('No active Copilot CLI session');
 		return;
 	}
 	try {
-		await cliManager.acceptPlan();
+		await sessionManager.acceptPlan();
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 		logger.error(`Failed to accept plan: ${errorMsg}`);
@@ -432,12 +436,12 @@ async function handleAcceptPlan(): Promise<void> {
 }
 
 async function handleRejectPlan(): Promise<void> {
-	if (!cliManager || !cliManager.isRunning()) {
+	if (!sessionManager || !sessionManager.isRunning()) {
 		vscode.window.showWarningMessage('No active Copilot CLI session');
 		return;
 	}
 	try {
-		await cliManager.rejectPlan();
+		await sessionManager.rejectPlan();
 	} catch (error) {
 		const errorMsg = error instanceof Error ? error.message : String(error);
 		logger.error(`Failed to reject plan: ${errorMsg}`);
@@ -467,7 +471,7 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 }
 
 async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string): Promise<void> {
-	if (cliManager && cliManager.isRunning()) {
+	if (sessionManager && sessionManager.isRunning()) {
 		logger.warn('CLI session already running');
 		return;
 	}
@@ -477,13 +481,13 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 
-		cliManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
-		wireManagerEvents(context, cliManager);
+		sessionManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
+		wireManagerEvents(context, sessionManager);
 
 		logger.info('Starting CLI process...');
-		await cliManager.start();
+		await sessionManager.start();
 
-		onSessionStarted(cliManager);
+		onSessionStarted(sessionManager);
 	} catch (error) {
 		await handleStartupError(error, context, resumeLastSession, specificSessionId);
 		throw error;
@@ -665,10 +669,10 @@ function onSessionStarted(manager: SDKSessionManager): void {
 	chatProvider.setWorkspacePath(vsWorkspacePath);
 
 	chatProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
-		if (!cliManager) {
+		if (!sessionManager) {
 			return { valid: false, error: 'Session not active' };
 		}
-		return await cliManager.validateAttachments(filePaths);
+		return await sessionManager.validateAttachments(filePaths);
 	});
 
 	// Set configured default model in backend state so webview shows it
@@ -681,7 +685,7 @@ function onSessionStarted(manager: SDKSessionManager): void {
 	logger.show();
 
 	// Fetch available models from SDK and send to webview (fire-and-forget)
-	cliManager?.getAvailableModels().then(models => {
+	sessionManager?.getAvailableModels().then(models => {
 		if (models.length > 0) {
 			chatProvider.sendAvailableModels(models);
 		}
@@ -836,7 +840,7 @@ function updateSessionsList() {
 		}
 
 		// Add current session if not yet in list (new session without events.jsonl)
-		const currentSessionId = cliManager?.getSessionId() || null;
+		const currentSessionId = sessionManager?.getSessionId() || null;
 		if (currentSessionId && !sessions.find(s => s.id === currentSessionId)) {
 			sessions.unshift({ id: currentSessionId, mtime: Date.now() });
 		}
@@ -921,9 +925,9 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 
 export function deactivate() {
 	logger.info('Deactivating Copilot CLI Extension...');
-	if (cliManager) {
+	if (sessionManager) {
 		logger.info('Disposing CLI manager...');
-		cliManager.dispose();
+		sessionManager.dispose();
 	}
 	logger.info('Extension deactivated');
 }

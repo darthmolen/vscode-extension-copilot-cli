@@ -103,6 +103,9 @@ sessionToolbar.on('toggleAgentsPanel', () => {
 eventBus.on('agents:request', () => rpc.getCustomAgents());
 eventBus.on('agents:save', (agent) => rpc.saveCustomAgent(agent));
 eventBus.on('agents:delete', (name) => rpc.deleteCustomAgent(name));
+eventBus.on('agents:panelClosed', ({ mutated }) => {
+	if (mutated) { rpc.agentsPanelClosed(); }
+});
 eventBus.on('selectAgent', (args) => rpc.selectAgent(args && args[0] ? args[0] : ''));
 
 // AcceptanceControls events

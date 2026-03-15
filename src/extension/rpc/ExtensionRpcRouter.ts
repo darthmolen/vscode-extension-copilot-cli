@@ -65,6 +65,7 @@ import {
 	DeleteCustomAgentPayload,
 	CustomAgentsChangedPayload,
 	SelectAgentPayload,
+	AgentsPanelClosedPayload,
 	ActiveAgentChangedPayload,
 	Session,
 	Attachment,
@@ -620,6 +621,10 @@ export class ExtensionRpcRouter {
 	 */
 	onSelectAgent(handler: MessageHandler<SelectAgentPayload>): Disposable {
 		return this.registerHandler('selectAgent', handler);
+	}
+
+	onAgentsPanelClosed(handler: MessageHandler<AgentsPanelClosedPayload>): Disposable {
+		return this.registerHandler('agentsPanelClosed', handler);
 	}
 
 	// ========================================================================

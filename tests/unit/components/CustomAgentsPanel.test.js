@@ -244,3 +244,64 @@ describe('CustomAgentsPanel Component', () => {
 		});
 	});
 });
+
+// ─── Phase 1b: Dirty flag + agents:panelClosed ───────────────────────────────
+
+describe('CustomAgentsPanel — dirty flag + agents:panelClosed', () => {
+let dom, container, eventBus, panel;
+
+const AGENT = { name: 'tester', displayName: 'Tester', description: 'Tests', prompt: 'Test stuff.', builtIn: false };
+
+beforeEach(() => {
+dom = new JSDOM('<!DOCTYPE html><div id="root"></div>');
+global.document = dom.window.document;
+global.window = dom.window;
+container = dom.window.document.getElementById('root');
+eventBus = new EventBus();
+panel = new CustomAgentsPanel(container, eventBus);
+panel.setAgents([AGENT]);
+});
+
+afterEach(() => {
+delete global.document;
+delete global.window;
+});
+
+it('_mutatedSinceOpen starts false after construction', () => {
+expect(panel._mutatedSinceOpen, '_mutatedSinceOpen must be false initially').to.equal(false);
+});
+
+it('emitting agents:save sets _mutatedSinceOpen = true', () => {
+eventBus.emit('agents:save', AGENT);
+expect(panel._mutatedSinceOpen, '_mutatedSinceOpen must be true after save').to.equal(true);
+});
+
+it('emitting agents:delete sets _mutatedSinceOpen = true', () => {
+eventBus.emit('agents:delete', AGENT.name);
+expect(panel._mutatedSinceOpen, '_mutatedSinceOpen must be true after delete').to.equal(true);
+});
+
+it('hide() emits agents:panelClosed with { mutated: true } when mutated', () => {
+panel._mutatedSinceOpen = true;
+let received = null;
+eventBus.on('agents:panelClosed', (data) => { received = data; });
+panel.hide();
+expect(received, 'agents:panelClosed must be emitted').to.not.be.null;
+expect(received.mutated, 'mutated must be true').to.equal(true);
+});
+
+it('hide() emits agents:panelClosed with { mutated: false } when not mutated', () => {
+panel._mutatedSinceOpen = false;
+let received = null;
+eventBus.on('agents:panelClosed', (data) => { received = data; });
+panel.hide();
+expect(received, 'agents:panelClosed must be emitted').to.not.be.null;
+expect(received.mutated, 'mutated must be false').to.equal(false);
+});
+
+it('after hide(), _mutatedSinceOpen resets to false', () => {
+panel._mutatedSinceOpen = true;
+panel.hide();
+expect(panel._mutatedSinceOpen, '_mutatedSinceOpen must reset to false after hide()').to.equal(false);
+});
+});
