@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -358,6 +358,26 @@
           "type": "boolean",
           "default": true,
           "description": "Enable streaming delta events for assistant responses and reasoning (disable to show responses only when complete)"
+        },
+        "copilotCLI.customAgents": {
+          "type": "array",
+          "default": [],
+          "description": "Custom agent definitions. Built-in agents (planner, implementer, reviewer) are always available and non-deletable.",
+          "items": {
+            "type": "object",
+            "required": ["name", "prompt"],
+            "properties": {
+              "name": { "type": "string", "description": "Unique slug used as SDK agent key" },
+              "displayName": { "type": "string", "description": "Human-readable display name" },
+              "description": { "type": "string", "description": "Short description of the agent's role" },
+              "prompt": { "type": "string", "description": "System prompt for the agent" },
+              "tools": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Allowed tool names (comma-separated, null = all tools)"
+              }
+            }
+          }
         }
       }
     }

@@ -44,12 +44,10 @@ class WebviewRpcClient {
 	 * @param {string} text - Message text
 	 * @param {Array<{type: string, path: string, displayName?: string}>} [attachments] - File attachments
 	 */
-	sendMessage(text, attachments = []) {
-		this._send({
-			type: 'sendMessage',
-			text,
-			attachments
-		});
+	sendMessage(text, attachments = [], agentName) {
+		const msg = { type: 'sendMessage', text, attachments };
+		if (agentName) { msg.agentName = agentName; }
+		this._send(msg);
 	}
 	
 	/**
@@ -283,6 +281,33 @@ class WebviewRpcClient {
 		this._send({
 			type: 'compact'
 		});
+	}
+
+	/**
+	 * Request all custom agents from extension
+	 */
+	getCustomAgents() {
+		this._send({ type: 'getCustomAgents' });
+	}
+
+	/**
+	 * Save (upsert) a custom agent
+	 * @param {Object} agent - CustomAgentDefinition
+	 */
+	saveCustomAgent(agent) {
+		this._send({ type: 'saveCustomAgent', agent });
+	}
+
+	/**
+	 * Delete a custom agent by name
+	 * @param {string} name - Agent name slug
+	 */
+	deleteCustomAgent(name) {
+		this._send({ type: 'deleteCustomAgent', name });
+	}
+
+	selectAgent(name) {
+		this._send({ type: 'selectAgent', name });
 	}
 
 	// ========================================================================
@@ -530,6 +555,19 @@ class WebviewRpcClient {
 	 */
 	onReasoningDelta(handler) {
 		return this._registerHandler('reasoningDelta', handler);
+	}
+
+	/**
+	 * Register handler for customAgentsChanged
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onCustomAgentsChanged(handler) {
+		return this._registerHandler('customAgentsChanged', handler);
+	}
+
+	onActiveAgentChanged(handler) {
+		return this._registerHandler('activeAgentChanged', handler);
 	}
 
 	// ========================================================================

@@ -99,10 +99,10 @@ export class CommandParser {
 				description: 'GitHub Copilot agent'
 			}],
 			['agent', {
-				type: 'passthrough',
-				instruction: 'The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal...',
-				category: 'cli',
-				description: 'Specialized agents'
+				type: 'extension',
+				event: 'selectAgent',
+				category: 'config',
+				description: 'Set active agent (or clear with no args)'
 			}],
 			['skills', {
 				type: 'passthrough',

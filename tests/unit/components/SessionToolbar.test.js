@@ -205,4 +205,71 @@ describe('SessionToolbar Component', () => {
 			assert.equal(typeof sessionToolbar.off, 'function', 'Should have off() method');
 		});
 	});
+
+	// -------------------------------------------------------------------------
+	// Custom Agents Button
+	// -------------------------------------------------------------------------
+
+	describe('Custom Agents Button', () => {
+		it('should render #agentsBtn button', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+
+			const btn = container.querySelector('#agentsBtn');
+			assert.ok(btn, 'Agents button (#agentsBtn) must exist in the DOM');
+		});
+
+		it('should emit toggleAgentsPanel when #agentsBtn is clicked', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+
+			let fired = false;
+			sessionToolbar.on('toggleAgentsPanel', () => { fired = true; });
+
+			const btn = container.querySelector('#agentsBtn');
+			assert.ok(btn, '#agentsBtn must exist before clicking');
+			btn.click();
+
+			assert.ok(fired, 'toggleAgentsPanel event must fire when #agentsBtn is clicked');
+		});
+	});
+
+	describe('Active Agent Badge', () => {
+		it('should show agent badge when setActiveAgent() is called with an agent', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			const badge = container.querySelector('#activeAgentBadge');
+			assert.ok(badge, '#activeAgentBadge element must exist');
+
+			sessionToolbar.setActiveAgent({ name: 'reviewer', displayName: 'Reviewer' });
+
+			assert.ok(!badge.hidden, 'Badge must be visible after setActiveAgent');
+			assert.ok(badge.textContent.includes('Reviewer'), 'Badge must show displayName');
+		});
+
+		it('should show agent name when displayName is absent', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setActiveAgent({ name: 'my-agent' });
+
+			const badge = container.querySelector('#activeAgentBadge');
+			assert.ok(!badge.hidden, 'Badge must be visible');
+			assert.ok(badge.textContent.includes('my-agent'), 'Badge must show name when displayName absent');
+		});
+
+		it('should hide badge when setActiveAgent(null) is called', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setActiveAgent({ name: 'planner', displayName: 'Planner' });
+			sessionToolbar.setActiveAgent(null);
+
+			const badge = container.querySelector('#activeAgentBadge');
+			assert.ok(badge.hidden, 'Badge must be hidden after setActiveAgent(null)');
+		});
+	});
 });

@@ -42,6 +42,8 @@ class SessionToolbar {
 					</div>
 				</div>
 				<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan disabled" title="View Plan" aria-label="View plan.md file" disabled>📋</button>
+				<button id="agentsBtn" class="plan-btn session-toolbar__btn--agents" title="Manage Custom Agents" aria-label="Manage custom agents">🤖</button>
+				<span id="activeAgentBadge" class="session-toolbar__agent-badge" hidden></span>
 			</div>
 		`;
 	}
@@ -64,6 +66,14 @@ class SessionToolbar {
 		if (viewPlanBtn) {
 			viewPlanBtn.addEventListener('click', () => {
 				this.emit('viewPlan');
+			});
+		}
+
+		// Agents button
+		const agentsBtn = this.container.querySelector('#agentsBtn');
+		if (agentsBtn) {
+			agentsBtn.addEventListener('click', () => {
+				this.emit('toggleAgentsPanel');
 			});
 		}
 	}
@@ -123,6 +133,18 @@ class SessionToolbar {
 		handlers.forEach(handler => handler(...args));
 	}
 	
+	setActiveAgent(agent) {
+		const badge = this.container.querySelector('#activeAgentBadge');
+		if (!badge) { return; }
+		if (!agent) {
+			badge.hidden = true;
+			badge.textContent = '';
+		} else {
+			badge.textContent = `🤖 ${agent.displayName || agent.name}`;
+			badge.hidden = false;
+		}
+	}
+
 	destroy() {
 		this.listeners.clear();
 		this.container.innerHTML = '';

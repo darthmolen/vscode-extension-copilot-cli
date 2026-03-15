@@ -60,12 +60,19 @@ import {
 	TaskCompletePayload,
 	MessageDeltaPayload,
 	ReasoningDeltaPayload,
+	GetCustomAgentsPayload,
+	SaveCustomAgentPayload,
+	DeleteCustomAgentPayload,
+	CustomAgentsChangedPayload,
+	SelectAgentPayload,
+	ActiveAgentChangedPayload,
 	Session,
 	Attachment,
 	ToolState,
 	InitState,
 	UsageInfo
 } from '../../shared';
+import { CustomAgentDefinition } from '../../shared/models';
 
 /**
  * Type for message handlers
@@ -393,6 +400,28 @@ export class ExtensionRpcRouter {
 		this.send(message);
 	}
 
+	/**
+	 * Custom agents list update
+	 */
+	sendCustomAgentsChanged(agents: CustomAgentDefinition[]): void {
+		const message: CustomAgentsChangedPayload = {
+			type: 'customAgentsChanged',
+			agents
+		};
+		this.send(message);
+	}
+
+	/**
+	 * Active agent changed
+	 */
+	sendActiveAgentChanged(agent: CustomAgentDefinition | null): void {
+		const message: ActiveAgentChangedPayload = {
+			type: 'activeAgentChanged',
+			agent
+		};
+		this.send(message);
+	}
+
 	// ========================================================================
 	// Receive Handlers (Webview → Extension)
 	// ========================================================================
@@ -563,6 +592,34 @@ export class ExtensionRpcRouter {
 	 */
 	onCompact(handler: MessageHandler<CompactPayload>): Disposable {
 		return this.registerHandler('compact', handler);
+	}
+
+	/**
+	 * Register handler for getCustomAgents
+	 */
+	onGetCustomAgents(handler: MessageHandler<GetCustomAgentsPayload>): Disposable {
+		return this.registerHandler('getCustomAgents', handler);
+	}
+
+	/**
+	 * Register handler for saveCustomAgent
+	 */
+	onSaveCustomAgent(handler: MessageHandler<SaveCustomAgentPayload>): Disposable {
+		return this.registerHandler('saveCustomAgent', handler);
+	}
+
+	/**
+	 * Register handler for deleteCustomAgent
+	 */
+	onDeleteCustomAgent(handler: MessageHandler<DeleteCustomAgentPayload>): Disposable {
+		return this.registerHandler('deleteCustomAgent', handler);
+	}
+
+	/**
+	 * Register handler for selectAgent
+	 */
+	onSelectAgent(handler: MessageHandler<SelectAgentPayload>): Disposable {
+		return this.registerHandler('selectAgent', handler);
 	}
 
 	// ========================================================================

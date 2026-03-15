@@ -10,6 +10,7 @@ import { PlanModeToolsService } from './extension/services/planModeToolsService'
 import { MessageEnhancementService } from './extension/services/messageEnhancementService';
 import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
+import { CustomAgentsService } from './extension/services/CustomAgentsService';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
 import {
@@ -325,6 +326,7 @@ export class SDKSessionManager implements vscode.Disposable {
     private messageEnhancementService: MessageEnhancementService;
     private fileSnapshotService: FileSnapshotService;
     private mcpConfigurationService: MCPConfigurationService;
+    private customAgentsService: CustomAgentsService;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -342,6 +344,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.messageEnhancementService = new MessageEnhancementService();
         this.fileSnapshotService = new FileSnapshotService();
         this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
+        this.customAgentsService = new CustomAgentsService();
         
         // If specific session ID provided, use it
         if (specificSessionId) {
@@ -539,6 +542,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
                         ...(hasMcpServers ? { mcpServers } : {}),
+                        customAgents: this.customAgentsService.toSDKAgents(),
                     });
                     this.sessionId = this.session.sessionId;
 
@@ -558,6 +562,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     tools: this.getCustomTools(),
                     hooks: this.getSessionHooks(),
                     ...(hasMcpServers ? { mcpServers } : {}),
+                    customAgents: this.customAgentsService.toSDKAgents(),
                 });
                 this.sessionId = this.session.sessionId;
             }
@@ -1034,7 +1039,7 @@ export class SDKSessionManager implements vscode.Disposable {
         return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
     }
 
-    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false): Promise<void> {
+    public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false, agentName?: string): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
         }
@@ -1071,9 +1076,28 @@ export class SDKSessionManager implements vscode.Disposable {
             if (attachments && attachments.length > 0) {
                 sendOptions.attachments = attachments;
             }
-            
-            await this.session.sendAndWait(sendOptions);
-            this.logger.info('Message sent and completed successfully');
+
+            // Select agent for this message if specified (per-message override)
+            if (agentName) {
+                try {
+                    await this.session.rpc.agent.select({ name: agentName });
+                    this.logger.info(`[Agent] Selected agent: ${agentName}`);
+                } catch (e) {
+                    this.logger.warn(`[Agent] Failed to select agent "${agentName}": ${e instanceof Error ? e.message : String(e)}`);
+                }
+            }
+
+            try {
+                await this.session.sendAndWait(sendOptions);
+                this.logger.info('Message sent and completed successfully');
+            } finally {
+                // Deselect agent after message to restore auto-inference
+                if (agentName) {
+                    try {
+                        await this.session.rpc.agent.deselect();
+                    } catch { /* ignore deselect errors */ }
+                }
+            }
 
             // Clean up temp files (pasted images) after SDK has consumed them
             if (attachments && attachments.length > 0) {
@@ -1230,6 +1254,7 @@ export class SDKSessionManager implements vscode.Disposable {
                             'report_intent'
                         ],
                         ...(hasMcpServers ? { mcpServers } : {}),
+                        customAgents: this.customAgentsService.toSDKAgents(),
                     });
                     this.planSession = this.session;
                     this.sessionId = planSessionId;
@@ -1243,6 +1268,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
                         ...(hasMcpServers ? { mcpServers } : {}),
+                        customAgents: this.customAgentsService.toSDKAgents(),
                     });
                     this.sessionId = this.session.sessionId;
 
@@ -1602,6 +1628,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     content: this.planModeToolsService.getSystemPrompt(this.workSessionId!)
                 },
                 ...(hasMcpServers ? { mcpServers } : {}),
+                customAgents: this.customAgentsService.toSDKAgents(),
             });
             
             this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
@@ -1739,6 +1766,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     tools: this.getCustomTools(),
                     hooks: this.getSessionHooks(),
                     ...(hasMcpServers ? { mcpServers } : {}),
+                    customAgents: this.customAgentsService.toSDKAgents(),
                 }),
                 this.logger
             );
@@ -1761,6 +1789,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
                         ...(hasMcpServers ? { mcpServers } : {}),
+                        customAgents: this.customAgentsService.toSDKAgents(),
                     });
                     verifiedSession = newSession;
                     this.sessionId = newSession.sessionId;

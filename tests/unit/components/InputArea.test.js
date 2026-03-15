@@ -443,4 +443,62 @@ describe('InputArea Component', () => {
 			expect(input.value).to.equal('Line 1'); // Value unchanged (browser handles newline)
 		});
 	});
+
+	describe('@agentName mention parsing', () => {
+		beforeEach(() => {
+			eventBus.emit('session:active', true);
+		});
+
+		it('parses @reviewer hello → { agentName: "reviewer", text: "hello" }', () => {
+			let emittedData = null;
+			eventBus.on('input:sendMessage', (data) => { emittedData = data; });
+
+			const input = document.getElementById('messageInput');
+			input.value = '@reviewer hello world';
+			document.getElementById('sendButton').click();
+
+			expect(emittedData).to.not.be.null;
+			expect(emittedData.agentName).to.equal('reviewer');
+			expect(emittedData.text).to.equal('hello world');
+		});
+
+		it('parses @planner (no message text) → { agentName: "planner", text: "" }', () => {
+			let emittedData = null;
+			eventBus.on('input:sendMessage', (data) => { emittedData = data; });
+
+			const input = document.getElementById('messageInput');
+			input.value = '@planner';
+			document.getElementById('sendButton').click();
+
+			expect(emittedData).to.not.be.null;
+			expect(emittedData.agentName).to.equal('planner');
+			expect(emittedData.text).to.equal('');
+		});
+
+		it('plain text (no prefix) → no agentName in emitted data', () => {
+			let emittedData = null;
+			eventBus.on('input:sendMessage', (data) => { emittedData = data; });
+
+			const input = document.getElementById('messageInput');
+			input.value = 'hello world';
+			document.getElementById('sendButton').click();
+
+			expect(emittedData).to.not.be.null;
+			expect(emittedData.agentName).to.be.undefined;
+			expect(emittedData.text).to.equal('hello world');
+		});
+
+		it('@-only prefix with no agent name → treated as plain text', () => {
+			let emittedData = null;
+			eventBus.on('input:sendMessage', (data) => { emittedData = data; });
+
+			const input = document.getElementById('messageInput');
+			input.value = '@ hello';
+			document.getElementById('sendButton').click();
+
+			expect(emittedData).to.not.be.null;
+			expect(emittedData.agentName).to.be.undefined;
+			expect(emittedData.text).to.equal('@ hello');
+		});
+	});
 });

@@ -67,4 +67,69 @@ describe('ExtensionRpcRouter Unit Tests', function () {
 		router.route({ type: 'ready' });
 		assert.ok(called, 'Handler should be called when message is routed');
 	});
+
+	// -------------------------------------------------------------------------
+	// Custom Agents RPC
+	// -------------------------------------------------------------------------
+
+	it('should register onGetCustomAgents handler without throwing', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		assert.doesNotThrow(() => router.onGetCustomAgents(() => {}));
+	});
+
+	it('should route getCustomAgents to handler', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		let called = false;
+		router.onGetCustomAgents(() => { called = true; });
+		router.route({ type: 'getCustomAgents' });
+		assert.ok(called, 'onGetCustomAgents handler should be called');
+	});
+
+	it('should register onSaveCustomAgent handler without throwing', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		assert.doesNotThrow(() => router.onSaveCustomAgent(() => {}));
+	});
+
+	it('should route saveCustomAgent to handler with agent payload', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		let received = null;
+		router.onSaveCustomAgent((payload) => { received = payload; });
+		router.route({ type: 'saveCustomAgent', agent: { name: 'my-agent', prompt: 'Hello.' } });
+		assert.ok(received, 'onSaveCustomAgent handler should be called');
+		assert.equal(received.agent.name, 'my-agent');
+	});
+
+	it('should register onDeleteCustomAgent handler without throwing', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		assert.doesNotThrow(() => router.onDeleteCustomAgent(() => {}));
+	});
+
+	it('should route deleteCustomAgent to handler with name payload', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		let received = null;
+		router.onDeleteCustomAgent((payload) => { received = payload; });
+		router.route({ type: 'deleteCustomAgent', name: 'my-agent' });
+		assert.ok(received, 'onDeleteCustomAgent handler should be called');
+		assert.equal(received.name, 'my-agent');
+	});
+
+	it('should send customAgentsChanged with agents array', function () {
+		const mockWebview = createMockWebview();
+		const router = new ExtensionRpcRouter(mockWebview);
+		const agents = [{ name: 'planner', prompt: 'Plan.', displayName: 'Planner' }];
+		router.sendCustomAgentsChanged(agents);
+		const sent = mockWebview._getSentMessages();
+		assert.equal(sent[0].type, 'customAgentsChanged');
+		assert.deepEqual(sent[0].agents, agents);
+	});
+
+	it('should deliver agentName when routing sendMessage with agentName field', function () {
+		const router = new ExtensionRpcRouter(createMockWebview());
+		let received = null;
+		router.onSendMessage((payload) => { received = payload; });
+		router.route({ type: 'sendMessage', text: 'hello', agentName: 'reviewer' });
+		assert.ok(received, 'onSendMessage handler should be called');
+		assert.equal(received.agentName, 'reviewer', 'agentName must be passed through to handler');
+		assert.equal(received.text, 'hello');
+	});
 });

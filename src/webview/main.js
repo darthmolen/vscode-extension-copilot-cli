@@ -8,6 +8,7 @@ import { InputArea } from './app/components/InputArea/InputArea.js';
 import { SessionToolbar } from './app/components/SessionToolbar/SessionToolbar.js';
 import { AcceptanceControls } from './app/components/AcceptanceControls/AcceptanceControls.js';
 import { StatusBar } from './app/components/StatusBar/StatusBar.js';
+import { CustomAgentsPanel } from './app/components/CustomAgentsPanel/CustomAgentsPanel.js';
 // Import extracted event handlers
 import {
 	handleReasoningToggle,
@@ -62,6 +63,10 @@ const sessionToolbar = new SessionToolbar(sessionToolbarContainer);
 const acceptanceControlsContainer = document.getElementById('acceptance-mount');
 const acceptanceControls = new AcceptanceControls(acceptanceControlsContainer);
 
+// Initialize CustomAgentsPanel component
+const customAgentsPanelContainer = document.getElementById('custom-agents-mount');
+const customAgentsPanel = new CustomAgentsPanel(customAgentsPanelContainer, eventBus);
+
 // StatusBar component REMOVED - functionality moved to InputArea
 // const statusBarContainer = document.querySelector('.status-bar, .input-controls') || document.createElement('div');
 // const statusBar = new StatusBar(statusBarContainer);
@@ -94,6 +99,16 @@ sessionToolbar.on('acceptPlan', () => {
 sessionToolbar.on('rejectPlan', () => {
 	handleRejectPlan(rpc);
 });
+
+sessionToolbar.on('toggleAgentsPanel', () => {
+	customAgentsPanel.toggle();
+});
+
+// CustomAgentsPanel events
+eventBus.on('agents:request', () => rpc.getCustomAgents());
+eventBus.on('agents:save', (agent) => rpc.saveCustomAgent(agent));
+eventBus.on('agents:delete', (name) => rpc.deleteCustomAgent(name));
+eventBus.on('selectAgent', (args) => rpc.selectAgent(args && args[0] ? args[0] : ''));
 
 // AcceptanceControls events
 acceptanceControls.on('accept', (value) => {
@@ -219,10 +234,15 @@ eventBus.on('compact', () => {
 	rpc.compact();
 });
 
+// Track sticky active agent set by /agent command
+let _activeAgent = null;
+
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));
-	rpc.sendMessage(data.text, data.attachments.length > 0 ? data.attachments : undefined);
+	// @mention (data.agentName) wins over sticky agent
+	const agentName = data.agentName || (_activeAgent ? _activeAgent.name : undefined);
+	rpc.sendMessage(data.text, data.attachments.length > 0 ? data.attachments : undefined, agentName);
 });
 
 // Listen for input:abort events from InputArea component
@@ -568,6 +588,9 @@ export function handleInitMessage(payload) {
 	showReasoning = reasoningEnabled;
 	inputArea.setReasoningEnabled(reasoningEnabled);
 	eventBus.emit('reasoning:toggle', reasoningEnabled);
+
+	// Load custom agents for the panel
+	rpc.getCustomAgents();
 }
 
 function handleModelSwitchedMessage(payload) {
@@ -641,6 +664,15 @@ rpc.onReasoningDelta((data) => {
 	}
 });
 
+rpc.onCustomAgentsChanged((data) => {
+	customAgentsPanel.setAgents(data.agents);
+});
+
+rpc.onActiveAgentChanged((data) => {
+	_activeAgent = data.agent || null;
+	sessionToolbar.setActiveAgent(_activeAgent);
+});
+
 // Notify extension that webview is ready (skip in test mode)
 if (typeof window !== 'undefined' && !window.__TESTING__) {
 	rpc.ready();
@@ -653,6 +685,7 @@ export const __testExports = {
 	inputArea,
 	sessionToolbar,
 	acceptanceControls,
+	customAgentsPanel,
 	handleStatusMessage,
 	handleUsageInfoMessage
 };

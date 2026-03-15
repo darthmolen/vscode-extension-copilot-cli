@@ -11,6 +11,7 @@ import { NotSupportedSlashHandlers } from './extension/services/slashCommands/No
 import { CompactSlashHandlers } from './extension/services/slashCommands/CompactSlashHandlers';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
 import { SessionService } from './extension/services/SessionService';
+import { CustomAgentsService } from './extension/services/CustomAgentsService';
 import { resolveImagePaths } from './extension/utils/resolveImagePaths';
 import * as fs from 'fs';
 
@@ -34,9 +35,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private notSupportedHandlers?: NotSupportedSlashHandlers;
 	private cliPassthroughService?: CLIPassthroughService;
 	private compactHandlers?: CompactSlashHandlers;
+	private customAgentsService: CustomAgentsService = new CustomAgentsService();
 
 	// Event emitters to replace Set<Function> handlers
-	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}>());
+	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}>());
 	private readonly _onDidRequestAbort = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestViewPlan = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
@@ -168,7 +170,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			}
 			this._onDidReceiveUserMessage.fire({
 				text: payload.text,
-				attachments: payload.attachments
+				attachments: payload.attachments,
+				agentName: payload.agentName
 			});
 		}));
 
@@ -338,6 +341,47 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this._reg(this.rpcRouter.onCompact(() => {
 			this.logger.info('[Compact] Compact requested from UI');
 			this._onDidRequestCompact.fire();
+		}));
+
+		this._reg(this.rpcRouter.onGetCustomAgents(async () => {
+			this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
+		}));
+
+		this._reg(this.rpcRouter.onSaveCustomAgent(async (payload) => {
+			try {
+				await this.customAgentsService.save(payload.agent);
+				this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
+			} catch (e: any) {
+				this.rpcRouter!.setStatus(`Failed to save agent: ${e.message}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onDeleteCustomAgent(async (payload) => {
+			try {
+				await this.customAgentsService.delete(payload.name);
+				this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
+			} catch (e: any) {
+				this.rpcRouter!.setStatus(`Failed to delete agent: ${e.message}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onSelectAgent(async (payload) => {
+			const state = getBackendState();
+			const agentName = payload.name.trim();
+			this.logger.info(`[selectAgent] ${agentName || '(clear)'}`);
+			if (!agentName) {
+				state.setActiveAgent(null);
+				this.rpcRouter!.sendActiveAgentChanged(null);
+				return;
+			}
+			const all = this.customAgentsService.getAll();
+			const agent = all.find(a => a.name === agentName);
+			if (!agent) {
+				this.rpcRouter!.setStatus(`Unknown agent: ${agentName}. Available: ${all.map(a => a.name).join(', ')}`);
+				return;
+			}
+			state.setActiveAgent(agentName);
+			this.rpcRouter!.sendActiveAgentChanged(agent);
 		}));
 
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
@@ -700,6 +744,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 <body>
 	<!-- Component Mount Points - Components render themselves here -->
 	<div id="session-toolbar-mount"></div>
+	<div id="custom-agents-mount"></div>
 
 	<main role="main">
 		<div id="messages-mount"></div>

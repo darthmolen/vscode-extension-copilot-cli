@@ -94,7 +94,7 @@ async function viewPlanFile(): Promise<void> {
 
 /** Register chatProvider event handlers (message, abort, view plan, ready). */
 function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>}) => {
+	context.subscriptions.push(chatProvider.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}) => {
 		logger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);
 
 		const displayAttachments = data.attachments?.map(att => ({
@@ -106,7 +106,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		chatProvider.setThinking(true);
 
 		if (cliManager && cliManager.isRunning()) {
-			cliManager.sendMessage(data.text, data.attachments);
+			cliManager.sendMessage(data.text, data.attachments, false, false, data.agentName);
 		} else {
 			chatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
 			chatProvider.setThinking(false);
