@@ -2,6 +2,36 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.6.0] - 2026-03-15
+
+### ✨ Features
+
+- **Custom Agents** — Full CRUD UI for named agents with scoped tools and system prompts. Open the 🤖 Agents panel from the toolbar to create, edit, or delete agents. Three non-deletable built-in agents ship out of the box:
+  - **Planner** — Read-only exploration; writes `plan.md`. Never edits source files.
+  - **Implementer** — Reads the plan and executes it faithfully. Full file-editing access.
+  - **Reviewer** — Runs tests, reads changed files, produces a concise review summary. Read-only.
+- **`@agentName` message routing** — Prefix any message with `@agentName` to route it to a specific agent for that message. The mention takes priority over the sticky agent.
+- **`/agent <name>` slash command** — Set a sticky agent for the whole session. A badge in the toolbar shows the active agent. Run `/agent` with no args to clear it and return to auto-inference.
+- **Color-coded conversation flow** — Each message type now has a distinct left border color for instant visual scanning:
+  - 🔵 **Blue** — User messages
+  - 🟢 **Green** — Assistant responses
+  - 🟣 **Purple** — Tool executions and agent actions
+- **`copilotCLI.customAgents`** — New workspace setting (persisted globally) for user-defined agent configurations. Built-in agents live in extension constants and are always available without configuration.
+
+### 🔧 Internal
+
+- **`CustomAgentsService`** — New backend service (`src/extension/services/CustomAgentsService.ts`). Handles CRUD against `copilotCLI.customAgents` config, merges built-ins at runtime, and exports `toSDKAgents()` for session injection.
+- **`CustomAgentsPanel`** — New webview component with list and form views for the agents UI.
+- **`customAgents` at session creation** — All 7 `createSessionWithModelFallback` call sites now pass `customAgents: this.customAgentsService.toSDKAgents()`, making agents available in every session including plan mode.
+- **`agent.select/deselect` per message** — `sdkSessionManager.sendMessage()` calls `session.rpc.agent.select({ name })` before `sendAndWait` and `session.rpc.agent.deselect()` in a `finally` block for per-message agent routing.
+- **6 new RPC message types** — `getCustomAgents`, `saveCustomAgent`, `deleteCustomAgent`, `customAgentsChanged`, `selectAgent`, `activeAgentChanged` — all wired through `ExtensionRpcRouter` and `WebviewRpcClient`.
+- **`BackendState.activeAgent`** — New field tracking the sticky agent name; cleared on session reset.
+- **`parseAgentMention()`** — Exported utility in `InputArea.js` using `/^@([a-z0-9_-]+)\s*(.*)/s` to extract agent name from message text.
+- **`/agent` command reclassified** — Changed from `passthrough` (opens CLI terminal) to `extension` type emitting `selectAgent` event.
+- **XSS protection** — `CustomAgentsPanel` uses `escapeHtml()` for all agent field rendering and sets form input values programmatically.
+- **Slug validation** — `CustomAgentsService.save()` enforces `/^[a-z0-9_-]+$/` on agent names so they always match the `@mention` regex.
+- **~70 new tests** — 6 new test files + 5 modified. All follow RED→GREEN TDD discipline.
+
 ## [3.5.0] - 2026-03-14
 
 ### ✨ Features

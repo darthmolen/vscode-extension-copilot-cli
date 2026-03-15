@@ -35,9 +35,28 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
 - **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
 
+### 🤖 Custom Agents
+
+Define named agents with tailored system prompts and scoped tool access — or use the three built-in agents that ship out of the box:
+
+| Agent | Role |
+|-------|------|
+| **Planner** | Read-only exploration; writes `plan.md`. Never edits source files. |
+| **Implementer** | Reads the plan and executes it. Full file-editing access. |
+| **Reviewer** | Runs tests, reads changed files, posts a concise review summary. Read-only. |
+
+**How to use:**
+- Open the **🤖 Agents panel** in the toolbar to create, edit, or delete agents
+- Type `@agentName` at the start of any message to route that message to a specific agent
+- Use `/agent <name>` to set a sticky agent for the whole session; `/agent` with no args clears it
+- A badge in the toolbar shows the active sticky agent at a glance
+
+Agents are injected at session creation — the right agent is always available, no restart needed. Built-in agents are editable (tune their prompts) but protected from accidental deletion. User agents persist globally across all workspaces via VS Code settings.
+
 ### 🛠️ Rich Agent Experience
 
 - **In-Stream Tool Execution** — Collapsible tool groups show exactly what the agent is doing, inline with the conversation.
+- **Color-coded conversation** — 🔵 User messages, 🟢 Assistant responses, 🟣 Tool/agent actions each have a distinct left border so you can scan the flow at a glance.
 - **Mermaid Diagrams** — Mermaid code blocks render as interactive diagrams with a toolbar to view source or save as SVG/`.mmd`.
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
@@ -52,6 +71,14 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.6.0 - Custom Agents, @mention Routing, and Color-Coded Conversation
+
+- **Custom Agents** — Define named agents with their own system prompts and scoped tool access from the new 🤖 Agents panel. Built-in Planner, Implementer, and Reviewer agents ship out of the box.
+- **`@agentName` mentions** — Route any message to a specific agent by starting it with `@agentName`. Mention wins over the sticky agent.
+- **`/agent <name>` slash command** — Set a sticky agent for the session. A badge in the toolbar shows which agent is active. `/agent` with no args clears it.
+- **Color-coded conversation** — 🔵 User messages · 🟢 Assistant responses · 🟣 Tool/agent actions. Distinct left border colors let you scan the conversation flow instantly.
+- **`copilotCLI.customAgents`** — New workspace setting to persist user-defined agents globally.
 
 ### v3.5.0 - Streaming Responses, /compact, and Reasoning Streaming
 
