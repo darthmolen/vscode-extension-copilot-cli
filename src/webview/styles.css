@@ -448,7 +448,7 @@ main {
 	margin: 8px 0;
 	background: var(--vscode-editorWidget-background);
 	border-radius: 4px;
-	border-left: 3px solid var(--vscode-charts-blue);
+	border-left: 3px solid var(--vscode-charts-purple);
 	max-width: 600px;
 }
 
@@ -459,7 +459,7 @@ main {
 	margin: 8px 0;
 	background: var(--vscode-editorWidget-background);
 	border-radius: 4px;
-	border-left: 3px solid var(--vscode-charts-blue);
+	border-left: 3px solid var(--vscode-charts-purple);
 	max-width: 600px;
 }
 
@@ -613,8 +613,7 @@ main {
 .tool-execution__intent {
 	flex: 1;
 	color: var(--vscode-descriptionForeground);
-	font-size: 0.85em;
-	font-style: italic;
+	font-size: 0.95em;
 	padding: 0 8px;
 	overflow: hidden;
 	text-overflow: ellipsis;
