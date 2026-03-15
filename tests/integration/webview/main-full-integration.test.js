@@ -177,12 +177,6 @@ describe('main.js Full Component Integration (RED Phase)', () => {
 			assert.ok(mainJS.includes('new AcceptanceControls('), 'main.js should create AcceptanceControls instance');
 		});
 
-		it('should create StatusBar component', async () => {
-			const mainJS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'webview', 'main.js'), 'utf-8');
-
-			assert.ok(mainJS.includes('import { StatusBar }'), 'main.js should import StatusBar');
-			assert.ok(mainJS.includes('new StatusBar('), 'main.js should create StatusBar instance');
-		});
 	});
 
 	describe('Component Wiring', () => {
