@@ -77,3 +77,93 @@ describe('/agent slash command handler', function () {
         );
     });
 });
+
+// ─── Phase 3a: onDidSelectAgent event + extension.ts wiring ─────────────────
+
+describe('chatViewProvider.ts — onDidSelectAgent event', function () {
+    let src;
+    before(function () {
+        src = fs.readFileSync(
+            path.join(__dirname, '../../../src/chatViewProvider.ts'), 'utf-8'
+        );
+    });
+
+    it('declares _onDidSelectAgent EventEmitter', function () {
+        assert.ok(
+            src.includes('_onDidSelectAgent'),
+            'chatViewProvider.ts must declare _onDidSelectAgent EventEmitter'
+        );
+    });
+
+    it('exposes onDidSelectAgent public event', function () {
+        assert.ok(
+            src.includes('onDidSelectAgent'),
+            'chatViewProvider.ts must expose onDidSelectAgent public event'
+        );
+    });
+
+    it('fires _onDidSelectAgent in the selectAgent handler', function () {
+        // The handler must fire the event with the agent name (or null for clear)
+        assert.ok(
+            src.includes('_onDidSelectAgent.fire'),
+            'chatViewProvider.ts selectAgent handler must call _onDidSelectAgent.fire()'
+        );
+    });
+});
+
+describe('extension.ts — wires onDidSelectAgent to SDK', function () {
+    let src;
+    before(function () {
+        src = fs.readFileSync(
+            path.join(__dirname, '../../../src/extension.ts'), 'utf-8'
+        );
+    });
+
+    it('subscribes to chatProvider.onDidSelectAgent', function () {
+        assert.ok(
+            src.includes('onDidSelectAgent'),
+            'extension.ts must subscribe to chatProvider.onDidSelectAgent'
+        );
+    });
+
+    it('calls cliManager.selectAgent() when agent name provided', function () {
+        assert.ok(
+            src.includes('cliManager.selectAgent') || src.includes('selectAgent('),
+            'extension.ts must call cliManager.selectAgent() when onDidSelectAgent fires with a name'
+        );
+    });
+
+    it('calls cliManager.deselectAgent() when agent cleared', function () {
+        assert.ok(
+            src.includes('cliManager.deselectAgent') || src.includes('deselectAgent()'),
+            'extension.ts must call cliManager.deselectAgent() when onDidSelectAgent fires with null'
+        );
+    });
+});
+
+// ─── Phase 4a: main.js send handler — sticky vs @mention ─────────────────────
+
+describe('main.js — sendMessage payload: sticky vs one-shot', function () {
+    let mainSrc;
+    before(function () {
+        mainSrc = fs.readFileSync(
+            path.join(__dirname, '../../../src/webview/main.js'), 'utf-8'
+        );
+    });
+
+    it('does NOT pass _activeAgent.name as agentName in sendMessage', function () {
+        // The old buggy code: `data.agentName || (_activeAgent ? _activeAgent.name : undefined)`
+        // Sticky agent is already selected at SDK level via selectAgent().
+        assert.ok(
+            !mainSrc.includes('_activeAgent.name'),
+            'main.js must not pass _activeAgent.name as agentName in rpc.sendMessage — sticky is handled by SDK session'
+        );
+    });
+
+    it('passes data.agentName (one-shot @mention) directly to rpc.sendMessage', function () {
+        assert.ok(
+            mainSrc.includes('data.agentName'),
+            'main.js must pass data.agentName to rpc.sendMessage for one-shot @mentions'
+        );
+    });
+});

@@ -235,9 +235,9 @@ let _activeAgent = null;
 // Listen for input:sendMessage events from InputArea component
 eventBus.on('input:sendMessage', (data) => {
 	console.log('[SEND] sendMessage event from InputArea:', data.text.substring(0, 50));
-	// @mention (data.agentName) wins over sticky agent
-	const agentName = data.agentName || (_activeAgent ? _activeAgent.name : undefined);
-	rpc.sendMessage(data.text, data.attachments.length > 0 ? data.attachments : undefined, agentName);
+	// Sticky agent is already selected at SDK level via selectAgent() (from /agent command).
+	// Only one-shot @mention (data.agentName) needs to be forwarded to sendMessage.
+	rpc.sendMessage(data.text, data.attachments.length > 0 ? data.attachments : undefined, data.agentName);
 });
 
 // Listen for input:abort events from InputArea component

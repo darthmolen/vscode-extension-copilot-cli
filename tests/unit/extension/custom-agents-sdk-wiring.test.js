@@ -107,3 +107,101 @@ describe('Custom Agents SDK Wiring (sdkSessionManager.ts)', function () {
         }
     });
 });
+
+// ─── Phase 1 / 2: selectAgent / deselectAgent + per-message behavior ────────
+
+describe('SDKSessionManager — selectAgent/deselectAgent (source checks)', function () {
+    let src;
+
+    before(function () {
+        src = fs.readFileSync(
+            path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf-8'
+        );
+    });
+
+    // Phase 1a — methods exist in source
+    it('declares a _sessionAgent field', function () {
+        assert.ok(src.includes('_sessionAgent'), 'sdkSessionManager must have _sessionAgent field');
+    });
+
+    it('has a public selectAgent() method', function () {
+        assert.ok(
+            src.includes('selectAgent(') || src.includes('selectAgent ('),
+            'sdkSessionManager must have a selectAgent() method'
+        );
+    });
+
+    it('has a public deselectAgent() method', function () {
+        assert.ok(
+            src.includes('deselectAgent(') || src.includes('deselectAgent ('),
+            'sdkSessionManager must have a deselectAgent() method'
+        );
+    });
+
+    it('selectAgent() calls session.rpc.agent.select', function () {
+        assert.ok(
+            src.includes('rpc.agent.select'),
+            'selectAgent() must call session.rpc.agent.select'
+        );
+    });
+
+    it('deselectAgent() calls session.rpc.agent.deselect', function () {
+        assert.ok(
+            src.includes('rpc.agent.deselect'),
+            'deselectAgent() must call session.rpc.agent.deselect'
+        );
+    });
+
+    // Phase 2a — sendMessage one-shot logic
+    it('sendMessage uses _sessionAgent to decide whether to restore or deselect in finally', function () {
+        assert.ok(
+            src.includes('_sessionAgent'),
+            'sendMessage must reference _sessionAgent to determine restore-vs-deselect behavior'
+        );
+    });
+
+    it('sendMessage only selects agent on one-shot (@mention different from sticky)', function () {
+        assert.ok(
+            src.includes('isOneShot') || src.includes('one-shot') || src.includes('one_shot') ||
+            src.includes('agentName !== this._sessionAgent'),
+            'sendMessage must distinguish one-shot @mention from sticky agent'
+        );
+    });
+
+    it('sendMessage restores sticky agent (not blindly deselects) after one-shot', function () {
+        // The finally block must re-select _sessionAgent when it was set, not just call deselect()
+        assert.ok(
+            src.includes('this._sessionAgent') && src.includes('rpc.agent.select'),
+            'sendMessage finally block must restore _sessionAgent via rpc.agent.select when sticky was active'
+        );
+    });
+});
+
+// ─── Phase 5: Session resume restores sticky agent ───────────────────────────
+
+describe('SDKSessionManager — session resume/clear (source checks)', function () {
+    let src;
+    before(function () {
+        src = fs.readFileSync(
+            path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf-8'
+        );
+    });
+
+    it('clears _sessionAgent on session stop/reset', function () {
+        // When session is stopped or destroyed, _sessionAgent should be reset to null
+        // so a fresh session doesn't inherit stale agent state.
+        assert.ok(
+            src.includes('_sessionAgent = null'),
+            'sdkSessionManager must reset _sessionAgent to null on session stop/reset'
+        );
+    });
+
+    it('restores sticky agent after session resume if backendState has an active agent', function () {
+        // After resuming a session, if backendState.getActiveAgent() is set,
+        // selectAgent() should be called to re-establish the SDK session agent.
+        assert.ok(
+            src.includes('getActiveAgent') && src.includes('selectAgent'),
+            'sdkSessionManager must call selectAgent() after resume when backendState has an active agent'
+        );
+    });
+});

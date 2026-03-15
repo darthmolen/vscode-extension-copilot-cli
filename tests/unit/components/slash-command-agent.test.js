@@ -59,3 +59,4 @@ describe('CommandParser - /agent command', () => {
 		expect(result.args[0]).to.equal('unknown-name');
 	});
 });
+

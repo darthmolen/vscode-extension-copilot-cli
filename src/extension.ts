@@ -227,6 +227,19 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			chatProvider.addAssistantMessage(`⚠ Compaction failed: ${error.message}`);
 		}
 	}));
+
+	context.subscriptions.push(chatProvider.onDidSelectAgent(async (agentName: string | null) => {
+		if (!cliManager) { return; }
+		try {
+			if (agentName) {
+				await cliManager.selectAgent(agentName);
+			} else {
+				await cliManager.deselectAgent();
+			}
+		} catch (e: any) {
+			logger.warn(`[Agent] SDK select/deselect failed: ${e.message}`);
+		}
+	}));
 }
 
 /** Register all VS Code commands. */

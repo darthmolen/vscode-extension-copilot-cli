@@ -45,6 +45,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
+	private readonly _onDidSelectAgent = this._reg(new vscode.EventEmitter<string | null>());
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -54,6 +55,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
 	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
 	readonly onDidRequestCompact = this._onDidRequestCompact.event;
+	readonly onDidSelectAgent = this._onDidSelectAgent.event;
 
 	constructor(extensionUri: vscode.Uri) {
 		this.extensionUri = extensionUri;
@@ -372,6 +374,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			if (!agentName) {
 				state.setActiveAgent(null);
 				this.rpcRouter!.sendActiveAgentChanged(null);
+				this._onDidSelectAgent.fire(null);
 				return;
 			}
 			const all = this.customAgentsService.getAll();
@@ -382,6 +385,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			}
 			state.setActiveAgent(agentName);
 			this.rpcRouter!.sendActiveAgentChanged(agent);
+			this._onDidSelectAgent.fire(agentName);
 		}));
 
 		this._reg(this.rpcRouter.onOpenFile(async (payload) => {

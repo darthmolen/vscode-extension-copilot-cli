@@ -11,6 +11,7 @@ import { MessageEnhancementService } from './extension/services/messageEnhanceme
 import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CustomAgentsService } from './extension/services/CustomAgentsService';
+import { getBackendState } from './backendState';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
 import {
@@ -327,6 +328,8 @@ export class SDKSessionManager implements vscode.Disposable {
     private fileSnapshotService: FileSnapshotService;
     private mcpConfigurationService: MCPConfigurationService;
     private customAgentsService: CustomAgentsService;
+    /** SDK session-level selected agent. null = auto-inference. Distinct from backendState.activeAgent (UI). */
+    private _sessionAgent: string | null = null;
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -568,6 +571,9 @@ export class SDKSessionManager implements vscode.Disposable {
             }
 
             this.logger.info(`Session active: ${this.sessionId}`);
+
+            // Restore sticky agent if one was active before session (re)creation
+            await this._restoreStickyAgentIfNeeded();
 
             // Ensure the dropdown always shows a readable name — never a raw UUID.
             SessionService.ensureSessionName(path.join(os.homedir(), '.copilot', 'session-state', this.sessionId!));
@@ -1078,16 +1084,15 @@ export class SDKSessionManager implements vscode.Disposable {
             }
 
             // Select agent for this message if specified (per-message override).
-            // Note: agent.select is session-level (not message-level) in the SDK. Rapid
-            // consecutive messages with different agents could race — one deselect may
-            // interleave with the next select. This is a known SDK limitation; acceptable
-            // since the UI disables input while a message is in flight.
-            if (agentName) {
+            // One-shot @mention: only select/deselect when the mention differs from the sticky session agent.
+            // Sticky agent (set via /agent) is already selected at the SDK level; don't re-select or deselect it per-message.
+            const isOneShot = !!agentName && agentName !== this._sessionAgent;
+            if (isOneShot) {
                 try {
                     await this.session.rpc.agent.select({ name: agentName });
-                    this.logger.info(`[Agent] Selected agent: ${agentName}`);
+                    this.logger.info(`[Agent] One-shot agent selected: ${agentName}`);
                 } catch (e) {
-                    this.logger.warn(`[Agent] Failed to select agent "${agentName}": ${e instanceof Error ? e.message : String(e)}`);
+                    this.logger.warn(`[Agent] Failed to select one-shot agent "${agentName}": ${e instanceof Error ? e.message : String(e)}`);
                 }
             }
 
@@ -1095,11 +1100,15 @@ export class SDKSessionManager implements vscode.Disposable {
                 await this.session.sendAndWait(sendOptions);
                 this.logger.info('Message sent and completed successfully');
             } finally {
-                // Deselect agent after message to restore auto-inference
-                if (agentName) {
+                // Restore previous state after one-shot: re-select sticky if one was active, otherwise deselect
+                if (isOneShot) {
                     try {
-                        await this.session.rpc.agent.deselect();
-                    } catch { /* ignore deselect errors */ }
+                        if (this._sessionAgent) {
+                            await this.session.rpc.agent.select({ name: this._sessionAgent });
+                        } else {
+                            await this.session.rpc.agent.deselect();
+                        }
+                    } catch { /* ignore restore errors */ }
                 }
             }
 
@@ -1315,6 +1324,48 @@ export class SDKSessionManager implements vscode.Disposable {
      * Enhances the user message with active file context and processes @file references
      */
 
+/**
+     * Persistently select a named agent for this session (sticky).
+     * All subsequent messages will use this agent until deselectAgent() is called.
+     * If no session is active yet, the agent will be applied when the session starts (via stop/start or resume).
+     */
+    public async selectAgent(name: string): Promise<void> {
+        this._sessionAgent = name;
+        if (!this.session) { return; }
+        try {
+            await this.session.rpc.agent.select({ name });
+            this.logger.info(`[Agent] Session agent selected: ${name} sessionId=${this.sessionId?.substring(0, 8)}`);
+        } catch (e) {
+            this.logger.warn(`[Agent] Failed to select session agent "${name}": ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
+
+    /**
+     * Clear the sticky session agent, returning to auto-inference.
+     */
+    public async deselectAgent(): Promise<void> {
+        this._sessionAgent = null;
+        if (!this.session) { return; }
+        try {
+            await this.session.rpc.agent.deselect();
+            this.logger.info(`[Agent] Session agent cleared sessionId=${this.sessionId?.substring(0, 8)}`);
+        } catch (e) {
+            this.logger.warn(`[Agent] Failed to deselect session agent: ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
+
+    /**
+     * After session (re)creation, restore the sticky agent from backendState if one was set.
+     * This ensures agent selection survives session reconnects.
+     */
+    private async _restoreStickyAgentIfNeeded(): Promise<void> {
+        const activeAgent = getBackendState().getActiveAgent();
+        if (activeAgent && activeAgent !== this._sessionAgent) {
+            this.logger.info(`[Agent] Restoring sticky agent "${activeAgent}" after session (re)creation`);
+            await this.selectAgent(activeAgent);
+        }
+    }
+
     public async abortMessage(): Promise<void> {
         if (!this.session) {
             throw new Error('Session not initialized. Call start() first.');
@@ -1477,6 +1528,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.error('Error destroying session', error instanceof Error ? error : undefined);
             }
             this.session = null;
+            this._sessionAgent = null;
         }
 
         if (this.client) {
