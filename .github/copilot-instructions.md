@@ -278,6 +278,39 @@ assert.ok(!badge.hidden, 'badge should be visible');
 
 **Never restore dead code just to make a test pass.**
 
+---
+
+**🚫 ANTI-PATTERN #5: Source-String Scanning (fs.readFileSync + src.includes) — PERMANENTLY BANNED**
+
+```javascript
+// ❌ BANNED — reads source code as text and checks for string presence
+const src = fs.readFileSync('src/myFile.ts', 'utf-8');
+assert.ok(src.includes('myMethod('), 'should have myMethod');
+// Passes if 'myMethod(' appears in a COMMENT, a string literal, or dead code.
+// Tests NOTHING about whether myMethod actually works.
+```
+
+**This pattern is PERMANENTLY BANNED. No exceptions. No "just this once."** It has caused real failures in this project (StatusBar incident: test passed against a commented-out line). It tests the shape of text, not the behavior of code. A test that reads source as a string and calls `.includes()` is not a test — it is grep with extra steps.
+
+**✅ RIGHT — test the behavior:**
+```javascript
+// Verify the method exists
+assert.strictEqual(typeof MyClass.prototype.myMethod, 'function');
+
+// Call it with a mocked context and verify it did the right thing
+let captured = null;
+const ctx = {
+    dependency: { doThing: async (arg) => { captured = arg; } },
+    logger: { info: () => {}, warn: () => {} },
+};
+await MyClass.prototype.myMethod.call(ctx, 'test-arg');
+assert.strictEqual(captured, 'test-arg');
+```
+
+**Rule:** If your test uses `fs.readFileSync` on a `.ts` or `.js` source file and `.includes()` on the content, **delete it and write a behavioral test instead.** If you are tempted to write one, stop and ask: "What behavior am I actually verifying?" Then test that behavior directly.
+
+---
+
 #### Checklist: Before Claiming Any Fix is Complete
 
 **Phase 0: Test Quality Verification**

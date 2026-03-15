@@ -110,22 +110,22 @@ describe('CustomAgentsPanel Component', () => {
 		it('built-in agent row has ✏️ edit button', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_BUILT_IN]);
-			const editBtns = container.querySelectorAll('.agent-row .agent-edit-btn');
+			const editBtns = container.querySelectorAll('.agent-row [data-action="edit"]');
 			expect(editBtns.length).to.be.greaterThan(0);
 		});
 
 		it('built-in agent row has NO 🗑 delete button', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_BUILT_IN]);
-			const deleteBtns = container.querySelectorAll('.agent-row .agent-delete-btn');
+			const deleteBtns = container.querySelectorAll('.agent-row [data-action="delete"]');
 			expect(deleteBtns.length).to.equal(0);
 		});
 
 		it('user agent row has both ✏️ and 🗑 buttons', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_USER]);
-			const editBtns = container.querySelectorAll('.agent-row .agent-edit-btn');
-			const deleteBtns = container.querySelectorAll('.agent-row .agent-delete-btn');
+			const editBtns = container.querySelectorAll('.agent-row [data-action="edit"]');
+			const deleteBtns = container.querySelectorAll('.agent-row [data-action="delete"]');
 			expect(editBtns.length).to.be.greaterThan(0);
 			expect(deleteBtns.length).to.be.greaterThan(0);
 		});
@@ -139,7 +139,7 @@ describe('CustomAgentsPanel Component', () => {
 		it('clicking ✏️ on a row shows the detail form', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_USER]);
-			const editBtn = container.querySelector('.agent-edit-btn');
+			const editBtn = container.querySelector('[data-action="edit"]');
 			editBtn.click();
 			const form = container.querySelector('.agents-form');
 			expect(form, '.agents-form must appear after clicking edit').to.not.be.null;
@@ -148,7 +148,7 @@ describe('CustomAgentsPanel Component', () => {
 		it('detail form name field is readonly for existing agent', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_USER]);
-			container.querySelector('.agent-edit-btn').click();
+			container.querySelector('[data-action="edit"]').click();
 			const nameField = container.querySelector('.agents-form [name="name"], .agents-form #agentName');
 			expect(nameField, 'Name field must exist in form').to.not.be.null;
 			expect(nameField.readOnly || nameField.hasAttribute('readonly'), 'Name field must be readonly on edit').to.be.true;
@@ -157,7 +157,7 @@ describe('CustomAgentsPanel Component', () => {
 		it('[+] new-agent button shows empty form with editable name', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([]);
-			const newBtn = container.querySelector('.agent-new-btn, #newAgentBtn');
+			const newBtn = container.querySelector('[data-action="new"]');
 			expect(newBtn, '[+] new agent button must exist').to.not.be.null;
 			newBtn.click();
 			const form = container.querySelector('.agents-form');
@@ -170,8 +170,8 @@ describe('CustomAgentsPanel Component', () => {
 		it('Cancel button in form returns to list view', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_USER]);
-			container.querySelector('.agent-edit-btn').click();
-			const cancelBtn = container.querySelector('.agents-form .agent-cancel-btn');
+			container.querySelector('[data-action="edit"]').click();
+			const cancelBtn = container.querySelector('.agents-form .agents-form__cancel-btn');
 			expect(cancelBtn, 'Cancel button must exist in form').to.not.be.null;
 			cancelBtn.click();
 			const form = container.querySelector('.agents-form');
@@ -187,7 +187,7 @@ describe('CustomAgentsPanel Component', () => {
 		it('clicking Save emits agents:save with form data', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([SAMPLE_USER]);
-			container.querySelector('.agent-edit-btn').click();
+			container.querySelector('[data-action="edit"]').click();
 
 			// Fill in form fields
 			const nameField = container.querySelector('.agents-form [name="name"], .agents-form #agentName');
@@ -197,7 +197,7 @@ describe('CustomAgentsPanel Component', () => {
 			let savedAgent = null;
 			eventBus.on('agents:save', (agent) => { savedAgent = agent; });
 
-			const saveBtn = container.querySelector('.agents-form .agent-save-btn');
+			const saveBtn = container.querySelector('.agents-form .agents-form__save-btn');
 			expect(saveBtn, 'Save button must exist').to.not.be.null;
 			saveBtn.click();
 
@@ -208,7 +208,7 @@ describe('CustomAgentsPanel Component', () => {
 		it('clicking Save with empty name does NOT emit agents:save', () => {
 			panel = new CustomAgentsPanel(container, eventBus);
 			panel.setAgents([]);
-			const newBtn = container.querySelector('.agent-new-btn, #newAgentBtn');
+			const newBtn = container.querySelector('[data-action="new"]');
 			newBtn.click();
 
 			// Leave name field empty
@@ -218,7 +218,7 @@ describe('CustomAgentsPanel Component', () => {
 			let savedAgent = null;
 			eventBus.on('agents:save', (agent) => { savedAgent = agent; });
 
-			container.querySelector('.agents-form .agent-save-btn').click();
+			container.querySelector('.agents-form .agents-form__save-btn').click();
 
 			expect(savedAgent, 'agents:save must NOT fire with empty name').to.be.null;
 		});
@@ -236,7 +236,7 @@ describe('CustomAgentsPanel Component', () => {
 			let deletedName = null;
 			eventBus.on('agents:delete', (name) => { deletedName = name; });
 
-			const deleteBtn = container.querySelector('.agent-row .agent-delete-btn');
+			const deleteBtn = container.querySelector('.agent-row [data-action="delete"]');
 			expect(deleteBtn, 'Delete button must exist for user agent').to.not.be.null;
 			deleteBtn.click();
 

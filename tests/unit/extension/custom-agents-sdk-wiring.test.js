@@ -108,100 +108,201 @@ describe('Custom Agents SDK Wiring (sdkSessionManager.ts)', function () {
     });
 });
 
-// ─── Phase 1 / 2: selectAgent / deselectAgent + per-message behavior ────────
+// ─── Behavioral tests: selectAgent / deselectAgent ──────────────────────────
 
-describe('SDKSessionManager — selectAgent/deselectAgent (source checks)', function () {
-    let src;
+const { SDKSessionManager } = require('../../../out/sdkSessionManager');
 
-    before(function () {
-        src = fs.readFileSync(
-            path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf-8'
-        );
+describe('SDKSessionManager — selectAgent/deselectAgent', function () {
+    this.timeout(10000);
+
+    it('selectAgent is a function on prototype', function () {
+        assert.strictEqual(typeof SDKSessionManager.prototype.selectAgent, 'function');
     });
 
-    // Phase 1a — methods exist in source
-    it('declares a _sessionAgent field', function () {
-        assert.ok(src.includes('_sessionAgent'), 'sdkSessionManager must have _sessionAgent field');
+    it('deselectAgent is a function on prototype', function () {
+        assert.strictEqual(typeof SDKSessionManager.prototype.deselectAgent, 'function');
     });
 
-    it('has a public selectAgent() method', function () {
-        assert.ok(
-            src.includes('selectAgent(') || src.includes('selectAgent ('),
-            'sdkSessionManager must have a selectAgent() method'
-        );
+    it('selectAgent calls session.rpc.agent.select and sets _sessionAgent', async function () {
+        let selectedName = null;
+        const ctx = {
+            _sessionAgent: null,
+            session: {
+                rpc: { agent: { select: async ({ name }) => { selectedName = name; } } },
+            },
+            sessionId: 'test-1234',
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        };
+
+        await SDKSessionManager.prototype.selectAgent.call(ctx, 'reviewer');
+
+        assert.strictEqual(ctx._sessionAgent, 'reviewer', '_sessionAgent should be set to reviewer');
+        assert.strictEqual(selectedName, 'reviewer', 'session.rpc.agent.select should be called with reviewer');
     });
 
-    it('has a public deselectAgent() method', function () {
-        assert.ok(
-            src.includes('deselectAgent(') || src.includes('deselectAgent ('),
-            'sdkSessionManager must have a deselectAgent() method'
-        );
+    it('deselectAgent calls session.rpc.agent.deselect and sets _sessionAgent to null', async function () {
+        let deselectCalled = false;
+        const ctx = {
+            _sessionAgent: 'reviewer',
+            session: {
+                rpc: { agent: { deselect: async () => { deselectCalled = true; } } },
+            },
+            sessionId: 'test-1234',
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        };
+
+        await SDKSessionManager.prototype.deselectAgent.call(ctx);
+
+        assert.strictEqual(ctx._sessionAgent, null, '_sessionAgent should be null');
+        assert.strictEqual(deselectCalled, true, 'session.rpc.agent.deselect should be called');
     });
 
-    it('selectAgent() calls session.rpc.agent.select', function () {
-        assert.ok(
-            src.includes('rpc.agent.select'),
-            'selectAgent() must call session.rpc.agent.select'
-        );
+    it('selectAgent when session is null: sets _sessionAgent but does not throw', async function () {
+        const ctx = {
+            _sessionAgent: null,
+            session: null,
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        };
+
+        // Should not throw
+        await SDKSessionManager.prototype.selectAgent.call(ctx, 'planner');
+
+        assert.strictEqual(ctx._sessionAgent, 'planner', '_sessionAgent should be set even without session');
     });
 
-    it('deselectAgent() calls session.rpc.agent.deselect', function () {
-        assert.ok(
-            src.includes('rpc.agent.deselect'),
-            'deselectAgent() must call session.rpc.agent.deselect'
-        );
-    });
+    it('deselectAgent when session is null: sets _sessionAgent to null but does not throw', async function () {
+        const ctx = {
+            _sessionAgent: 'reviewer',
+            session: null,
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        };
 
-    // Phase 2a — sendMessage one-shot logic
-    it('sendMessage uses _sessionAgent to decide whether to restore or deselect in finally', function () {
-        assert.ok(
-            src.includes('_sessionAgent'),
-            'sendMessage must reference _sessionAgent to determine restore-vs-deselect behavior'
-        );
-    });
+        // Should not throw
+        await SDKSessionManager.prototype.deselectAgent.call(ctx);
 
-    it('sendMessage only selects agent on one-shot (@mention different from sticky)', function () {
-        assert.ok(
-            src.includes('isOneShot') || src.includes('one-shot') || src.includes('one_shot') ||
-            src.includes('agentName !== this._sessionAgent'),
-            'sendMessage must distinguish one-shot @mention from sticky agent'
-        );
-    });
-
-    it('sendMessage restores sticky agent (not blindly deselects) after one-shot', function () {
-        // The finally block must re-select _sessionAgent when it was set, not just call deselect()
-        assert.ok(
-            src.includes('this._sessionAgent') && src.includes('rpc.agent.select'),
-            'sendMessage finally block must restore _sessionAgent via rpc.agent.select when sticky was active'
-        );
+        assert.strictEqual(ctx._sessionAgent, null, '_sessionAgent should be null');
     });
 });
 
-// ─── Phase 5: Session resume restores sticky agent ───────────────────────────
+// ─── Behavioral tests: sendMessage one-shot vs sticky agent ─────────────────
 
-describe('SDKSessionManager — session resume/clear (source checks)', function () {
-    let src;
-    before(function () {
-        src = fs.readFileSync(
-            path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf-8'
-        );
+describe('SDKSessionManager — sendMessage one-shot vs sticky', function () {
+    this.timeout(10000);
+
+    function createSendMessageCtx() {
+        const calls = { select: [], deselect: 0, sendAndWait: 0 };
+        const ctx = {
+            _sessionAgent: null,
+            session: {
+                rpc: {
+                    agent: {
+                        select: async ({ name }) => { calls.select.push(name); },
+                        deselect: async () => { calls.deselect++; },
+                    },
+                },
+                sendAndWait: async () => { calls.sendAndWait++; },
+            },
+            sessionId: 'test-1234',
+            currentMode: 'work',
+            config: { model: 'claude-sonnet-4.5' },
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+            _onDidReceiveOutput: { fire: () => {} },
+            _onDidReceiveError: { fire: () => {} },
+            _onDidChangeStatus: { fire: () => {} },
+            _onDidStartTool: { fire: () => {} },
+            _onDidUpdateTool: { fire: () => {} },
+            _onDidCompleteTool: { fire: () => {} },
+            _onDidChangeFile: { fire: () => {} },
+            _onDidProduceDiff: { fire: () => {} },
+            _onDidUpdateUsage: { fire: () => {} },
+            _onDidReceiveReasoning: { fire: () => {} },
+            fileSnapshotService: { cleanupAllSnapshots: () => {} },
+            toolExecutions: new Map(),
+            lastMessageIntent: null,
+            messageEnhancementService: { enhanceMessageWithContext: async (msg) => msg },
+        };
+        return { ctx, calls };
+    }
+
+    it('no sticky agent and no agentName param: neither select nor deselect called', async function () {
+        const { ctx, calls } = createSendMessageCtx();
+        ctx._sessionAgent = null;
+
+        await SDKSessionManager.prototype.sendMessage.call(ctx, 'hello', undefined, false, false, undefined);
+
+        assert.strictEqual(calls.select.length, 0, 'agent.select should not be called');
+        assert.strictEqual(calls.deselect, 0, 'agent.deselect should not be called');
+        assert.strictEqual(calls.sendAndWait, 1, 'sendAndWait should be called');
     });
 
-    it('clears _sessionAgent on session stop/reset', function () {
-        // When session is stopped or destroyed, _sessionAgent should be reset to null
-        // so a fresh session doesn't inherit stale agent state.
-        assert.ok(
-            src.includes('_sessionAgent = null'),
-            'sdkSessionManager must reset _sessionAgent to null on session stop/reset'
-        );
+    it('sticky agent active and no agentName param: neither select nor deselect called', async function () {
+        const { ctx, calls } = createSendMessageCtx();
+        ctx._sessionAgent = 'reviewer';
+
+        await SDKSessionManager.prototype.sendMessage.call(ctx, 'hello', undefined, false, false, undefined);
+
+        assert.strictEqual(calls.select.length, 0, 'agent.select should not be called for sticky-only');
+        assert.strictEqual(calls.deselect, 0, 'agent.deselect should not be called for sticky-only');
     });
 
-    it('restores sticky agent after session resume if backendState has an active agent', function () {
-        // After resuming a session, if backendState.getActiveAgent() is set,
-        // selectAgent() should be called to re-establish the SDK session agent.
-        assert.ok(
-            src.includes('getActiveAgent') && src.includes('selectAgent'),
-            'sdkSessionManager must call selectAgent() after resume when backendState has an active agent'
-        );
+    it('one-shot agentName with no sticky: select before, deselect after', async function () {
+        const { ctx, calls } = createSendMessageCtx();
+        ctx._sessionAgent = null;
+
+        await SDKSessionManager.prototype.sendMessage.call(ctx, 'hello', undefined, false, false, 'planner');
+
+        assert.strictEqual(calls.select.length, 1, 'agent.select should be called once (before)');
+        assert.strictEqual(calls.select[0], 'planner', 'should select planner');
+        assert.strictEqual(calls.deselect, 1, 'agent.deselect should be called once (after, no sticky to restore)');
+    });
+
+    it('one-shot agentName with different sticky: select one-shot before, restore sticky after', async function () {
+        const { ctx, calls } = createSendMessageCtx();
+        ctx._sessionAgent = 'reviewer';
+
+        await SDKSessionManager.prototype.sendMessage.call(ctx, 'hello', undefined, false, false, 'planner');
+
+        assert.strictEqual(calls.select.length, 2, 'agent.select should be called twice (one-shot + restore)');
+        assert.strictEqual(calls.select[0], 'planner', 'first select should be one-shot planner');
+        assert.strictEqual(calls.select[1], 'reviewer', 'second select should restore sticky reviewer');
+        assert.strictEqual(calls.deselect, 0, 'deselect should not be called when restoring sticky');
+    });
+
+    it('agentName same as sticky: isOneShot is false, no select or deselect', async function () {
+        const { ctx, calls } = createSendMessageCtx();
+        ctx._sessionAgent = 'reviewer';
+
+        await SDKSessionManager.prototype.sendMessage.call(ctx, 'hello', undefined, false, false, 'reviewer');
+
+        assert.strictEqual(calls.select.length, 0, 'agent.select should not be called when agentName matches sticky');
+        assert.strictEqual(calls.deselect, 0, 'agent.deselect should not be called when agentName matches sticky');
+    });
+});
+
+// ─── Behavioral tests: stop() clears _sessionAgent ─────────────────────────
+
+describe('SDKSessionManager — stop() clears _sessionAgent', function () {
+    this.timeout(10000);
+
+    it('after stop(), _sessionAgent is null', async function () {
+        const ctx = {
+            _sessionAgent: 'reviewer',
+            session: {
+                destroy: async () => {},
+            },
+            client: {
+                stop: async () => {},
+            },
+            _sessionSub: { value: undefined },
+            sessionId: 'test-1234',
+            toolExecutions: new Map(),
+            fileSnapshotService: { cleanupAllSnapshots: () => {} },
+            _onDidChangeStatus: { fire: () => {} },
+            logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        };
+
+        await SDKSessionManager.prototype.stop.call(ctx);
+
+        assert.strictEqual(ctx._sessionAgent, null, '_sessionAgent should be null after stop()');
     });
 });

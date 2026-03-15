@@ -36,12 +36,44 @@ const { expect } = require('chai');
 const path = require('path');
 
 const ServicePath = path.join(__dirname, '../../../../out/extension/services/CustomAgentsService.js');
-const { CustomAgentsService, BUILT_IN_AGENTS } = require(ServicePath);
+
+// Defer loading — clear require.cache so OUR vscode mock (with update()) is used,
+// not a stale mock cached by a previously-run test file.
+let CustomAgentsService, BUILT_IN_AGENTS;
 
 describe('CustomAgentsService', function () {
 	this.timeout(10000);
 
 	let service;
+
+	before(function () {
+		// Re-install our vscode mock hook (other test files may have overwritten it)
+		Module.prototype.require = function (id) {
+			if (id === 'vscode') {
+				return {
+					workspace: {
+						getConfiguration: (section) => ({
+							get: (key, defaultValue) => {
+								if (section === 'copilotCLI' && key === 'customAgents') {
+									return mockUserAgents;
+								}
+								return defaultValue;
+							},
+							update: async (key, value, global) => {
+								updateCalls.push({ key, value, global });
+							},
+						}),
+					},
+				};
+			}
+			return originalRequire.apply(this, arguments);
+		};
+		// Evict any cached version so the re-require picks up our vscode mock
+		delete require.cache[require.resolve(ServicePath)];
+		const mod = require(ServicePath);
+		CustomAgentsService = mod.CustomAgentsService;
+		BUILT_IN_AGENTS = mod.BUILT_IN_AGENTS;
+	});
 
 	beforeEach(() => {
 		mockUserAgents = [];

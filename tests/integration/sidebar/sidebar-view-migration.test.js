@@ -191,16 +191,6 @@ describe('Sidebar View Migration', () => {
 				'Should set max-width: 100% for tool groups in narrow mode');
 		});
 
-		it('should reduce session selector min-width in narrow mode', () => {
-			const cssPath = path.join(__dirname, '..', '..', '..', 'src', 'webview', 'styles.css');
-			const content = fs.readFileSync(cssPath, 'utf8');
-
-			const mediaIdx = content.indexOf('@media (max-width: 350px)');
-			const mediaSection = content.substring(mediaIdx);
-
-			assert.ok(mediaSection.includes('.session-selector select'),
-				'Should adjust session-selector select in narrow mode');
-		});
 	});
 
 	describe('vscode-mock supports WebviewViewProvider', () => {
