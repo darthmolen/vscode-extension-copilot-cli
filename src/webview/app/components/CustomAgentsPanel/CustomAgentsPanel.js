@@ -10,6 +10,8 @@
  *   agents:delete   — name string — delete agent by name
  */
 
+import { escapeHtml } from '../../utils/webview-utils.js';
+
 class CustomAgentsPanel {
 	constructor(container, eventBus) {
 		this.container = container;
@@ -109,12 +111,12 @@ class CustomAgentsPanel {
 
 			const deleteBtn = agent.builtIn
 				? ''
-				: `<button class="agent-delete-btn" title="Delete agent" data-name="${agent.name}">🗑</button>`;
+				: `<button class="agent-delete-btn" title="Delete agent" data-name="${escapeHtml(agent.name)}">🗑</button>`;
 
 			row.innerHTML = `
-				<span class="agent-name">${agent.displayName || agent.name}</span>
-				<span class="agent-desc">${desc}</span>
-				<button class="agent-edit-btn" title="Edit agent" data-name="${agent.name}">✏️</button>
+				<span class="agent-name">${escapeHtml(agent.displayName || agent.name)}</span>
+				<span class="agent-desc">${escapeHtml(desc)}</span>
+				<button class="agent-edit-btn" title="Edit agent" data-name="${escapeHtml(agent.name)}">✏️</button>
 				${deleteBtn}
 			`;
 
@@ -153,29 +155,38 @@ class CustomAgentsPanel {
 		form.innerHTML = `
 			<div class="agents-form-field">
 				<label for="agentName">Name</label>
-				<input id="agentName" name="name" type="text" value="${name}" ${isEdit ? 'readonly' : ''} placeholder="slug-name" />
+				<input id="agentName" name="name" type="text" ${isEdit ? 'readonly' : ''} placeholder="slug-format (lowercase, hyphens only)" />
 			</div>
 			<div class="agents-form-field">
 				<label for="agentDisplayName">Display Name</label>
-				<input id="agentDisplayName" name="displayName" type="text" value="${displayName}" placeholder="Human-readable name" />
+				<input id="agentDisplayName" name="displayName" type="text" placeholder="Human-readable name" />
 			</div>
 			<div class="agents-form-field">
 				<label for="agentDescription">Description</label>
-				<input id="agentDescription" name="description" type="text" value="${description}" placeholder="Brief description" />
+				<input id="agentDescription" name="description" type="text" placeholder="Brief description" />
 			</div>
 			<div class="agents-form-field">
 				<label for="agentPrompt">Prompt</label>
-				<textarea id="agentPrompt" name="prompt" rows="4" placeholder="System prompt for this agent">${prompt}</textarea>
+				<textarea id="agentPrompt" name="prompt" rows="4" placeholder="System prompt for this agent"></textarea>
 			</div>
 			<div class="agents-form-field">
 				<label for="agentTools">Tools (comma-separated, blank = all)</label>
-				<input id="agentTools" name="tools" type="text" value="${tools}" placeholder="view, grep, glob, bash" />
+				<input id="agentTools" name="tools" type="text" placeholder="view, grep, glob, bash" />
 			</div>
 			<div class="agents-form-actions">
 				<button class="agent-save-btn">Save</button>
 				<button class="agent-cancel-btn">Cancel</button>
 			</div>
 		`;
+
+		// Set values programmatically to avoid XSS via innerHTML interpolation
+		if (isEdit) {
+			form.querySelector('#agentName').value = name;
+			form.querySelector('#agentDisplayName').value = displayName;
+			form.querySelector('#agentDescription').value = description;
+			form.querySelector('#agentPrompt').value = prompt;
+			form.querySelector('#agentTools').value = tools;
+		}
 
 		form.querySelector('.agent-save-btn').addEventListener('click', () => {
 			this._handleSave(form);

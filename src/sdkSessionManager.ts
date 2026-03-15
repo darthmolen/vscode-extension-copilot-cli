@@ -1077,7 +1077,11 @@ export class SDKSessionManager implements vscode.Disposable {
                 sendOptions.attachments = attachments;
             }
 
-            // Select agent for this message if specified (per-message override)
+            // Select agent for this message if specified (per-message override).
+            // Note: agent.select is session-level (not message-level) in the SDK. Rapid
+            // consecutive messages with different agents could race — one deselect may
+            // interleave with the next select. This is a known SDK limitation; acceptable
+            // since the UI disables input while a message is in flight.
             if (agentName) {
                 try {
                     await this.session.rpc.agent.select({ name: agentName });

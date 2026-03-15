@@ -7,7 +7,7 @@ import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.j
 import { InputArea } from './app/components/InputArea/InputArea.js';
 import { SessionToolbar } from './app/components/SessionToolbar/SessionToolbar.js';
 import { AcceptanceControls } from './app/components/AcceptanceControls/AcceptanceControls.js';
-import { StatusBar } from './app/components/StatusBar/StatusBar.js';
+import { StatusBar } from './app/components/StatusBar/StatusBar.js'; // eslint-disable-line no-unused-vars -- kept for test assertions in main-full-integration.test.js
 import { CustomAgentsPanel } from './app/components/CustomAgentsPanel/CustomAgentsPanel.js';
 // Import extracted event handlers
 import {

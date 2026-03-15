@@ -255,6 +255,11 @@ export interface DeleteCustomAgentPayload extends BaseMessage {
 	name: string;
 }
 
+export interface SelectAgentPayload extends BaseMessage {
+	type: 'selectAgent';
+	name: string;  // empty string = clear active agent
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -388,11 +393,6 @@ export interface ReasoningDeltaPayload extends BaseMessage {
 export interface CustomAgentsChangedPayload extends BaseMessage {
 	type: 'customAgentsChanged';
 	agents: CustomAgentDefinition[];
-}
-
-export interface SelectAgentPayload extends BaseMessage {
-	type: 'selectAgent';
-	name: string;  // empty string = clear active agent
 }
 
 export interface ActiveAgentChangedPayload extends BaseMessage {

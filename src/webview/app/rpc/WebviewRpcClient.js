@@ -566,6 +566,11 @@ class WebviewRpcClient {
 		return this._registerHandler('customAgentsChanged', handler);
 	}
 
+	/**
+	 * Register handler for activeAgentChanged
+	 * @param {Function} handler - Handler function receiving { agent: CustomAgentDefinition | null }
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
 	onActiveAgentChanged(handler) {
 		return this._registerHandler('activeAgentChanged', handler);
 	}
