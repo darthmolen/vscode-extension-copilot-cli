@@ -247,6 +247,37 @@ If your test passes on first run without any code changes:
 
 **Mandatory:** Every test MUST fail first. If it doesn't fail, comment out the fix code and verify the test catches the break.
 
+---
+
+**🚫 ANTI-PATTERN #4: Keeping Tests That Test Dead Code**
+
+If removing or changing code causes a test to fail, **do not just restore the code to make the test pass.** First evaluate the test:
+
+1. **What is the test actually asserting?** Read it literally.
+2. **Is it testing live functional behavior?** (function calls, DOM state, events, RPC calls)
+3. **Or is it testing the presence of a string, comment, or import?**
+
+```javascript
+// ❌ WRONG — passes because the string appears in a COMMENT
+assert.ok(src.includes('new StatusBar('), 'should create StatusBar');
+// The code was: // const statusBar = new StatusBar(...)
+// The test was passing against dead commented-out code.
+
+// ✅ RIGHT — test the actual behavior
+sessionToolbar.setActiveAgent({ name: 'reviewer' });
+const badge = container.querySelector('#activeAgentBadge');
+assert.ok(!badge.hidden, 'badge should be visible');
+```
+
+**Rule:** Tests must test **active, real, functional behavior** — not the presence of imports, string literals, or commented-out code.
+
+**When removing code breaks a test, the decision tree is:**
+- Test verified real behavior that still matters → **fix the test** to cover the new implementation
+- Test verified real behavior that was intentionally removed → **delete the test**
+- Test was asserting the existence of dead/commented code → **delete the test** (it was never verifying anything real)
+
+**Never restore dead code just to make a test pass.**
+
 #### Checklist: Before Claiming Any Fix is Complete
 
 **Phase 0: Test Quality Verification**

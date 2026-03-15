@@ -135,6 +135,18 @@ This project uses strict TDD. Tests must import production code, not mocks. A te
 - Test helpers: `createTestDOM()`, `cleanupTestDOM()`, `createMockRpc()`, `createComponentDOM()`.
 - E2E tests (`tests/e2e/`) need a live Copilot SDK connection and compiled output.
 
+### Tests Must Test Active Functional Behavior
+
+Tests must assert **live, functional behavior** — function calls, DOM state changes, emitted events, RPC calls. Tests that assert the presence of string literals, import statements, or commented-out code are not testing anything real.
+
+**When removing or changing code breaks a test, evaluate the test before restoring the code:**
+
+1. Was the test verifying real behavior that still matters? → **Fix the test** to cover the new implementation.
+2. Was the test verifying behavior that was intentionally removed? → **Delete the test.**
+3. Was the test matching against a string, comment, or dead import? → **Delete the test.** It was never verifying anything.
+
+**Never restore dead code just to make a test pass.** Example of this failure: a test asserting `src.includes('new StatusBar(')` was passing because that string appeared inside a `//` comment — the component had already been removed. The right fix was to delete both the dead code and the test.
+
 ## SDK-First Development
 
 The SDK source code lives at `research/copilot-sdk/*`. Before implementing any feature that touches the Copilot SDK (`sdkSessionManager.ts`, session lifecycle, model switching, tool registration, etc.):
