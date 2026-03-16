@@ -2,6 +2,14 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.6.1] - 2026-03-16
+
+### 🐛 Bug Fixes
+
+- **Expanded troubleshooting docs** — README now covers the three most common session startup failures: wrong Node version (Node 24+ required by SDK 0.1.32 / CLI 1.0.5), expired `gh auth` tokens after reboots, and CLI auto-update behavior. Includes WSL-specific guidance.
+- **Node 24+ prerequisite** — Added to README prerequisites. The SDK 0.1.32 upgrade in v3.6.0 introduced this requirement but it wasn't documented.
+- **Dual CLI version logging** — Diagnostics now log both `--no-auto-update` and regular CLI versions to distinguish the Go launcher version from the delegated runtime version.
+
 ## [3.6.0] - 2026-03-15
 
 ### ✨ Features

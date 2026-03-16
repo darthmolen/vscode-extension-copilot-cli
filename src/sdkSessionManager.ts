@@ -449,16 +449,21 @@ export class SDKSessionManager implements vscode.Disposable {
 
     /**
      * Log the CLI version for diagnostics.
-     * Uses --no-auto-update to get the actual binary version, not a
-     * runtime-delegated version from ~/.copilot/pkg/.
+     * Logs both --no-auto-update and regular versions to get the actual binary versions.
      */
     private logCliVersion(cliPath: string): void {
         try {
             const output = execFileSync(cliPath, ['--version', '--no-auto-update'], { encoding: 'utf-8', timeout: 5000 }).trim();
             const version = parseCliVersion(output);
             if (version) {
-                this.logger.info(`CLI version: ${version}`);
+                this.logger.info(`CLI version with --no-auto-update: ${version}`);
             }
+            const output2 = execFileSync(cliPath, ["--version"], { encoding: 'utf-8', timeout: 5000 }).trim();
+            const version2 = parseCliVersion(output2);
+            if (version2) {
+                this.logger.info(`CLI version without --no-auto-update: ${version2}`);
+            }
+
         } catch (e: any) {
             this.logger.warn(`Could not determine CLI version: ${e.message}`);
         }

@@ -44,7 +44,6 @@ Define named agents as simple Markdown files with YAML frontmatter — drop them
 | **Planner** | Read-only exploration; writes `plan.md`. Never edits source files. |
 | **Implementer** | Reads the plan and executes it. Full file-editing access. |
 | **Reviewer** | Runs tests, reads changed files, posts a concise review summary. Read-only. |
-| **Researcher** *(example)* | Searches the web, local filesystem, and git history. Ships as `.copilot/agents/researcher.md`. |
 
 **Agent file locations:**
 
@@ -56,6 +55,7 @@ Define named agents as simple Markdown files with YAML frontmatter — drop them
 - Type `@agentName` at the start of any message to route that message to a specific agent
 - Use `/agent <name>` to set a sticky agent for the whole session; `/agent` with no args clears it
 - The 🤖 button in the toolbar turns green when an agent is active
+- A file of the same name as the built-ins (lowercase) in the locations explained above can override the built-ins.
 
 Agents use Markdown frontmatter for configuration — name, description, allowed tools, and a system prompt in the body. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md) for the full format and examples.
 
@@ -80,7 +80,7 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 
 ### v3.6.0 - File-Based Custom Agents, @mention Routing, and Color-Coded Conversation
 
-- **File-based custom agents** — Define agents as Markdown files with YAML frontmatter. Drop them in `~/.copilot/agents/` (global) or `<workspace>/.copilot/agents/` (project-scoped). Four built-in agents ship out of the box: Planner, Implementer, Reviewer, and Researcher. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md).
+- **File-based custom agents** — Define agents as Markdown files with YAML frontmatter. Drop them in `~/.copilot/agents/` (global) or `<workspace>/.copilot/agents/` (project-scoped). Three built-in agents ship out of the box: Planner, Implementer, and Reviewer. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md).
 - **`@agentName` mentions** — Route any message to a specific agent by starting it with `@agentName`. Mention wins over the sticky agent.
 - **`/agent <name>` slash command** — Set a sticky agent for the session. The 🤖 button turns green when an agent is active. `/agent` with no args clears it.
 - **Color-coded conversation** — 🔵 User messages · 🟢 Assistant responses · 🟣 Tool/agent actions. Distinct left border colors let you scan the conversation flow instantly.
@@ -127,6 +127,7 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 
 ⚠️ **Important**: This extension does not bundle the CLI and requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
 
+- **Node.js 24+** — The Copilot SDK and CLI 1.0.5 require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
 - **VS Code** 1.108.1 or higher
 - **GitHub Copilot CLI** (standalone `copilot` command)
   - **Linux/macOS**: `brew install copilot-cli`
@@ -150,25 +151,59 @@ code --install-extension darthmolen.copilot-cli-extension
 
 ### Troubleshooting: Session Won't Start
 
-If the extension hangs on "Starting CLI process..." or times out with "Connection is closed", your Copilot CLI binary is likely too old. The extension requires **v0.0.403 or newer**.
+If the extension hangs on "Starting CLI process..." or times out with "createSession timed out", check these in order:
 
-Check your version:
+**1. Node.js version (most common)**
+
+SDK 0.1.32+ and CLI 1.0.5 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
 
 ```bash
-copilot --version --no-auto-update
+# Check what Node version VS Code is using
+node --version
 ```
 
-To upgrade:
+If you use **nvm**, ensure VS Code launches with the correct version:
+
+```bash
+# Set Node 24 as default
+nvm alias default 24
+nvm use 24
+
+# On WSL: kill cached VS Code server processes, then relaunch
+pkill -f vscode-server
+code .
+```
+
+A simple reload (`Ctrl+Shift+P` → "Developer: Reload Window") will **not** pick up a new Node binary. You must fully restart the VS Code server.
+
+**2. Authentication**
+
+After reboots, GitHub auth tokens may expire. Check and fix:
+
+```bash
+# Check auth status
+gh auth status
+
+# Re-authenticate if needed
+gh auth login -h github.com
+
+# Also re-auth the Copilot CLI
+copilot auth
+```
+
+**3. CLI version**
+
+Update the CLI to the latest version:
 
 ```bash
 # Update the npm package
 npm install -g @github/copilot@latest
 
-# Then let the CLI self-update its runtime
-copilot upgrade
+# Verify
+copilot --version
 ```
 
-After upgrading, reload VS Code (`Ctrl+Shift+P` → "Developer: Reload Window").
+The Go launcher binary may report a different version than the actual CLI runtime — it reflects the version at the time you first installed it. The launcher auto-downloads newer CLI versions to `~/.copilot/pkg/universal/` and delegates to the latest at runtime.
 
 ### Authentication
 
