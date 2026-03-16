@@ -142,15 +142,15 @@ class CustomAgentsPanel {
 			const agentLabel = escapeHtml(agent.displayName || agent.name);
 			const deleteBtn = agent.builtIn
 				? ''
-				: `<button class="agent-row__btn" data-action="delete" title="Delete agent" aria-label="Delete ${agentLabel}" data-name="${escapeHtml(agent.name)}">🗑</button>`;
+				: `<button class="agent-row__btn agent-row__btn--delete" data-action="delete" title="Delete agent" aria-label="Delete ${agentLabel}" data-name="${escapeHtml(agent.name)}">✕</button>`;
 
 			row.innerHTML = `
 				<div class="agent-row__btns">
 					<button class="agent-row__btn" data-action="edit" title="Edit agent" aria-label="Edit ${agentLabel}" data-name="${escapeHtml(agent.name)}">✏️</button>
-					${deleteBtn}
 				</div>
 				<span class="agent-row__name">${escapeHtml(agent.displayName || agent.name)}</span>
 				<span class="agent-row__desc">${escapeHtml(desc)}</span>
+				${deleteBtn}
 			`;
 
 			row.querySelector('[data-action="edit"]').addEventListener('click', () => {

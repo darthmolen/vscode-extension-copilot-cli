@@ -207,9 +207,10 @@ describe('AgentFileService.getAgentDirs()', function () {
     });
 
     it('uses path.join so Windows paths are constructed correctly', function () {
-        // Simulate Windows homedir
+        // Simulate Windows homedir via constructor injection
         const winHome = 'C:\\Users\\TestUser';
-        const dirs = service.getAgentDirs(undefined, winHome);
+        const winService = new AgentFileService({ homeDir: winHome });
+        const dirs = winService.getAgentDirs();
         const expected = path.join(winHome, '.copilot', 'agents');
         assert.ok(dirs.includes(expected),
             `Windows path must be ${expected}, got: ${JSON.stringify(dirs)}`);

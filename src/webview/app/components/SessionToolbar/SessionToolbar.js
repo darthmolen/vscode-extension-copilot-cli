@@ -31,7 +31,10 @@ class SessionToolbar {
 		this.container.innerHTML = `
 			<div class="header session-toolbar" role="banner">
 				<div class="status-indicator session-toolbar__status" id="statusIndicator" role="status" aria-live="polite" aria-label="Connection status"></div>
-				<h2 class="session-toolbar__title">Copilot CLI</h2>
+				<div class="session-toolbar__title-and-agent-group">
+					<h2 class="session-toolbar__title">Copilot CLI</h2>
+					<button id="agentsBtn" class="plan-btn session-toolbar__btn--agents" title="Manage Custom Agents" aria-label="Manage custom agents">🤖</button>
+				</div>
 				<div class="session-selector session-toolbar__selector-group">
 					<label for="sessionDropdown" class="session-toolbar__label">Session:</label>
 					<div class="session-selector__controls">
@@ -42,8 +45,6 @@ class SessionToolbar {
 					</div>
 				</div>
 				<button id="viewPlanBtn" class="plan-btn session-toolbar__btn--view-plan disabled" title="View Plan" aria-label="View plan.md file" disabled>📋</button>
-				<button id="agentsBtn" class="plan-btn session-toolbar__btn--agents" title="Manage Custom Agents" aria-label="Manage custom agents">🤖</button>
-				<span id="activeAgentBadge" class="session-toolbar__agent-badge" hidden></span>
 			</div>
 		`;
 	}
@@ -134,14 +135,16 @@ class SessionToolbar {
 	}
 	
 	setActiveAgent(agent) {
-		const badge = this.container.querySelector('#activeAgentBadge');
-		if (!badge) { return; }
+		const title = this.container.querySelector('.session-toolbar__title');
+		if (!title) { return; }
 		if (!agent) {
-			badge.hidden = true;
-			badge.textContent = '';
+			title.textContent = 'Copilot CLI';
 		} else {
-			badge.textContent = `🤖 ${agent.displayName || agent.name}`;
-			badge.hidden = false;
+			title.textContent = agent.displayName || agent.name;
+		}
+		const agentsBtn = this.container.querySelector('#agentsBtn');
+		if (agentsBtn) {
+			agentsBtn.classList.toggle('agent-active', !!agent);
 		}
 	}
 

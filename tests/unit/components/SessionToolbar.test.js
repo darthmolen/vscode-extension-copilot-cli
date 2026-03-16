@@ -236,18 +236,15 @@ describe('SessionToolbar Component', () => {
 		});
 	});
 
-	describe('Active Agent Badge', () => {
-		it('should show agent badge when setActiveAgent() is called with an agent', async () => {
+	describe('Active Agent Title', () => {
+		it('should swap title to agent displayName when setActiveAgent() is called', async () => {
 			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
 
 			sessionToolbar = new SessionToolbar(container);
-			const badge = container.querySelector('#activeAgentBadge');
-			assert.ok(badge, '#activeAgentBadge element must exist');
-
 			sessionToolbar.setActiveAgent({ name: 'reviewer', displayName: 'Reviewer' });
 
-			assert.ok(!badge.hidden, 'Badge must be visible after setActiveAgent');
-			assert.ok(badge.textContent.includes('Reviewer'), 'Badge must show displayName');
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'Reviewer', 'Title must show displayName');
 		});
 
 		it('should show agent name when displayName is absent', async () => {
@@ -256,20 +253,19 @@ describe('SessionToolbar Component', () => {
 			sessionToolbar = new SessionToolbar(container);
 			sessionToolbar.setActiveAgent({ name: 'my-agent' });
 
-			const badge = container.querySelector('#activeAgentBadge');
-			assert.ok(!badge.hidden, 'Badge must be visible');
-			assert.ok(badge.textContent.includes('my-agent'), 'Badge must show name when displayName absent');
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'my-agent', 'Title must show name when displayName absent');
 		});
 
-		it('should hide badge when setActiveAgent(null) is called', async () => {
+		it('should revert title to Copilot CLI when setActiveAgent(null) is called', async () => {
 			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
 
 			sessionToolbar = new SessionToolbar(container);
 			sessionToolbar.setActiveAgent({ name: 'planner', displayName: 'Planner' });
 			sessionToolbar.setActiveAgent(null);
 
-			const badge = container.querySelector('#activeAgentBadge');
-			assert.ok(badge.hidden, 'Badge must be hidden after setActiveAgent(null)');
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'Copilot CLI', 'Title must revert to Copilot CLI');
 		});
 	});
 });

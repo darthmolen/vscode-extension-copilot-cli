@@ -1093,7 +1093,7 @@ export class SDKSessionManager implements vscode.Disposable {
                     await this.session.rpc.agent.select({ name: agentName });
                     this.logger.info(`[Agent] One-shot agent selected: ${agentName}`);
                 } catch (e) {
-                    this.logger.warn(`[Agent] Failed to select one-shot agent "${agentName}": ${e instanceof Error ? e.message : String(e)}`);
+                    this.logger.debug(`[Agent] Failed to select one-shot agent "${agentName}": ${e instanceof Error ? e.message : String(e)}`);
                 }
             }
 
@@ -1338,7 +1338,7 @@ export class SDKSessionManager implements vscode.Disposable {
             await this.session.rpc.agent.select({ name });
             this.logger.info(`[Agent] Session agent selected: ${name} sessionId=${this.sessionId?.substring(0, 8)}`);
         } catch (e) {
-            this.logger.warn(`[Agent] Failed to select session agent "${name}": ${e instanceof Error ? e.message : String(e)}`);
+            this.logger.debug(`[Agent] Failed to select session agent "${name}": ${e instanceof Error ? e.message : String(e)}`);
         }
     }
 
@@ -1352,7 +1352,7 @@ export class SDKSessionManager implements vscode.Disposable {
             await this.session.rpc.agent.deselect();
             this.logger.info(`[Agent] Session agent cleared sessionId=${this.sessionId?.substring(0, 8)}`);
         } catch (e) {
-            this.logger.warn(`[Agent] Failed to deselect session agent: ${e instanceof Error ? e.message : String(e)}`);
+            this.logger.debug(`[Agent] Failed to deselect session agent: ${e instanceof Error ? e.message : String(e)}`);
         }
     }
 

@@ -92,7 +92,7 @@ throw new Error('Agent prompt is required');
 
 // Strip runtime-only flags before writing to disk
 const { builtIn: _b, scope: _s, ...agentToSave } = agent;
-this.agentFileService.save(agentToSave as CustomAgentDefinition, 'global', this.workspaceRoot);
+this.agentFileService.save(agentToSave as CustomAgentDefinition, 'global');
 }
 
 /**

@@ -110,12 +110,9 @@ export class AgentFileService {
     /**
      * Return the list of agent directories to search, in priority order:
      * [global, project].
-     *
-     * Accepts an optional `homeDir` override (for Windows path testing).
      */
-    getAgentDirs(workspaceRoot?: string, homeDir?: string): string[] {
-        const base = homeDir ?? this.homeDir;
-        const dirs: string[] = [path.join(base, '.copilot', 'agents')];
+    getAgentDirs(workspaceRoot?: string): string[] {
+        const dirs: string[] = [path.join(this.homeDir, '.copilot', 'agents')];
         if (workspaceRoot) {
             dirs.push(path.join(workspaceRoot, '.copilot', 'agents'));
         }

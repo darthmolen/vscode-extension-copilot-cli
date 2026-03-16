@@ -45,10 +45,15 @@ body {
 	gap: 12px;
 }
 
+.session-toolbar__title-and-agent-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
 .header h2 {
 	font-size: 12px;
 	font-weight: 600;
-	flex: 1;
 }
 
 .session-selector {
@@ -1194,21 +1199,11 @@ button.stop-button:hover {
 	cursor: not-allowed;
 }
 
-.session-toolbar__agent-badge {
-	display: inline-flex;
-	align-items: center;
-	padding: 2px 8px;
-	border-radius: 10px;
-	font-size: 11px;
-	background-color: var(--vscode-badge-background, #4d4d4d);
-	color: var(--vscode-badge-foreground, #ffffff);
-	margin-left: 6px;
-	vertical-align: middle;
-	white-space: nowrap;
-	max-width: 120px;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.session-toolbar__btn--agents.agent-active {
+	background: rgba(77, 153, 98, 0.3);
+	border: 1px solid var(--vscode-terminal-ansiGreen);
 }
+
 
 .plan-mode-group {
 	display: inline-flex;
@@ -1333,6 +1328,16 @@ button.stop-button:hover {
 .slash-command-desc {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.slash-command-hint {
+	opacity: 0.7;
+	cursor: default;
+	font-style: italic;
+}
+
+.slash-command-hint:hover {
+	background: none;
 }
 
 /* ===== Help Icon ===== */
@@ -1682,6 +1687,13 @@ button.stop-button:hover {
 .agent-row__btn:hover {
     opacity: 1;
     background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-row__btn--delete {
+    color: var(--vscode-testing-iconFailed);
+    margin-left: auto;
+    font-size: 14px;
+    font-weight: bold;
 }
 
 .agents-form {

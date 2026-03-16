@@ -585,6 +585,11 @@ export function handleInitMessage(payload) {
 	inputArea.setReasoningEnabled(reasoningEnabled);
 	eventBus.emit('reasoning:toggle', reasoningEnabled);
 
+	// Restore active file display
+	if (payload.activeFilePath) {
+		inputArea.updateFocusFile(payload.activeFilePath);
+	}
+
 	// Load custom agents for the panel
 	rpc.getCustomAgents();
 }
