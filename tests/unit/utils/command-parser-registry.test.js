@@ -9,7 +9,7 @@ describe('CommandParser - Command Registry (TDD RED Phase)', () => {
 		parser = new CommandParser();
 	});
 
-	describe('Extension Commands (10 total)', () => {
+	describe('Extension Commands (11 total)', () => {
 		it('recognizes /plan as extension command', () => {
 			expect(parser.getCommandType('plan')).to.equal('extension');
 		});
@@ -53,15 +53,15 @@ describe('CommandParser - Command Registry (TDD RED Phase)', () => {
 		it('recognizes /compact as extension command', () => {
 			expect(parser.getCommandType('compact')).to.equal('extension');
 		});
+
+		it('recognizes /agent as extension command', () => {
+			expect(parser.getCommandType('agent')).to.equal('extension');
+		});
 	});
 
-	describe('CLI Passthrough Commands (6 total)', () => {
+	describe('CLI Passthrough Commands (5 total)', () => {
 		it('recognizes /delegate as passthrough command', () => {
 			expect(parser.getCommandType('delegate')).to.equal('passthrough');
-		});
-
-		it('recognizes /agent as passthrough command', () => {
-			expect(parser.getCommandType('agent')).to.equal('passthrough');
 		});
 
 		it('recognizes /skills as passthrough command', () => {

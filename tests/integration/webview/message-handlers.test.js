@@ -361,4 +361,25 @@ describe('Webview Message Handler Tests', function () {
 		const statusEl = document.getElementById('statusIndicator');
 		assert.ok(statusEl.classList.contains('active'), 'Should activate session');
 	});
+
+	it('handleInitMessage restores activeFilePath to ActiveFileDisplay', function () {
+		if (!mainModule.handleInitMessage) {
+			throw new Error('handleInitMessage not exported');
+		}
+
+		// Init with activeFilePath
+		mainModule.handleInitMessage({
+			messages: [],
+			sessionActive: true,
+			activeFilePath: 'src/extension.ts'
+		});
+
+		// ActiveFileDisplay should be visible and show the file name
+		const activeFileDisplay = document.querySelector('.active-file-display');
+		assert.ok(activeFileDisplay, 'ActiveFileDisplay element should exist');
+		assert.notEqual(activeFileDisplay.style.display, 'none', 'ActiveFileDisplay should be visible after init with activeFilePath');
+
+		const filePath = document.querySelector('.file-path');
+		assert.equal(filePath.textContent, 'extension.ts', 'Should show the file name from activeFilePath');
+	});
 });

@@ -86,3 +86,17 @@ export interface UsageInfo {
 	tokens?: number;
 	quota?: number;
 }
+
+/**
+ * Custom agent definition — mirrors SDK CustomAgentConfig with an additional builtIn flag
+ */
+export interface CustomAgentDefinition {
+	name: string;            // slug, SDK name key
+	displayName?: string;
+	description?: string;
+	prompt: string;
+	tools?: string[] | null; // null/undefined = all tools
+	model?: string;          // optional model override for this agent
+	scope?: 'global' | 'project'; // where the agent was loaded from (display only)
+	builtIn?: boolean;       // true = non-deletable
+}

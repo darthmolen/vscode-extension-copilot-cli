@@ -205,4 +205,67 @@ describe('SessionToolbar Component', () => {
 			assert.equal(typeof sessionToolbar.off, 'function', 'Should have off() method');
 		});
 	});
+
+	// -------------------------------------------------------------------------
+	// Custom Agents Button
+	// -------------------------------------------------------------------------
+
+	describe('Custom Agents Button', () => {
+		it('should render #agentsBtn button', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+
+			const btn = container.querySelector('#agentsBtn');
+			assert.ok(btn, 'Agents button (#agentsBtn) must exist in the DOM');
+		});
+
+		it('should emit toggleAgentsPanel when #agentsBtn is clicked', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+
+			let fired = false;
+			sessionToolbar.on('toggleAgentsPanel', () => { fired = true; });
+
+			const btn = container.querySelector('#agentsBtn');
+			assert.ok(btn, '#agentsBtn must exist before clicking');
+			btn.click();
+
+			assert.ok(fired, 'toggleAgentsPanel event must fire when #agentsBtn is clicked');
+		});
+	});
+
+	describe('Active Agent Title', () => {
+		it('should swap title to agent displayName when setActiveAgent() is called', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setActiveAgent({ name: 'reviewer', displayName: 'Reviewer' });
+
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'Reviewer', 'Title must show displayName');
+		});
+
+		it('should show agent name when displayName is absent', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setActiveAgent({ name: 'my-agent' });
+
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'my-agent', 'Title must show name when displayName absent');
+		});
+
+		it('should revert title to Copilot CLI when setActiveAgent(null) is called', async () => {
+			const { SessionToolbar } = await import('../../../src/webview/app/components/SessionToolbar/SessionToolbar.js');
+
+			sessionToolbar = new SessionToolbar(container);
+			sessionToolbar.setActiveAgent({ name: 'planner', displayName: 'Planner' });
+			sessionToolbar.setActiveAgent(null);
+
+			const title = container.querySelector('.session-toolbar__title');
+			assert.strictEqual(title.textContent, 'Copilot CLI', 'Title must revert to Copilot CLI');
+		});
+	});
 });

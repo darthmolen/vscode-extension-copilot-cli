@@ -81,14 +81,20 @@ export class CommandParser {
 			['model', {
 				type: 'extension',
 				event: 'showModelSelector',
-				category: 'config',
+				category: 'session',
 				description: 'Switch model'
 			}],
 			['rename', {
 				type: 'extension',
 				event: 'renameSession',
-				category: 'config',
+				category: 'session',
 				description: 'Rename this session'
+			}],
+			['agent', {
+				type: 'extension',
+				event: 'selectAgent',
+				category: 'session',
+				description: 'Set active agent (or clear with no args)'
 			}],
 
 			// CLI Passthrough commands (6)
@@ -97,12 +103,6 @@ export class CommandParser {
 				instruction: 'The /delegate command opens GitHub Copilot coding agent in a new PR. Opening terminal...',
 				category: 'cli',
 				description: 'GitHub Copilot agent'
-			}],
-			['agent', {
-				type: 'passthrough',
-				instruction: 'The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal...',
-				category: 'cli',
-				description: 'Specialized agents'
 			}],
 			['skills', {
 				type: 'passthrough',
@@ -139,7 +139,7 @@ export class CommandParser {
 			['cwd', { type: 'not-supported' }],
 			['cd', { type: 'not-supported' }],
 			['context', { type: 'not-supported' }],
-			['compact', { type: 'extension', event: 'compact', category: 'config', description: 'Free context window space' }],
+			['compact', { type: 'extension', event: 'compact', category: 'session', description: 'Free context window space' }],
 			['lsp', { type: 'not-supported' }],
 			['theme', { type: 'not-supported' }],
 			['terminal-setup', { type: 'not-supported' }],

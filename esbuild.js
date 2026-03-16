@@ -44,6 +44,7 @@ async function main() {
 	const planModeControlsDistDir = path.join(componentsDistDir, 'PlanModeControls');
 	const slashCommandPanelDistDir = path.join(componentsDistDir, 'SlashCommandPanel');
 	const modelSelectorDistDir = path.join(componentsDistDir, 'ModelSelector');
+	const customAgentsPanelDistDir = path.join(componentsDistDir, 'CustomAgentsPanel');
 
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
@@ -89,6 +90,9 @@ async function main() {
 	}
 	if (!fs.existsSync(modelSelectorDistDir)) {
 		fs.mkdirSync(modelSelectorDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(customAgentsPanelDistDir)) {
+		fs.mkdirSync(customAgentsPanelDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -195,6 +199,11 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'ModelSelector', 'ModelSelector.js'),
 		path.join(modelSelectorDistDir, 'ModelSelector.js')
+	);
+	// Phase 3.6.0 - CustomAgentsPanel component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'CustomAgentsPanel', 'CustomAgentsPanel.js'),
+		path.join(customAgentsPanelDistDir, 'CustomAgentsPanel.js')
 	);
 
 	// Extension build context

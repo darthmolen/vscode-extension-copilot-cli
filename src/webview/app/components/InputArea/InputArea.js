@@ -18,6 +18,19 @@ import { CommandParser } from '../../services/CommandParser.js';
  * Services:
  * - CommandParser: Parses and validates slash commands
  */
+/**
+ * Parses an @agentName mention prefix from message text.
+ * @param {string} text
+ * @returns {{ agentName?: string, text: string }}
+ */
+export function parseAgentMention(text) {
+	const match = text.match(/^@([a-z0-9_-]+)\s*(.*)/s);
+	if (match) {
+		return { agentName: match[1], text: match[2] };
+	}
+	return { text };
+}
+
 export class InputArea {
 	constructor(container, eventBus) {
 		this.container = container;
@@ -297,9 +310,11 @@ export class InputArea {
 		this.currentDraft = '';
 
 		// Emit event with message data
+		const { agentName, text: messageText } = parseAgentMention(text);
 		this.eventBus.emit('input:sendMessage', {
-			text,
-			attachments: this.pendingAttachments.length > 0 ? this.pendingAttachments : []
+			text: messageText,
+			attachments: this.pendingAttachments.length > 0 ? this.pendingAttachments : [],
+			...(agentName !== undefined ? { agentName } : {})
 		});
 
 		// Clear input

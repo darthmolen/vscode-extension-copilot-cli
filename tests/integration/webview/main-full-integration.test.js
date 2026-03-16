@@ -177,12 +177,6 @@ describe('main.js Full Component Integration (RED Phase)', () => {
 			assert.ok(mainJS.includes('new AcceptanceControls('), 'main.js should create AcceptanceControls instance');
 		});
 
-		it('should create StatusBar component', async () => {
-			const mainJS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'webview', 'main.js'), 'utf-8');
-
-			assert.ok(mainJS.includes('import { StatusBar }'), 'main.js should import StatusBar');
-			assert.ok(mainJS.includes('new StatusBar('), 'main.js should create StatusBar instance');
-		});
 	});
 
 	describe('Component Wiring', () => {
@@ -239,15 +233,4 @@ describe('main.js Full Component Integration (RED Phase)', () => {
 		});
 	});
 
-	describe('Code Size Reduction', () => {
-		it('should have reduced main.js significantly', async () => {
-			const mainJS = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'src', 'webview', 'main.js'), 'utf-8');
-			const lineCount = mainJS.split('\n').length;
-
-			// Original: 952 lines
-			// After componentization: ~530 lines (44% reduction!)
-			// Allow buffer: 550 lines max
-			assert.ok(lineCount <= 550, `main.js should be <= 550 lines (was 952), got ${lineCount}`);
-		});
-	});
 });

@@ -199,6 +199,24 @@ describe('MessageDisplay — reasoning streaming (JSDOM)', function () {
     // 6. Backward compat: message:add without reasoningId renders normally
     // =========================================================================
 
+    it('calls autoScroll after reasoning:delta appends content', function () {
+        eventBus.emit('reasoning:toggle', true);
+
+        let scrollCalled = false;
+        const origAutoScroll = md.autoScroll.bind(md);
+        md.autoScroll = function () {
+            scrollCalled = true;
+            origAutoScroll();
+        };
+
+        eventBus.emit('reasoning:delta', {
+            reasoningId: 'reasoning-scroll-001',
+            deltaContent: 'Scrollable reasoning content'
+        });
+
+        assert.ok(scrollCalled, 'autoScroll must be called after reasoning:delta');
+    });
+
     it('renders reasoning element normally when no reasoningId (history replay)', function () {
         // Enable reasoning to see it
         eventBus.emit('reasoning:toggle', true);

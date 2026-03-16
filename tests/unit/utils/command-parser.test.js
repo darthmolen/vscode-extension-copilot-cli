@@ -170,7 +170,7 @@ describe('CommandParser Service - TDD RED Phase', () => {
       emittedEvents = [];
       
       // Track all events
-      ['enterPlanMode', 'exitPlanMode', 'acceptPlan', 'rejectPlan', 'openInCLI', 'showNotSupported', 'compact'].forEach(eventName => {
+      ['enterPlanMode', 'exitPlanMode', 'acceptPlan', 'rejectPlan', 'openInCLI', 'showNotSupported', 'compact', 'selectAgent'].forEach(eventName => {
         eventBus.on(eventName, (...args) => {
           emittedEvents.push({ event: eventName, args });
         });
@@ -240,14 +240,14 @@ describe('CommandParser Service - TDD RED Phase', () => {
       expect(emittedEvents[0].args).to.deep.equal([['delegate']]);
     });
 
-    it('should emit openInCLI with command name and args for passthrough command', () => {
+    it('should emit selectAgent for /agent command with args', () => {
       const cmd = { command: 'agent', args: ['refactoring'] };
 
       parser.execute(cmd, eventBus);
 
       expect(emittedEvents).to.have.length(1);
-      expect(emittedEvents[0].event).to.equal('openInCLI');
-      expect(emittedEvents[0].args).to.deep.equal([['agent', 'refactoring']]);
+      expect(emittedEvents[0].event).to.equal('selectAgent');
+      expect(emittedEvents[0].args).to.deep.equal([['refactoring']]);
     });
 
     // Not-supported command routing

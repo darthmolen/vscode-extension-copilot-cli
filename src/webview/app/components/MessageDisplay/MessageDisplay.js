@@ -117,6 +117,7 @@ export class MessageDisplay {
                 this.reasoningStreamingBubbles.set(data.reasoningId, state);
             }
             state.contentEl.textContent += data.deltaContent;
+            this.autoScroll();
         });
 
         // Delegated click handler for image file links

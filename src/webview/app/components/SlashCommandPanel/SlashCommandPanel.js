@@ -6,13 +6,14 @@
  */
 
 const CATEGORY_LABELS = {
+	session: 'Session',
 	plan: 'Plan Mode',
 	code: 'Code & Review',
 	config: 'Configuration',
 	cli: 'CLI (terminal)',
 };
 
-const CATEGORY_ORDER = ['plan', 'code', 'config', 'cli'];
+const CATEGORY_ORDER = ['session', 'plan', 'code', 'config', 'cli'];
 
 export class SlashCommandPanel {
 	constructor(container) {
@@ -31,17 +32,29 @@ export class SlashCommandPanel {
 
 		this.panelEl.innerHTML = CATEGORY_ORDER
 			.filter(cat => grouped[cat] && grouped[cat].length > 0)
-			.map(cat => `
-				<div class="slash-command-group">
-					<div class="slash-command-group-label">${CATEGORY_LABELS[cat]}</div>
-					${grouped[cat].map(cmd => `
-						<div class="slash-command-item" data-command="${cmd.name}">
-							<span class="slash-command-name">/${cmd.name}</span>
-							<span class="slash-command-desc">${cmd.description}</span>
-						</div>
-					`).join('')}
-				</div>
-			`).join('');
+			.map(cat => {
+				const rows = grouped[cat].map(cmd => `
+					<div class="slash-command-item" data-command="${cmd.name}">
+						<span class="slash-command-name">/${cmd.name}</span>
+						<span class="slash-command-desc">${cmd.description}</span>
+					</div>
+				`).join('');
+
+				// Add @agent hint after the session group
+				const atHint = cat === 'session' ? `
+					<div class="slash-command-item slash-command-hint">
+						<span class="slash-command-name">@agent</span>
+						<span class="slash-command-desc">Single-shot agent: @name your prompt</span>
+					</div>
+				` : '';
+
+				return `
+					<div class="slash-command-group">
+						<div class="slash-command-group-label">${CATEGORY_LABELS[cat]}</div>
+						${rows}${atHint}
+					</div>
+				`;
+			}).join('');
 
 		this.panelEl.style.display = '';
 		this.attachClickHandlers();

@@ -24,6 +24,7 @@ const PAGE_HTML = `
 <body>
     <main role="main">
         <div id="session-toolbar-mount"></div>
+        <div id="custom-agents-mount"></div>
         <div id="messages-mount"></div>
         <div id="acceptance-mount"></div>
         <div id="input-mount"></div>

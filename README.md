@@ -35,9 +35,34 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
 - **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
 
+### 🤖 Custom Agents
+
+Define named agents as simple Markdown files with YAML frontmatter — drop them in a directory and they're instantly available. Three built-in agents ship out of the box, plus an example Researcher agent:
+
+| Agent | Role |
+|-------|------|
+| **Planner** | Read-only exploration; writes `plan.md`. Never edits source files. |
+| **Implementer** | Reads the plan and executes it. Full file-editing access. |
+| **Reviewer** | Runs tests, reads changed files, posts a concise review summary. Read-only. |
+| **Researcher** *(example)* | Searches the web, local filesystem, and git history. Ships as `.copilot/agents/researcher.md`. |
+
+**Agent file locations:**
+
+- `~/.copilot/agents/` — global agents, available in every workspace
+- `<workspace>/.copilot/agents/` — project-scoped agents, shared via version control
+
+**How to use:**
+- Open the **🤖 Agents panel** in the toolbar to create, edit, or delete agents
+- Type `@agentName` at the start of any message to route that message to a specific agent
+- Use `/agent <name>` to set a sticky agent for the whole session; `/agent` with no args clears it
+- The 🤖 button in the toolbar turns green when an agent is active
+
+Agents use Markdown frontmatter for configuration — name, description, allowed tools, and a system prompt in the body. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md) for the full format and examples.
+
 ### 🛠️ Rich Agent Experience
 
 - **In-Stream Tool Execution** — Collapsible tool groups show exactly what the agent is doing, inline with the conversation.
+- **Color-coded conversation** — 🔵 User messages, 🟢 Assistant responses, 🟣 Tool/agent actions each have a distinct left border so you can scan the flow at a glance.
 - **Mermaid Diagrams** — Mermaid code blocks render as interactive diagrams with a toolbar to view source or save as SVG/`.mmd`.
 - **Image Attachments** — Send screenshots and diagrams to vision-capable models with preview thumbnails.
 - **Active File Context** — The agent always knows which file you're working on, even when chat has focus.
@@ -52,6 +77,14 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.6.0 - File-Based Custom Agents, @mention Routing, and Color-Coded Conversation
+
+- **File-based custom agents** — Define agents as Markdown files with YAML frontmatter. Drop them in `~/.copilot/agents/` (global) or `<workspace>/.copilot/agents/` (project-scoped). Four built-in agents ship out of the box: Planner, Implementer, Reviewer, and Researcher. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md).
+- **`@agentName` mentions** — Route any message to a specific agent by starting it with `@agentName`. Mention wins over the sticky agent.
+- **`/agent <name>` slash command** — Set a sticky agent for the session. The 🤖 button turns green when an agent is active. `/agent` with no args clears it.
+- **Color-coded conversation** — 🔵 User messages · 🟢 Assistant responses · 🟣 Tool/agent actions. Distinct left border colors let you scan the conversation flow instantly.
+- **Slash panel reorganized** — New "Session" category groups `/model`, `/rename`, `/agent`, `/compact`. Includes `@agent` hint for single-shot syntax.
 
 ### v3.5.0 - Streaming Responses, /compact, and Reasoning Streaming
 
@@ -445,6 +478,7 @@ Session state location:
 
 ## 📚 Documentation
 
+- **[Custom Agents Guide](documentation/CUSTOM-AGENTS.md)** - Create and use custom agents
 - **[Development Guide](documentation/HOW-TO-DEV.md)** - Build and test the extension
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 - **[GitHub Repository](https://github.com/darthmolen/vscode-extension-copilot-cli)** - Source code

@@ -31,7 +31,10 @@ class SessionToolbar {
 		this.container.innerHTML = `
 			<div class="header session-toolbar" role="banner">
 				<div class="status-indicator session-toolbar__status" id="statusIndicator" role="status" aria-live="polite" aria-label="Connection status"></div>
-				<h2 class="session-toolbar__title">Copilot CLI</h2>
+				<div class="session-toolbar__title-and-agent-group">
+					<h2 class="session-toolbar__title">Copilot CLI</h2>
+					<button id="agentsBtn" class="plan-btn session-toolbar__btn--agents" title="Manage Custom Agents" aria-label="Manage custom agents">🤖</button>
+				</div>
 				<div class="session-selector session-toolbar__selector-group">
 					<label for="sessionDropdown" class="session-toolbar__label">Session:</label>
 					<div class="session-selector__controls">
@@ -64,6 +67,14 @@ class SessionToolbar {
 		if (viewPlanBtn) {
 			viewPlanBtn.addEventListener('click', () => {
 				this.emit('viewPlan');
+			});
+		}
+
+		// Agents button
+		const agentsBtn = this.container.querySelector('#agentsBtn');
+		if (agentsBtn) {
+			agentsBtn.addEventListener('click', () => {
+				this.emit('toggleAgentsPanel');
 			});
 		}
 	}
@@ -123,6 +134,20 @@ class SessionToolbar {
 		handlers.forEach(handler => handler(...args));
 	}
 	
+	setActiveAgent(agent) {
+		const title = this.container.querySelector('.session-toolbar__title');
+		if (!title) { return; }
+		if (!agent) {
+			title.textContent = 'Copilot CLI';
+		} else {
+			title.textContent = agent.displayName || agent.name;
+		}
+		const agentsBtn = this.container.querySelector('#agentsBtn');
+		if (agentsBtn) {
+			agentsBtn.classList.toggle('agent-active', !!agent);
+		}
+	}
+
 	destroy() {
 		this.listeners.clear();
 		this.container.innerHTML = '';

@@ -247,6 +247,70 @@ If your test passes on first run without any code changes:
 
 **Mandatory:** Every test MUST fail first. If it doesn't fail, comment out the fix code and verify the test catches the break.
 
+---
+
+**🚫 ANTI-PATTERN #4: Keeping Tests That Test Dead Code**
+
+If removing or changing code causes a test to fail, **do not just restore the code to make the test pass.** First evaluate the test:
+
+1. **What is the test actually asserting?** Read it literally.
+2. **Is it testing live functional behavior?** (function calls, DOM state, events, RPC calls)
+3. **Or is it testing the presence of a string, comment, or import?**
+
+```javascript
+// ❌ WRONG — passes because the string appears in a COMMENT
+assert.ok(src.includes('new StatusBar('), 'should create StatusBar');
+// The code was: // const statusBar = new StatusBar(...)
+// The test was passing against dead commented-out code.
+
+// ✅ RIGHT — test the actual behavior
+sessionToolbar.setActiveAgent({ name: 'reviewer' });
+const badge = container.querySelector('#activeAgentBadge');
+assert.ok(!badge.hidden, 'badge should be visible');
+```
+
+**Rule:** Tests must test **active, real, functional behavior** — not the presence of imports, string literals, or commented-out code.
+
+**When removing code breaks a test, the decision tree is:**
+- Test verified real behavior that still matters → **fix the test** to cover the new implementation
+- Test verified real behavior that was intentionally removed → **delete the test**
+- Test was asserting the existence of dead/commented code → **delete the test** (it was never verifying anything real)
+
+**Never restore dead code just to make a test pass.**
+
+---
+
+**🚫 ANTI-PATTERN #5: Source-String Scanning (fs.readFileSync + src.includes) — PERMANENTLY BANNED**
+
+```javascript
+// ❌ BANNED — reads source code as text and checks for string presence
+const src = fs.readFileSync('src/myFile.ts', 'utf-8');
+assert.ok(src.includes('myMethod('), 'should have myMethod');
+// Passes if 'myMethod(' appears in a COMMENT, a string literal, or dead code.
+// Tests NOTHING about whether myMethod actually works.
+```
+
+**This pattern is PERMANENTLY BANNED. No exceptions. No "just this once."** It has caused real failures in this project (StatusBar incident: test passed against a commented-out line). It tests the shape of text, not the behavior of code. A test that reads source as a string and calls `.includes()` is not a test — it is grep with extra steps.
+
+**✅ RIGHT — test the behavior:**
+```javascript
+// Verify the method exists
+assert.strictEqual(typeof MyClass.prototype.myMethod, 'function');
+
+// Call it with a mocked context and verify it did the right thing
+let captured = null;
+const ctx = {
+    dependency: { doThing: async (arg) => { captured = arg; } },
+    logger: { info: () => {}, warn: () => {} },
+};
+await MyClass.prototype.myMethod.call(ctx, 'test-arg');
+assert.strictEqual(captured, 'test-arg');
+```
+
+**Rule:** If your test uses `fs.readFileSync` on a `.ts` or `.js` source file and `.includes()` on the content, **delete it and write a behavioral test instead.** If you are tempted to write one, stop and ask: "What behavior am I actually verifying?" Then test that behavior directly.
+
+---
+
 #### Checklist: Before Claiming Any Fix is Complete
 
 **Phase 0: Test Quality Verification**

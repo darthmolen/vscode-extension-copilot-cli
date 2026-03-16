@@ -11,7 +11,8 @@ import {
 	PlanModeStatus,
 	DiffData,
 	InitState,
-	UsageInfo
+	UsageInfo,
+	CustomAgentDefinition
 } from './models';
 
 /**
@@ -53,7 +54,12 @@ export type WebviewMessageType =
 	| 'saveMermaidImage'
 	| 'switchModel'
 	| 'renameSession'
-	| 'compact';
+	| 'compact'
+	| 'getCustomAgents'
+	| 'saveCustomAgent'
+	| 'deleteCustomAgent'
+	| 'selectAgent'
+	| 'agentsPanelClosed';
 
 /**
  * Send user message to agent
@@ -62,6 +68,7 @@ export interface SendMessagePayload extends BaseMessage {
 	type: 'sendMessage';
 	text: string;
 	attachments?: Attachment[];
+	agentName?: string;
 }
 
 /**
@@ -235,6 +242,29 @@ export interface CompactPayload extends BaseMessage {
 	type: 'compact';
 }
 
+export interface GetCustomAgentsPayload extends BaseMessage {
+	type: 'getCustomAgents';
+}
+
+export interface SaveCustomAgentPayload extends BaseMessage {
+	type: 'saveCustomAgent';
+	agent: CustomAgentDefinition;
+}
+
+export interface DeleteCustomAgentPayload extends BaseMessage {
+	type: 'deleteCustomAgent';
+	name: string;
+}
+
+export interface SelectAgentPayload extends BaseMessage {
+	type: 'selectAgent';
+	name: string;  // empty string = clear active agent
+}
+
+export interface AgentsPanelClosedPayload extends BaseMessage {
+	type: 'agentsPanelClosed';
+}
+
 /**
  * Union of all webview → extension messages
  */
@@ -262,7 +292,12 @@ export type WebviewMessage =
 	| SaveMermaidImagePayload
 	| SwitchModelPayload
 	| RenameSessionPayload
-	| CompactPayload;
+	| CompactPayload
+	| GetCustomAgentsPayload
+	| SaveCustomAgentPayload
+	| DeleteCustomAgentPayload
+	| SelectAgentPayload
+	| AgentsPanelClosedPayload;
 
 // ============================================================================
 // Extension → Webview Messages
@@ -297,7 +332,9 @@ export type ExtensionMessageType =
 	| 'availableModels'
 	| 'taskComplete'
 	| 'messageDelta'
-	| 'reasoningDelta';
+	| 'reasoningDelta'
+	| 'customAgentsChanged'
+	| 'activeAgentChanged';
 
 /**
  * Initialize webview with full state
@@ -357,6 +394,16 @@ export interface ReasoningDeltaPayload extends BaseMessage {
 	type: 'reasoningDelta';
 	reasoningId: string;
 	deltaContent: string;
+}
+
+export interface CustomAgentsChangedPayload extends BaseMessage {
+	type: 'customAgentsChanged';
+	agents: CustomAgentDefinition[];
+}
+
+export interface ActiveAgentChangedPayload extends BaseMessage {
+	type: 'activeAgentChanged';
+	agent: CustomAgentDefinition | null;  // null = cleared
 }
 
 /**
@@ -557,7 +604,9 @@ export type ExtensionMessage =
 	| AvailableModelsPayload
 	| TaskCompletePayload
 	| MessageDeltaPayload
-	| ReasoningDeltaPayload;
+	| ReasoningDeltaPayload
+	| CustomAgentsChangedPayload
+	| ActiveAgentChangedPayload;
 
 // ============================================================================
 // Type Guards
@@ -595,7 +644,12 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'saveMermaidImage',
 		'switchModel',
 		'renameSession',
-		'compact'
+		'compact',
+		'getCustomAgents',
+		'saveCustomAgent',
+		'deleteCustomAgent',
+		'selectAgent',
+		'agentsPanelClosed'
 	];
 	
 	return validTypes.includes(message.type as WebviewMessageType);
@@ -635,7 +689,9 @@ export function isExtensionMessage(message: any): message is ExtensionMessage {
 		'availableModels',
 		'taskComplete',
 		'messageDelta',
-		'reasoningDelta'
+		'reasoningDelta',
+		'customAgentsChanged',
+		'activeAgentChanged'
 	];
 
 	return validTypes.includes(message.type as ExtensionMessageType);
