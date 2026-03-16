@@ -82,16 +82,17 @@ If two agents have the same `name`, the project-scoped version wins.
 
 ## Built-In Agents
 
-Four agents ship with the extension. They live in the project's `.copilot/agents/` directory and are always available:
+Three agents are bundled as hardcoded defaults and are always available:
 
 | Agent | Tools | Purpose |
 |-------|-------|---------|
 | **Planner** | `view`, `grep`, `glob`, `plan_bash_explore`, `update_work_plan`, `present_plan`, `create_plan_file`, `edit_plan_file`, `task_agent_type_explore` | Read-only exploration; writes `plan.md` |
 | **Implementer** | All tools | Reads the plan and executes it |
 | **Reviewer** | `view`, `grep`, `glob`, `plan_bash_explore` | Runs tests, reads files, posts review summary |
-| **Researcher** | `view`, `grep`, `glob`, `web_fetch`, `plan_bash_explore`, `fetch_copilot_cli_documentation` | Gathers information from code, web, and git |
 
 Built-in agents can be edited (tune their prompts) but are protected from deletion in the UI.
+
+The **Researcher** agent (shown in the example above) ships as a project-scoped file in `.copilot/agents/researcher.md` — it demonstrates how to write a read-only agent with web access.
 
 ## Using Agents
 

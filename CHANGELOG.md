@@ -6,11 +6,11 @@ All notable changes to the Copilot CLI Chat extension.
 
 ### ✨ Features
 
-- **File-based custom agents** — Define agents as Markdown files with YAML frontmatter. Drop them in `~/.copilot/agents/` (global) or `<workspace>/.copilot/agents/` (project-scoped). Full CRUD UI via the 🤖 Agents panel in the toolbar. Four built-in agents ship out of the box:
+- **File-based custom agents** — Define agents as Markdown files with YAML frontmatter. Drop them in `~/.copilot/agents/` (global) or `<workspace>/.copilot/agents/` (project-scoped). Full CRUD UI via the 🤖 Agents panel in the toolbar. Three built-in agents ship out of the box, plus an example Researcher agent (`@researcher`) in `.copilot/agents/`:
   - **Planner** — Read-only exploration; writes `plan.md`. Never edits source files.
   - **Implementer** — Reads the plan and executes it faithfully. Full file-editing access.
   - **Reviewer** — Runs tests, reads changed files, produces a concise review summary. Read-only.
-  - **Researcher** — Searches the web, local filesystem, and git history to gather information. Example: `@researcher how does the SDK handle model switching?`
+  - **Researcher** *(example)* — Project-scoped file-based agent demonstrating web search and read-only codebase exploration. Try: `@researcher how does the SDK handle model switching?`
 - **`@agentName` message routing** — Prefix any message with `@agentName` to route it to a specific agent for that message. The mention takes priority over the sticky agent.
 - **`/agent <name>` slash command** — Set a sticky agent for the whole session. A badge in the toolbar shows the active agent. Run `/agent` with no args to clear it and return to auto-inference.
 - **Color-coded conversation flow** — Each message type now has a distinct left border color for instant visual scanning:

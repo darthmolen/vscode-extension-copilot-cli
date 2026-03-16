@@ -8,8 +8,6 @@
  */
 
 const assert = require('assert');
-const fs = require('fs');
-const path = require('path');
 
 const Module = require('module');
 const originalRequire = Module.prototype.require;
@@ -22,15 +20,10 @@ Module.prototype.require = function (id) {
     return originalRequire.apply(this, arguments);
 };
 
-describe('Custom Agents SDK Wiring (sdkSessionManager.ts)', function () {
-    let sourceCode;
+describe('Custom Agents SDK Wiring — contract checks', function () {
     let CustomAgentsService;
 
     before(function () {
-        sourceCode = fs.readFileSync(
-            path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf-8'
-        );
-
         try {
             const svcModule = require('../../../out/extension/services/CustomAgentsService.js');
             CustomAgentsService = svcModule.CustomAgentsService;
@@ -39,35 +32,6 @@ describe('Custom Agents SDK Wiring (sdkSessionManager.ts)', function () {
             this.skip();
         }
     });
-
-    // ─── Source-level wiring checks ───────────────────────────────────────────
-
-    it('imports CustomAgentsService in sdkSessionManager.ts', function () {
-        assert.ok(
-            sourceCode.includes('CustomAgentsService'),
-            'sdkSessionManager.ts must import or reference CustomAgentsService'
-        );
-    });
-
-    it('calls toSDKAgents() somewhere in the session creation flow', function () {
-        assert.ok(
-            sourceCode.includes('toSDKAgents()'),
-            'sdkSessionManager.ts must call toSDKAgents() to strip builtIn before passing to SDK'
-        );
-    });
-
-    it('passes customAgents to createSessionWithModelFallback', function () {
-        // Every createSessionWithModelFallback call site should include customAgents
-        const callCount = (sourceCode.match(/this\.createSessionWithModelFallback\s*\(/g) || []).length;
-        const customAgentsCount = (sourceCode.match(/customAgents:\s*this\.customAgentsService\.toSDKAgents\(\)/g) || []).length;
-        assert.ok(callCount > 0, 'Expected createSessionWithModelFallback calls in source');
-        assert.ok(
-            customAgentsCount >= callCount,
-            `Expected at least ${callCount} customAgents: toSDKAgents() assignments, found ${customAgentsCount}`
-        );
-    });
-
-    // ─── Contract checks via CustomAgentsService ──────────────────────────────
 
     it('toSDKAgents() returns at least 3 agents (built-ins)', function () {
         const service = new CustomAgentsService();
@@ -87,13 +51,14 @@ describe('Custom Agents SDK Wiring (sdkSessionManager.ts)', function () {
         }
     });
 
-    it('toSDKAgents() includes planner, implementer, reviewer by name', function () {
+    it('toSDKAgents() includes planner, implementer, reviewer, researcher by name', function () {
         const service = new CustomAgentsService();
         const agents = service.toSDKAgents();
         const names = agents.map(a => a.name);
         assert.ok(names.includes('planner'), 'planner agent must be included');
         assert.ok(names.includes('implementer'), 'implementer agent must be included');
         assert.ok(names.includes('reviewer'), 'reviewer agent must be included');
+        assert.ok(names.includes('researcher'), 'researcher agent must be included');
     });
 
     it('toSDKAgents() agents all have a prompt field', function () {

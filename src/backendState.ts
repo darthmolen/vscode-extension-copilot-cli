@@ -143,6 +143,7 @@ export class BackendState {
         workspacePath: string | null;
         activeFilePath: string | null;
         currentModel: string | null;
+        activeAgent: string | null;
     } {
         return {
             sessionId: this.sessionId,
@@ -151,7 +152,8 @@ export class BackendState {
             planModeStatus: this.getPlanModeStatus(),
             workspacePath: this.workspacePath,
             activeFilePath: this.activeFilePath,
-            currentModel: this.currentModel
+            currentModel: this.currentModel,
+            activeAgent: this.activeAgent
         };
     }
 

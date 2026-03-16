@@ -37,14 +37,14 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 
 ### 🤖 Custom Agents
 
-Define named agents as simple Markdown files with YAML frontmatter — drop them in a directory and they're instantly available. Four built-in agents ship out of the box:
+Define named agents as simple Markdown files with YAML frontmatter — drop them in a directory and they're instantly available. Three built-in agents ship out of the box, plus an example Researcher agent:
 
 | Agent | Role |
 |-------|------|
 | **Planner** | Read-only exploration; writes `plan.md`. Never edits source files. |
 | **Implementer** | Reads the plan and executes it. Full file-editing access. |
 | **Reviewer** | Runs tests, reads changed files, posts a concise review summary. Read-only. |
-| **Researcher** | Searches the web, local filesystem, and git history. Produces research reports. |
+| **Researcher** *(example)* | Searches the web, local filesystem, and git history. Ships as `.copilot/agents/researcher.md`. |
 
 **Agent file locations:**
 

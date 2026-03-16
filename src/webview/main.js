@@ -590,6 +590,12 @@ export function handleInitMessage(payload) {
 		inputArea.updateFocusFile(payload.activeFilePath);
 	}
 
+	// Restore active agent badge
+	if (payload.activeAgent) {
+		_activeAgent = payload.activeAgent;
+		sessionToolbar.setActiveAgent(_activeAgent);
+	}
+
 	// Load custom agents for the panel
 	rpc.getCustomAgents();
 }

@@ -43,6 +43,7 @@ class WebviewRpcClient {
 	 * Send user message to agent
 	 * @param {string} text - Message text
 	 * @param {Array<{type: string, path: string, displayName?: string}>} [attachments] - File attachments
+	 * @param {string} [agentName] - Optional agent name for one-shot @mention routing
 	 */
 	sendMessage(text, attachments = [], agentName) {
 		const msg = { type: 'sendMessage', text, attachments };

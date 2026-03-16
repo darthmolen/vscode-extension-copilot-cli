@@ -107,9 +107,9 @@ describe('chatViewProvider.ts — onDidSelectAgent event', function () {
         const router = new ExtensionRpcRouter(mockWebview);
         let received = null;
         router.onSelectAgent((payload) => { received = payload; });
-        router.route({ type: 'selectAgent', agentName: 'reviewer' });
+        router.route({ type: 'selectAgent', name: 'reviewer' });
         assert.ok(received, 'onSelectAgent handler should have been called');
-        assert.strictEqual(received.agentName, 'reviewer');
+        assert.strictEqual(received.name, 'reviewer');
     });
 });
 
@@ -160,9 +160,9 @@ describe('extension.ts — wires onDidSelectAgent to SDK', function () {
         const router = new ExtensionRpcRouter(mockWebview);
         let received = null;
         router.onSelectAgent((payload) => { received = payload; });
-        router.route({ type: 'selectAgent', agentName: 'code-reviewer' });
+        router.route({ type: 'selectAgent', name: 'code-reviewer' });
         assert.ok(received, 'handler should fire');
-        assert.strictEqual(received.agentName, 'code-reviewer');
+        assert.strictEqual(received.name, 'code-reviewer');
     });
 
     it('RPC router onSelectAgent handler receives clear signal when selectAgent message has empty agentName', function () {
@@ -173,9 +173,9 @@ describe('extension.ts — wires onDidSelectAgent to SDK', function () {
         const router = new ExtensionRpcRouter(mockWebview);
         let received = null;
         router.onSelectAgent((payload) => { received = payload; });
-        router.route({ type: 'selectAgent', agentName: '' });
+        router.route({ type: 'selectAgent', name: '' });
         assert.ok(received, 'handler should fire');
-        assert.strictEqual(received.agentName, '');
+        assert.strictEqual(received.name, '');
     });
 });
 
