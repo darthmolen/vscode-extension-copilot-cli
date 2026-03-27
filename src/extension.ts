@@ -205,6 +205,10 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 	}));
 
+	context.subscriptions.push(chatProvider.onDidRequestForkSession(async () => {
+		await handleForkSession(context);
+	}));
+
 	context.subscriptions.push(chatProvider.onDidRequestCompact(async () => {
 		logger.info('[Compact] Compact requested');
 		if (!sessionManager) {
@@ -264,6 +268,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', () => handleRejectPlan()),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestLight', () => createAnimationTestPanel('light')),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestDark', () => createAnimationTestPanel('dark')),
+		vscode.commands.registerCommand('copilot-cli-extension.forkSession', () => handleForkSession(context)),
 	];
 	context.subscriptions.push(...commands);
 }
@@ -357,6 +362,27 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 		showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 	});
 	updateSessionsList();
+}
+
+async function handleForkSession(context: vscode.ExtensionContext): Promise<void> {
+	const currentSessionId = sessionManager?.getSessionId();
+	if (!currentSessionId) {
+		vscode.window.showWarningMessage('No active session to fork.');
+		return;
+	}
+
+	const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+
+	try {
+		logger.info(`[Fork Session] Forking session ${currentSessionId}`);
+		const newSessionId = SessionService.forkSession(currentSessionId, sessionStateDir);
+		logger.info(`[Fork Session] Created fork: ${newSessionId}`);
+		await handleSwitchSession(context, newSessionId);
+		vscode.window.showInformationMessage('Session forked — you are now on the fork.');
+	} catch (error: any) {
+		logger.error(`[Fork Session] Fork failed: ${error.message}`, error);
+		vscode.window.showErrorMessage(`Failed to fork session: ${error.message}`);
+	}
 }
 
 async function handleStopChat(): Promise<void> {

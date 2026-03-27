@@ -54,6 +54,7 @@ export type WebviewMessageType =
 	| 'saveMermaidImage'
 	| 'switchModel'
 	| 'renameSession'
+	| 'forkSession'
 	| 'compact'
 	| 'getCustomAgents'
 	| 'saveCustomAgent'
@@ -238,6 +239,10 @@ export interface RenameSessionPayload extends BaseMessage {
 	name: string;  // empty string = show input box
 }
 
+export interface ForkSessionPayload extends BaseMessage {
+	type: 'forkSession';
+}
+
 export interface CompactPayload extends BaseMessage {
 	type: 'compact';
 }
@@ -292,6 +297,7 @@ export type WebviewMessage =
 	| SaveMermaidImagePayload
 	| SwitchModelPayload
 	| RenameSessionPayload
+	| ForkSessionPayload
 	| CompactPayload
 	| GetCustomAgentsPayload
 	| SaveCustomAgentPayload
@@ -644,6 +650,7 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'saveMermaidImage',
 		'switchModel',
 		'renameSession',
+		'forkSession',
 		'compact',
 		'getCustomAgents',
 		'saveCustomAgent',

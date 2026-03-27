@@ -93,6 +93,10 @@
       {
         "command": "copilot-cli-extension.openAnimationTestDark",
         "title": "Copilot CLI: Animation Test (Dark)"
+      },
+      {
+        "command": "copilot-cli-extension.forkSession",
+        "title": "Copilot CLI: Fork Session"
       }
     ],
     "menus": {

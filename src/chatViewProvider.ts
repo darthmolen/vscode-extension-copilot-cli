@@ -44,6 +44,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly _onDidBecomeReady = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
+	private readonly _onDidRequestForkSession = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidSelectAgent = this._reg(new vscode.EventEmitter<string | null>());
 	private readonly _onDidRequestReloadAgents = this._reg(new vscode.EventEmitter<void>());
@@ -55,6 +56,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidBecomeReady = this._onDidBecomeReady.event;
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
 	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
+	readonly onDidRequestForkSession = this._onDidRequestForkSession.event;
 	readonly onDidRequestCompact = this._onDidRequestCompact.event;
 	readonly onDidSelectAgent = this._onDidSelectAgent.event;
 	readonly onDidRequestReloadAgents = this._onDidRequestReloadAgents.event;
@@ -340,6 +342,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this._reg(this.rpcRouter.onRenameSession((payload) => {
 			this.logger.info(`Rename session requested: "${payload.name}"`);
 			this._onDidRequestRenameSession.fire(payload.name);
+		}));
+
+		this._reg(this.rpcRouter.onForkSession(() => {
+			this.logger.info('[Fork] Fork session requested from UI');
+			this._onDidRequestForkSession.fire();
 		}));
 
 		this._reg(this.rpcRouter.onCompact(() => {

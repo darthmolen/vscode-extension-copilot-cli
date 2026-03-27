@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
+import { randomUUID } from 'crypto';
 
 /** Normalize a path and strip trailing separators for reliable comparison. */
 function normalizePath(p: string): string {
@@ -298,6 +299,45 @@ export const SessionService = {
                 resolve(messages);
             });
         });
+    },
+
+    /**
+     * Forks a session by copying its directory to a new UUID.
+     *
+     * Copies all files from the source session directory to a new directory named
+     * after a freshly-generated UUID. Patches the `session.start` event in the
+     * new `events.jsonl` to reference the new session ID so the CLI accepts it.
+     *
+     * @param sourceSessionId - The session ID to fork from.
+     * @param sessionStateDir - Path to the session-state directory (e.g. ~/.copilot/session-state).
+     * @returns The new session ID.
+     */
+    forkSession(sourceSessionId: string, sessionStateDir: string): string {
+        const sourceDir = path.join(sessionStateDir, sourceSessionId);
+        const newId = randomUUID();
+        const destDir = path.join(sessionStateDir, newId);
+
+        fs.cpSync(sourceDir, destDir, { recursive: true });
+
+        const eventsPath = path.join(destDir, 'events.jsonl');
+        if (fs.existsSync(eventsPath)) {
+            const content = fs.readFileSync(eventsPath, 'utf-8');
+            const lines = content.split('\n');
+            if (lines.length > 0 && lines[0].trim() !== '') {
+                try {
+                    const firstEvent = JSON.parse(lines[0]);
+                    if (firstEvent.type === 'session.start' && firstEvent.data?.sessionId) {
+                        firstEvent.data.sessionId = newId;
+                        lines[0] = JSON.stringify(firstEvent);
+                        fs.writeFileSync(eventsPath, lines.join('\n'), 'utf-8');
+                    }
+                } catch { /* malformed first line — leave as-is */ }
+            }
+        }
+
+        SessionService.ensureSessionName(destDir);
+
+        return newId;
     },
 
     /**

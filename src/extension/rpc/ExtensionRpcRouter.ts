@@ -53,6 +53,7 @@ import {
 	SaveMermaidImagePayload,
 	SwitchModelPayload,
 	RenameSessionPayload,
+	ForkSessionPayload,
 	CompactPayload,
 	ModelSwitchedPayload,
 	CurrentModelPayload,
@@ -586,6 +587,13 @@ export class ExtensionRpcRouter {
 	 */
 	onRenameSession(handler: MessageHandler<RenameSessionPayload>): Disposable {
 		return this.registerHandler('renameSession', handler);
+	}
+
+	/**
+	 * Register handler for forkSession
+	 */
+	onForkSession(handler: MessageHandler<ForkSessionPayload>): Disposable {
+		return this.registerHandler('forkSession', handler);
 	}
 
 	/**
