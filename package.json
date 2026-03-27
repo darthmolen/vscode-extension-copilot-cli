@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.6.1",
+  "version": "3.7.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -93,6 +93,10 @@
       {
         "command": "copilot-cli-extension.openAnimationTestDark",
         "title": "Copilot CLI: Animation Test (Dark)"
+      },
+      {
+        "command": "copilot-cli-extension.forkSession",
+        "title": "Copilot CLI: Fork Session"
       }
     ],
     "menus": {

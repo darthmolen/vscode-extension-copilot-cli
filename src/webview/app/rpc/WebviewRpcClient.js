@@ -278,6 +278,10 @@ class WebviewRpcClient {
 		});
 	}
 
+	forkSession() {
+		this._send({ type: 'forkSession' });
+	}
+
 	compact() {
 		this._send({
 			type: 'compact'

@@ -33,6 +33,7 @@ The extension lives in the VS Code Activity Bar — same location as native Copi
 - **Auto-Resume** — Picks up where you left off, even after VS Code reloads. Full conversation history loads from Copilot CLI's event log.
 - **Session Resilience** — Smart retry logic handles transient failures automatically (v2.2.3+).
 - **Session Management** — Create, switch, and resume sessions from a dropdown. Filtered by workspace folder.
+- **Session Fork** — Clone the current session at any point with the `⑂ Fork` button. The fork starts with the full conversation history and diverges independently — useful for exploring alternate approaches without losing the original thread.
 - **Usage Metrics** — Live context window percentage, token usage, and quota tracking per session.
 
 ### 🤖 Custom Agents
@@ -77,6 +78,11 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.7.0 - Session Fork and Model Dropdown Fix
+
+- **Session Fork** — `⑂ Fork` button in the input area creates an independent copy of the current session with full conversation history. Diverge, experiment, and switch back to the original any time.
+- **Model dropdown fix** — The model selector dropdown now renders correctly above the input area (was invisibly clipped by `overflow: hidden`).
 
 ### v3.6.0 - File-Based Custom Agents, @mention Routing, and Color-Coded Conversation
 

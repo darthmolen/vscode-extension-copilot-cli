@@ -2,7 +2,24 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
-## [3.6.1] - 2026-03-16
+## [3.7.0] - 2026-03-27
+
+### ✨ Features
+
+- **Session Fork** — New `⑂ Fork` button in the input area creates an independent copy of the current session. The fork has the full conversation history but diverges from this point forward. Click fork, continue on a different line of thought, and switch back to the original at any time from the session dropdown.
+
+### 🐛 Bug Fixes
+
+- **Model dropdown invisible** — The model selector dropdown opens upward but was silently clipped by `#input-mount { overflow: hidden }`. Changed to `overflow: visible` so the dropdown renders correctly above the input area.
+
+### 🔧 Internal
+
+- **`SessionService.forkSession()`** — New method in `SessionService.ts`. Copies the source session directory to a new UUID via `fs.cpSync()`, patches the `session.start` event's `sessionId` field in the cloned `events.jsonl`, and calls `ensureSessionName()` so the fork gets a distinct label in the session list.
+- **`forkSession` RPC message** — New `ForkSessionPayload` type in `messages.ts`, `forkSession()` on `WebviewRpcClient`, `onForkSession()` on `ExtensionRpcRouter`, and `onDidRequestForkSession` event on `ChatViewProvider`.
+- **`copilot-cli-extension.forkSession` command** — Registered in `package.json` and wired in `extension.ts` via `handleForkSession()`.
+- **19 new tests** across 4 test files: `fork-session-button.test.js`, `fork-session-rpc.test.js` (×2), `session-fork.test.js` — all written RED before implementation.
+
+
 
 ### 🐛 Bug Fixes
 

@@ -77,6 +77,9 @@ export class InputArea {
 			<div class="input-controls">
 				<div class="active-file-row" id="active-file-mount"></div>
 				<div class="model-selector-row" id="model-selector-mount"></div>
+				<div class="fork-row">
+					<button id="forkSessionBtn" class="fork-session-btn" title="Fork session">⑂ Fork</button>
+				</div>
 				<div class="metrics-row" id="metrics-mount"></div>
 				<div class="controls-row">
 					<label class="reasoning-toggle">
@@ -148,6 +151,14 @@ export class InputArea {
 		// Button events
 		this.sendButton.addEventListener('click', this.handleSendClick);
 		this.attachButton.addEventListener('click', this.handleAttachClick);
+
+		// Fork session button
+		const forkBtn = this.container.querySelector('#forkSessionBtn');
+		if (forkBtn) {
+			forkBtn.addEventListener('click', () => {
+				this.eventBus.emit('forkSession');
+			});
+		}
 		
 		// Reasoning checkbox event
 		if (this.reasoningCheckbox) {

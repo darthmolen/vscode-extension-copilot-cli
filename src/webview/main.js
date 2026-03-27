@@ -232,6 +232,12 @@ eventBus.on('compact', () => {
 	rpc.compact();
 });
 
+// Fork session button
+eventBus.on('forkSession', () => {
+	console.log('[Fork] Fork session requested');
+	rpc.forkSession();
+});
+
 // Track sticky active agent set by /agent command
 let _activeAgent = null;
 
