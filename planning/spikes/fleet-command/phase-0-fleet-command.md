@@ -343,3 +343,97 @@ Fires when session ends. Contains `codeChanges` metrics and `modelMetrics` usage
 - **general-purpose agents can run for 60-400+ seconds per agent** — UI must not time out or show "stuck" state.
 - **Fleet chose explore-first autonomously**: The orchestrator (LLM) decides which agent types to use and in what order. Our UI must gracefully handle sequential subagent batches, not just a single parallel burst.
 - **4 started / 2 completed in EXP3** — some subagents may still be running when `session.idle` fires. This could mean the session goes idle while agents are still technically in progress, or that the collection timed out (300s) before agents finished.
+
+---
+
+## Spike 06: Custom Agents + kill confirmation (2026-03-17)
+
+**File**: `spike-06-fleet-custom-agents.mjs`
+**Results**: `results/spike-06-output.json`
+
+### Questions answered
+
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | Does `rpc.fleet.start()` dispatch custom agents defined in `customAgents`? | **NO** — fleet ignores `customAgents`; always dispatches built-in `explore`/`general-purpose` |
+| 2 | Does `session.task_complete` fire when fleet completes with `customAgents`? | **NO** — did not fire, same as without customAgents |
+| 3 | Does `ResumeSessionConfig` accept `customAgents` at runtime? | **YES** — confirmed by SDK types (line 869 of types.ts); EXP2 had a spike code bug but types are definitive |
+| 4 | Does `session.background_tasks_changed` reliably fire at fleet completion? What is its payload? | **Fires continuously — always `{}`** — fired 14× during a 2-agent run; fires on every agent state transition, NOT just at completion; payload is always empty |
+| 5 | No per-subagent kill API? | **CONFIRMED** — only `session.abort()` exists (already confirmed in spike-03) |
+
+### Key findings
+
+- **`customAgents` does NOT influence fleet dispatch.** Fleet always uses built-in `explore`/`general-purpose` agents chosen by the LLM orchestrator. Custom agents defined in `customAgents` are only accessible via `rpc.agent.select()` — the user/extension must explicitly select them; the LLM cannot dispatch them via fleet.
+
+- **`background_tasks_changed` is useless as a fleet-completion signal.** It fires 14× (always `{}`), paired with every agent state change. Cannot be used to detect "fleet done." Use subagent count tracking: emit `done` when `completed + failed === started`.
+
+- **`task_complete` still does not fire in fleet context.** Not triggered even with custom agents configured.
+
+- **`resumeSession` accepts `customAgents`** — so `acceptAndFleet()` can safely use `resumeSession` rather than creating a fresh session.
+
+### Plan changes for Phase 1 / 9a
+
+| Finding | Plan change |
+|---------|------------|
+| Fleet ignores customAgents | Remove "expose in 3.8.0 UI" note; `agentDisplayName` in fleet messages will always be "Explore Agent" / "General Purpose Agent" — no custom agent cross-reference needed |
+| task_complete does not fire | No `task_complete` handler in Phase 9a; rely on `session.idle` + count-based tracking |
+| background_tasks_changed = empty | Do NOT add handler for this event in Phase 9a; payload is always `{}` with no useful data |
+| resumeSession accepts customAgents | `acceptAndFleet()` can resume session; no need to create a fresh session |
+
+---
+
+## Spike 07: Fleet as parallel research tool (2026-03-17)
+
+**File**: `spike-07-fleet-research.mjs`
+**Results**: `results/07/spike-07-output.json`
+**Output files**: `results/07/community-issues-about-fleet-in-copilot-cli.md`, `results/07/agent-slash-command-workflow.md`
+
+### What happened
+
+- 4 `general-purpose` agents dispatched in parallel (~47s after fleet.start())
+- 2 agents completed (community issues + agent workflow); 2 still running when `session.idle` fired
+- `session.idle` fired at +175s — **with a non-empty `backgroundTasks.agents` payload**
+- 757 total events; `session.background_tasks_changed` fired 172 times (confirmed useless)
+
+### 🚨 NEW FINDING: `session.idle` now has a real payload
+
+`session.idle` data (spike-07):
+```json
+{
+  "backgroundTasks": {
+    "agents": [
+      { "agentId": "agent-2", "agentType": "general-purpose", "description": "Mermaid fleet.start() workflow" },
+      { "agentId": "agent-3", "agentType": "general-purpose", "description": "Community discussion research" }
+    ],
+    "shells": []
+  }
+}
+```
+
+**Impact**: `session.idle` with `backgroundTasks.agents.length > 0` means fleet is NOT done — agents are still running. This is a better completion signal than pure count-based tracking: when `session.idle` fires AND `backgroundTasks.agents` is empty (or the event has no `backgroundTasks`), fleet is truly done.
+
+**Updated fleet-done detection strategy (Phase 9a)**:
+- Primary: `session.idle` where `event.data?.backgroundTasks?.agents?.length === 0` (or `backgroundTasks` is absent) → fleet done
+- Fallback / cross-check: count-based (`completed + failed === started`)
+
+### What the community issues revealed
+
+**10 open issues in `github/copilot-cli` mentioning fleet.** Critical ones for our implementation:
+
+| Issue | Impact on us |
+|-------|-------------|
+| #1820 — Plan mode strips tools needed by fleet (`read_agent`, `list_agents`, `sql`) | **Directly relevant**: our plan mode restricts tools. The plan→fleet workflow (Accept + Fleet) may silently break if fleet agents can't read results. Investigate before shipping `acceptAndFleet()`. |
+| #1896 — Stale plan.md fleet instructions execute in future sessions | **Relevant**: our sessions share plan.md. After fleet completes, we should clear or archive plan.md to prevent stale fleet instructions running in new sessions. |
+| #1901 — autopilot_fleet race condition: fleet doesn't activate immediately | Low risk for us since we call `rpc.fleet.start()` directly, not via plan mode UI button |
+| #2074 — Subagents freeze after sleep | Informs reliability — long fleet runs (400s) may appear hung after sleep; not a bug we can fix |
+| #1833 — Auto-detect parallelism, suggest /fleet | Feature idea for later: detect independent tasks in the plan and suggest fleet |
+
+### Output quality assessment
+
+**community-issues-about-fleet-in-copilot-cli.md (12.9KB, 287 lines)**: Excellent. Found 10 real issues, properly categorized by severity, included impact assessments relevant to our extension. Fleet-as-research works for this class of task.
+
+**agent-slash-command-workflow.md (6.1KB, 82 lines)**: High quality. Correct class names, accurate file paths, proper sequence diagram tracing the full `/agent` flow through actual production code. Agents can read our codebase accurately.
+
+### fleet-rpc-workflow.md and community-speaks-about-fleet-in-copilot-cli.md — NOT produced
+
+Agents 2 and 3 were still running when `session.idle` fired. The spike collected until `session.idle` (old behavior) and exited, so those agents' output files were never written. A spike-08 should test collecting past `session.idle` when `backgroundTasks.agents` is non-empty.

@@ -5,6 +5,7 @@ Updated 2026-02-23 (evening) — #530 closed, PR #546 has review feedback from S
 Updated 2026-02-24 — #1606 self-closed, PR #546 reworked per Steve's feedback, SDK breaking changes discovered.
 Updated 2026-03-08 — Two new issues filed during v3.4.0 session label work.
 Updated 2026-03-09 — New issue: resumeSession() doubles events on already-active sessions.
+Updated 2026-03-24 — **PR #546 MERGED** (Mar 19). 6 fleet issues filed (#2261–#2265 copilot-cli, #915 copilot-sdk). #989 got new community comment today.
 
 ## Key Finding (2026-02-23)
 
@@ -38,12 +39,18 @@ Other changes since 0.1.22:
 |---|---|------|-------|--------|------|
 | x | 1 | copilot-cli | Breaking change: --headless --stdio removed without deprecation | CLOSED (self, Feb 24) | [#1606](https://github.com/github/copilot-cli/issues/1606) |
 | x | 2 | copilot-sdk | CLI v0.0.410+ auto-update breaks all SDK versions | CLOSED | [#530](https://github.com/github/copilot-sdk/issues/530) |
-| + | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | PR REWORKED, AWAITING REVIEW | [#528](https://github.com/github/copilot-sdk/issues/528) → [PR #546](https://github.com/github/copilot-sdk/pull/546) |
+| x | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | **MERGED Mar 19** | [#528](https://github.com/github/copilot-sdk/issues/528) → [PR #546](https://github.com/github/copilot-sdk/pull/546) |
 | x | 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | CLOSED | [#532](https://github.com/github/copilot-sdk/issues/532) |
 |   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN (no response) | [#1607](https://github.com/github/copilot-cli/issues/1607) |
 |   | 6 | copilot-cli | Bug: session.title_changed event fires with truncated title ("I j...") | OPEN (filed Mar 8) | [#1910](https://github.com/github/copilot-cli/issues/1910) |
 |   | 7 | copilot-cli | Bug: resumeSession() on active session doubles all event notifications | OPEN (filed Mar 9) | [#1933](https://github.com/github/copilot-cli/issues/1933) |
 |   | 8 | copilot-sdk | resumeSession() on active session causes doubled events — SDK should guard | OPEN (filed Mar 9) | [#742](https://github.com/github/copilot-sdk/issues/742) |
+|   | 9 | copilot-cli | FLEET: fleet.start() ignores customAgents — always dispatches built-in agent types | OPEN (filed Mar 24) | [#2261](https://github.com/github/copilot-cli/issues/2261) |
+|   | 10 | copilot-cli | FLEET: session.task_complete does not fire after fleet execution | OPEN (filed Mar 24) | [#2262](https://github.com/github/copilot-cli/issues/2262) |
+|   | 11 | copilot-cli | FLEET: session.idle fires before all sub-agents complete | OPEN (filed Mar 24) | [#2263](https://github.com/github/copilot-cli/issues/2263) |
+|   | 12 | copilot-cli | FLEET: No fleet.* lifecycle events — fleet state inferred from subagent.* | OPEN (filed Mar 24) | [#2264](https://github.com/github/copilot-cli/issues/2264) |
+|   | 13 | copilot-cli | FLEET: Sub-agent output not streamed per-agent — aggregated only at end | OPEN (filed Mar 24) | [#2265](https://github.com/github/copilot-cli/issues/2265) |
+|   | 14 | copilot-sdk | FLEET: resumeSession() with customAgents errors with malformed timeout message | OPEN (filed Mar 24) | [#915](https://github.com/github/copilot-sdk/issues/915) |
 
 Legend: `x` = resolved/closed, `+` = we added follow-up comments, blank = open, no action needed
 
@@ -57,14 +64,12 @@ as "not planned" since the underlying issue (auto-update drift) was fixed in SDK
 about launcher delegation and `--no-auto-update`. Resolution: our workaround (`cliArgs`) is correct,
 SDK v0.1.23+ has the fix upstream. No further action.
 
-**#528 / PR #546** — **Reworked per Steve's feedback (Feb 24).** Original dual CJS+ESM approach
-rejected. New approach: single ESM build unchanged, `getBundledCliPath()` falls back to
-`__filename`-based path resolution when `import.meta.url` is unavailable (shimmed CJS).
-Net diff from main: 2 files (`src/client.ts` fix + `test/cjs-compat.test.ts`).
-Awaiting Steve's re-review.
+**#528 / PR #546** — **MERGED Mar 19.** Steve approved and merged the reworked CJS compatibility fix (commit `fb679794`). Our CJS bundle path resolution fallback is now in the SDK. We can remove our local workaround when we upgrade to the version that includes this fix.
 
 **#532** — Closed by Steve (Feb 23). He acknowledged a gap in auto-downloader E2E testing
 but rejected the broader claim. Would need a narrower re-file to pursue.
+
+**#989** — [see above]
 
 **#1607** — No response. Triage label only. Leaving open — security issues should stay until addressed.
 
@@ -262,7 +267,7 @@ We use `session.abort()` as a lightweight liveness check instead of `resumeSessi
 
 | | Issue | Repo | Title | Status | Maintainer Response |
 |---|-------|------|-------|--------|---------------------|
-|   | [#989](https://github.com/github/copilot-cli/issues/989) | copilot-cli | ACP incorrect tool IDs in permission requests | OPEN | None (3 community confirmations) |
+|   | [#989](https://github.com/github/copilot-cli/issues/989) | copilot-cli | ACP incorrect tool IDs in permission requests | OPEN | **5 confirmations** (Mar 24 fresh activity)
 |   | [#1574](https://github.com/github/copilot-cli/issues/1574) | copilot-cli | ACP agent ignores custom tools | OPEN | None |
 |   | [#728](https://github.com/github/copilot-cli/issues/728) | copilot-cli | Model selection not reflected in responses | OPEN | andyfeller (Dec 2025, cosmetic) |
 |   | [#1865](https://github.com/github/copilot-cli/issues/1865) | copilot-cli | /rename fails with 'Workspace not found' on resumed sessions | OPEN — workaround applied | None |
@@ -272,15 +277,27 @@ We use `session.abort()` as a lightweight liveness check instead of `resumeSessi
 
 ## Maintainer Engagement Summary
 
-**Steve Sanderson** (copilot-sdk) — Most active contributor on SDK issues. Responded Feb 23
-on #530, #528, #532. Reviewed PR #546 — wants single ESM build with CJS fallback. Open to
-tool override (#411). Shipped two breaking changes in quick succession (permissions deny-by-default
+**Steve Sanderson** (copilot-sdk) — Reviewed and **merged PR #546** on Mar 19. Responded Feb 23
+on #530, #528, #532. Open to tool override (#411). Shipped two breaking changes in quick succession (permissions deny-by-default
 Feb 18, required handler Feb 24). Very active pace — monitor SDK releases closely.
 
-**copilot-cli team** — Zero maintainer engagement on any of our issues (#1606, #1607) or
+**copilot-cli team** — Zero maintainer engagement on any of our issues (#1606, #1607, #1910, #1933) or
 community-confirmed bugs (#989, #1574). `triage` labels are being applied (someone reads them)
 but no comments, no assignments, no follow-through. The pattern (active SDK community vs silent
-CLI team) suggests a resourcing or prioritization gap on the CLI side.
+CLI team) suggests a resourcing or prioritization gap on the CLI side. **Fleet issues #2261–#2265 filed Mar 24 — low expectations.**
+
+## Fleet Issues (filed 2026-03-24)
+
+Source: spikes 2026-03-17. Full detail in `documentation/issues/fleet/`. SDK version checked: 0.1.32 → 0.2.0 showed no patches.
+
+| # | Repo | Issue # | Title | Status |
+|---|------|---------|-------|--------|
+| 9 | copilot-cli | [#2261](https://github.com/github/copilot-cli/issues/2261) | fleet.start() ignores customAgents | OPEN |
+| 10 | copilot-cli | [#2262](https://github.com/github/copilot-cli/issues/2262) | session.task_complete never fires after fleet | OPEN |
+| 11 | copilot-cli | [#2263](https://github.com/github/copilot-cli/issues/2263) | session.idle fires before sub-agents complete | OPEN |
+| 12 | copilot-cli | [#2264](https://github.com/github/copilot-cli/issues/2264) | No fleet.* lifecycle events | OPEN |
+| 13 | copilot-cli | [#2265](https://github.com/github/copilot-cli/issues/2265) | Sub-agent output not streamed per-agent | OPEN |
+| 14 | copilot-sdk | [#915](https://github.com/github/copilot-sdk/issues/915) | resumeSession() + customAgents malformed timeout | OPEN |
 
 ## ACP Spike Scripts
 
