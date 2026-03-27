@@ -1,5 +1,17 @@
 # Custom Agents — UI for Managing Agent Definitions
 
+---
+
+## ✅ COMPLETED
+
+Shipped in **v3.6.0**. Built-in agents (Planner, Implementer, Reviewer) are pre-loaded and selectable via the `@agent` session toolbar badge. Users can switch the active agent mid-session; the badge updates to reflect the current agent. Custom agent definitions are managed in `sdkSessionManager.ts` and surfaced through the `SessionToolbar` component and `activeAgentBadge` UI element.
+
+### NOTE
+
+This was the original plan which went through quite a bit of iteration which can be found [here](planning/completed/3.0/3.6.0-status-update.md).
+
+---
+
 ## Problem / Opportunity
 
 The SDK's `customAgents` feature lets sessions define named agents with scoped tools, system prompts, and descriptions. Right now, the only way to use custom agents is to hardcode them in `sdkSessionManager.ts`. We want users to be able to create, edit, and delete their own agents — and ship three built-in agents (Planner, Implementer, Reviewer) out of the box.

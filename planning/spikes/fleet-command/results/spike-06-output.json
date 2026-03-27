@@ -1,0 +1,298 @@
+{
+  "timestamp": "2026-03-17T00:34:50.572Z",
+  "summary": {
+    "q1_fleetDispatchesCustomAgents": {
+      "question": "Does rpc.fleet.start() dispatch custom agents defined in customAgents?",
+      "agentNamesObserved": [
+        "explore",
+        "explore"
+      ],
+      "subagentCount": 2,
+      "answer": "PARTIAL — subagents dispatched but with built-in names, not custom names"
+    },
+    "q2_taskCompleteWithCustomAgents": {
+      "question": "Does session.task_complete fire when fleet completes with customAgents?",
+      "taskCompleteCount": 0,
+      "taskCompleteData": [],
+      "answer": "NO — task_complete did not fire"
+    },
+    "q3_resumeSessionAcceptsCustomAgents": {
+      "question": "Does ResumeSessionConfig accept customAgents at runtime?",
+      "resumeSucceeded": false,
+      "resumeError": "Timeout after [object Object]ms waiting for session.idle",
+      "agentsAfterResume": null,
+      "answer": "NO/ERROR — Timeout after [object Object]ms waiting for session.idle"
+    },
+    "q4_backgroundTasksChangedPayload": {
+      "question": "Does session.background_tasks_changed fire at fleet completion? Payload?",
+      "count": 14,
+      "events": [
+        {
+          "data": {},
+          "elapsedMs": 8674
+        },
+        {
+          "data": {},
+          "elapsedMs": 8674
+        },
+        {
+          "data": {},
+          "elapsedMs": 17359
+        },
+        {
+          "data": {},
+          "elapsedMs": 17686
+        },
+        {
+          "data": {},
+          "elapsedMs": 20255
+        },
+        {
+          "data": {},
+          "elapsedMs": 20575
+        },
+        {
+          "data": {},
+          "elapsedMs": 22326
+        },
+        {
+          "data": {},
+          "elapsedMs": 22663
+        },
+        {
+          "data": {},
+          "elapsedMs": 26143
+        },
+        {
+          "data": {},
+          "elapsedMs": 26673
+        },
+        {
+          "data": {},
+          "elapsedMs": 28836
+        },
+        {
+          "data": {},
+          "elapsedMs": 28836
+        },
+        {
+          "data": {},
+          "elapsedMs": 51088
+        },
+        {
+          "data": {},
+          "elapsedMs": 51088
+        }
+      ],
+      "answer": "FIRED 14x — see events for payload"
+    }
+  },
+  "experiments": {
+    "exp1": {
+      "customAgentNamesInSubagentStarted": [
+        "explore",
+        "explore"
+      ],
+      "taskCompleteEvents": [],
+      "backgroundTasksChangedEvents": [
+        {
+          "data": {},
+          "elapsedMs": 8674
+        },
+        {
+          "data": {},
+          "elapsedMs": 8674
+        },
+        {
+          "data": {},
+          "elapsedMs": 17359
+        },
+        {
+          "data": {},
+          "elapsedMs": 17686
+        },
+        {
+          "data": {},
+          "elapsedMs": 20255
+        },
+        {
+          "data": {},
+          "elapsedMs": 20575
+        },
+        {
+          "data": {},
+          "elapsedMs": 22326
+        },
+        {
+          "data": {},
+          "elapsedMs": 22663
+        },
+        {
+          "data": {},
+          "elapsedMs": 26143
+        },
+        {
+          "data": {},
+          "elapsedMs": 26673
+        },
+        {
+          "data": {},
+          "elapsedMs": 28836
+        },
+        {
+          "data": {},
+          "elapsedMs": 28836
+        },
+        {
+          "data": {},
+          "elapsedMs": 51088
+        },
+        {
+          "data": {},
+          "elapsedMs": 51088
+        }
+      ],
+      "allSubagentEvents": [
+        {
+          "type": "subagent.started",
+          "data": {
+            "toolCallId": "tooluse_mB5ewZvOj6sRtEDFBwAz8z",
+            "agentName": "explore",
+            "agentDisplayName": "Explore Agent",
+            "agentDescription": "Fast codebase exploration and answering questions. Uses code intelligence, grep, glob, view, bash/powershell tools in a separate context window to search files and understand code structure. Safe to call in parallel.\n"
+          },
+          "elapsedMs": 8687
+        },
+        {
+          "type": "subagent.started",
+          "data": {
+            "toolCallId": "tooluse_AxEz0u9FNM1oxE2vunAvz6",
+            "agentName": "explore",
+            "agentDisplayName": "Explore Agent",
+            "agentDescription": "Fast codebase exploration and answering questions. Uses code intelligence, grep, glob, view, bash/powershell tools in a separate context window to search files and understand code structure. Safe to call in parallel.\n"
+          },
+          "elapsedMs": 8694
+        },
+        {
+          "type": "subagent.completed",
+          "data": {
+            "toolCallId": "tooluse_AxEz0u9FNM1oxE2vunAvz6",
+            "agentName": "explore",
+            "agentDisplayName": "Explore Agent"
+          },
+          "elapsedMs": 28835
+        },
+        {
+          "type": "subagent.completed",
+          "data": {
+            "toolCallId": "tooluse_mB5ewZvOj6sRtEDFBwAz8z",
+            "agentName": "explore",
+            "agentDisplayName": "Explore Agent"
+          },
+          "elapsedMs": 51088
+        }
+      ],
+      "fleetStartResult": {
+        "started": true
+      },
+      "fleetStartError": null,
+      "sessionIdle": true,
+      "agentListResult": {
+        "agents": [
+          {
+            "name": "spike06-researcher",
+            "displayName": "Spike06 Researcher",
+            "description": "Read-only exploration agent for spike testing"
+          },
+          {
+            "name": "spike06-summarizer",
+            "displayName": "Spike06 Summarizer",
+            "description": "Summarization agent for spike testing"
+          }
+        ]
+      },
+      "totalEvents": 182,
+      "eventTypeSummary": [
+        [
+          "tool.execution_start",
+          28
+        ],
+        [
+          "tool.execution_complete",
+          28
+        ],
+        [
+          "permission.requested",
+          23
+        ],
+        [
+          "permission.completed",
+          23
+        ],
+        [
+          "assistant.usage",
+          20
+        ],
+        [
+          "assistant.message",
+          20
+        ],
+        [
+          "session.background_tasks_changed",
+          14
+        ],
+        [
+          "pending_messages.modified",
+          6
+        ],
+        [
+          "assistant.turn_start",
+          3
+        ],
+        [
+          "session.usage_info",
+          3
+        ],
+        [
+          "assistant.turn_end",
+          3
+        ],
+        [
+          "assistant.reasoning",
+          2
+        ],
+        [
+          "subagent.started",
+          2
+        ],
+        [
+          "subagent.completed",
+          2
+        ],
+        [
+          "system.notification",
+          2
+        ],
+        [
+          "session.tools_updated",
+          1
+        ],
+        [
+          "user.message",
+          1
+        ],
+        [
+          "session.idle",
+          1
+        ]
+      ],
+      "fleetStartElapsedMs": 61629
+    },
+    "exp2": {
+      "sessionCreated": true,
+      "resumeSucceeded": false,
+      "resumeError": "Timeout after [object Object]ms waiting for session.idle",
+      "agentListAfterResume": null
+    }
+  }
+}

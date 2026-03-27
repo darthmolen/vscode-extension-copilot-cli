@@ -1,0 +1,20 @@
+{
+  "test1": {
+    "label": "availableTools=[grep,web_fetch], agent.tools=null",
+    "messages": [
+      "I have access to the following tools:\n\n1. **web_fetch** — Fetches a URL and returns the page as markdown or raw HTML\n2. **grep** — Fast code search using ripgrep; searches for patterns in file contents\n\nThat's the complete list — just two tools available in this session."
+    ]
+  },
+  "test2": {
+    "label": "availableTools=[grep,web_fetch], agent.tools=[\"grep\"]",
+    "messages": [
+      "I have access to exactly **1 tool**:\n\n1. **grep** — Fast code search using ripgrep. Searches for patterns in file contents, with options for context lines, case-insensitivity, glob filtering, line numbers, multiline mode, and output format control."
+    ]
+  },
+  "test3": {
+    "label": "availableTools=null, agent.tools=[\"grep\",\"view\"]",
+    "messages": [
+      "Here are **all tools** available to me:\n\n1. **`grep`** — Fast code/content search using ripgrep\n2. **`view`** — View files (with line ranges) or directory listings\n3. **`skill`** — Invoke named skills (specialized workflows)\n4. **`report_intent`** — Update the session intent displayed in the UI\n\nThat's the complete list — 4 tools total."
+    ]
+  }
+}
