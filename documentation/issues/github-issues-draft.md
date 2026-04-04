@@ -6,6 +6,7 @@ Updated 2026-02-24 — #1606 self-closed, PR #546 reworked per Steve's feedback,
 Updated 2026-03-08 — Two new issues filed during v3.4.0 session label work.
 Updated 2026-03-09 — New issue: resumeSession() doubles events on already-active sessions.
 Updated 2026-03-24 — **PR #546 MERGED** (Mar 19). 6 fleet issues filed (#2261–#2265 copilot-cli, #915 copilot-sdk). #989 got new community comment today.
+Updated 2026-04-04 — SDK at **0.2.1**, CLI at **1.0.17** (bundled). No new maintainer responses as of Apr 4 2026.
 
 ## Key Finding (2026-02-23)
 

@@ -2,6 +2,19 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [3.7.1] - 2026-04-04
+
+### 🐛 Bug Fixes
+
+- **Fixed double streaming / duplicate message content** — Messages were being appended twice into the same chat bubble when using plan mode (or any session created via `createSession` rather than `resumeSession`). Root cause: `createSessionWithModelFallback` was registering `_handleSDKEvent` via the `onEvent` config parameter *and* via `session.on()` in `setupSessionEventHandlers` — two listeners on one session. Fix: remove the redundant `onEvent` injection; the `session.on()` path (managed by `MutableDisposable`) is the canonical subscription.
+
+### 🔧 Internal
+
+- **SDK upgrade: 0.1.32 → 0.2.1** — Upgrades the Copilot SDK to the latest stable release. The bundled Copilot CLI runtime advances from 0.0.4xx to **1.0.17**. No breaking changes affect this extension.
+- **Structured tool results fixed** — SDK 0.2.1 fixes a serialization bug where `ToolResultObject` fields (`resultType`, `toolTelemetry`) were being stringified before RPC transmission, silently losing metadata. Plan mode tool results now transmit correctly.
+- **Plan mode tools: `skipPermission: true`** — All plan mode tools (file reads, bash explore, glob, grep, plan file management) are marked as safe to skip per-use permission prompts. These tools were already auto-approved via `approveAll`; this is now explicit in the tool definition.
+- **Removed stale workaround comment** — `resolveCliPath()` comment no longer references the CJS/esbuild compatibility issue (SDK issue #528). That bug was fixed in SDK v0.2.0 via PR #546 (contributed by this extension's author).
+
 ## [3.7.0] - 2026-03-27
 
 ### ✨ Features

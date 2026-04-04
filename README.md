@@ -79,6 +79,10 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.7.1 - Plan Mode Streaming Fix
+
+- **Plan mode double-message fix** — Fixed a bug where using plan mode would cause chat messages to appear duplicated and produce streaming artifacts.
+
 ### v3.7.0 - Session Fork and Model Dropdown Fix
 
 - **Session Fork** — `⑂ Fork` button in the input area creates an independent copy of the current session with full conversation history. Diverge, experiment, and switch back to the original any time.
@@ -102,12 +106,7 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Tool description fallback** — Tool cards now show the tool's description when no explicit intent label is available.
 - **`copilotCLI.showReasoning`** — New config to auto-enable "Show Reasoning" on startup (default `false`).
 - **`copilotCLI.streaming`** — New config to disable delta streaming if you prefer responses to appear only when complete (default `true`).
-- **SDK 0.1.32** — Upgraded SDK with 6 new events and improved streaming reliability.
-
-### v3.4.3 - Reasoning Styling and Typing Indicator Fix
-
-- **Reasoning block styling** — Reasoning content now renders with proper italic formatting and visual distinction from regular assistant messages.
-- **Typing indicator** — The animated "Thinking..." indicator now correctly tracks when the model is actively generating tokens versus waiting between tool calls.
+- **SDK 0.2.1** — Upgraded SDK bundling CLI 1.0.17. Structured tool results serialization fixed.
 
 > 📋 For a complete history of all changes, see the [CHANGELOG.md](https://github.com/darthmolen/vscode-copilot-cli-extension/blob/main/CHANGELOG.md) on GitHub.
 
@@ -133,7 +132,7 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 
 ⚠️ **Important**: This extension does not bundle the CLI and requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
 
-- **Node.js 24+** — The Copilot SDK and CLI 1.0.5 require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
+- **Node.js 24+** — The Copilot SDK 0.2.1 and CLI 1.0.17 require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
 - **VS Code** 1.108.1 or higher
 - **GitHub Copilot CLI** (standalone `copilot` command)
   - **Linux/macOS**: `brew install copilot-cli`
@@ -161,7 +160,7 @@ If the extension hangs on "Starting CLI process..." or times out with "createSes
 
 **1. Node.js version (most common)**
 
-SDK 0.1.32+ and CLI 1.0.5 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
+SDK 0.2.1+ and CLI 1.0.17 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
 
 ```bash
 # Check what Node version VS Code is using

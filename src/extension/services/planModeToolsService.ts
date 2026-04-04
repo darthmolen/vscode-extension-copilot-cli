@@ -75,6 +75,7 @@ export class PlanModeToolsService {
     private createUpdateWorkPlanTool(): any {
         return defineTool('update_work_plan', {
             description: 'Update the implementation plan for the work session. Use this to document your planning, analysis, and design work. This plan will be available when switching back to work mode.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {
@@ -147,6 +148,7 @@ export class PlanModeToolsService {
     private createPresentPlanTool(): any {
         return defineTool('present_plan', {
             description: 'Present the plan to the user for review and acceptance. Call this AFTER writing the plan with update_work_plan to notify the user that the plan is ready. The UI will show acceptance options.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {
@@ -199,6 +201,7 @@ export class PlanModeToolsService {
         
         return defineTool('plan_bash_explore', {
             description: 'Execute READ-ONLY bash commands to analyze the environment. Only whitelisted commands are allowed in plan mode.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {
@@ -284,6 +287,7 @@ export class PlanModeToolsService {
     private createRestrictedCreateTool(): any {
         return defineTool('create_plan_file', {
             description: 'Create the session plan.md file. ONLY the session plan.md file can be created in plan mode.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {
@@ -359,6 +363,7 @@ export class PlanModeToolsService {
     private createRestrictedEditTool(): any {
         return defineTool('edit_plan_file', {
             description: 'Edit the session plan.md file. ONLY the session plan.md file can be edited in plan mode.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {
@@ -445,6 +450,7 @@ export class PlanModeToolsService {
     private createRestrictedTaskTool(): any {
         return defineTool('task_agent_type_explore', {
             description: 'Dispatch a task to a specialized agent. In plan mode, only "explore" agent type is allowed for codebase exploration.',
+            skipPermission: true,
             parameters: {
                 type: 'object',
                 properties: {

@@ -117,9 +117,8 @@ export async function selectFallbackModel(
 
 /**
  * Resolve the Copilot CLI binary path.
- * SDK 0.1.23+ uses import.meta.resolve() in getBundledCliPath() which breaks
- * in CJS bundles (esbuild for VS Code). We bypass it by always providing an
- * explicit cliPath. See https://github.com/github/copilot-sdk/issues/528
+ * The CJS/esbuild compatibility issue (SDK issue #528) was fixed in SDK v0.2.0 via PR #546.
+ * We still always provide an explicit cliPath to avoid any future regressions.
  *
  * Resolution order:
  * 1. User-configured path (if explicitly set to something other than the bare default)
@@ -2117,12 +2116,16 @@ export class SDKSessionManager implements vscode.Disposable {
      * best alternative. Notifies the user via both chat and OS-level toast.
      */
     private async createSessionWithModelFallback(config: Record<string, unknown>): Promise<any> {
-        // Inject SDK 0.1.26 required fields into every session config
+        // Inject required fields into every session config.
+        // NOTE: onEvent is intentionally NOT set here. Event subscriptions are
+        // managed exclusively via session.on() in setupSessionEventHandlers()
+        // (wrapped in MutableDisposable for proper cleanup). Adding onEvent here
+        // caused every SDK event to fire _handleSDKEvent twice — once via onEvent
+        // and once via session.on() — producing duplicate streaming content.
         config = {
             ...config,
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
-            onEvent: (event: any) => this._handleSDKEvent(event),
             streaming: this.config.streaming ?? true,
         };
 
