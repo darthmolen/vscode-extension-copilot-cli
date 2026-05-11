@@ -70,7 +70,8 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **@file References** — Reference files directly in your messages.
 - **Mid-Session Model Switching** — Switch AI models mid-conversation without losing context. Models are grouped by cost tier (Fast/Standard/Premium) with multiplier badges showing request cost. The session resumes with the new model, preserving all messages and tool state.
 - **17 AI Models** — GPT-5, Claude Sonnet 4.6/4.5, Claude Opus 4.6, Gemini 3 Pro, and more.
-- **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more.
+- **MCP Server Integration** — GitHub MCP built-in by default, add custom servers for filesystem, memory, fetch, and more. Use `/mcp` to check the status of all configured servers.
+- **`/mcp` and `/version` slash commands** — `/mcp` shows a live status panel for every configured MCP server (connected, configured, or unavailable). `/version` shows extension, SDK, and bundled CLI versions with a peer-dep compatibility check.
 
 ### ⚡ Developer Control
 
@@ -78,6 +79,15 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Granular Permissions** — Or lock it down: control tool access, file paths, and URLs individually.
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
+
+### v3.8.0 - CLI Bundling, Skill Discovery, /version, /mcp, and View Diff Fix ⌛🐛
+
+- **CLI bundled with the extension** — The extension now lazy-installs a version-pinned Copilot CLI into VS Code's `globalStorage` on first activation. You no longer need a globally-installed `copilot` binary to use this extension. Resolution order: local `node_modules` (dev/F5) → `globalStorage/cli/<peer-range>/` (auto-installed, managed) → system PATH (last resort, with a warning if the version doesn't satisfy the SDK peer requirement). This solves the whole class of failures caused by the system CLI lagging behind what the SDK requires.
+- **Skill discovery restored** — Copilot CLI v1.0.36+ removed `~/.claude/` from auto-discovery. The extension now passes all three skill locations to the SDK explicitly: `~/.claude/skills/`, `~/.agents/skills/`, and `~/.claude/plugins/cache/**/skills/`. Your skills work again without any configuration changes.
+- **`skill()` available in Plan Mode** — The plan mode tool whitelist now includes `skill()` so the agent can load skills (e.g. `skill("test-driven-development")`) during planning without switching to work mode.
+- **`/version` slash command** — Shows the extension version, SDK version, bundled CLI version, and whether the CLI satisfies the SDK peer dependency. A quick sanity check when something feels off.
+- **`/mcp` slash command** — Live status panel for all configured MCP servers: 🟢 connected · 🟡 configured (starting) · ⚪ unavailable. Distinguishes managed servers (set up by the extension) from user-configured servers.
+- **View Diff "not found" fix** ⌛🐛 — Snapshot temp files (the "before" state captured before a tool edit) were deleted immediately after the inline diff preview was sent to the chat bubble — before the user could click "View Diff". The snapshot now stays alive for the full session and is cleaned up when the session ends.
 
 ### v3.7.1 - Plan Mode Streaming Fix
 
@@ -130,11 +140,11 @@ See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/u
 
 ### Prerequisites
 
-⚠️ **Important**: This extension does not bundle the CLI and requires the **new standalone Copilot CLI**, NOT the deprecated `gh copilot` extension.
+⚠️ **Important**: This extension requires the **new standalone Copilot CLI** (`copilot` command) for initial authentication. The CLI runtime is now bundled — the extension auto-installs a compatible version on first activation, so you don't need a globally-installed `copilot` for day-to-day use.
 
-- **Node.js 24+** — The Copilot SDK 0.2.1 and CLI 1.0.17 require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
+- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
 - **VS Code** 1.108.1 or higher
-- **GitHub Copilot CLI** (standalone `copilot` command)
+- **GitHub Copilot CLI** (standalone `copilot` command) — needed for **initial authentication only**
   - **Linux/macOS**: `brew install copilot-cli`
   - **Windows**: `winget install GitHub.Copilot`
   - **Note**: Requires PowerShell v6+ on Windows
@@ -337,6 +347,7 @@ All Copilot CLI flags are configurable via VS Code settings:
   "copilotCLI.allowUrls": [],             // Specific URLs/domains
   "copilotCLI.denyUrls": [],              // Block URLs/domains
   "copilotCLI.addDirs": [],               // Additional allowed directories
+  "copilotCLI.additionalSkillDirectories": [], // Extra skill directories (see Skills section below)
   "copilotCLI.noAskUser": false,          // Autonomous mode (no questions)
   "copilotCLI.showReasoning": false,      // Auto-enable "Show Reasoning" on startup
   "copilotCLI.streaming": true            // Stream responses as they arrive (false = wait for completion)
@@ -396,6 +407,35 @@ If `copilotCLI.planModel` is not set, planning mode uses the same model as work 
 }
 ```
 
+### Skills
+
+Skills are reusable instruction sets (SKILL.md files) that teach the agent how to perform specific tasks — TDD, code review workflows, project conventions, etc.
+
+The extension automatically discovers skills from three locations:
+
+| Directory | Purpose |
+|-----------|---------|
+| `<home>/.claude/skills/` | Claude Code user skills |
+| `<home>/.agents/skills/` | Copilot CLI personal skill directory |
+| `<home>/.claude/plugins/cache/` | Skills bundled with installed Claude Code plugins |
+
+> **Note:** The Copilot CLI (v1.0.36+) no longer auto-discovers `<home>/.claude/` by default. This extension restores that behavior by passing all three locations to the SDK automatically. `<home>` resolves via `os.homedir()` and works on both Windows and Linux.
+
+#### Adding Custom Skill Directories
+
+Point the extension at additional directories containing SKILL.md files:
+
+```json
+{
+  "copilotCLI.additionalSkillDirectories": [
+    "/path/to/my-team-skills",
+    "C:\\Users\\me\\shared-skills"
+  ]
+}
+```
+
+Both absolute paths and Windows-style paths are supported. Non-existent directories are silently ignored.
+
 ### MCP Server Integration
 
 **Model Context Protocol (MCP)** servers provide pre-built tools for AI agents. The GitHub MCP Server is **built-in and enabled by default**, giving Copilot access to repositories, issues, and pull requests automatically.
@@ -418,10 +458,17 @@ Add custom MCP servers via settings:
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"],
       "tools": ["*"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.74"],
+      "tools": ["*"]
     }
   }
 }
 ```
+
+> **Note on Playwright MCP:** Requires Chrome to be installed (`npx playwright install chrome`, may require sudo on Linux). After installing Chrome, reload VS Code and the Playwright browser tools will be available to the agent. Check `/mcp` to confirm the `playwright` server shows 🟢 connected.
 
 #### Popular MCP Servers
 

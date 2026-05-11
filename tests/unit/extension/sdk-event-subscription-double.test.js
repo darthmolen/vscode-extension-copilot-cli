@@ -89,6 +89,7 @@ describe('SDK Event Subscription — no double registration', function () {
             isModelUnsupportedError: () => false,
             modelCapabilitiesService: null,
             attachClientLifecycleListeners: () => {},
+            resolveSkillDirectories: () => [],
         };
 
         // Step 1: createSessionWithModelFallback (as enablePlanMode does)
@@ -150,6 +151,7 @@ describe('SDK Event Subscription — no double registration', function () {
             isModelUnsupportedError: () => false,
             modelCapabilitiesService: null,
             attachClientLifecycleListeners: () => {},
+            resolveSkillDirectories: () => [],
         };
 
         await SDKSessionManager.prototype.createSessionWithModelFallback.call(

@@ -7,6 +7,7 @@ Updated 2026-03-08 — Two new issues filed during v3.4.0 session label work.
 Updated 2026-03-09 — New issue: resumeSession() doubles events on already-active sessions.
 Updated 2026-03-24 — **PR #546 MERGED** (Mar 19). 6 fleet issues filed (#2261–#2265 copilot-cli, #915 copilot-sdk). #989 got new community comment today.
 Updated 2026-04-04 — SDK at **0.2.1**, CLI at **1.0.17** (bundled). No new maintainer responses as of Apr 4 2026.
+Updated 2026-04-16 — **CLI team triage burst Apr 6–8**: `examon` closed 5 of our issues with "fixed in v1.0.x" notes (#1865, #1910, #1933, #2263, #2265); `stephentoub` silently closed #989 and #728; #1574/#1607/#2261/#2262/#2264 got proper labels. New community confirmation on #2261 from `brolnickij`.
 
 ## Key Finding (2026-02-23)
 
@@ -42,16 +43,16 @@ Other changes since 0.1.22:
 | x | 2 | copilot-sdk | CLI v0.0.410+ auto-update breaks all SDK versions | CLOSED | [#530](https://github.com/github/copilot-sdk/issues/530) |
 | x | 3 | copilot-sdk | Node SDK: getBundledCliPath() breaks in CJS bundles (VS Code extensions) | **MERGED Mar 19** | [#528](https://github.com/github/copilot-sdk/issues/528) → [PR #546](https://github.com/github/copilot-sdk/pull/546) |
 | x | 4 | copilot-sdk | SDK e2e tests never run against a real CLI binary in CI | CLOSED | [#532](https://github.com/github/copilot-sdk/issues/532) |
-|   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN (no response) | [#1607](https://github.com/github/copilot-cli/issues/1607) |
-|   | 6 | copilot-cli | Bug: session.title_changed event fires with truncated title ("I j...") | OPEN (filed Mar 8) | [#1910](https://github.com/github/copilot-cli/issues/1910) |
-|   | 7 | copilot-cli | Bug: resumeSession() on active session doubles all event notifications | OPEN (filed Mar 9) | [#1933](https://github.com/github/copilot-cli/issues/1933) |
-|   | 8 | copilot-sdk | resumeSession() on active session causes doubled events — SDK should guard | OPEN (filed Mar 9) | [#742](https://github.com/github/copilot-sdk/issues/742) |
-|   | 9 | copilot-cli | FLEET: fleet.start() ignores customAgents — always dispatches built-in agent types | OPEN (filed Mar 24) | [#2261](https://github.com/github/copilot-cli/issues/2261) |
-|   | 10 | copilot-cli | FLEET: session.task_complete does not fire after fleet execution | OPEN (filed Mar 24) | [#2262](https://github.com/github/copilot-cli/issues/2262) |
-|   | 11 | copilot-cli | FLEET: session.idle fires before all sub-agents complete | OPEN (filed Mar 24) | [#2263](https://github.com/github/copilot-cli/issues/2263) |
-|   | 12 | copilot-cli | FLEET: No fleet.* lifecycle events — fleet state inferred from subagent.* | OPEN (filed Mar 24) | [#2264](https://github.com/github/copilot-cli/issues/2264) |
-|   | 13 | copilot-cli | FLEET: Sub-agent output not streamed per-agent — aggregated only at end | OPEN (filed Mar 24) | [#2265](https://github.com/github/copilot-cli/issues/2265) |
-|   | 14 | copilot-sdk | FLEET: resumeSession() with customAgents errors with malformed timeout message | OPEN (filed Mar 24) | [#915](https://github.com/github/copilot-sdk/issues/915) |
+|   | 5 | copilot-cli | [Security] ACP lacks session-level tool permission primitives | OPEN (triaged Apr 6) | [#1607](https://github.com/github/copilot-cli/issues/1607) |
+| x | 6 | copilot-cli | Bug: session.title_changed event fires with truncated title ("I j...") | CLOSED Apr 7 (fixed v1.0.7+) | [#1910](https://github.com/github/copilot-cli/issues/1910) |
+| x | 7 | copilot-cli | Bug: resumeSession() on active session doubles all event notifications | CLOSED Apr 7 (fixed v1.0.8) | [#1933](https://github.com/github/copilot-cli/issues/1933) |
+|   | 8 | copilot-sdk | resumeSession() on active session causes doubled events — SDK should guard | OPEN (likely moot — close ourselves?) | [#742](https://github.com/github/copilot-sdk/issues/742) |
+|   | 9 | copilot-cli | FLEET: fleet.start() ignores customAgents — always dispatches built-in agent types | OPEN (triaged Apr 6, 1 community confirm) | [#2261](https://github.com/github/copilot-cli/issues/2261) |
+|   | 10 | copilot-cli | FLEET: session.task_complete does not fire after fleet execution | OPEN (triaged Apr 6) | [#2262](https://github.com/github/copilot-cli/issues/2262) |
+| x | 11 | copilot-cli | FLEET: session.idle fires before all sub-agents complete | CLOSED Apr 7 (fixed v1.0.20) | [#2263](https://github.com/github/copilot-cli/issues/2263) |
+|   | 12 | copilot-cli | FLEET: No fleet.* lifecycle events — fleet state inferred from subagent.* | OPEN (triaged Apr 6) | [#2264](https://github.com/github/copilot-cli/issues/2264) |
+| x | 13 | copilot-cli | FLEET: Sub-agent output not streamed per-agent — aggregated only at end | CLOSED Apr 7 (addressed via `parentToolCallId`) | [#2265](https://github.com/github/copilot-cli/issues/2265) |
+|   | 14 | copilot-sdk | FLEET: resumeSession() with customAgents errors with malformed timeout message | OPEN (no movement) | [#915](https://github.com/github/copilot-sdk/issues/915) |
 
 Legend: `x` = resolved/closed, `+` = we added follow-up comments, blank = open, no action needed
 
@@ -72,19 +73,13 @@ but rejected the broader claim. Would need a narrower re-file to pursue.
 
 **#989** — [see above]
 
-**#1607** — No response. Triage label only. Leaving open — security issues should stay until addressed.
+**#1607** — No maintainer response, but triaged on Apr 6 into `area:authentication`, `area:permissions`, `area:sessions`, `area:non-interactive`. Leaving open — security issues should stay until addressed.
 
-**#1910** — Filed Mar 8 during v3.4.0 work. When a session receives its first message, the CLI
-auto-generates a title from that message and fires `session.title_changed`. The title is truncated
-to ~5 characters plus `...` (e.g. `"I j..."`). Our workaround: strip `[Active File: ...]` prefix in
-the `session.title_changed` handler and take the first non-empty line. The truncation itself is a
-CLI-side bug we can't fix — session labels will still be short until the CLI team fixes it.
+**#1910** — **CLOSED Apr 7.** examon: "Addressed in current releases. Session titles are now AI-generated summaries rather than truncated raw message text, and v1.0.7 also increased the fallback summary length limit significantly." Our bundled CLI v1.0.17 is past this fix — we can likely drop the `[Active File: ...]` prefix stripping workaround after smoke-testing.
 
-**#1865** — `/rename` fails with `Workspace not found` on resumed sessions (v0.0.421). Our workaround:
-write `session-name.txt` proactively before sending `/rename` to CLI, so the label updates even when
-CLI throws. The `session_renamed` status event fires correctly after our proactive write.
+**#1865** — **CLOSED Apr 7.** examon: "Fixed in v1.0.18." Our bundled CLI v1.0.17 is one version shy — either the v1.0.17 still needs the workaround, or bundled CLI has since bumped. Verify before removing the proactive `session-name.txt` write.
 
-**#7 / [#1933](https://github.com/github/copilot-cli/issues/1933)** — `resumeSession()` on an already-active session doubles all `session.event` notifications.
+**#7 / [#1933](https://github.com/github/copilot-cli/issues/1933)** — **CLOSED Apr 7.** examon: "Fully fixed in v1.0.8. Calling `session.resume` on an already-active session no longer causes duplicate `session.event` notifications." Our `session.abort()` liveness-check workaround is no longer needed — we can switch back to `resumeSession()`. Originally:
 Reproduced with bare-bones spike (`planning/spikes/resume-event-doubling/`): `createSession` → `sendAndWait`
 (events single) → `resumeSession` on same ID → `sendAndWait` (7 of 8 event types doubled, 1.9x total).
 Only `session.idle` stays single. Root cause: server-side `session.resume` re-registers the session for
@@ -161,14 +156,9 @@ Use `session.abort()` as a lightweight liveness check instead of `resumeSession(
 
 </details>
 
-**#8 / [#742](https://github.com/github/copilot-sdk/issues/742)** — SDK-level guard for the same doubling bug. Even if the CLI server
-fixes the duplicate subscription, the SDK should protect callers from this footgun. Two possible
-SDK-level fixes: (1) `resumeSession()` checks `this.sessions.has(sessionId)` and returns the
-existing `CopilotSession` instead of creating a duplicate, or (2) `resumeSession()` deletes the
-old session from the Map before creating the new one (ensuring the server-side subscription is
-replaced, not duplicated). Option 1 is cleaner — callers who want to re-configure can destroy first.
+**#8 / [#742](https://github.com/github/copilot-sdk/issues/742)** — SDK-level guard for the same doubling bug. **Now likely moot** since CLI #1933 is fixed in v1.0.8 — the server-side duplicate subscription no longer happens. Consider commenting that the underlying bug is resolved and asking whether Steve still wants a defensive guard, or closing the issue ourselves. Original rationale preserved below for context.
 
-Filed at SDK level because Steve (Sphephen) actually responds. CLI team is 0-for-6.
+Filed at SDK level because Steve (Sanderson) actually responds. At filing time the CLI team was 0-for-6 on our issues; that flipped Apr 6–8.
 
 <details>
 <summary>Draft issue body for copilot-sdk</summary>
@@ -268,13 +258,13 @@ We use `session.abort()` as a lightweight liveness check instead of `resumeSessi
 
 | | Issue | Repo | Title | Status | Maintainer Response |
 |---|-------|------|-------|--------|---------------------|
-|   | [#989](https://github.com/github/copilot-cli/issues/989) | copilot-cli | ACP incorrect tool IDs in permission requests | OPEN | **5 confirmations** (Mar 24 fresh activity)
-|   | [#1574](https://github.com/github/copilot-cli/issues/1574) | copilot-cli | ACP agent ignores custom tools | OPEN | None |
-|   | [#728](https://github.com/github/copilot-cli/issues/728) | copilot-cli | Model selection not reflected in responses | OPEN | andyfeller (Dec 2025, cosmetic) |
-|   | [#1865](https://github.com/github/copilot-cli/issues/1865) | copilot-cli | /rename fails with 'Workspace not found' on resumed sessions | OPEN — workaround applied | None |
+| x | [#989](https://github.com/github/copilot-cli/issues/989) | copilot-cli | ACP incorrect tool IDs in permission requests | **CLOSED Apr 8** | `stephentoub` silently closed — no comment, 5 community confirmations. Verify on v1.0.17 before trusting the closure; reopen with repro if still broken. |
+|   | [#1574](https://github.com/github/copilot-cli/issues/1574) | copilot-cli | ACP agent ignores custom tools | OPEN — triaged Apr 6 | `area:non-interactive`, `area:tools`, `area:agents` applied, no comment |
+| x | [#728](https://github.com/github/copilot-cli/issues/728) | copilot-cli | Model selection not reflected in responses | **CLOSED Apr 6** | examon: CLI now includes active model name/ID in system prompt |
+| x | [#1865](https://github.com/github/copilot-cli/issues/1865) | copilot-cli | /rename fails with 'Workspace not found' on resumed sessions | **CLOSED Apr 7** | examon: fixed v1.0.18 |
 | x | [#377](https://github.com/github/copilot-sdk/issues/377) | copilot-sdk | ACP support request (wontfix) | CLOSED | friggeri closed as wontfix |
-|   | [#137](https://github.com/github/copilot-sdk/issues/137) | copilot-sdk | No minimum CLI version docs | OPEN | None (dormant since Jan 23) |
-| + | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | **CLOSED/SHIPPED v0.1.30** | See `planning/backlog/override_builtin_tools.md` |
+|   | [#137](https://github.com/github/copilot-sdk/issues/137) | copilot-sdk | No minimum CLI version docs | OPEN | Dormant since Feb 24 |
+| x | [#411](https://github.com/github/copilot-sdk/issues/411) | copilot-sdk | Override built-in tools | **CLOSED Mar 4 (effectively wontfix)** | Team response: MCP tools are namespaced; SDK-declared tools take precedence. The generic built-in override case is not implemented. |
 
 ## Maintainer Engagement Summary
 
@@ -282,10 +272,7 @@ We use `session.abort()` as a lightweight liveness check instead of `resumeSessi
 on #530, #528, #532. Open to tool override (#411). Shipped two breaking changes in quick succession (permissions deny-by-default
 Feb 18, required handler Feb 24). Very active pace — monitor SDK releases closely.
 
-**copilot-cli team** — Zero maintainer engagement on any of our issues (#1606, #1607, #1910, #1933) or
-community-confirmed bugs (#989, #1574). `triage` labels are being applied (someone reads them)
-but no comments, no assignments, no follow-through. The pattern (active SDK community vs silent
-CLI team) suggests a resourcing or prioritization gap on the CLI side. **Fleet issues #2261–#2265 filed Mar 24 — low expectations.**
+**copilot-cli team** — ~~Zero maintainer engagement~~ **Broke the silence Apr 6–8.** `examon` (triage human or auto-close bot reviewing against current versions) closed 5 of our issues with substantive "fixed in v1.0.x" notes: #1910 (v1.0.7), #1933 (v1.0.8), #1865 (v1.0.18), #2263 (v1.0.20), #2265 (via `parentToolCallId`). `stephentoub` silently closed #989 and #728. `area:*` labels were applied systematically to remaining open issues. Pattern suggests the CLI team batched a triage sprint against the current runtime — still no real back-and-forth discussion, but the closures are concrete and verifiable. **Remaining open: #1574, #1607, #2261, #2262, #2264** (plus SDK #742, #915, #137).
 
 ## Fleet Issues (filed 2026-03-24)
 
@@ -293,12 +280,12 @@ Source: spikes 2026-03-17. Full detail in `documentation/issues/fleet/`. SDK ver
 
 | # | Repo | Issue # | Title | Status |
 |---|------|---------|-------|--------|
-| 9 | copilot-cli | [#2261](https://github.com/github/copilot-cli/issues/2261) | fleet.start() ignores customAgents | OPEN |
-| 10 | copilot-cli | [#2262](https://github.com/github/copilot-cli/issues/2262) | session.task_complete never fires after fleet | OPEN |
-| 11 | copilot-cli | [#2263](https://github.com/github/copilot-cli/issues/2263) | session.idle fires before sub-agents complete | OPEN |
-| 12 | copilot-cli | [#2264](https://github.com/github/copilot-cli/issues/2264) | No fleet.* lifecycle events | OPEN |
-| 13 | copilot-cli | [#2265](https://github.com/github/copilot-cli/issues/2265) | Sub-agent output not streamed per-agent | OPEN |
-| 14 | copilot-sdk | [#915](https://github.com/github/copilot-sdk/issues/915) | resumeSession() + customAgents malformed timeout | OPEN |
+| 9 | copilot-cli | [#2261](https://github.com/github/copilot-cli/issues/2261) | fleet.start() ignores customAgents | OPEN — triaged `area:agents` Apr 6; confirmed by `brolnickij` on v1.0.11 (Mar 26) |
+| 10 | copilot-cli | [#2262](https://github.com/github/copilot-cli/issues/2262) | session.task_complete never fires after fleet | OPEN — triaged `area:sessions`, `area:agents` Apr 6 |
+| 11 | copilot-cli | [#2263](https://github.com/github/copilot-cli/issues/2263) | session.idle fires before sub-agents complete | **CLOSED Apr 7** — fixed v1.0.20 |
+| 12 | copilot-cli | [#2264](https://github.com/github/copilot-cli/issues/2264) | No fleet.* lifecycle events | OPEN — triaged `area:agents` Apr 6 |
+| 13 | copilot-cli | [#2265](https://github.com/github/copilot-cli/issues/2265) | Sub-agent output not streamed per-agent | **CLOSED Apr 7** — `assistant.message`/`_delta` now emit `parentToolCallId` as sub-agents run |
+| 14 | copilot-sdk | [#915](https://github.com/github/copilot-sdk/issues/915) | resumeSession() + customAgents malformed timeout | OPEN — no movement since Mar 29 |
 
 ## ACP Spike Scripts
 

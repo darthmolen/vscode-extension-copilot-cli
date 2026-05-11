@@ -48,6 +48,7 @@ export type WebviewMessageType =
 	| 'showMcpConfig'
 	| 'showUsageMetrics'
 	| 'showHelp'
+	| 'showVersionInfo'
 	| 'showNotSupported'
 	| 'openInCLI'
 	| 'openFile'
@@ -194,6 +195,13 @@ export interface ShowHelpPayload extends BaseMessage {
 }
 
 /**
+ * Show version information (for /version command)
+ */
+export interface ShowVersionInfoPayload extends BaseMessage {
+	type: 'showVersionInfo';
+}
+
+/**
  * Show not supported message
  */
 export interface ShowNotSupportedPayload extends BaseMessage {
@@ -291,6 +299,7 @@ export type WebviewMessage =
 	| ShowMcpConfigPayload
 	| ShowUsageMetricsPayload
 	| ShowHelpPayload
+	| ShowVersionInfoPayload
 	| ShowNotSupportedPayload
 	| OpenInCLIPayload
 	| OpenFilePayload
@@ -340,7 +349,8 @@ export type ExtensionMessageType =
 	| 'messageDelta'
 	| 'reasoningDelta'
 	| 'customAgentsChanged'
-	| 'activeAgentChanged';
+	| 'activeAgentChanged'
+	| 'mcpStatus';
 
 /**
  * Initialize webview with full state
@@ -582,6 +592,34 @@ export interface TaskCompletePayload extends BaseMessage {
 }
 
 /**
+ * MCP server status values shown in the /mcp panel.
+ *
+ * 'unknown' is used when the running CLI is too old to report MCP status
+ * (the SDK never fires `session.mcp_servers_loaded`). It signals "we don't
+ * know" rather than misleadingly showing yellow/configured.
+ */
+export const MCP_SERVER_STATUSES = ['configured', 'connecting', 'connected', 'failed', 'unknown'] as const;
+export type McpServerStatusValue = typeof MCP_SERVER_STATUSES[number];
+
+/**
+ * MCP server status for the /mcp panel
+ */
+export interface McpServerStatus {
+	name: string;
+	rawKey: string;
+	type: 'managed' | 'user';
+	status: McpServerStatusValue;
+	toolCount?: number;
+	tools?: string[];
+	error?: string;
+}
+
+export interface McpStatusPayload extends BaseMessage {
+	type: 'mcpStatus';
+	servers: McpServerStatus[];
+}
+
+/**
  * Union of all extension → webview messages
  */
 export type ExtensionMessage =
@@ -612,7 +650,8 @@ export type ExtensionMessage =
 	| MessageDeltaPayload
 	| ReasoningDeltaPayload
 	| CustomAgentsChangedPayload
-	| ActiveAgentChangedPayload;
+	| ActiveAgentChangedPayload
+	| McpStatusPayload;
 
 // ============================================================================
 // Type Guards
@@ -665,41 +704,42 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 /**
  * Type guard for extension messages
  */
+export const EXTENSION_MESSAGE_TYPES: ExtensionMessageType[] = [
+	'init',
+	'userMessage',
+	'assistantMessage',
+	'reasoningMessage',
+	'toolStart',
+	'toolUpdate',
+	'streamChunk',
+	'streamEnd',
+	'clearMessages',
+	'sessionStatus',
+	'updateSessions',
+	'thinking',
+	'resetPlanMode',
+	'workspacePath',
+	'activeFileChanged',
+	'diffAvailable',
+	'appendMessage',
+	'attachmentValidation',
+	'status',
+	'usage_info',
+	'modelSwitched',
+	'currentModel',
+	'availableModels',
+	'taskComplete',
+	'messageDelta',
+	'reasoningDelta',
+	'customAgentsChanged',
+	'activeAgentChanged',
+	'mcpStatus'
+];
+
 export function isExtensionMessage(message: any): message is ExtensionMessage {
 	if (!message || typeof message !== 'object' || !message.type) {
 		return false;
 	}
-	
-	const validTypes: ExtensionMessageType[] = [
-		'init',
-		'userMessage',
-		'assistantMessage',
-		'reasoningMessage',
-		'toolStart',
-		'toolUpdate',
-		'streamChunk',
-		'streamEnd',
-		'clearMessages',
-		'sessionStatus',
-		'updateSessions',
-		'thinking',
-		'resetPlanMode',
-		'workspacePath',
-		'activeFileChanged',
-		'diffAvailable',
-		'appendMessage',
-		'attachmentValidation',
-		'status',
-		'usage_info',
-		'modelSwitched',
-		'currentModel',
-		'availableModels',
-		'taskComplete',
-		'messageDelta',
-		'reasoningDelta',
-		'customAgentsChanged',
-		'activeAgentChanged'
-	];
 
-	return validTypes.includes(message.type as ExtensionMessageType);
+	return EXTENSION_MESSAGE_TYPES.includes(message.type as ExtensionMessageType);
 }

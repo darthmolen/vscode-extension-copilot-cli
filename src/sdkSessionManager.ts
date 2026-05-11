@@ -6,11 +6,13 @@ import { Logger } from './logger';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
-import { PlanModeToolsService } from './extension/services/planModeToolsService';
+import { PlanModeToolsService, PLAN_MODE_AVAILABLE_TOOLS } from './extension/services/planModeToolsService';
 import { MessageEnhancementService } from './extension/services/messageEnhancementService';
 import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
+import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { CustomAgentsService } from './extension/services/CustomAgentsService';
+import { resolveSkillDirectories } from './extension/services/SkillDirectoriesService';
 import { getBackendState } from './backendState';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
@@ -24,20 +26,15 @@ import {
     ensureSessionAlive
 } from './sessionErrorUtils';
 import { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';
+import { parseCliVersion } from './utilities/cliVersion';
+
+// Re-export so existing callers (tests included) keep working.
+export { parseCliVersion };
 
 // Dynamic import for SDK (ESM module)
 let CopilotClient: any;
 let CopilotSession: any;
 let defineTool: any;
-
-/**
- * Parse CLI version from `copilot --version` output.
- * Handles formats: "copilot version 0.0.403", "0.0.403", with trailing whitespace.
- */
-export function parseCliVersion(output: string): string | null {
-    const match = output.trim().match(/(\d+\.\d+\.\d+)/);
-    return match ? match[1] : null;
-}
 
 /** Fallback model used when configured model is unsupported or mistyped */
 export const FALLBACK_MODEL = 'claude-sonnet-4.6';
@@ -326,16 +323,25 @@ export class SDKSessionManager implements vscode.Disposable {
     private messageEnhancementService: MessageEnhancementService;
     private fileSnapshotService: FileSnapshotService;
     private mcpConfigurationService: MCPConfigurationService;
+    private managedMCPRegistry: ManagedMCPRegistry;
     private customAgentsService: CustomAgentsService;
     /** SDK session-level selected agent. null = auto-inference. Distinct from backendState.activeAgent (UI). */
     private _sessionAgent: string | null = null;
+
+    private injectedCliPath: string | null = null;
+
+    public getCliPathForTest(): string | null {
+        return this.injectedCliPath;
+    }
 
     constructor(
         private readonly context: vscode.ExtensionContext,
         private readonly config: CLIConfig = {},
         resumeLastSession: boolean = true,
-        specificSessionId?: string
+        specificSessionId?: string,
+        cliPath?: string
     ) {
+        this.injectedCliPath = cliPath ?? null;
         this.logger = Logger.getInstance();
         this.workingDirectory = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
         this.logger.info(`Working directory set to: ${this.workingDirectory}`);
@@ -346,6 +352,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.messageEnhancementService = new MessageEnhancementService();
         this.fileSnapshotService = new FileSnapshotService();
         this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
+        this.managedMCPRegistry = new ManagedMCPRegistry();
         this.customAgentsService = new CustomAgentsService();
         
         // If specific session ID provided, use it
@@ -403,6 +410,7 @@ export class SDKSessionManager implements vscode.Disposable {
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
+            skillDirectories: this.resolveSkillDirectories(),
         };
         // Wrap the SDK's resumeSession in a function
         const resumeFn = () => this.client.resumeSession(sessionId, resumeOptions);
@@ -472,7 +480,10 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('Starting SDK Session Manager...');
 
         try {
-            const cliPath = resolveCliPath(this.logger);
+            const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger);
+            if (this.injectedCliPath) {
+                this.logger.info(`Using injected CLI path: ${cliPath}`);
+            }
             this.logCliVersion(cliPath);
 
             // Load SDK dynamically
@@ -510,7 +521,17 @@ export class SDKSessionManager implements vscode.Disposable {
             
             // Track whether we created a new session (vs resumed)
             let sessionWasCreatedNew = false;
-            
+
+            // Detect if the last active session was a plan session (e.g. user closed VS Code
+            // while in plan mode). Strip the suffix so we resume the parent work session first,
+            // then re-enter plan mode via enablePlanMode() after startup completes.
+            const wasPlanSession = this.sessionId?.endsWith('-plan') ?? false;
+            if (wasPlanSession) {
+                const workSessionId = this.sessionId!.slice(0, -'-plan'.length);
+                this.logger.info(`[Startup] Detected plan session — resuming work session and restoring plan mode (work: ${workSessionId})`);
+                this.sessionId = workSessionId;
+            }
+
             if (this.sessionId) {
                 this.logger.info(`Attempting to resume session: ${this.sessionId}`);
                 try {
@@ -604,6 +625,12 @@ export class SDKSessionManager implements vscode.Disposable {
                 status: 'ready', 
                 sessionId: this.sessionId || undefined
             });
+
+            // Restore plan mode if the session was a plan session at startup
+            if (wasPlanSession) {
+                this.logger.info('[Startup] Restoring plan mode after ready...');
+                await this.enablePlanMode();
+            }
 
         } catch (error) {
             this.logger.error('Failed to start SDK session', error instanceof Error ? error : undefined);
@@ -882,8 +909,30 @@ export class SDKSessionManager implements vscode.Disposable {
                 this._onDidTaskComplete.fire({ summary: event.data?.summary });
                 break;
 
+            case 'session.mcp_servers_loaded': {
+                const servers = event.data?.servers ?? [];
+                this.logger.info(`[MCP] mcp_servers_loaded: ${servers.map((s: any) => `${s.name}=${s.status}`).join(', ')}`);
+                for (const s of servers) {
+                    getBackendState().setMcpServerTools(s.name, s.tools ?? []);
+                    getBackendState().setMcpServerStatus(s.name, s.status);
+                }
+                break;
+            }
+
+            case 'session.mcp_server_status_changed':
+                this.logger.info(`[MCP] mcp_server_status_changed: ${event.data?.serverName}=${event.data?.status}`);
+                if (event.data?.serverName) {
+                    getBackendState().setMcpServerTools(event.data.serverName, event.data.tools ?? []);
+                    getBackendState().setMcpServerStatus(event.data.serverName, event.data.status);
+                }
+                break;
+
             default:
-                this.logger.debug(`Unhandled event type: ${event.type}`);
+                if (event.type && event.type.toLowerCase().includes('mcp')) {
+                    this.logger.warn(`[MCP] Unhandled MCP event "${event.type}": ${JSON.stringify(event.data)}`);
+                } else {
+                    this.logger.debug(`Unhandled event type: ${event.type}`);
+                }
         }
         } catch (error) {
             this.logger.error(`[SDK Event] Error handling event "${event?.type}": ${error instanceof Error ? error.message : error}`);
@@ -1043,11 +1092,18 @@ export class SDKSessionManager implements vscode.Disposable {
         // Work mode: no custom tools (for now)
         return [];
     }
+
+    private resolveSkillDirectories(): string[] {
+        const additionalDirs = vscode.workspace.getConfiguration('copilotCLI')
+            .get<string[]>('additionalSkillDirectories', []);
+        return resolveSkillDirectories(additionalDirs);
+    }
     
     private getEnabledMCPServers(): Record<string, any> {
-        const mcpConfig = vscode.workspace.getConfiguration('copilotCLI')
+        const userConfig = vscode.workspace.getConfiguration('copilotCLI')
             .get<Record<string, any>>('mcpServers', {});
-        return this.mcpConfigurationService.getEnabledMCPServers(mcpConfig);
+        const managed = this.managedMCPRegistry.getManagedServers();
+        return this.mcpConfigurationService.getMergedMCPServers(userConfig, managed);
     }
 
     public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false, agentName?: string): Promise<void> {
@@ -1180,20 +1236,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
                         ...(wasPlanMode ? {
-                            availableTools: [
-                                'plan_bash_explore',
-                                'task_agent_type_explore',
-                                'edit_plan_file',
-                                'create_plan_file',
-                                'update_work_plan',
-                                'present_plan',
-                                'view',
-                                'grep',
-                                'glob',
-                                'web_fetch',
-                                'fetch_copilot_cli_documentation',
-                                'report_intent'
-                            ]
+                            availableTools: [...PLAN_MODE_AVAILABLE_TOOLS]
                         } : {}),
                         ...(hasMcpServers ? { mcpServers } : {}),
                         customAgents: this.customAgentsService.toSDKAgents(),
@@ -1258,20 +1301,7 @@ export class SDKSessionManager implements vscode.Disposable {
                         model: this.config.planModel || this.config.model || undefined,
                         tools: this.getCustomTools(),
                         hooks: this.getSessionHooks(),
-                        availableTools: [
-                            'plan_bash_explore',
-                            'task_agent_type_explore',
-                            'edit_plan_file',
-                            'create_plan_file',
-                            'update_work_plan',
-                            'present_plan',
-                            'view',
-                            'grep',
-                            'glob',
-                            'web_fetch',
-                            'fetch_copilot_cli_documentation',
-                            'report_intent'
-                        ],
+                        availableTools: [...PLAN_MODE_AVAILABLE_TOOLS],
                         ...(hasMcpServers ? { mcpServers } : {}),
                         customAgents: this.customAgentsService.toSDKAgents(),
                     });
@@ -1344,6 +1374,25 @@ export class SDKSessionManager implements vscode.Disposable {
         } catch (e) {
             this.logger.debug(`[Agent] Failed to select session agent "${name}": ${e instanceof Error ? e.message : String(e)}`);
         }
+    }
+
+    /**
+     * True when a session is created and the SDK RPC channel is ready.
+     */
+    public hasActiveSession(): boolean {
+        return !!this.session;
+    }
+
+    /**
+     * Live MCP server list from the SDK (CLI ≥ 1.0.36).
+     * Throws if session is not active or if the CLI doesn't implement the RPC.
+     */
+    public async listMcpServers(): Promise<any[]> {
+        if (!this.session) {
+            throw new Error('No active session');
+        }
+        const result = await this.session.rpc.mcp.list();
+        return result?.servers ?? result ?? [];
     }
 
     /**
@@ -1497,7 +1546,7 @@ export class SDKSessionManager implements vscode.Disposable {
             this.client = null;
         }
 
-        const cliPath = resolveCliPath(this.logger);
+        const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger);
         const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
         const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
         const useYolo = yolo && !hasToolPolicy;
@@ -1609,7 +1658,7 @@ export class SDKSessionManager implements vscode.Disposable {
     public getSessionId(): string | null {
         return this.sessionId;
     }
-    
+
     public getCurrentMode(): SessionMode {
         return this.currentMode;
     }
@@ -2069,21 +2118,7 @@ export class SDKSessionManager implements vscode.Disposable {
         if (this.currentMode !== 'plan') {
             return undefined;
         }
-        // Return the same whitelist used in enablePlanMode()
-        return [
-            'plan_bash_explore',
-            'task_agent_type_explore',
-            'edit_plan_file',
-            'create_plan_file',
-            'update_work_plan',
-            'present_plan',
-            'view',
-            'grep',
-            'glob',
-            'web_fetch',
-            'fetch_copilot_cli_documentation',
-            'report_intent'
-        ];
+        return this.planModeToolsService?.getAvailableToolNames() ?? [...PLAN_MODE_AVAILABLE_TOOLS];
     }
 
     public getToolExecutions(): ToolExecutionState[] {
@@ -2127,6 +2162,7 @@ export class SDKSessionManager implements vscode.Disposable {
             onPermissionRequest: approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
+            skillDirectories: this.resolveSkillDirectories(),
         };
 
         const MAX_FALLBACK_ATTEMPTS = 3;

@@ -78,6 +78,12 @@ export class CommandParser {
 				category: 'config',
 				description: 'Command reference'
 			}],
+			['version', {
+				type: 'extension',
+				event: 'showVersionInfo',
+				category: 'config',
+				description: 'Extension, SDK, and CLI versions'
+			}],
 			['model', {
 				type: 'extension',
 				event: 'showModelSelector',

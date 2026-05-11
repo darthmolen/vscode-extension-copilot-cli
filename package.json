@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.7.1",
+  "version": "3.8.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -223,6 +223,14 @@
           "default": [],
           "description": "Additional directories to add to the allowed list for file access"
         },
+        "copilotCLI.additionalSkillDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional directories to search for skills (SKILL.md files). The extension automatically searches ~/.claude/skills, ~/.agents/skills, and installed Claude Code plugin caches. Use this to add custom skill directories."
+        },
         "copilotCLI.agent": {
           "type": "string",
           "default": "",
@@ -294,6 +302,11 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically enable plan mode when starting a new session. Has no effect on resumed sessions."
+        },
+        "copilotCLI.enablePlaywrightMcp": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Provide the agent with a built-in browser via [@playwright/mcp](https://github.com/microsoft/playwright-mcp). When enabled, the agent can navigate, screenshot, click, and inspect web pages on its own (e.g. *“open localhost:3000 and verify the login form renders”*).\n\nFirst use will download Chromium (~150 MB). Disable to opt out — your own `playwright` entry in `copilotCLI.mcpServers` is unaffected either way (managed entries live in a reserved namespace)."
         },
         "copilotCLI.mcpServers": {
           "type": "object",
@@ -397,6 +410,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/semver": "^7.7.1",
     "@types/vscode": "^1.108.1",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
@@ -412,10 +426,11 @@
     "typescript-eslint": "^8.52.0"
   },
   "dependencies": {
-    "@github/copilot-sdk": "^0.2.1",
+    "@github/copilot-sdk": "^0.3.0",
     "dompurify": "^3.3.1",
     "js-yaml": "^4.1.0",
     "marked": "^17.0.1",
+    "semver": "^7.8.0",
     "vscode-jsonrpc": "^8.2.1"
   }
 }

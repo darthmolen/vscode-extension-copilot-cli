@@ -74,7 +74,7 @@ describe('SDK 0.1.26 Upgrade', function () {
 			// The approveAll should be importable from the SDK
 			const sdk = await import('@github/copilot-sdk');
 			assert.strictEqual(typeof sdk.approveAll, 'function');
-			assert.deepStrictEqual(sdk.approveAll(), { kind: 'approved' });
+			assert.deepStrictEqual(sdk.approveAll(), { kind: 'approve-once' });
 		});
 	});
 
@@ -144,6 +144,7 @@ describe('SDK 0.1.26 Upgrade', function () {
 				modelCapabilitiesService: { getAllModels: async () => [] },
 				isModelUnsupportedError: () => false,
 				_onDidReceiveOutput: { fire: () => {} },
+				resolveSkillDirectories: () => [],
 			};
 
 			return SDKSessionManager.prototype.createSessionWithModelFallback.call(
@@ -194,6 +195,30 @@ describe('SDK 0.1.26 Upgrade', function () {
 			const hasConditionalYolo = /(?:hasToolPolicy|allowTools|denyTools).*yolo|yolo.*(?:hasToolPolicy|allowTools|denyTools)/s.test(source);
 			assert.ok(hasConditionalYolo,
 				'Yolo flag should be conditional on tool policy settings');
+		});
+	});
+
+	describe('injected cliPath', function () {
+		it('uses an injected cliPath instead of resolveCliPath() when provided', function () {
+			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
+			const mgr = new SDKSessionManager(
+				mockContext,
+				{},
+				/* resumeLastSession */ false,
+				/* specificSessionId */ undefined,
+				/* cliPath */ '/injected/path/copilot'
+			);
+			assert.strictEqual(typeof mgr.getCliPathForTest, 'function',
+				'SDKSessionManager should expose getCliPathForTest()');
+			assert.strictEqual(mgr.getCliPathForTest(), '/injected/path/copilot');
+		});
+
+		it('returns null/undefined from getCliPathForTest when no path injected (falls back to resolveCliPath)', function () {
+			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
+			const mgr = new SDKSessionManager(mockContext, {}, false);
+			const result = mgr.getCliPathForTest();
+			assert.ok(result === null || result === undefined,
+				`expected null/undefined, got: ${result}`);
 		});
 	});
 });

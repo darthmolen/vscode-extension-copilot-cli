@@ -139,3 +139,57 @@ describe('BackendState - Session Tracking', () => {
         });
     });
 });
+
+describe('BackendState - MCP Tool Tracking', () => {
+    let BackendState;
+
+    before(async () => {
+        const path = require('path');
+        const modulePath = path.join(__dirname, '../../../../out/backendState.js');
+        const module = require(modulePath);
+        BackendState = module.BackendState;
+    });
+
+    let state;
+
+    beforeEach(() => {
+        state = new BackendState();
+    });
+
+    it('returns empty object when no tools recorded', () => {
+        expect(state.getMcpServerTools()).to.deep.equal({});
+    });
+
+    it('stores tools per server key', () => {
+        state.setMcpServerTools('_copilotcli_playwright', ['screenshot', 'navigate', 'click']);
+        const tools = state.getMcpServerTools();
+        expect(tools['_copilotcli_playwright']).to.deep.equal(['screenshot', 'navigate', 'click']);
+    });
+
+    it('stores multiple servers independently', () => {
+        state.setMcpServerTools('_copilotcli_playwright', ['screenshot']);
+        state.setMcpServerTools('filesystem', ['read_file', 'write_file']);
+        const tools = state.getMcpServerTools();
+        expect(tools['_copilotcli_playwright']).to.deep.equal(['screenshot']);
+        expect(tools['filesystem']).to.deep.equal(['read_file', 'write_file']);
+    });
+
+    it('overwrites on repeated set for same server', () => {
+        state.setMcpServerTools('server1', ['tool_a']);
+        state.setMcpServerTools('server1', ['tool_b', 'tool_c']);
+        expect(state.getMcpServerTools()['server1']).to.deep.equal(['tool_b', 'tool_c']);
+    });
+
+    it('returns a copy — mutations do not affect internal state', () => {
+        state.setMcpServerTools('server1', ['tool_a']);
+        const copy = state.getMcpServerTools();
+        copy['server1'] = ['mutated'];
+        expect(state.getMcpServerTools()['server1']).to.deep.equal(['tool_a']);
+    });
+
+    it('clears tools on clearSession()', () => {
+        state.setMcpServerTools('_copilotcli_playwright', ['screenshot']);
+        state.clearSession();
+        expect(state.getMcpServerTools()).to.deep.equal({});
+    });
+});

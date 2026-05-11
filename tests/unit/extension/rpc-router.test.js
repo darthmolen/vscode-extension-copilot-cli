@@ -132,4 +132,17 @@ describe('ExtensionRpcRouter Unit Tests', function () {
 		assert.equal(received.agentName, 'reviewer', 'agentName must be passed through to handler');
 		assert.equal(received.text, 'hello');
 	});
+
+	it('should send mcpStatus message with server array', function () {
+		const mockWebview = createMockWebview();
+		const router = new ExtensionRpcRouter(mockWebview);
+		const servers = [
+			{ name: 'playwright', rawKey: '_copilotcli_playwright', type: 'managed',
+				status: 'configured', toolCount: 0, tools: [] }
+		];
+		router.sendMcpStatus(servers);
+		const sent = mockWebview._getSentMessages();
+		assert.equal(sent[0].type, 'mcpStatus');
+		assert.deepEqual(sent[0].servers, servers);
+	});
 });

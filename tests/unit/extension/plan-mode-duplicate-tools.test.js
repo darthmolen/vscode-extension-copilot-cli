@@ -16,6 +16,18 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 
+// Mock vscode and Logger so we can import the compiled module
+class MockLogger { debug(){} info(){} warn(){} error(){} static getInstance(){ return new MockLogger(); } }
+const Module = require('module');
+const originalRequire = Module.prototype.require;
+Module.prototype.require = function(id){
+    if (id === 'vscode') { return { EventEmitter: class { fire(){} } }; }
+    if (id.endsWith('/logger') || id.includes('out/logger')) { return { Logger: MockLogger }; }
+    return originalRequire.apply(this, arguments);
+};
+
+const { PLAN_MODE_AVAILABLE_TOOLS } = require('../../../out/extension/services/planModeToolsService');
+
 describe('Plan Mode Duplicate Tool Detection', function () {
 	let sdkManagerSource;
 	let planModeToolsSource;
@@ -61,31 +73,11 @@ describe('Plan Mode Duplicate Tool Detection', function () {
 	});
 
 	it('should have renamed custom tools to avoid SDK conflicts', function () {
-		// Extract tool names from getAvailableToolNames
-		const toolNamesMatch = planModeToolsSource.match(
-			/getAvailableToolNames\(\)[\s\S]*?return \[([\s\S]*?)\];/
-		);
-		assert.ok(toolNamesMatch, 'Could not find getAvailableToolNames return array');
-
-		const toolNamesSection = toolNamesMatch[1];
-
-		// Extract quoted tool name strings
-		const toolNames = [];
-		const nameRegex = /'([^']+)'/g;
-		let match;
-		while ((match = nameRegex.exec(toolNamesSection)) !== null) {
-			toolNames.push(match[1]);
-		}
-
-		assert.ok(toolNames.length > 0, 'Should find at least one tool name');
-
-		// Custom tools should be renamed to avoid conflicts
-		// The original bug was: bash, create, edit, task conflicted with SDK
+		// Test the actual exported constant — no source scanning
 		const conflictingNames = ['bash', 'create', 'edit', 'task'];
-		const foundConflicts = toolNames.filter((name) =>
+		const foundConflicts = PLAN_MODE_AVAILABLE_TOOLS.filter((name) =>
 			conflictingNames.includes(name)
 		);
-
 		assert.strictEqual(
 			foundConflicts.length,
 			0,
@@ -119,33 +111,19 @@ describe('Plan Mode Duplicate Tool Detection', function () {
 	});
 
 	it('should have no duplicate tool names between custom and available tools', function () {
-		// Extract tool names from getAvailableToolNames
-		const toolNamesMatch = planModeToolsSource.match(
-			/getAvailableToolNames\(\)[\s\S]*?return \[([\s\S]*?)\];/
-		);
-		const toolNamesSection = toolNamesMatch[1];
-
-		const toolNames = [];
-		const nameRegex = /'([^']+)'/g;
-		let match;
-		while ((match = nameRegex.exec(toolNamesSection)) !== null) {
-			toolNames.push(match[1]);
-		}
-
-		// Check for internal duplicates within the available tools list
+		// Test the actual exported constant — no source scanning
 		const seen = new Set();
 		const duplicates = [];
-		for (const name of toolNames) {
+		for (const name of PLAN_MODE_AVAILABLE_TOOLS) {
 			if (seen.has(name)) {
 				duplicates.push(name);
 			}
 			seen.add(name);
 		}
-
 		assert.strictEqual(
 			duplicates.length,
 			0,
-			'Found duplicate tool names within availableTools: ' + duplicates.join(', ')
+			'Found duplicate tool names within PLAN_MODE_AVAILABLE_TOOLS: ' + duplicates.join(', ')
 		);
 	});
 });

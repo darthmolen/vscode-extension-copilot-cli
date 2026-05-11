@@ -13,23 +13,21 @@ const { InfoSlashHandlers } = require('../../../../../out/extension/services/sla
 
 describe('InfoSlashHandlers - /mcp command', () => {
     let handlers;
-    let mockMcpConfig;
+    let getMcpServers;
     let mockBackendState;
 
     beforeEach(() => {
-        // Create mock MCP configuration service
-        mockMcpConfig = {
-            getConfig: () => ({
-                'filesystem': {
-                    command: 'npx',
-                    args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp']
-                },
-                'postgres': {
-                    command: 'docker',
-                    args: ['run', 'mcp-postgres']
-                }
-            })
-        };
+        // Getter function returning MCP server map (new API)
+        getMcpServers = () => ({
+            'filesystem': {
+                command: 'npx',
+                args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp']
+            },
+            'postgres': {
+                command: 'docker',
+                args: ['run', 'mcp-postgres']
+            }
+        });
 
         // Create mock BackendState
         mockBackendState = {
@@ -38,7 +36,7 @@ describe('InfoSlashHandlers - /mcp command', () => {
             getToolCallCount: () => 8
         };
 
-        handlers = new InfoSlashHandlers(mockMcpConfig, mockBackendState);
+        handlers = new InfoSlashHandlers(getMcpServers, mockBackendState);
     });
 
     it('returns MCP configuration when servers are configured', async () => {
@@ -56,8 +54,8 @@ describe('InfoSlashHandlers - /mcp command', () => {
     });
 
     it('returns friendly message when no MCP servers configured', async () => {
-        // Arrange
-        mockMcpConfig.getConfig = () => ({});
+        // Arrange - override getter to return empty map
+        handlers = new InfoSlashHandlers(() => ({}), mockBackendState);
 
         // Act
         const result = await handlers.handleMcp();
@@ -70,8 +68,8 @@ describe('InfoSlashHandlers - /mcp command', () => {
     });
 
     it('returns friendly message when MCP config is null', async () => {
-        // Arrange
-        mockMcpConfig.getConfig = () => null;
+        // Arrange - getter returns null (treated as empty)
+        handlers = new InfoSlashHandlers(() => null, mockBackendState);
 
         // Act
         const result = await handlers.handleMcp();
@@ -83,10 +81,10 @@ describe('InfoSlashHandlers - /mcp command', () => {
     });
 
     it('handles error when MCP config service throws', async () => {
-        // Arrange
-        mockMcpConfig.getConfig = () => {
+        // Arrange - getter throws
+        handlers = new InfoSlashHandlers(() => {
             throw new Error('Config read failed');
-        };
+        }, mockBackendState);
 
         // Act
         const result = await handlers.handleMcp();
@@ -252,6 +250,7 @@ describe('InfoSlashHandlers - /help command', () => {
         expect(result.content).to.include('Configuration');
         expect(result.content).to.include('/mcp');
         expect(result.content).to.include('/usage');
+        expect(result.content).to.include('/version');
         expect(result.content).to.include('/help');
         expect(result.content).to.include('CLI Passthrough');
         expect(result.content).to.include('/delegate');
@@ -330,5 +329,188 @@ describe('InfoSlashHandlers - /help command', () => {
         // Assert
         expect(result.success).to.be.false;
         expect(result.error).to.include('Failed to load help');
+    });
+});
+
+describe('InfoSlashHandlers - /mcp with null getter (regression: Bug 2)', () => {
+    let mockBackendState;
+
+    beforeEach(() => {
+        mockBackendState = {
+            getSessionStartTime: () => null,
+            getMessageCount: () => 0,
+            getToolCallCount: () => 0
+        };
+    });
+
+    it('should NOT throw when getMcpServers is null', async () => {
+        const handlers = new InfoSlashHandlers(null, mockBackendState);
+
+        const result = await handlers.handleMcp();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('not available');
+        expect(result.error).to.be.undefined;
+    });
+
+    it('should call getMcpServers getter when provided', async () => {
+        let called = false;
+        const getter = () => { called = true; return {}; };
+        const handlers = new InfoSlashHandlers(getter, mockBackendState);
+
+        await handlers.handleMcp();
+
+        expect(called).to.be.true;
+    });
+
+    it('should return server count when getter returns servers', async () => {
+        const getter = () => ({
+            'filesystem': { command: 'npx', args: [] },
+            '_copilotcli_playwright': { command: 'npx', args: [] }
+        });
+        const handlers = new InfoSlashHandlers(getter, mockBackendState);
+
+        const result = await handlers.handleMcp();
+
+        expect(result.success).to.be.true;
+    });
+});
+
+describe('InfoSlashHandlers - /version command', () => {
+    let mockBackendState;
+
+    beforeEach(() => {
+        mockBackendState = {
+            getSessionStartTime: () => Date.now() - 60000,
+            getMessageCount: () => 5,
+            getToolCallCount: () => 2
+        };
+    });
+
+    it('returns extension, SDK, and CLI versions when all info provided', async () => {
+        const fakeCapability = {
+            cliVersion: '1.0.44',
+            satisfiesSdkPeerDep: true,
+            sdkPeerRange: '^1.0.36-0',
+            sourceLabel: 'managed'
+        };
+        const versionInfo = { extensionVersion: '3.8.0', sdkVersion: '0.3.0' };
+        const handlers = new InfoSlashHandlers(null, mockBackendState, fakeCapability, versionInfo);
+
+        const result = await handlers.handleVersion();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('Version Info');
+        expect(result.content).to.include('3.8.0');
+        expect(result.content).to.include('0.3.0');
+        expect(result.content).to.include('1.0.44');
+        expect(result.content).to.include('managed');
+        expect(result.error).to.be.undefined;
+    });
+
+    it('shows checkmark when CLI satisfies SDK peer dep', async () => {
+        const fakeCapability = {
+            cliVersion: '1.0.44',
+            satisfiesSdkPeerDep: true,
+            sdkPeerRange: '^1.0.36-0',
+            sourceLabel: 'managed'
+        };
+        const handlers = new InfoSlashHandlers(null, mockBackendState, fakeCapability, { extensionVersion: '3.8.0', sdkVersion: '0.3.0' });
+
+        const result = await handlers.handleVersion();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('✅');
+        expect(result.content).to.not.include('❌');
+        expect(result.error).to.be.undefined;
+    });
+
+    it('shows warning when CLI does NOT satisfy SDK peer dep', async () => {
+        const fakeCapability = {
+            cliVersion: '1.0.5',
+            satisfiesSdkPeerDep: false,
+            sdkPeerRange: '^1.0.36-0',
+            sourceLabel: 'system'
+        };
+        const handlers = new InfoSlashHandlers(null, mockBackendState, fakeCapability, { extensionVersion: '3.8.0', sdkVersion: '0.3.0' });
+
+        const result = await handlers.handleVersion();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('❌');
+        expect(result.content).to.include('1.0.5');
+        expect(result.content).to.include('^1.0.36-0');
+        expect(result.error).to.be.undefined;
+    });
+
+    it('works when no CLI capability available (e.g. before session start)', async () => {
+        const handlers = new InfoSlashHandlers(null, mockBackendState, null, { extensionVersion: '3.8.0', sdkVersion: '0.3.0' });
+
+        const result = await handlers.handleVersion();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('Version Info');
+        expect(result.content).to.include('3.8.0');
+        expect(result.content).to.include('0.3.0');
+        expect(result.error).to.be.undefined;
+    });
+
+    it('works when no version info provided at all', async () => {
+        const handlers = new InfoSlashHandlers(null, mockBackendState);
+
+        const result = await handlers.handleVersion();
+
+        expect(result.success).to.be.true;
+        expect(result.content).to.include('Version Info');
+        expect(result.error).to.be.undefined;
+    });
+});
+
+describe('InfoSlashHandlers - /usage includes CLI version when capability provided', () => {
+    let mockBackendState;
+
+    beforeEach(() => {
+        mockBackendState = {
+            getSessionStartTime: () => Date.now() - 60000,
+            getMessageCount: () => 5,
+            getToolCallCount: () => 2
+        };
+    });
+
+    it('includes CLI version and source when capability provided and peer-dep satisfied', async () => {
+        const fakeCapability = {
+            cliVersion: '1.0.44',
+            satisfiesSdkPeerDep: true,
+            sdkPeerRange: '^1.0.36-0',
+            sourceLabel: 'local'
+        };
+        const handlers = new InfoSlashHandlers(null, mockBackendState, fakeCapability);
+        const result = await handlers.handleUsage();
+        expect(result.success).to.be.true;
+        expect(result.content).to.match(/CLI version[^\n]*1\.0\.44/);
+        expect(result.content).to.match(/local/);
+        expect(result.content).to.match(/satisfies/i);
+    });
+
+    it('shows clear warning when CLI does not satisfy SDK peer-dep', async () => {
+        const fakeCapability = {
+            cliVersion: '1.0.5',
+            satisfiesSdkPeerDep: false,
+            sdkPeerRange: '^1.0.36-0',
+            sourceLabel: 'system'
+        };
+        const handlers = new InfoSlashHandlers(null, mockBackendState, fakeCapability);
+        const result = await handlers.handleUsage();
+        expect(result.success).to.be.true;
+        expect(result.content).to.match(/1\.0\.5/);
+        expect(result.content).to.match(/DOES NOT satisfy/i);
+        expect(result.content).to.match(/\^1\.0\.36-0/);
+    });
+
+    it('omits CLI version section when no capability provided', async () => {
+        const handlers = new InfoSlashHandlers(null, mockBackendState);
+        const result = await handlers.handleUsage();
+        expect(result.success).to.be.true;
+        expect(result.content).to.not.match(/CLI version/i);
     });
 });

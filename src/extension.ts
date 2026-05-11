@@ -6,11 +6,15 @@ import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
+import { maybeShowChromiumNotice } from './extension/services/firstRunNotifications';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
 import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
+import { CliBundleService, ResolvedCli } from './extension/services/cliBundleService';
+import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
 
 let sessionManager: SDKSessionManager | null = null;
+let resolvedCli: ResolvedCli | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
@@ -65,7 +69,41 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register all VS Code commands
 	registerCommands(context);
 
+	// One-time first-run notices (e.g., Chromium download for Playwright MCP)
+	void maybeShowChromiumNotice(context);
+
+	// Resolve / lazy-install the Copilot CLI in the background. The chat provider
+	// renders immediately; once the bundle is ready, capability and the live
+	// MCP list provider are wired in. /mcp before this completes uses the
+	// config-only fallback path.
+	void initCliBundle(context).catch((err) => {
+		logger.error(`[CLI Bundle] Bootstrap failed: ${err instanceof Error ? err.message : err}`);
+	});
+
 	logger.info('Copilot CLI Extension activated successfully');
+}
+
+// Injected by esbuild `define` at build time. In tests / non-bundled contexts
+// the constant is undefined and CliBundleService falls back to reading
+// node_modules/@github/copilot-sdk/package.json.
+declare const __SDK_PEER_RANGE__: string | undefined;
+
+async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
+	const sdkPeerRange = typeof __SDK_PEER_RANGE__ !== 'undefined' ? __SDK_PEER_RANGE__ : undefined;
+	const bundle = new CliBundleService(
+		{ extensionPath: context.extensionPath, globalStorageUri: context.globalStorageUri },
+		logger,
+		{ sdkPeerRange }
+	);
+	const { resolved, capability } = await bootstrapCliBundle(bundle, logger, vscode.window);
+	resolvedCli = resolved;
+	chatProvider.setCliCapability(capability);
+	chatProvider.setMcpListProvider(async () => {
+		if (!sessionManager || !sessionManager.hasActiveSession()) {
+			throw new Error('No active session for mcp.list');
+		}
+		return sessionManager.listMcpServers();
+	});
 }
 
 /** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
@@ -507,7 +545,13 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 
-		sessionManager = new SDKSessionManager(context, config, resumeLastSession, specificSessionId);
+		sessionManager = new SDKSessionManager(
+			context,
+			config,
+			resumeLastSession,
+			specificSessionId,
+			resolvedCli?.cliPath
+		);
 		wireManagerEvents(context, sessionManager);
 
 		logger.info('Starting CLI process...');
@@ -645,17 +689,6 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 			diffTruncated,
 			diffTotalLines
 		});
-
-		// Cleanup temp BEFORE file if it lives in snapshot temp dir
-		try {
-			const snapshotService = manager.getFileSnapshotService();
-			const tempDir = snapshotService.getTempDir();
-			if (typeof diffData.beforeUri === 'string' && diffData.beforeUri.startsWith(tempDir)) {
-				snapshotService.cleanupTempFile(diffData.beforeUri);
-			}
-		} catch (e) {
-			logger.warn(`[Diff] Temp cleanup failed: ${e instanceof Error ? e.message : e}`);
-		}
 	})));
 
 	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {

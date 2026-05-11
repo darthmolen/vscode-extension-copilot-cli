@@ -176,8 +176,14 @@ eventBus.on('openDiffView', (args) => {
 });
 
 eventBus.on('showMcpConfig', () => {
-	console.log('[Slash Command] Show MCP config (/mcp)');
+	console.log('[Slash Command] Requesting MCP status (/mcp)');
 	rpc.showMcpConfig();
+});
+
+// Extension replies with mcpStatus data → show panel
+rpc.onMcpStatus((msg) => {
+	console.log('[MCP] Received mcpStatus:', msg.servers?.length, 'server(s)');
+	inputArea.showMcpStatus(msg.servers ?? []);
 });
 
 eventBus.on('showUsageMetrics', () => {
@@ -195,6 +201,11 @@ eventBus.on('showNotSupported', (args) => {
 	console.log('[Slash Command] Not supported command', args);
 	const command = args && args.length > 0 ? args.join(' ') : 'unknown';
 	rpc.showNotSupported(command);
+});
+
+eventBus.on('showVersionInfo', () => {
+	console.log('[Slash Command] Show version info (/version)');
+	rpc.showVersionInfo();
 });
 
 eventBus.on('openInCLI', (args) => {

@@ -1,6 +1,9 @@
 .vscode/**
 .vscode-test/**
 out/**
+# @github/copilot is intentionally NOT bundled in the VSIX.
+# CliBundleService lazy-installs the version pinned by the SDK's peerDependency
+# into globalStorage on first activation. See src/extension/services/cliBundleService.ts.
 node_modules/**
 !node_modules/node-pty/**
 src/**
