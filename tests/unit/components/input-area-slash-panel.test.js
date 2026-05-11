@@ -102,4 +102,27 @@ describe('InputArea - Slash Command Panel Integration', () => {
 			expect(textarea.placeholder).to.include('/');
 		});
 	});
+
+	describe('Panel dismissed after slash command submission', () => {
+		it('should hide slash panel when /mcp is submitted via Enter', () => {
+			typeInTextarea('/mcp');
+			const panel = container.querySelector('.slash-command-panel');
+			expect(panel.style.display).to.not.equal('none');
+
+			pressKey('Enter');
+
+			expect(panel.style.display).to.equal('none');
+		});
+
+		it('should hide slash panel when any regular message is sent with session active', () => {
+			inputArea.handleSessionActive(true);
+			typeInTextarea('/');
+			// panel is visible
+			const textarea = container.querySelector('#messageInput');
+			textarea.value = 'hello world';
+			textarea.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			const panel = container.querySelector('.slash-command-panel');
+			expect(panel.style.display).to.equal('none');
+		});
+	});
 });

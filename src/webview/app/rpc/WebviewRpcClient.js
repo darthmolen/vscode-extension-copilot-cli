@@ -208,7 +208,16 @@ class WebviewRpcClient {
 			command
 		});
 	}
-	
+
+	/**
+	 * Show version info (/version command)
+	 */
+	showVersionInfo() {
+		this._send({
+			type: 'showVersionInfo'
+		});
+	}
+
 	/**
 	 * Open command in CLI terminal (passthrough)
 	 * @param {string} command - Full command to pass through
@@ -582,6 +591,15 @@ class WebviewRpcClient {
 	 */
 	onActiveAgentChanged(handler) {
 		return this._registerHandler('activeAgentChanged', handler);
+	}
+
+	/**
+	 * Register handler for mcpStatus (MCP server panel data)
+	 * @param {Function} handler
+	 * @returns {{dispose: Function}}
+	 */
+	onMcpStatus(handler) {
+		return this._registerHandler('mcpStatus', handler);
 	}
 
 	// ========================================================================

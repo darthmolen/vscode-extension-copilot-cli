@@ -13,7 +13,14 @@ import { CLIPassthroughService } from './extension/services/CLIPassthroughServic
 import { SessionService } from './extension/services/SessionService';
 import { CustomAgentsService } from './extension/services/CustomAgentsService';
 import { resolveImagePaths } from './extension/utils/resolveImagePaths';
+import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
+import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
+import { CliCapabilityService } from './extension/services/cliCapabilityService';
+import { buildMcpServerStatusList, mergeMcpListWithConfig } from './extension/services/mcpStatusBuilder';
 import * as fs from 'fs';
+
+declare const __SDK_VERSION__: string | undefined;
+declare const __EXTENSION_VERSION__: string | undefined;
 
 export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	public static readonly viewType = 'copilot-cli.chatView';
@@ -36,6 +43,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private cliPassthroughService?: CLIPassthroughService;
 	private compactHandlers?: CompactSlashHandlers;
 	private customAgentsService: CustomAgentsService = new CustomAgentsService();
+	private mcpConfigService?: MCPConfigurationService;
 
 	// Event emitters to replace Set<Function> handlers
 	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}>());
@@ -61,9 +69,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	readonly onDidSelectAgent = this._onDidSelectAgent.event;
 	readonly onDidRequestReloadAgents = this._onDidRequestReloadAgents.event;
 
-	constructor(extensionUri: vscode.Uri) {
+	private cliCapability: CliCapabilityService | null = null;
+	private mcpListProvider: (() => Promise<any[]>) | null = null;
+
+	constructor(
+		extensionUri: vscode.Uri,
+		cliCapability?: CliCapabilityService,
+		mcpListProvider?: () => Promise<any[]>
+	) {
 		this.extensionUri = extensionUri;
 		this.logger = Logger.getInstance();
+		this.cliCapability = cliCapability ?? null;
+		this.mcpListProvider = mcpListProvider ?? null;
+	}
+
+	public setCliCapability(capability: CliCapabilityService): void {
+		this.cliCapability = capability;
+	}
+
+	public setMcpListProvider(provider: () => Promise<any[]>): void {
+		this.mcpListProvider = provider;
+	}
+
+	public getCliCapability(): CliCapabilityService | null {
+		return this.cliCapability;
 	}
 
 	private _reg<T extends vscode.Disposable>(disposable: T): T {
@@ -251,7 +280,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		};
 
 		this.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);
-		this.infoHandlers = new InfoSlashHandlers(undefined, getBackendState()); // MCP config will be undefined for now
+		const mcpRegistry = new ManagedMCPRegistry();
+		this.mcpConfigService = new MCPConfigurationService(
+			vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
+		);
+		this.infoHandlers = new InfoSlashHandlers(
+			() => {
+				const userConfig = vscode.workspace.getConfiguration('copilotCLI')
+					.get<Record<string, any>>('mcpServers', {});
+				return this.mcpConfigService!.getMergedMCPServers(userConfig, mcpRegistry.getManagedServers());
+			},
+			getBackendState(),
+			() => this.cliCapability,
+			{
+				extensionVersion: typeof __EXTENSION_VERSION__ !== 'undefined' ? __EXTENSION_VERSION__ : 'unknown',
+				sdkVersion: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : 'unknown',
+			}
+		);
 		this.notSupportedHandlers = new NotSupportedSlashHandlers();
 		this.cliPassthroughService = new CLIPassthroughService(vscode);
 
@@ -275,12 +320,41 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		}));
 
 		this._reg(this.rpcRouter.onShowMcpConfig(async () => {
-			this.logger.info('Show MCP config requested from UI');
-			const result = await this.infoHandlers!.handleMcp();
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			this.logger.info('[MCP] /mcp command received — building server status');
+			try {
+				const mcpRegistry = new ManagedMCPRegistry();
+				const userConfig = vscode.workspace.getConfiguration('copilotCLI')
+					.get<Record<string, any>>('mcpServers', {});
+				const managedServers = mcpRegistry.getManagedServers();
+				const userEnabled = this.mcpConfigService!.getEnabledMCPServers(userConfig);
+				const allServers = { ...userEnabled, ...managedServers };
+
+				if (this.cliCapability?.supportsMcpListRpc() && this.mcpListProvider) {
+					try {
+						const sdkList = await this.mcpListProvider();
+						this.logger.debug(`[MCP] Raw SDK list: ${JSON.stringify(sdkList).substring(0, 300)}`);
+						const servers = mergeMcpListWithConfig(allServers, sdkList);
+						this.logger.info(`[MCP] Sending mcpStatus (live): ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
+						this.rpcRouter!.sendMcpStatus(servers);
+						return;
+					} catch (rpcErr: any) {
+						this.logger.warn(`[MCP] mcp.list RPC failed, falling back to config view: ${rpcErr.message}`);
+					}
+				}
+
+				const knownTools = getBackendState().getMcpServerTools();
+				const knownStatuses = getBackendState().getMcpServerStatuses();
+				const capabilityFlags = {
+					supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? false,
+				};
+
+				const servers = buildMcpServerStatusList(allServers, knownTools, knownStatuses, capabilityFlags);
+
+				this.logger.info(`[MCP] Sending mcpStatus: ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
+				this.rpcRouter!.sendMcpStatus(servers);
+			} catch (err: any) {
+				this.logger.error(`[MCP] Failed to build server status: ${err.message}`);
+				this.rpcRouter!.sendMcpStatus([]);
 			}
 		}));
 
@@ -297,6 +371,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this._reg(this.rpcRouter.onShowHelp(async (payload) => {
 			this.logger.info(`Show help requested from UI: ${payload.command || 'all'}`);
 			const result = await this.infoHandlers!.handleHelp(payload.command);
+			if (result.success && result.content) {
+				this.rpcRouter!.addAssistantMessage(result.content);
+			} else if (result.error) {
+				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
+			}
+		}));
+
+		this._reg(this.rpcRouter.onShowVersionInfo(async () => {
+			this.logger.info('Show version info requested from UI');
+			const result = await this.infoHandlers!.handleVersion();
 			if (result.success && result.content) {
 				this.rpcRouter!.addAssistantMessage(result.content);
 			} else if (result.error) {

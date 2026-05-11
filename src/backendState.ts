@@ -30,6 +30,8 @@ export class BackendState {
     private sessionStartTime: number | null = null;
     private currentModel: string | null = null;
     private activeAgent: string | null = null;
+    private mcpServerTools: Record<string, string[]> = {};
+    private mcpServerStatuses: Record<string, string> = {};
 
     // Session management
     public setSessionId(id: string | null): void {
@@ -174,6 +176,24 @@ export class BackendState {
         this.sessionId = null;
         this.sessionActive = false;
         this.planModeStatus = null;
+        this.mcpServerTools = {};
+        this.mcpServerStatuses = {};
+    }
+
+    public setMcpServerTools(serverKey: string, tools: string[]): void {
+        this.mcpServerTools[serverKey] = tools;
+    }
+
+    public getMcpServerTools(): Record<string, string[]> {
+        return { ...this.mcpServerTools };
+    }
+
+    public setMcpServerStatus(serverKey: string, status: string): void {
+        this.mcpServerStatuses[serverKey] = status;
+    }
+
+    public getMcpServerStatuses(): Record<string, string> {
+        return { ...this.mcpServerStatuses };
     }
 }
 

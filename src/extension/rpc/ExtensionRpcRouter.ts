@@ -46,6 +46,7 @@ import {
 	ShowMcpConfigPayload,
 	ShowUsageMetricsPayload,
 	ShowHelpPayload,
+	ShowVersionInfoPayload,
 	ShowNotSupportedPayload,
 	OpenInCLIPayload,
 	OpenFilePayload,
@@ -68,6 +69,8 @@ import {
 	SelectAgentPayload,
 	AgentsPanelClosedPayload,
 	ActiveAgentChangedPayload,
+	McpStatusPayload,
+	McpServerStatus,
 	Session,
 	Attachment,
 	ToolState,
@@ -343,6 +346,17 @@ export class ExtensionRpcRouter {
 	}
 
 	/**
+	 * MCP server status panel data
+	 */
+	sendMcpStatus(servers: McpServerStatus[]): void {
+		const message: McpStatusPayload = {
+			type: 'mcpStatus',
+			servers
+		};
+		this.send(message);
+	}
+
+	/**
 	 * Model switch result
 	 */
 	sendModelSwitched(model: string, success: boolean): void {
@@ -552,6 +566,13 @@ export class ExtensionRpcRouter {
 	 */
 	onShowHelp(handler: MessageHandler<ShowHelpPayload>): Disposable {
 		return this.registerHandler('showHelp', handler);
+	}
+
+	/**
+	 * Register handler for showVersionInfo
+	 */
+	onShowVersionInfo(handler: MessageHandler<ShowVersionInfoPayload>): Disposable {
+		return this.registerHandler('showVersionInfo', handler);
 	}
 	
 	/**

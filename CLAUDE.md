@@ -172,3 +172,14 @@ Custom tools in plan mode must be registered in TWO places in sdkSessionManager.
 ## Session Files
 
 Sessions stored at `~/.copilot/session-state/<session-id>/` containing `events.jsonl`, `plan.md`, `workspace.yaml`.
+
+## Copilot CLI Bundle (Lazy Install)
+
+The extension does NOT trust the user's global `copilot` install. SDK ↔ CLI protocol changes between versions; SDK 0.3.0 declares `peerDependencies: { "@github/copilot": "^1.0.36-0" }`, and the user's global launcher is typically far behind (e.g. 1.0.5).
+
+`CliBundleService` resolves the CLI in this order:
+1. **local** — `node_modules/@github/copilot` (dev / F5).
+2. **managed** — `<globalStorageUri>/cli/<peer-range>/node_modules/@github/copilot`.
+3. **system** — `which copilot` (last resort, surfaces a warning if it doesn't satisfy the SDK peer-dep).
+
+If none satisfy, it lazy-installs into the managed location via `npm install --prefix <dest> @github/copilot@<peer-range>`. Result is fed to `SDKSessionManager` as the `cliPath`. `CliCapabilityService` exposes feature flags from the resolved version (e.g. `supportsMcpListRpc`).

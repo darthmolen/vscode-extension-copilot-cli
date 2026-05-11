@@ -18,6 +18,28 @@ import * as path from 'path';
 import { Logger } from '../../logger';
 import { FileSnapshotService } from './fileSnapshotService';
 
+/**
+ * Canonical list of tools available in plan mode.
+ * This is the single source of truth — all other references must use this constant.
+ */
+export const PLAN_MODE_AVAILABLE_TOOLS: readonly string[] = [
+    // Custom restricted tools
+    'plan_bash_explore',           // restricted bash for read-only commands
+    'task_agent_type_explore',     // restricted task for exploration only
+    'edit_plan_file',              // edit ONLY plan.md
+    'create_plan_file',            // create ONLY plan.md
+    'update_work_plan',            // update plan content
+    'present_plan',                // present plan to user for acceptance
+    // Safe SDK tools
+    'skill',                       // invoke skills from skill directories
+    'view',                        // read files
+    'grep',                        // search content
+    'glob',                        // find files
+    'web_fetch',                   // fetch URLs
+    'fetch_copilot_cli_documentation', // get CLI docs
+    'report_intent',               // report intent to UI
+];
+
 // Dynamic import for SDK
 let defineTool: any;
 
@@ -489,26 +511,10 @@ export class PlanModeToolsService {
     
     /**
      * Get names of all available tools in plan mode
-     * Includes custom tools (6) + whitelisted SDK tools (6)
-     * @returns Array of 12 tool names available in plan mode
+     * @returns Array of tool names available in plan mode
      */
     getAvailableToolNames(): string[] {
-        return [
-            // Custom restricted tools (6)
-            'plan_bash_explore',           // restricted bash for read-only commands
-            'task_agent_type_explore',     // restricted task for exploration only
-            'edit_plan_file',              // edit ONLY plan.md
-            'create_plan_file',            // create ONLY plan.md
-            'update_work_plan',            // update plan content
-            'present_plan',                // present plan to user for acceptance
-            // Safe SDK tools (6)
-            'view',                        // read files
-            'grep',                        // search content
-            'glob',                        // find files
-            'web_fetch',                   // fetch URLs
-            'fetch_copilot_cli_documentation', // get CLI docs
-            'report_intent'                // report intent to UI
-        ];
+        return [...PLAN_MODE_AVAILABLE_TOOLS];
     }
     
     /**
@@ -537,7 +543,7 @@ Your role is to PLAN, not to implement. You have the following capabilities:
 Your plan is stored at: \`${planPath}\`
 This is your dedicated workspace for planning.
 
-**AVAILABLE TOOLS IN PLAN MODE (12 total):**
+**AVAILABLE TOOLS IN PLAN MODE (13 total):**
 
 *Plan Management Tools:*
 - \`update_work_plan\` - **PRIMARY TOOL** for creating/updating your implementation plan
@@ -552,7 +558,8 @@ This is your dedicated workspace for planning.
 - \`plan_bash_explore\` - Execute read-only shell commands (git status, ls, cat, etc.)
 - \`task_agent_type_explore\` - Dispatch exploration sub-agents (agent_type="explore" only)
 
-*Documentation Tools:*
+*Documentation & Skills Tools:*
+- \`skill\` - Invoke a skill by name (e.g. skill("test-driven-development"))
 - \`web_fetch\` - Fetch web pages and documentation
 - \`fetch_copilot_cli_documentation\` - Get Copilot CLI documentation
 - \`report_intent\` - Report your current intent to the UI

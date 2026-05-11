@@ -1,14 +1,46 @@
 /**
- * Handles info slash commands: /mcp, /usage, /help
- * 
- * MINIMAL IMPLEMENTATION - just enough to pass tests
+ * Minimal capability surface used by /usage and /version to render CLI diagnostic info.
+ */
+interface CliCapabilityForInfo {
+    cliVersion: string;
+    satisfiesSdkPeerDep: boolean;
+    sdkPeerRange: string;
+    sourceLabel: string;
+}
+
+interface VersionInfo {
+    extensionVersion: string;
+    sdkVersion: string;
+}
+
+/**
+ * Handles info slash commands: /mcp, /usage, /help, /version
  */
 export class InfoSlashHandlers {
-    constructor(private mcpConfig: any, private backendState: any) {}
+    private getCliCapability: () => CliCapabilityForInfo | null;
+    private versionInfo: VersionInfo | null;
+
+    constructor(
+        private getMcpServers: (() => Record<string, any>) | null,
+        private backendState: any,
+        cliCapability: CliCapabilityForInfo | null | (() => CliCapabilityForInfo | null) = null,
+        versionInfo: VersionInfo | null = null
+    ) {
+        this.getCliCapability = typeof cliCapability === 'function'
+            ? cliCapability
+            : () => cliCapability;
+        this.versionInfo = versionInfo;
+    }
 
     async handleMcp(): Promise<{ success: boolean; content?: string; error?: string }> {
         try {
-            const config = this.mcpConfig.getConfig();
+            if (!this.getMcpServers) {
+                return {
+                    success: true,
+                    content: 'MCP configuration not available.'
+                };
+            }
+            const config = this.getMcpServers();
             
             if (!config || Object.keys(config).length === 0) {
                 return {
@@ -57,11 +89,21 @@ export class InfoSlashHandlers {
 
             // Convert timestamp to Date for formatting
             const startDate = new Date(sessionStartTime);
-            const content = `# Session Usage\n\n` +
+            let content = `# Session Usage\n\n` +
                 `**Started**: ${startDate.toLocaleString()}\n` +
                 `**Duration**: ${durationMinutes}m ${durationSeconds}s\n` +
                 `**Messages sent**: ${messageCount}\n` +
                 `**Tool calls**: ${toolCallCount}\n`;
+
+            const cliCapability = this.getCliCapability();
+            if (cliCapability) {
+                const c = cliCapability;
+                const verdict = c.satisfiesSdkPeerDep
+                    ? `satisfies ${c.sdkPeerRange}`
+                    : `**DOES NOT satisfy** ${c.sdkPeerRange} — tools may fail. Update CLI or set copilotCLI.cliPath.`;
+                content += `\n## Copilot CLI\n` +
+                    `CLI version: **${c.cliVersion}** (${c.sourceLabel}, ${verdict})\n`;
+            }
 
             return {
                 success: true,
@@ -109,6 +151,7 @@ export class InfoSlashHandlers {
                 `- \`/compact\` - Free context window space\n` +
                 `- \`/mcp\` - Show MCP server config\n` +
                 `- \`/usage\` - Show session metrics\n` +
+                `- \`/version\` - Show extension, SDK, and CLI versions\n` +
                 `- \`/help [command]\` - Show this help\n\n` +
                 `## CLI Passthrough\n` +
                 `- \`/delegate [task]\` - Push to GitHub coding agent\n` +
@@ -132,6 +175,40 @@ export class InfoSlashHandlers {
         }
     }
 
+    async handleVersion(): Promise<{ success: boolean; content?: string; error?: string }> {
+        try {
+            const vi = this.versionInfo;
+            const cliCapability = this.getCliCapability();
+
+            let content = `## Version Info\n\n`;
+
+            if (vi) {
+                content += `- **Extension**: v${vi.extensionVersion}\n`;
+                content += `- **SDK**: @github/copilot-sdk ${vi.sdkVersion}\n`;
+            } else {
+                content += `- **Extension**: (version unknown)\n`;
+                content += `- **SDK**: (version unknown)\n`;
+            }
+
+            if (cliCapability) {
+                const c = cliCapability;
+                const verdict = c.satisfiesSdkPeerDep
+                    ? `✅ satisfies ${c.sdkPeerRange}`
+                    : `❌ does not satisfy ${c.sdkPeerRange} — update CLI or set \`copilotCLI.cliPath\``;
+                content += `- **CLI**: ${c.cliVersion} (${c.sourceLabel}, ${verdict})\n`;
+            } else {
+                content += `- **CLI**: (not yet resolved)\n`;
+            }
+
+            return { success: true, content };
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Failed to load version info: ${error.message}`
+            };
+        }
+    }
+
     private getCommandHelp(commandName: string): string | null {
         const helpTexts: Record<string, string> = {
             plan: `# /plan - Enter Plan Mode\n\nUsage: \`/plan\`\n\nEnters planning mode where you can design and document your implementation approach before writing code.\n\nExample: \`/plan\``,
@@ -144,6 +221,7 @@ export class InfoSlashHandlers {
             compact: `# /compact - Compact Session Context\n\nUsage: \`/compact\`\n\nFrees context window space by compacting the conversation history. Useful when nearing the token limit.\n\nExample: \`/compact\``,
             mcp: `# /mcp - Show MCP Configuration\n\nUsage: \`/mcp\`\n\nDisplays the Model Context Protocol (MCP) server configuration, showing active servers and their tools.\n\nExample: \`/mcp\``,
             usage: `# /usage - Show Session Metrics\n\nUsage: \`/usage\`\n\nDisplays session statistics including start time, duration, message count, and tool calls.\n\nExample: \`/usage\``,
+            version: `# /version - Show Version Info\n\nUsage: \`/version\`\n\nDisplays the extension, SDK, and CLI versions. Shows whether the bundled CLI satisfies the SDK peer dependency.\n\nExample: \`/version\``,
             help: `# /help - Command Help\n\nUsage: \`/help [command]\`\n\nShows this help message. Optionally specify a command name for detailed help.\n\nExamples:\n- \`/help\` - Show all commands\n- \`/help review\` - Show help for /review`,
             delegate: `# /delegate - GitHub Coding Agent\n\nUsage: \`/delegate [task]\`\n\nOpens GitHub Copilot coding agent in a terminal to create a PR on GitHub.\n\nExample: \`/delegate fix the authentication bug\``,
             agent: `# /agent - Custom Agents\n\nUsage: \`/agent\`\n\nOpens a terminal to browse and select specialized agents (refactoring, code-review, etc.).\n\nExample: \`/agent\``,

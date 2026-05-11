@@ -1368,6 +1368,105 @@ button.stop-button:hover {
 	background: none;
 }
 
+/* ===== MCP Status Panel ===== */
+
+.mcp-status-panel {
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: 4px;
+	background: var(--vscode-editorHoverWidget-background);
+	margin-bottom: 4px;
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+.mcp-status-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 5px 10px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	font-weight: 600;
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.mcp-status-title {
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-status-close-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+	padding: 0 2px;
+	line-height: 1;
+}
+
+.mcp-status-close-btn:hover {
+	color: var(--vscode-foreground);
+}
+
+.mcp-status-server-row {
+	display: grid;
+	grid-template-columns: 18px 1fr auto auto;
+	gap: 8px;
+	align-items: center;
+	padding: 4px 10px;
+	font-size: 12px;
+}
+
+.mcp-status-server-row:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.mcp-status-icon {
+	font-size: 10px;
+	text-align: center;
+}
+
+.mcp-status-icon--unknown {
+	opacity: 0.55;
+}
+
+.mcp-status-name {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.mcp-status-type-badge {
+	font-size: 10px;
+	padding: 1px 5px;
+	border-radius: 3px;
+	font-weight: 500;
+}
+
+.mcp-status-type-badge--managed {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.mcp-status-type-badge--user {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.mcp-status-tools {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	text-align: right;
+}
+
+.mcp-status-empty {
+	padding: 10px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
 /* ===== Help Icon ===== */
 
 .help-icon {

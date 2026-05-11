@@ -3,6 +3,7 @@ import { ActiveFileDisplay } from '../ActiveFileDisplay/ActiveFileDisplay.js';
 import { StatusBar } from '../StatusBar/StatusBar.js';
 import { PlanModeControls } from '../PlanModeControls/PlanModeControls.js';
 import { SlashCommandPanel } from '../SlashCommandPanel/SlashCommandPanel.js';
+import { MCPStatusPanel } from '../MCPStatusPanel/MCPStatusPanel.js';
 import { ModelSelector } from '../ModelSelector/ModelSelector.js';
 import { CommandParser } from '../../services/CommandParser.js';
 
@@ -91,6 +92,7 @@ export class InputArea {
 			</div>
 			<div class="input-area">
 				<div id="attachmentsPreview" class="attachments-preview" style="display: none;"></div>
+				<div id="mcp-status-mount"></div>
 				<div id="slash-command-mount"></div>
 				<div class="input-wrapper">
 					<button id="attachButton" class="attach-button" title="Attach files">📎</button>
@@ -122,12 +124,14 @@ export class InputArea {
 		const planControlsMount = this.container.querySelector('#plan-controls-mount');
 		const modelSelectorMount = this.container.querySelector('#model-selector-mount');
 		const slashCommandMount = this.container.querySelector('#slash-command-mount');
+		const mcpStatusMount = this.container.querySelector('#mcp-status-mount');
 
 		this.activeFileDisplay = new ActiveFileDisplay(activeFileMount, this.eventBus);
 		this.statusBar = new StatusBar(metricsMount);
 		this.planModeControls = new PlanModeControls(planControlsMount, this.eventBus);
 		this.modelSelector = new ModelSelector(modelSelectorMount, this.eventBus);
 		this.slashCommandPanel = new SlashCommandPanel(slashCommandMount);
+		this.mcpStatusPanel = new MCPStatusPanel(mcpStatusMount);
 		this.slashCommandPanel.onSelect = (commandName) => {
 			this.messageInput.value = `/${commandName} `;
 			this.slashCommandPanel.hide();
@@ -206,6 +210,7 @@ export class InputArea {
 	handleKeydown(e) {
 		if (e.key === 'Escape') {
 			this.slashCommandPanel.hide();
+			this.mcpStatusPanel.hide();
 			return;
 		}
 		if (e.key === 'Enter' && !e.shiftKey) {
@@ -297,8 +302,10 @@ export class InputArea {
 			
 			// Execute command
 			this.commandParser.execute(cmd, this.eventBus);
-			
-			// Clear input after command
+
+			// Hide panels and clear input after command
+			this.slashCommandPanel.hide();
+			this.mcpStatusPanel.hide();
 			this.messageInput.value = '';
 			this.messageInput.style.height = 'auto';
 			return;
@@ -306,6 +313,9 @@ export class InputArea {
 
 		// Regular message - needs active session
 		if (!this.sessionActive) return;
+
+		this.slashCommandPanel.hide();
+		this.mcpStatusPanel.hide();
 
 		console.log('[InputArea] sendMessage() called, text:', text.substring(0, 50));
 		console.log('[InputArea] Pending attachments:', this.pendingAttachments.length);
@@ -573,5 +583,13 @@ export class InputArea {
 			this.updateAttachmentsPreview();
 			this.updateAttachCount();
 		}
+	}
+
+	/**
+	 * Show the MCP status panel with server data.
+	 * @param {Array} servers - Array of McpServerStatus objects
+	 */
+	showMcpStatus(servers) {
+		this.mcpStatusPanel.show(servers);
 	}
 }

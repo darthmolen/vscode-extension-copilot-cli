@@ -2,6 +2,31 @@
 
 All notable changes to the Copilot CLI Chat extension.
 
+## [Unreleased]
+
+## [3.8.0] - 2026-05-10
+
+### ✨ Features
+
+- **CLI bundled with the extension** — The extension now lazy-installs a version-pinned Copilot CLI into `globalStorage` on first activation, decoupling you from the globally-installed `copilot` binary. Solves tool failures caused by the system CLI lagging behind the SDK peer requirement (e.g. CLI 1.0.5 vs required ≥ 1.0.36). Resolution order: local `node_modules` (dev) → `globalStorage/cli/<peer-range>/` (managed, auto-installed) → system PATH (last resort, with a warning if the version doesn't satisfy the peer dep).
+- **`/version` command** — New slash command shows the extension version, SDK version, bundled CLI version, and whether the CLI satisfies the SDK peer dependency. Type `/version` and press Enter to see the full diagnostic in a chat bubble.
+- **Skill discovery restored** — Copilot CLI v1.0.36 intentionally removed `~/.claude/` from its auto-discovery path. The extension now discovers skills from three locations explicitly: `~/.claude/skills/` (Claude Code user skills), `~/.agents/skills/` (Copilot CLI canonical), and `~/.claude/plugins/cache/**/skills/` (installed plugin skills). Configure additional directories via the new `copilotCLI.additionalSkillDirectories` setting.
+- **`skill()` available in Plan Mode** — Plan mode's tool whitelist now includes the `skill()` tool so the agent can invoke skills (e.g. `skill("test-driven-development")`) while planning without switching modes.
+
+### 🐛 Bug Fixes
+
+- **View Diff no longer shows "not found"** — Snapshot temp files (the "before" state captured before a tool edit) were being deleted immediately after the inline diff preview was computed and sent to the chat bubble — before the user could click "View Diff". The file is now kept alive for the duration of the session and cleaned up when the session ends.
+
+### 🔧 Internal
+
+- **`CliBundleService`** (new) — Resolves the Copilot CLI in priority order: local `node_modules/@github/copilot` → `globalStorage/cli/<peer-range>/` (managed, lazy-installed) → system PATH. Concurrent install protection via in-flight Promise cache.
+- **`CliCapabilityService`** (new) — Feature flags derived from the resolved CLI version: `supportsMcpListRpc()`, `supportsMcpStatusEvents()`. Single source of truth for version-gated features.
+- **`SkillDirectoriesService`** (new) — Discovers skill directories from all three known locations plus user-configured extras. Injected into both `createSession` and `resumeSession` paths so skill discovery works on new and resumed sessions alike.
+- **`PLAN_MODE_AVAILABLE_TOOLS` constant** — Extracted from `PlanModeToolsService` as an exported constant. All three places in the codebase that previously had hardcoded copies of the plan mode tool whitelist now reference this single source of truth.
+- **MCP Status Panel: new `'unknown'` status** — When the CLI is too old to fire `session.mcp_servers_loaded` events, servers show ⚪ "status unavailable" instead of misleading 🟡 yellow.
+- **`/usage` shows CLI diagnostics** — Includes resolved CLI version, source (local/managed/system), and peer-dep verdict.
+- **`SDKSessionManager` accepts injected `cliPath`** — Fed by `CliBundleService` at activation; falls back to `resolveCliPath()` if not injected.
+
 ## [3.7.1] - 2026-04-04
 
 ### 🐛 Bug Fixes

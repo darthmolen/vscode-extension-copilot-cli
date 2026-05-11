@@ -45,6 +45,7 @@ async function main() {
 	const slashCommandPanelDistDir = path.join(componentsDistDir, 'SlashCommandPanel');
 	const modelSelectorDistDir = path.join(componentsDistDir, 'ModelSelector');
 	const customAgentsPanelDistDir = path.join(componentsDistDir, 'CustomAgentsPanel');
+	const mcpStatusPanelDistDir = path.join(componentsDistDir, 'MCPStatusPanel');
 
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
@@ -93,6 +94,9 @@ async function main() {
 	}
 	if (!fs.existsSync(customAgentsPanelDistDir)) {
 		fs.mkdirSync(customAgentsPanelDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(mcpStatusPanelDistDir)) {
+		fs.mkdirSync(mcpStatusPanelDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -205,6 +209,32 @@ async function main() {
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'CustomAgentsPanel', 'CustomAgentsPanel.js'),
 		path.join(customAgentsPanelDistDir, 'CustomAgentsPanel.js')
 	);
+	// MCPStatusPanel component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'MCPStatusPanel', 'MCPStatusPanel.js'),
+		path.join(mcpStatusPanelDistDir, 'MCPStatusPanel.js')
+	);
+
+	// Read SDK peer-dep range at build time so we don't have to ship node_modules
+	// in the VSIX. CliBundleService consumes this via the injected option.
+	const sdkPkgPath = path.join(__dirname, 'node_modules', '@github', 'copilot-sdk', 'package.json');
+	if (!fs.existsSync(sdkPkgPath)) {
+		throw new Error(`Build prerequisite missing: ${sdkPkgPath}. Run \`npm install\` first.`);
+	}
+	const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, 'utf-8'));
+	const sdkPeerRange =
+		(sdkPkg.peerDependencies && sdkPkg.peerDependencies['@github/copilot']) ||
+		(sdkPkg.dependencies && sdkPkg.dependencies['@github/copilot']);
+	if (!sdkPeerRange) {
+		throw new Error(`@github/copilot-sdk has no @github/copilot range in dependencies or peerDependencies (${sdkPkgPath})`);
+	}
+	console.log(`[build] SDK peer range: ${sdkPeerRange}`);
+
+	// Extension and SDK versions for /version command
+	const extPkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+	const extensionVersion = extPkg.version;
+	const sdkVersion = sdkPkg.version;
+	console.log(`[build] Extension version: ${extensionVersion}, SDK version: ${sdkVersion}`);
 
 	// Extension build context
 	const extensionCtx = await esbuild.context({
@@ -220,6 +250,11 @@ async function main() {
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
+		define: {
+			'__SDK_PEER_RANGE__': JSON.stringify(sdkPeerRange),
+			'__SDK_VERSION__': JSON.stringify(sdkVersion),
+			'__EXTENSION_VERSION__': JSON.stringify(extensionVersion),
+		},
 		plugins: [
 			esbuildProblemMatcherPlugin,
 		],

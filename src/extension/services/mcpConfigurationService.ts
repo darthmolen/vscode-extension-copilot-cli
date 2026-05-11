@@ -52,22 +52,45 @@ export class MCPConfigurationService {
      */
     public getEnabledMCPServers(mcpConfig: Record<string, any>): Record<string, any> {
         const enabled: Record<string, any> = {};
-        
+
         for (const [name, config] of Object.entries(mcpConfig)) {
             if (config && config.enabled !== false) {
                 // Remove the 'enabled' field before passing to SDK
                 const { enabled: _, ...serverConfig } = config;
-                
+
                 // Expand ${workspaceFolder} variables
                 const expandedConfig = this.expandVariables(serverConfig);
                 enabled[name] = expandedConfig;
             }
         }
-        
+
         if (Object.keys(enabled).length > 0) {
             this.logger.info(`[MCP] Servers configured: ${Object.keys(enabled).join(', ')}`);
         }
-        
+
         return enabled;
+    }
+
+    /**
+     * Merge user-defined MCP servers with extension-managed servers.
+     *
+     * User config goes through the normal enable-filter + variable-expansion
+     * pipeline. Managed servers are added on top — managed keys use the
+     * reserved `_copilotcli_*` namespace, so they don't collide with sane
+     * user configs. As a defense-in-depth measure, managed entries are
+     * applied last and win if a user attempts to inject into the reserved
+     * namespace.
+     */
+    public getMergedMCPServers(
+        userConfig: Record<string, any>,
+        managedConfig: Record<string, any>
+    ): Record<string, any> {
+        const userEnabled = this.getEnabledMCPServers(userConfig);
+        const merged = { ...userEnabled, ...managedConfig };
+        const allKeys = Object.keys(merged);
+        if (allKeys.length > 0) {
+            this.logger.info(`[MCP] All servers passed to SDK: ${allKeys.join(', ')}`);
+        }
+        return merged;
     }
 }
