@@ -303,11 +303,6 @@
           "default": false,
           "description": "Automatically enable plan mode when starting a new session. Has no effect on resumed sessions."
         },
-        "copilotCLI.enablePlaywrightMcp": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Provide the agent with a built-in browser via [@playwright/mcp](https://github.com/microsoft/playwright-mcp). When enabled, the agent can navigate, screenshot, click, and inspect web pages on its own (e.g. *“open localhost:3000 and verify the login form renders”*).\n\nFirst use will download Chromium (~150 MB). Disable to opt out — your own `playwright` entry in `copilotCLI.mcpServers` is unaffected either way (managed entries live in a reserved namespace)."
-        },
         "copilotCLI.mcpServers": {
           "type": "object",
           "default": {},

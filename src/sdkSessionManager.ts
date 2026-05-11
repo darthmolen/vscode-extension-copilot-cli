@@ -1093,10 +1093,20 @@ export class SDKSessionManager implements vscode.Disposable {
         return [];
     }
 
+    // Cache the skill directory scan — resolveSkillDirectories() walks
+    // ~/.claude/plugins/cache synchronously and gets called on every
+    // createSession/resumeSession. The set of installed skill directories
+    // doesn't change during a session, so memoize per SDKSessionManager.
+    private skillDirectoriesCache: string[] | null = null;
+
     private resolveSkillDirectories(): string[] {
+        if (this.skillDirectoriesCache !== null) {
+            return this.skillDirectoriesCache;
+        }
         const additionalDirs = vscode.workspace.getConfiguration('copilotCLI')
             .get<string[]>('additionalSkillDirectories', []);
-        return resolveSkillDirectories(additionalDirs);
+        this.skillDirectoriesCache = resolveSkillDirectories(additionalDirs);
+        return this.skillDirectoriesCache;
     }
     
     private getEnabledMCPServers(): Record<string, any> {

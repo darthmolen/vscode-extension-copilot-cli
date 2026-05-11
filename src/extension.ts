@@ -6,7 +6,6 @@ import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
-import { maybeShowChromiumNotice } from './extension/services/firstRunNotifications';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
 import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
@@ -15,6 +14,7 @@ import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
 
 let sessionManager: SDKSessionManager | null = null;
 let resolvedCli: ResolvedCli | null = null;
+let cliBundleReady: Promise<void> | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
@@ -69,14 +69,12 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register all VS Code commands
 	registerCommands(context);
 
-	// One-time first-run notices (e.g., Chromium download for Playwright MCP)
-	void maybeShowChromiumNotice(context);
-
 	// Resolve / lazy-install the Copilot CLI in the background. The chat provider
 	// renders immediately; once the bundle is ready, capability and the live
-	// MCP list provider are wired in. /mcp before this completes uses the
-	// config-only fallback path.
-	void initCliBundle(context).catch((err) => {
+	// MCP list provider are wired in. startCLISession() awaits this promise so
+	// we never spawn the SDK against the system CLI when a managed bundle is
+	// still resolving (which would reintroduce the SDK↔CLI mismatch).
+	cliBundleReady = initCliBundle(context).catch((err) => {
 		logger.error(`[CLI Bundle] Bootstrap failed: ${err instanceof Error ? err.message : err}`);
 	});
 
@@ -541,6 +539,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 	}
 
 	try {
+		// Wait for the CLI bundle bootstrap so we never spawn the SDK against
+		// the system PATH copilot while a managed/local bundle is still
+		// resolving. Bootstrap failures are already logged; on failure
+		// resolvedCli stays null and SDKSessionManager falls back to PATH.
+		if (cliBundleReady) {
+			await cliBundleReady;
+		}
+
 		const config = getCLIConfig();
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));

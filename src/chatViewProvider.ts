@@ -345,7 +345,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				const knownTools = getBackendState().getMcpServerTools();
 				const knownStatuses = getBackendState().getMcpServerStatuses();
 				const capabilityFlags = {
-					supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? true,
+					supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? false,
 				};
 
 				const servers = buildMcpServerStatusList(allServers, knownTools, knownStatuses, capabilityFlags);

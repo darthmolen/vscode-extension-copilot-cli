@@ -36,28 +36,27 @@ export class MCPStatusPanel {
 	}
 
 	_render() {
-		this.container.innerHTML = '<div class="mcp-status-panel" style="display: none;"></div>';
-		this.panelEl = this.container.querySelector('.mcp-status-panel');
+		this.panelEl = document.createElement('div');
+		this.panelEl.className = 'mcp-status-panel';
+		this.panelEl.style.display = 'none';
+		this.container.replaceChildren(this.panelEl);
 	}
 
 	show(servers) {
+		this.panelEl.replaceChildren();
+		this.panelEl.appendChild(this._buildHeader());
 		if (!servers || servers.length === 0) {
-			this.panelEl.innerHTML = `
-				<div class="mcp-status-header">
-					<span class="mcp-status-title">MCP Servers</span>
-					<button class="mcp-status-close-btn" title="Close">×</button>
-				</div>
-				<div class="mcp-status-empty">No MCP servers configured.</div>
-			`;
+			const empty = document.createElement('div');
+			empty.className = 'mcp-status-empty';
+			empty.textContent = 'No MCP servers configured.';
+			this.panelEl.appendChild(empty);
 		} else {
-			const rows = servers.map(s => this._renderRow(s)).join('');
-			this.panelEl.innerHTML = `
-				<div class="mcp-status-header">
-					<span class="mcp-status-title">MCP Servers</span>
-					<button class="mcp-status-close-btn" title="Close">×</button>
-				</div>
-				<div class="mcp-status-list">${rows}</div>
-			`;
+			const list = document.createElement('div');
+			list.className = 'mcp-status-list';
+			for (const server of servers) {
+				list.appendChild(this._buildRow(server));
+			}
+			this.panelEl.appendChild(list);
 		}
 		this.panelEl.style.display = '';
 		this._attachCloseHandler();
@@ -71,24 +70,61 @@ export class MCPStatusPanel {
 		return this.panelEl.style.display !== 'none';
 	}
 
-	_renderRow(server) {
+	_buildHeader() {
+		const header = document.createElement('div');
+		header.className = 'mcp-status-header';
+
+		const title = document.createElement('span');
+		title.className = 'mcp-status-title';
+		title.textContent = 'MCP Servers';
+		header.appendChild(title);
+
+		const closeBtn = document.createElement('button');
+		closeBtn.className = 'mcp-status-close-btn';
+		closeBtn.title = 'Close';
+		closeBtn.textContent = '×';
+		header.appendChild(closeBtn);
+
+		return header;
+	}
+
+	_buildRow(server) {
 		const icon = STATUS_ICONS[server.status] ?? '🟡';
 		const label = STATUS_LABELS[server.status] ?? server.status;
-		const typeBadgeClass = `mcp-status-type-badge mcp-status-type-badge--${server.type}`;
 		const toolsText = server.status === 'connected' && server.toolCount > 0
 			? `${server.toolCount} tool${server.toolCount !== 1 ? 's' : ''}`
 			: server.error
 				? `error: ${server.error}`
 				: label;
 
-		return `
-			<div class="mcp-status-server-row" data-server="${server.rawKey}">
-				<span class="mcp-status-icon">${icon}</span>
-				<span class="mcp-status-name">${server.name}</span>
-				<span class="${typeBadgeClass}">${server.type}</span>
-				<span class="mcp-status-tools">${toolsText}</span>
-			</div>
-		`;
+		const row = document.createElement('div');
+		row.className = 'mcp-status-server-row';
+		row.dataset.server = server.rawKey ?? '';
+
+		const iconEl = document.createElement('span');
+		iconEl.className = 'mcp-status-icon';
+		if (server.status === 'unknown') {
+			iconEl.classList.add('mcp-status-icon--unknown');
+		}
+		iconEl.textContent = icon;
+		row.appendChild(iconEl);
+
+		const nameEl = document.createElement('span');
+		nameEl.className = 'mcp-status-name';
+		nameEl.textContent = server.name ?? '';
+		row.appendChild(nameEl);
+
+		const badge = document.createElement('span');
+		badge.className = `mcp-status-type-badge mcp-status-type-badge--${server.type ?? ''}`;
+		badge.textContent = server.type ?? '';
+		row.appendChild(badge);
+
+		const tools = document.createElement('span');
+		tools.className = 'mcp-status-tools';
+		tools.textContent = toolsText;
+		row.appendChild(tools);
+
+		return row;
 	}
 
 	_attachCloseHandler() {
