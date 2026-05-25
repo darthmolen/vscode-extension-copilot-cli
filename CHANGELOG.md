@@ -4,6 +4,24 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
+## [3.8.1] - 2026-05-25
+
+### 🐛 Bug Fixes
+
+- **No more `cmd.exe` console window on session start (Windows)** — When the CLI was spawned via `npm-loader.js`, that loader internally `spawnSync`'d the native binary without `windowsHide: true`, producing a persistent console window for the session lifetime; closing it killed the session. The extension now spawns the native CLI binary directly (`@github/copilot-${platform}-${arch}/copilot[.exe]`), which the SDK launches with `windowsHide: true` already applied. No console window at any point.
+
+- **CLI lazy-install now lands on the latest stable, not the prerelease floor (Windows)** — Two compounding Windows-specific issues had pinned the install at the bottom of the SDK's `^1.0.36-0` peer-range:
+  - Prerelease tag in the install spec let npm pick `1.0.36-0` on some setups. The install spec now strips `-N` (`^1.0.36-0` → `^1.0.36`); the managed cache directory key is re-keyed accordingly so old broken installs auto-migrate on next activation.
+  - `spawn('npm', { shell: true })` on Windows routes through `cmd.exe`, which strips `^` as an escape character — collapsing the range to an exact pin to `1.0.36`. The lazy install now spawns `node.exe + npm-cli.js` directly (no shell), bypassing `cmd.exe` entirely.
+
+- **Hybrid CLI spawn — prefer system Node 24+, fall back to native binary** — The Copilot SDK uses `spawn(process.execPath, [cliPath, ...args])` to launch the CLI. In a VS Code extension host, `process.execPath` is `Code.exe` (Electron's bundled Node v22.22.1). On Windows, Electron Node v22's argv serialization through `CreateProcess` differs from system Node v24 enough that the CLI's commander parser sees a phantom positional argument and crashes with *"error: too many arguments. Expected 0 arguments but got 1."* before the JSON-RPC handshake. The extension now detects the system Node version at activation: when Node 24+ is available, it overrides `process.execPath` to that binary so the SDK spawns under it; when absent, it points `cliPath` directly at the native CLI binary (no Node involvement, no argv issue, no console window). The decision rule is cross-platform — POSIX gains the same forward-compat upgrade path for the day GitHub's CLI requires a Node-24-only feature.
+
+- **Clear error when npm is not installed on Windows** — On fresh Windows installs without Node.js, the lazy-install would silently fail with a confusing "CLI not on PATH" error. The extension now detects npm absence at the pre-flight check and surfaces an actionable message in the Output Channel: *"npm is required… Install Node.js 24 or later from https://nodejs.org, then restart VS Code."* The pre-flight uses `shell: true` on Windows so the `npm.cmd` shim is resolvable.
+
+- **`--yolo` still honored when `copilotCLI.yolo: true`** — When the user has `copilotCLI.yolo: true` in VS Code settings (and no explicit `allowTools`/`denyTools` policy), the extension passes `--yolo` to the CLI as a `cliArg`. The SDK's `approveAll` permission handler also wires session-level auto-approve regardless; `--yolo` layers on top.
+
+- **CLI version probe no longer triggers `EFTYPE` on Windows** — Cosmetic. The diagnostic `logCliVersion` call now uses `buildCliSpawnCommand` to invoke `node` for `.js` paths and the binary directly for native executables, matching the SDK's own pattern. Removes a confusing warning from the Output Channel.
+
 ## [3.8.0] - 2026-05-10
 
 ### ✨ Features

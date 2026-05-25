@@ -75,7 +75,9 @@ export function activate(context: vscode.ExtensionContext) {
 	// we never spawn the SDK against the system CLI when a managed bundle is
 	// still resolving (which would reintroduce the SDK↔CLI mismatch).
 	cliBundleReady = initCliBundle(context).catch((err) => {
-		logger.error(`[CLI Bundle] Bootstrap failed: ${err instanceof Error ? err.message : err}`);
+		const msg = err instanceof Error ? err.message : String(err);
+		logger.error(`[CLI Bundle] Bootstrap failed: ${msg}`);
+		void vscode.window.showErrorMessage(`Copilot CLI setup failed: ${msg}`);
 	});
 
 	logger.info('Copilot CLI Extension activated successfully');

@@ -80,6 +80,13 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.8.1 - Windows CLI Bundling Hardened 🐛
+
+- **No more CMD window popup on Windows** — When starting a session, a persistent `cmd.exe` console window used to appear, and closing it would kill the session. The extension now spawns the native CLI binary (`@github/copilot-${platform}-${arch}/copilot.exe`) directly via the SDK's existing `windowsHide: true` spawn — no console window at any point.
+- **Hybrid CLI spawn: prefer system Node 24+, fall back to native binary** — The Copilot SDK uses `spawn(process.execPath, ...)` to launch the CLI. In a VS Code extension host on Windows, that's `Code.exe` (Electron's bundled Node v22.22.1), whose argv serialization through `CreateProcess` differs from system Node v24 enough to make the CLI's commander parser crash with *"Expected 0 arguments but got 1."* The extension now detects the system Node version at activation: when 24+ is available, it overrides `process.execPath` to that binary so the SDK spawns under it; otherwise it points `cliPath` at the native binary (no Node involvement, no argv issue). Cross-platform — POSIX gains the same upgrade path.
+- **CLI lazy-install lands on latest stable on Windows** — Two compounding Windows-specific issues had pinned npm to the floor of the SDK's `^1.0.36-0` peer range. The install spec now strips the `-N` prerelease tag and the lazy-install spawns `node.exe + npm-cli.js` directly (no `cmd.exe`, so `^` isn't escape-stripped). Managed cache dir is re-keyed so older broken installs auto-migrate.
+- **Clear error when npm is missing on Windows** — On fresh Windows installs without Node.js, the lazy CLI install silently failed with a confusing "CLI not on PATH" error. The extension now detects missing npm at the pre-flight check and surfaces an actionable message directing users to install Node.js 24+.
+
 ### v3.8.0 - CLI Bundling, Skill Discovery, /version, /mcp, and View Diff Fix ⌛🐛
 
 - **CLI bundled with the extension** — The extension now lazy-installs a version-pinned Copilot CLI into VS Code's `globalStorage` on first activation. You no longer need a globally-installed `copilot` binary to use this extension. Resolution order: local `node_modules` (dev/F5) → `globalStorage/cli/<peer-range>/` (auto-installed, managed) → system PATH (last resort, with a warning if the version doesn't satisfy the SDK peer requirement). This solves the whole class of failures caused by the system CLI lagging behind what the SDK requires.
