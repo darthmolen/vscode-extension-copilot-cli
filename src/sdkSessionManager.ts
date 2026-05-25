@@ -27,6 +27,9 @@ import {
 } from './sessionErrorUtils';
 import { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';
 import { parseCliVersion } from './utilities/cliVersion';
+import { buildCliSpawnCommand } from './utilities/cliSpawn';
+import { buildCopilotClientOptions } from './utilities/copilotClientOptions';
+import { findSystemNodeRuntime, ensureNodeExecPath } from './extension/services/cliBundleService';
 
 // Re-export so existing callers (tests included) keep working.
 export { parseCliVersion };
@@ -151,7 +154,7 @@ export function resolveCliPath(logger: { info: (msg: string) => void }, configur
     // 3. Resolve 'copilot' from PATH (cross-platform fallback)
     try {
         const cmd = process.platform === 'win32' ? 'where' : 'which';
-        const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000 }).trim();
+        const result = execFileSync(cmd, ['copilot'], { encoding: 'utf-8', timeout: 5000, windowsHide: true }).trim();
         if (result) {
             const resolved = result.split(/\r?\n/)[0];
             logger.info(`Resolved CLI from PATH: ${resolved}`);
@@ -460,12 +463,13 @@ export class SDKSessionManager implements vscode.Disposable {
      */
     private logCliVersion(cliPath: string): void {
         try {
-            const output = execFileSync(cliPath, ['--version', '--no-auto-update'], { encoding: 'utf-8', timeout: 5000 }).trim();
+            const { command, args: prefix } = buildCliSpawnCommand(cliPath);
+            const output = execFileSync(command, [...prefix, '--version', '--no-auto-update'], { encoding: 'utf-8', timeout: 5000, windowsHide: true }).trim();
             const version = parseCliVersion(output);
             if (version) {
                 this.logger.info(`CLI version with --no-auto-update: ${version}`);
             }
-            const output2 = execFileSync(cliPath, ["--version"], { encoding: 'utf-8', timeout: 5000 }).trim();
+            const output2 = execFileSync(command, [...prefix, '--version'], { encoding: 'utf-8', timeout: 5000, windowsHide: true }).trim();
             const version2 = parseCliVersion(output2);
             if (version2) {
                 this.logger.info(`CLI version without --no-auto-update: ${version2}`);
@@ -484,6 +488,13 @@ export class SDKSessionManager implements vscode.Disposable {
             if (this.injectedCliPath) {
                 this.logger.info(`Using injected CLI path: ${cliPath}`);
             }
+
+            // Override process.execPath BEFORE logCliVersion(): the version probe
+            // spawns `process.execPath cliPath --version` for .js entrypoints, and
+            // if we don't override first, that probe runs under Electron's Node
+            // and could reproduce the very Windows argv bug this PR fixes.
+            ensureNodeExecPath(findSystemNodeRuntime(), this.logger);
+
             this.logCliVersion(cliPath);
 
             // Load SDK dynamically
@@ -494,16 +505,7 @@ export class SDKSessionManager implements vscode.Disposable {
             const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
             const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
             const useYolo = yolo && !hasToolPolicy;
-
-            this.client = new CopilotClient({
-                logLevel: 'info',
-                cliPath,
-                cliArgs: [
-                    ...(useYolo ? ['--yolo'] : []),
-                ],
-                cwd: this.workingDirectory,
-                autoStart: true,
-            });
+            this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
 
             this.logger.info('CopilotClient created, initializing session...');
 
@@ -1561,15 +1563,7 @@ export class SDKSessionManager implements vscode.Disposable {
         const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
         const useYolo = yolo && !hasToolPolicy;
 
-        this.client = new CopilotClient({
-            logLevel: 'info',
-            cliPath,
-            cliArgs: [
-                ...(useYolo ? ['--yolo'] : []),
-            ],
-            cwd: this.workingDirectory,
-            autoStart: true,
-        });
+        this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
 
         this.modelCapabilitiesService.clearCache();
         await this.modelCapabilitiesService.initialize(this.client);

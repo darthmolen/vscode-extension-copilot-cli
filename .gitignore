@@ -29,3 +29,4 @@ __pycache__/
 # Playwright MCP artifacts
 .playwright-mcp/
 example-test.png
+.claude/scheduled_tasks.lock
