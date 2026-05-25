@@ -488,9 +488,14 @@ export class SDKSessionManager implements vscode.Disposable {
             if (this.injectedCliPath) {
                 this.logger.info(`Using injected CLI path: ${cliPath}`);
             }
-            this.logCliVersion(cliPath);
 
+            // Override process.execPath BEFORE logCliVersion(): the version probe
+            // spawns `process.execPath cliPath --version` for .js entrypoints, and
+            // if we don't override first, that probe runs under Electron's Node
+            // and could reproduce the very Windows argv bug this PR fixes.
             ensureNodeExecPath(findSystemNodeRuntime(), this.logger);
+
+            this.logCliVersion(cliPath);
 
             // Load SDK dynamically
             if (!this.sdkLoaded) {
