@@ -72,6 +72,24 @@ export class MCPConfigurationService {
     }
 
     /**
+     * Get ALL user MCP servers for the /mcp panel — including disabled ones,
+     * with the `enabled` flag preserved so the panel can render the toggle and
+     * let the user re-enable/edit them. Variables are expanded for display.
+     *
+     * This is distinct from getEnabledMCPServers (which filters disabled and
+     * strips `enabled` for the SDK feed). Display must show everything.
+     */
+    public getMCPServersForDisplay(mcpConfig: Record<string, any>): Record<string, any> {
+        const display: Record<string, any> = {};
+        for (const [name, config] of Object.entries(mcpConfig)) {
+            if (config && typeof config === 'object') {
+                display[name] = this.expandVariables(config);
+            }
+        }
+        return display;
+    }
+
+    /**
      * Merge user-defined MCP servers with extension-managed servers.
      *
      * User config goes through the normal enable-filter + variable-expansion

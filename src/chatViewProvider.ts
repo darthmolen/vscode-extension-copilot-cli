@@ -24,6 +24,7 @@ import {
 	editMcpServerInConfig,
 	removeMcpServerFromConfig,
 	setMcpServerEnabled,
+	preserveEnabledFlag,
 	McpServerInput,
 } from './extension/services/mcpServerMutations';
 import * as fs from 'fs';
@@ -137,15 +138,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			const userConfig = vscode.workspace.getConfiguration('copilotCLI')
 				.get<Record<string, any>>('mcpServers', {});
 			const managedServers = mcpRegistry.getManagedServers();
-			const userEnabled = this.mcpConfigService!.getEnabledMCPServers(userConfig);
+			// Display set includes DISABLED user servers (with `enabled` preserved)
+			// so they remain visible/re-enableable — unlike the SDK feed, which
+			// filters them. See getMCPServersForDisplay vs getEnabledMCPServers.
+			const userDisplay = this.mcpConfigService!.getMCPServersForDisplay(userConfig);
 			const imported = this.importedServersProvider?.() ?? {};
-			// Precedence for what we feed/display: imported < user < managed.
-			const allServers = { ...imported, ...userEnabled, ...managedServers };
+			// Precedence for display: imported < user < managed.
+			const allServers = { ...imported, ...userDisplay, ...managedServers };
 
 			// A key is "imported" only when it isn't shadowed by a user or managed entry.
 			const sources: Record<string, McpServerSource> = {};
 			for (const key of Object.keys(imported)) {
-				if (!(key in userEnabled) && !(key in managedServers)) {
+				if (!(key in userDisplay) && !(key in managedServers)) {
 					sources[key] = 'imported';
 				}
 			}
@@ -194,7 +198,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	 * writes — managed/imported/Copilot servers are never mutated here.
 	 */
 	private async handleMcpServerAction(payload: McpServerActionPayload): Promise<void> {
-		const { action, name, config, enabled, originalName } = payload;
+		const { action, config, enabled } = payload;
+		// Normalize names once (validation trims internally; the persisted key must
+		// match the validated name, not a whitespace-padded raw payload value).
+		const name = (payload.name ?? '').trim();
+		const originalName = payload.originalName?.trim();
 		this.logger.info(`[MCP] server action: ${action} "${name}"`);
 		try {
 			const cfg = vscode.workspace.getConfiguration('copilotCLI');
@@ -217,8 +225,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 					this.rpcRouter!.sendMcpServerActionResult({ success: false, action, name, errors: validation.errors });
 					return;
 				}
+				// Preserve the prior enabled state (the form has no enabled field, so
+				// editing/renaming a disabled server must not silently re-enable it).
+				const merged = preserveEnabledFlag(current[prevName], config ?? {});
 				// Support rename: drop the old key, then write the new one.
-				next = editMcpServerInConfig(removeMcpServerFromConfig(current, prevName), name, config ?? {});
+				next = editMcpServerInConfig(removeMcpServerFromConfig(current, prevName), name, merged);
 			} else if (action === 'remove') {
 				next = removeMcpServerFromConfig(current, name);
 			} else { // setEnabled

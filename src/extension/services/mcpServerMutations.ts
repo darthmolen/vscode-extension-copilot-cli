@@ -94,6 +94,21 @@ export function setMcpServerEnabled(
     return { ...currentConfig, [name]: { ...currentConfig[name], enabled } };
 }
 
+/**
+ * Carry the `enabled` flag from a previous entry onto a replacement config when
+ * the replacement doesn't set it. The edit form has no enabled field, so editing
+ * (or renaming) a disabled server must not silently re-enable it.
+ */
+export function preserveEnabledFlag(
+    prevConfig: Record<string, any> | undefined,
+    newConfig: Record<string, any>
+): Record<string, any> {
+    if (prevConfig && prevConfig.enabled !== undefined && newConfig.enabled === undefined) {
+        return { ...newConfig, enabled: prevConfig.enabled };
+    }
+    return newConfig;
+}
+
 /** Return a new config with the entry at `name` replaced by `serverConfig`. */
 export function editMcpServerInConfig(
     currentConfig: Record<string, any>,

@@ -164,4 +164,19 @@ describe('MCPConfigurationService.getMergedMCPServers', function () {
             assert.ok(result.a, 'existing two-arg behavior unchanged');
         });
     });
+
+    describe('getMCPServersForDisplay (panel — keeps disabled)', () => {
+        it('includes disabled servers so they can be re-enabled/edited', () => {
+            const cfg = { a: { command: 'a', enabled: false }, b: { command: 'b' } };
+            const result = service.getMCPServersForDisplay(cfg);
+            assert.ok(result.a, 'disabled server still present in display set');
+            assert.strictEqual(result.a.enabled, false, 'enabled flag preserved for the toggle');
+            assert.ok(result.b, 'enabled server present');
+        });
+
+        it('expands ${workspaceFolder} for display', () => {
+            const result = service.getMCPServersForDisplay({ a: { command: '${workspaceFolder}/x' } });
+            assert.strictEqual(result.a.command, '/home/user/workspace/x');
+        });
+    });
 });

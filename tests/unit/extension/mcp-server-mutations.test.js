@@ -8,7 +8,7 @@
 
 const { expect } = require('chai');
 
-let addMcpServerToConfig, removeMcpServerFromConfig, setMcpServerEnabled, editMcpServerInConfig;
+let addMcpServerToConfig, removeMcpServerFromConfig, setMcpServerEnabled, editMcpServerInConfig, preserveEnabledFlag;
 
 before(function () {
     const mod = require('../../../out/extension/services/mcpServerMutations.js');
@@ -16,6 +16,29 @@ before(function () {
     removeMcpServerFromConfig = mod.removeMcpServerFromConfig;
     setMcpServerEnabled = mod.setMcpServerEnabled;
     editMcpServerInConfig = mod.editMcpServerInConfig;
+    preserveEnabledFlag = mod.preserveEnabledFlag;
+});
+
+describe('preserveEnabledFlag', () => {
+    it('carries enabled:false from the previous entry when the new config omits it', () => {
+        expect(preserveEnabledFlag({ command: 'x', enabled: false }, { command: 'y' }))
+            .to.deep.equal({ command: 'y', enabled: false });
+    });
+
+    it('does not override an explicit enabled in the new config', () => {
+        expect(preserveEnabledFlag({ command: 'x', enabled: false }, { command: 'y', enabled: true }))
+            .to.deep.equal({ command: 'y', enabled: true });
+    });
+
+    it('is a no-op when the previous entry has no enabled flag', () => {
+        expect(preserveEnabledFlag({ command: 'x' }, { command: 'y' }))
+            .to.deep.equal({ command: 'y' });
+    });
+
+    it('handles a missing previous entry', () => {
+        expect(preserveEnabledFlag(undefined, { command: 'y' }))
+            .to.deep.equal({ command: 'y' });
+    });
 });
 
 describe('addMcpServerToConfig', () => {

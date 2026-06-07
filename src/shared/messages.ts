@@ -734,10 +734,11 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'getCustomAgents',
 		'saveCustomAgent',
 		'deleteCustomAgent',
+		'mcpServerAction',
 		'selectAgent',
 		'agentsPanelClosed'
 	];
-	
+
 	return validTypes.includes(message.type as WebviewMessageType);
 }
 
@@ -773,7 +774,8 @@ export const EXTENSION_MESSAGE_TYPES: ExtensionMessageType[] = [
 	'reasoningDelta',
 	'customAgentsChanged',
 	'activeAgentChanged',
-	'mcpStatus'
+	'mcpStatus',
+	'mcpServerActionResult'
 ];
 
 export function isExtensionMessage(message: any): message is ExtensionMessage {
