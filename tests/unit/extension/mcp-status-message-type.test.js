@@ -1,7 +1,7 @@
 const { describe, it } = require('mocha');
 const assert = require('assert');
 
-const { EXTENSION_MESSAGE_TYPES, MCP_SERVER_STATUSES } = require('../../../out/shared/messages');
+const { EXTENSION_MESSAGE_TYPES, MCP_SERVER_STATUSES, isWebviewMessage, isExtensionMessage } = require('../../../out/shared/messages');
 
 describe('mcpStatus message type registration', () => {
     it('mcpStatus is a registered extension message type', () => {
@@ -9,6 +9,16 @@ describe('mcpStatus message type registration', () => {
             EXTENSION_MESSAGE_TYPES.includes('mcpStatus'),
             `mcpStatus must be in EXTENSION_MESSAGE_TYPES, got: [${EXTENSION_MESSAGE_TYPES.join(', ')}]`
         );
+    });
+});
+
+describe('MCP server action message guards', () => {
+    it('isWebviewMessage accepts mcpServerAction', () => {
+        assert.strictEqual(isWebviewMessage({ type: 'mcpServerAction', action: 'add', name: 'x' }), true);
+    });
+
+    it('isExtensionMessage accepts mcpServerActionResult', () => {
+        assert.strictEqual(isExtensionMessage({ type: 'mcpServerActionResult', success: true, action: 'add', name: 'x' }), true);
     });
 });
 

@@ -16,7 +16,17 @@ import { resolveImagePaths } from './extension/utils/resolveImagePaths';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CliCapabilityService } from './extension/services/cliCapabilityService';
-import { buildMcpServerStatusList, mergeMcpListWithConfig } from './extension/services/mcpStatusBuilder';
+import { buildMcpServerStatusList, mergeMcpListWithConfig, mergeCopilotConfigList } from './extension/services/mcpStatusBuilder';
+import type { McpServerSource, McpServerActionPayload } from './shared/messages';
+import {
+	validateMcpServerInput,
+	addMcpServerToConfig,
+	editMcpServerInConfig,
+	removeMcpServerFromConfig,
+	setMcpServerEnabled,
+	preserveEnabledFlag,
+	McpServerInput,
+} from './extension/services/mcpServerMutations';
 import * as fs from 'fs';
 
 declare const __SDK_VERSION__: string | undefined;
@@ -71,6 +81,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	private cliCapability: CliCapabilityService | null = null;
 	private mcpListProvider: (() => Promise<any[]>) | null = null;
+	private importedServersProvider: (() => Record<string, any>) | null = null;
+	private mcpConfigListProvider: (() => Promise<Record<string, any>>) | null = null;
 
 	constructor(
 		extensionUri: vscode.Uri,
@@ -89,6 +101,148 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public setMcpListProvider(provider: () => Promise<any[]>): void {
 		this.mcpListProvider = provider;
+	}
+
+	public setImportedServersProvider(provider: () => Record<string, any>): void {
+		this.importedServersProvider = provider;
+	}
+
+	public setMcpConfigListProvider(provider: () => Promise<Record<string, any>>): void {
+		this.mcpConfigListProvider = provider;
+	}
+
+	/**
+	 * Read-only fetch of the Copilot CLI's own configured MCP servers. Returns
+	 * {} when the capability is unavailable or the RPC fails — the panel simply
+	 * omits the Copilot section rather than erroring.
+	 */
+	private async fetchCopilotConfiguredServers(): Promise<Record<string, any>> {
+		if (!this.cliCapability?.supportsMcpConfigRpc() || !this.mcpConfigListProvider) {
+			return {};
+		}
+		try {
+			return await this.mcpConfigListProvider();
+		} catch (err: any) {
+			this.logger.warn(`[MCP] mcp.config.list RPC failed: ${err?.message ?? err}`);
+			return {};
+		}
+	}
+
+	/**
+	 * Build the full /mcp panel server list (user + managed + imported + Copilot
+	 * config) and push it to the webview. Used by /mcp and to refresh after edits.
+	 */
+	private async buildAndSendMcpStatus(): Promise<void> {
+		try {
+			const mcpRegistry = new ManagedMCPRegistry();
+			const userConfig = vscode.workspace.getConfiguration('copilotCLI')
+				.get<Record<string, any>>('mcpServers', {});
+			const managedServers = mcpRegistry.getManagedServers();
+			// Display set includes DISABLED user servers (with `enabled` preserved)
+			// so they remain visible/re-enableable — unlike the SDK feed, which
+			// filters them. See getMCPServersForDisplay vs getEnabledMCPServers.
+			const userDisplay = this.mcpConfigService!.getMCPServersForDisplay(userConfig);
+			const imported = this.importedServersProvider?.() ?? {};
+			// Precedence for display: imported < user < managed.
+			const allServers = { ...imported, ...userDisplay, ...managedServers };
+
+			// A key is "imported" only when it isn't shadowed by a user or managed entry.
+			const sources: Record<string, McpServerSource> = {};
+			for (const key of Object.keys(imported)) {
+				if (!(key in userDisplay) && !(key in managedServers)) {
+					sources[key] = 'imported';
+				}
+			}
+
+			// Read-only view of the Copilot CLI's own configured servers.
+			const copilotServers = await this.fetchCopilotConfiguredServers();
+
+			if (this.cliCapability?.supportsMcpListRpc() && this.mcpListProvider) {
+				try {
+					const sdkList = await this.mcpListProvider();
+					this.logger.debug(`[MCP] Raw SDK list: ${JSON.stringify(sdkList).substring(0, 300)}`);
+					const servers = mergeCopilotConfigList(
+						mergeMcpListWithConfig(allServers, sdkList, sources),
+						copilotServers
+					);
+					this.logger.info(`[MCP] Sending mcpStatus (live): ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
+					this.rpcRouter!.sendMcpStatus(servers);
+					return;
+				} catch (rpcErr: any) {
+					this.logger.warn(`[MCP] mcp.list RPC failed, falling back to config view: ${rpcErr.message}`);
+				}
+			}
+
+			const knownTools = getBackendState().getMcpServerTools();
+			const knownStatuses = getBackendState().getMcpServerStatuses();
+			const capabilityFlags = {
+				supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? false,
+			};
+
+			const servers = mergeCopilotConfigList(
+				buildMcpServerStatusList(allServers, knownTools, knownStatuses, capabilityFlags, sources),
+				copilotServers
+			);
+
+			this.logger.info(`[MCP] Sending mcpStatus: ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
+			this.rpcRouter!.sendMcpStatus(servers);
+		} catch (err: any) {
+			this.logger.error(`[MCP] Failed to build server status: ${err.message}`);
+			this.rpcRouter!.sendMcpStatus([]);
+		}
+	}
+
+	/**
+	 * Apply an add/edit/remove/setEnabled action to the extension's own
+	 * `copilotCLI.mcpServers` setting. This is the ONLY MCP config the extension
+	 * writes — managed/imported/Copilot servers are never mutated here.
+	 */
+	private async handleMcpServerAction(payload: McpServerActionPayload): Promise<void> {
+		const { action, config, enabled } = payload;
+		// Normalize names once (validation trims internally; the persisted key must
+		// match the validated name, not a whitespace-padded raw payload value).
+		const name = (payload.name ?? '').trim();
+		const originalName = payload.originalName?.trim();
+		this.logger.info(`[MCP] server action: ${action} "${name}"`);
+		try {
+			const cfg = vscode.workspace.getConfiguration('copilotCLI');
+			const current = cfg.get<Record<string, any>>('mcpServers', {});
+			let next: Record<string, any>;
+
+			if (action === 'add') {
+				const existing = Object.keys(current);
+				const validation = validateMcpServerInput({ name, ...(config ?? {}) } as McpServerInput, existing);
+				if (!validation.valid) {
+					this.rpcRouter!.sendMcpServerActionResult({ success: false, action, name, errors: validation.errors });
+					return;
+				}
+				next = addMcpServerToConfig(current, name, config ?? {});
+			} else if (action === 'edit') {
+				const prevName = originalName ?? name;
+				const existing = Object.keys(current).filter(k => k !== prevName);
+				const validation = validateMcpServerInput({ name, ...(config ?? {}) } as McpServerInput, existing);
+				if (!validation.valid) {
+					this.rpcRouter!.sendMcpServerActionResult({ success: false, action, name, errors: validation.errors });
+					return;
+				}
+				// Preserve the prior enabled state (the form has no enabled field, so
+				// editing/renaming a disabled server must not silently re-enable it).
+				const merged = preserveEnabledFlag(current[prevName], config ?? {});
+				// Support rename: drop the old key, then write the new one.
+				next = editMcpServerInConfig(removeMcpServerFromConfig(current, prevName), name, merged);
+			} else if (action === 'remove') {
+				next = removeMcpServerFromConfig(current, name);
+			} else { // setEnabled
+				next = setMcpServerEnabled(current, name, enabled ?? true);
+			}
+
+			await cfg.update('mcpServers', next, vscode.ConfigurationTarget.Global);
+			this.rpcRouter!.sendMcpServerActionResult({ success: true, action, name });
+			await this.buildAndSendMcpStatus();
+		} catch (err: any) {
+			this.logger.error(`[MCP] server action failed: ${err?.message ?? err}`);
+			this.rpcRouter!.sendMcpServerActionResult({ success: false, action, name, errors: [String(err?.message ?? err)] });
+		}
 	}
 
 	public getCliCapability(): CliCapabilityService | null {
@@ -321,41 +475,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 		this._reg(this.rpcRouter.onShowMcpConfig(async () => {
 			this.logger.info('[MCP] /mcp command received — building server status');
-			try {
-				const mcpRegistry = new ManagedMCPRegistry();
-				const userConfig = vscode.workspace.getConfiguration('copilotCLI')
-					.get<Record<string, any>>('mcpServers', {});
-				const managedServers = mcpRegistry.getManagedServers();
-				const userEnabled = this.mcpConfigService!.getEnabledMCPServers(userConfig);
-				const allServers = { ...userEnabled, ...managedServers };
+			await this.buildAndSendMcpStatus();
+		}));
 
-				if (this.cliCapability?.supportsMcpListRpc() && this.mcpListProvider) {
-					try {
-						const sdkList = await this.mcpListProvider();
-						this.logger.debug(`[MCP] Raw SDK list: ${JSON.stringify(sdkList).substring(0, 300)}`);
-						const servers = mergeMcpListWithConfig(allServers, sdkList);
-						this.logger.info(`[MCP] Sending mcpStatus (live): ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
-						this.rpcRouter!.sendMcpStatus(servers);
-						return;
-					} catch (rpcErr: any) {
-						this.logger.warn(`[MCP] mcp.list RPC failed, falling back to config view: ${rpcErr.message}`);
-					}
-				}
-
-				const knownTools = getBackendState().getMcpServerTools();
-				const knownStatuses = getBackendState().getMcpServerStatuses();
-				const capabilityFlags = {
-					supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? false,
-				};
-
-				const servers = buildMcpServerStatusList(allServers, knownTools, knownStatuses, capabilityFlags);
-
-				this.logger.info(`[MCP] Sending mcpStatus: ${servers.map(s => `${s.name}=${s.status}`).join(', ')}`);
-				this.rpcRouter!.sendMcpStatus(servers);
-			} catch (err: any) {
-				this.logger.error(`[MCP] Failed to build server status: ${err.message}`);
-				this.rpcRouter!.sendMcpStatus([]);
-			}
+		this._reg(this.rpcRouter.onMcpServerAction(async (payload) => {
+			await this.handleMcpServerAction(payload);
 		}));
 
 		this._reg(this.rpcRouter.onShowUsageMetrics(async () => {

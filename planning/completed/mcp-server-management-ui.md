@@ -1,6 +1,6 @@
 # MCP Server Management UI
 
-**Status**: Backlog  
+**Status**: ✅ Core delivered in v3.9.0  
 **Priority**: Medium  
 **Estimated Effort**: 3-5 days  
 **Dependencies**: V2.0 MCP config passthrough
@@ -9,7 +9,23 @@
 
 Build a visual UI for managing MCP (Model Context Protocol) servers in VS Code, making it easy for users to discover, configure, and manage MCP servers without editing JSON settings.
 
-## Current State (V2.0)
+## ✅ Delivered in v3.9.0
+
+The core management UI shipped in the existing `/mcp` slide-in panel:
+
+- **Visibility across every source** — the panel lists servers with a source badge: `user` (`copilotCLI.mcpServers`), `managed` (bundled), `imported` (VS Code's native `.vscode/mcp.json` + user `mcp.json`), and `copilot` (Copilot CLI's own config, read via `mcp.config.list`). Read-only sources show a 🔒.
+- **Import VS Code's native servers** into sessions, translated to SDK shape; gated by `copilotCLI.importVSCodeMcpServers`.
+- **Add / edit / remove / enable-disable** from an inline form (args one-per-line or comma-separated).
+- **Validation** of name/type/required fields, enforced both in the form and the extension handler.
+- **Status indicators** (🟢 connected · 🟡 configured · 🔴 failed · ⏳ connecting · ⚪ unknown).
+
+**Boundary:** writes only ever touch this extension's own `copilotCLI.mcpServers`; VS Code's and Copilot's configs are never mutated (Copilot/imported/managed rows are read-only).
+
+**Deferred (future enhancements, not implemented):** server templates (Feature 2), "Test connection" button, the diagnostics/logs panel (Feature 4), and MCP Registry browse/install (Feature 5).
+
+The original proposal below is retained for historical context.
+
+## Current State (V3.0)
 
 ✅ **What Works**:
 - MCP servers configurable via `copilotCLI.mcpServers` setting
@@ -31,7 +47,7 @@ Build a visual UI for managing MCP (Model Context Protocol) servers in VS Code, 
 **Location**: VS Code sidebar panel or settings UI
 
 **Features**:
-- List all configured MCP servers with status (enabled/disabled)
+- List all configured MCP servers with status (enabled/disabled) (completed)
 - Add new server button → wizard/form
 - Edit/delete existing servers
 - Enable/disable toggle per server
@@ -267,15 +283,15 @@ async function testMCPServer(config: MCPServerConfig): Promise<TestResult> {
 
 ## Acceptance Criteria
 
-- [ ] UI panel shows all configured MCP servers
-- [ ] Can add server via template or custom config
-- [ ] Can edit/delete/enable/disable servers
-- [ ] Can test server connection before saving
-- [ ] Can import from CLI config file
-- [ ] Server status shown with visual indicators
-- [ ] Form validation prevents invalid configs
-- [ ] Documentation updated with UI screenshots
-- [ ] E2E tests for add/edit/delete flows
+- [x] UI panel shows all configured MCP servers
+- [x] Can add server via custom config (templates deferred)
+- [x] Can edit/delete/enable/disable servers
+- [ ] Can test server connection before saving (deferred)
+- [x] Can surface servers from the CLI config (read-only via `mcp.config.list`)
+- [x] Server status shown with visual indicators
+- [x] Form validation prevents invalid configs
+- [ ] Documentation updated with UI screenshots (README/CHANGELOG updated; screenshots pending)
+- [x] Unit tests (pure logic + JSDOM panel) for add/edit/remove/enable flows
 
 ## Future Enhancements
 

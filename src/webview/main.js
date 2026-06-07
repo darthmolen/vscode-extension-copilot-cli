@@ -186,6 +186,17 @@ rpc.onMcpStatus((msg) => {
 	inputArea.showMcpStatus(msg.servers ?? []);
 });
 
+// Panel add/edit/remove/enable → extension (writes copilotCLI.mcpServers only)
+inputArea.mcpStatusPanel.onAction = (payload) => {
+	console.log('[MCP] server action:', payload.action, payload.name);
+	rpc.mcpServerAction(payload);
+};
+
+// Action result → surface validation/save errors in the form (success refreshes via mcpStatus)
+rpc.onMcpServerActionResult((msg) => {
+	inputArea.mcpStatusPanel.handleActionResult(msg);
+});
+
 eventBus.on('showUsageMetrics', () => {
 	console.log('[Slash Command] Show usage metrics (/usage)');
 	rpc.showUsageMetrics();

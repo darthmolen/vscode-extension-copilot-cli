@@ -80,6 +80,13 @@ Agents use Markdown frontmatter for configuration — name, description, allowed
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+### v3.9.0 - MCP Server Management 🧩
+
+- **See every MCP server, from every source** — The `/mcp` panel now lists servers from all four sources, each with a badge: `user` (your `copilotCLI.mcpServers` setting), `managed` (bundled by the extension), `imported` (VS Code's native config), and `copilot` (the Copilot CLI's own config). Read-only sources are marked with a 🔒.
+- **Import VS Code's native MCP servers** — Servers configured in VS Code's `.vscode/mcp.json` (workspace) and your user-profile `mcp.json` are loaded into Copilot CLI sessions automatically, translated into the SDK's config shape (`cwd` → `workingDirectory`, `${workspaceFolder}` expanded). Servers that depend on `${input:...}` prompts are skipped. Toggle with the new `copilotCLI.importVSCodeMcpServers` setting (default on); your `copilotCLI.mcpServers` entries win on a name collision.
+- **Manage servers from the panel** — Add, edit, remove, and enable/disable servers directly in the `/mcp` panel via an inline form — no more hand-editing JSON. The Arguments field accepts one-per-line or comma-separated values. Writes only ever touch your own `copilotCLI.mcpServers` setting; VS Code's and Copilot's configs are never modified.
+- **Panel placement** — The `/mcp` panel now slides in above the full input area (active file, model selector, and metrics included).
+
 ### v3.8.1 - Windows CLI Bundling Hardened 🐛
 
 - **No more CMD window popup on Windows** — When starting a session, a persistent `cmd.exe` console window used to appear, and closing it would kill the session. The extension now uses a hybrid spawn strategy: when system Node 24+ is available, it spawns the pure-Node entrypoint (`index.js`) under the system `node.exe`; otherwise it points `cliPath` at the native CLI binary (`@github/copilot-${platform}-${arch}/copilot.exe`) directly. Both paths use the SDK's `windowsHide: true` — neither produces a console window. See the hybrid-spawn bullet below for the decision rule.

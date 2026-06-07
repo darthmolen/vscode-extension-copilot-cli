@@ -320,6 +320,14 @@ class WebviewRpcClient {
 		this._send({ type: 'deleteCustomAgent', name });
 	}
 
+	/**
+	 * Add/edit/remove/enable an MCP server in the extension's own setting.
+	 * @param {Object} payload - { action, name, config?, enabled?, originalName? }
+	 */
+	mcpServerAction(payload) {
+		this._send({ type: 'mcpServerAction', ...payload });
+	}
+
 	selectAgent(name) {
 		this._send({ type: 'selectAgent', name });
 	}
@@ -600,6 +608,15 @@ class WebviewRpcClient {
 	 */
 	onMcpStatus(handler) {
 		return this._registerHandler('mcpStatus', handler);
+	}
+
+	/**
+	 * Register handler for mcpServerActionResult (add/edit/remove/enable result)
+	 * @param {Function} handler
+	 * @returns {{dispose: Function}}
+	 */
+	onMcpServerActionResult(handler) {
+		return this._registerHandler('mcpServerActionResult', handler);
 	}
 
 	// ========================================================================

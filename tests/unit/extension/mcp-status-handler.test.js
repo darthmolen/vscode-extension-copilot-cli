@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { buildMcpServerStatusList, mergeMcpListWithConfig } = require('../../../out/extension/services/mcpStatusBuilder');
+const { buildMcpServerStatusList, mergeMcpListWithConfig, mergeCopilotConfigList } = require('../../../out/extension/services/mcpStatusBuilder');
 
 const ALL_SERVERS = {
     '_copilotcli_playwright': { command: 'npx', args: ['-y', '@playwright/mcp@0.0.74'] },
@@ -51,6 +51,80 @@ describe('buildMcpServerStatusList — fallback when status events unsupported',
         const playwright = servers.find(s => s.name === 'playwright');
         assert.strictEqual(playwright.status, 'connected');
         assert.strictEqual(playwright.toolCount, 2);
+    });
+});
+
+describe('mergeCopilotConfigList — read-only servers from mcp.config.list', () => {
+    const baseList = [
+        { name: 'hello-mcp', rawKey: 'hello-mcp', type: 'user', status: 'connected', toolCount: 1, tools: ['ping'] },
+    ];
+
+    it('appends a copilot-source row for a server only in Copilot config', () => {
+        const copilotServers = { github: { type: 'http', url: 'https://api.githubcopilot.com/mcp' } };
+        const result = mergeCopilotConfigList(baseList, copilotServers);
+        const gh = result.find(s => s.name === 'github');
+        assert.ok(gh, 'github row appended');
+        assert.strictEqual(gh.type, 'copilot');
+    });
+
+    it('does not duplicate a server already present in the list', () => {
+        const copilotServers = { 'hello-mcp': { command: 'x' } };
+        const result = mergeCopilotConfigList(baseList, copilotServers);
+        const helloRows = result.filter(s => s.name === 'hello-mcp');
+        assert.strictEqual(helloRows.length, 1, 'no duplicate row');
+        assert.strictEqual(helloRows[0].type, 'user', 'existing row unchanged');
+    });
+
+    it('returns the list unchanged when copilot servers is empty or undefined', () => {
+        assert.deepStrictEqual(mergeCopilotConfigList(baseList, {}), baseList);
+        assert.deepStrictEqual(mergeCopilotConfigList(baseList, undefined), baseList);
+    });
+});
+
+describe('config passthrough (for the edit form)', () => {
+    const capability = { supportsMcpStatusEvents: () => true };
+
+    it('buildMcpServerStatusList includes the raw server config on each row', () => {
+        const servers = buildMcpServerStatusList(ALL_SERVERS, {}, {}, capability, {});
+        const hello = servers.find(s => s.rawKey === 'hello-mcp');
+        assert.deepStrictEqual(hello.config, ALL_SERVERS['hello-mcp']);
+    });
+
+    it('mergeMcpListWithConfig includes the raw server config on each row', () => {
+        const result = mergeMcpListWithConfig(ALL_SERVERS, [], {});
+        const hello = result.find(s => s.rawKey === 'hello-mcp');
+        assert.deepStrictEqual(hello.config, ALL_SERVERS['hello-mcp']);
+    });
+});
+
+describe('source classification (user / imported / managed)', () => {
+    const capability = { supportsMcpStatusEvents: () => true };
+
+    it('buildMcpServerStatusList marks a key listed in sources as imported', () => {
+        const sources = { 'hello-mcp': 'imported' };
+        const servers = buildMcpServerStatusList(ALL_SERVERS, {}, {}, capability, sources);
+        const hello = servers.find(s => s.rawKey === 'hello-mcp');
+        assert.strictEqual(hello.type, 'imported');
+    });
+
+    it('buildMcpServerStatusList defaults an unlisted non-managed key to user', () => {
+        const servers = buildMcpServerStatusList(ALL_SERVERS, {}, {}, capability, {});
+        const hello = servers.find(s => s.rawKey === 'hello-mcp');
+        assert.strictEqual(hello.type, 'user');
+    });
+
+    it('buildMcpServerStatusList keeps managed prefix as managed even if sources says otherwise', () => {
+        const sources = { '_copilotcli_playwright': 'imported' };
+        const servers = buildMcpServerStatusList(ALL_SERVERS, {}, {}, capability, sources);
+        const pw = servers.find(s => s.rawKey === '_copilotcli_playwright');
+        assert.strictEqual(pw.type, 'managed');
+    });
+
+    it('mergeMcpListWithConfig marks a key listed in sources as imported', () => {
+        const sources = { 'hello-mcp': 'imported' };
+        const result = mergeMcpListWithConfig(ALL_SERVERS, [], sources);
+        const hello = result.find(s => s.rawKey === 'hello-mcp');
+        assert.strictEqual(hello.type, 'imported');
     });
 });
 

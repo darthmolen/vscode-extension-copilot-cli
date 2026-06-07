@@ -23,11 +23,21 @@ export class ToolExecution {
     }
 
     attachListeners() {
-        // Close current tool group when a new message arrives.
-        // This ensures each assistant response gets its own tool group.
-        // Individual card expand/collapse state is preserved (tracked by collapsedCards Set).
+        // Close current tool group when a new message arrives, so each agent
+        // response gets its own tool group.
+        //
+        // EXCEPTION: an assistant.message carrying tool requests fires an empty
+        // output (content:'') purely to finalize the streaming bubble (see
+        // sdkSessionManager ADR-006). The model emits one such message per tool
+        // batch, so closing on it fragments a single response into ~2-tool
+        // groups with nothing visible between them. Only close on a message that
+        // carries real content (or any user message — always a turn boundary).
         this.eventBus.on('message:add', (message) => {
-            if (message.role === 'user' || message.role === 'assistant' || message.role === 'reasoning') {
+            const hasContent = typeof message.content === 'string'
+                ? message.content.trim().length > 0
+                : !!message.content;
+            const isResponse = (message.role === 'assistant' || message.role === 'reasoning') && hasContent;
+            if (message.role === 'user' || isResponse) {
                 this.closeCurrentToolGroup();
             }
         });

@@ -44,6 +44,8 @@ import {
 	ShowPlanContentPayload,
 	OpenDiffViewPayload,
 	ShowMcpConfigPayload,
+	McpServerActionPayload,
+	McpServerActionResultPayload,
 	ShowUsageMetricsPayload,
 	ShowHelpPayload,
 	ShowVersionInfoPayload,
@@ -357,6 +359,17 @@ export class ExtensionRpcRouter {
 	}
 
 	/**
+	 * Result of an MCP server add/edit/remove/setEnabled action.
+	 */
+	sendMcpServerActionResult(result: Omit<McpServerActionResultPayload, 'type'>): void {
+		const message: McpServerActionResultPayload = {
+			type: 'mcpServerActionResult',
+			...result,
+		};
+		this.send(message);
+	}
+
+	/**
 	 * Model switch result
 	 */
 	sendModelSwitched(model: string, success: boolean): void {
@@ -552,6 +565,13 @@ export class ExtensionRpcRouter {
 	 */
 	onShowMcpConfig(handler: MessageHandler<ShowMcpConfigPayload>): Disposable {
 		return this.registerHandler('showMcpConfig', handler);
+	}
+
+	/**
+	 * Register handler for mcpServerAction (add/edit/remove/setEnabled)
+	 */
+	onMcpServerAction(handler: MessageHandler<McpServerActionPayload>): Disposable {
+		return this.registerHandler('mcpServerAction', handler);
 	}
 	
 	/**

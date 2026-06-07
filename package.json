@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.8.1",
+  "version": "3.9.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -302,6 +302,11 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically enable plan mode when starting a new session. Has no effect on resumed sessions."
+        },
+        "copilotCLI.importVSCodeMcpServers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also load MCP servers configured natively in VS Code (.vscode/mcp.json and your user mcp.json) into Copilot CLI sessions. Imported servers are read-only in the /mcp panel; your copilotCLI.mcpServers entries take precedence on a name collision."
         },
         "copilotCLI.mcpServers": {
           "type": "object",
