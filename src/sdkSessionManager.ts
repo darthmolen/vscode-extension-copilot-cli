@@ -11,6 +11,7 @@ import { MessageEnhancementService } from './extension/services/messageEnhanceme
 import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
+import { getImportedServers } from './extension/services/vscodeMcpImportService';
 import { CustomAgentsService } from './extension/services/CustomAgentsService';
 import { resolveSkillDirectories } from './extension/services/SkillDirectoriesService';
 import { getBackendState } from './backendState';
@@ -1112,10 +1113,13 @@ export class SDKSessionManager implements vscode.Disposable {
     }
     
     private getEnabledMCPServers(): Record<string, any> {
-        const userConfig = vscode.workspace.getConfiguration('copilotCLI')
-            .get<Record<string, any>>('mcpServers', {});
+        const config = vscode.workspace.getConfiguration('copilotCLI');
+        const userConfig = config.get<Record<string, any>>('mcpServers', {});
         const managed = this.managedMCPRegistry.getManagedServers();
-        return this.mcpConfigurationService.getMergedMCPServers(userConfig, managed);
+        const imported = config.get<boolean>('importVSCodeMcpServers', true)
+            ? getImportedServers(this.workingDirectory, this.context.globalStorageUri.fsPath)
+            : {};
+        return this.mcpConfigurationService.getMergedMCPServers(userConfig, managed, imported);
     }
 
     public async sendMessage(message: string, attachments?: Array<{type: 'file'; path: string; displayName?: string}>, isRetry: boolean = false, skipEnhancement: boolean = false, agentName?: string): Promise<void> {
@@ -1405,6 +1409,21 @@ export class SDKSessionManager implements vscode.Disposable {
         }
         const result = await this.session.rpc.mcp.list();
         return result?.servers ?? result ?? [];
+    }
+
+    /**
+     * List MCP servers from the Copilot CLI's own user configuration via the
+     * `mcp.config.list` RPC. Read-only — the extension never writes to Copilot's
+     * config. Returns a record keyed by server name.
+     */
+    public async listConfiguredMcpServers(): Promise<Record<string, any>> {
+        // `mcp.config.*` lives on the client (server) RPC, not the session RPC.
+        const configRpc = (this.client as any)?.rpc?.mcp?.config;
+        if (typeof configRpc?.list !== 'function') {
+            return {}; // SDK/CLI doesn't expose mcp.config — skip the Copilot section.
+        }
+        const result = await configRpc.list();
+        return result?.servers ?? {};
     }
 
     /**

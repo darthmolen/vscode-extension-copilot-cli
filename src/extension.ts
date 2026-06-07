@@ -11,6 +11,7 @@ import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 import { CliBundleService, ResolvedCli } from './extension/services/cliBundleService';
 import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
+import { getImportedServers } from './extension/services/vscodeMcpImportService';
 
 let sessionManager: SDKSessionManager | null = null;
 let resolvedCli: ResolvedCli | null = null;
@@ -103,6 +104,20 @@ async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
 			throw new Error('No active session for mcp.list');
 		}
 		return sessionManager.listMcpServers();
+	});
+	chatProvider.setImportedServersProvider(() => {
+		const cfg = vscode.workspace.getConfiguration('copilotCLI');
+		if (!cfg.get<boolean>('importVSCodeMcpServers', true)) {
+			return {};
+		}
+		const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		return getImportedServers(workspaceFolder, context.globalStorageUri.fsPath);
+	});
+	chatProvider.setMcpConfigListProvider(async () => {
+		if (!sessionManager || !sessionManager.hasActiveSession()) {
+			return {};
+		}
+		return sessionManager.listConfiguredMcpServers();
 	});
 }
 

@@ -75,6 +75,7 @@ export class InputArea {
 	
 	render() {
 		this.container.innerHTML = `
+			<div id="mcp-status-mount"></div>
 			<div class="input-controls">
 				<div class="active-file-row" id="active-file-mount"></div>
 				<div class="model-selector-row" id="model-selector-mount"></div>
@@ -92,7 +93,6 @@ export class InputArea {
 			</div>
 			<div class="input-area">
 				<div id="attachmentsPreview" class="attachments-preview" style="display: none;"></div>
-				<div id="mcp-status-mount"></div>
 				<div id="slash-command-mount"></div>
 				<div class="input-wrapper">
 					<button id="attachButton" class="attach-button" title="Attach files">📎</button>

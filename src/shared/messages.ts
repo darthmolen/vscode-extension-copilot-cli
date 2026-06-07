@@ -60,6 +60,7 @@ export type WebviewMessageType =
 	| 'getCustomAgents'
 	| 'saveCustomAgent'
 	| 'deleteCustomAgent'
+	| 'mcpServerAction'
 	| 'selectAgent'
 	| 'agentsPanelClosed';
 
@@ -269,6 +270,22 @@ export interface DeleteCustomAgentPayload extends BaseMessage {
 	name: string;
 }
 
+/**
+ * Mutate the extension's own `copilotCLI.mcpServers` setting from the /mcp panel.
+ * Only `user`-source servers are mutable; the handler rejects anything else.
+ */
+export interface McpServerActionPayload extends BaseMessage {
+	type: 'mcpServerAction';
+	action: 'add' | 'edit' | 'remove' | 'setEnabled';
+	name: string;
+	/** Replacement/new server config for add/edit (SDK MCPServerConfig shape). */
+	config?: Record<string, any>;
+	/** New enabled state for setEnabled. */
+	enabled?: boolean;
+	/** Original name when editing with a rename. */
+	originalName?: string;
+}
+
 export interface SelectAgentPayload extends BaseMessage {
 	type: 'selectAgent';
 	name: string;  // empty string = clear active agent
@@ -311,6 +328,7 @@ export type WebviewMessage =
 	| GetCustomAgentsPayload
 	| SaveCustomAgentPayload
 	| DeleteCustomAgentPayload
+	| McpServerActionPayload
 	| SelectAgentPayload
 	| AgentsPanelClosedPayload;
 
@@ -350,7 +368,8 @@ export type ExtensionMessageType =
 	| 'reasoningDelta'
 	| 'customAgentsChanged'
 	| 'activeAgentChanged'
-	| 'mcpStatus';
+	| 'mcpStatus'
+	| 'mcpServerActionResult';
 
 /**
  * Initialize webview with full state
@@ -602,21 +621,41 @@ export const MCP_SERVER_STATUSES = ['configured', 'connecting', 'connected', 'fa
 export type McpServerStatusValue = typeof MCP_SERVER_STATUSES[number];
 
 /**
+ * Where an MCP server's configuration came from:
+ * - `user`     — the extension's own `copilotCLI.mcpServers` setting (editable)
+ * - `managed`  — bundled by the extension (`_copilotcli_*`, read-only)
+ * - `imported` — VS Code's native `mcp.json` files (read-only)
+ * - `copilot`  — the Copilot CLI's own user config via `mcp.config.list` (read-only)
+ */
+export type McpServerSource = 'user' | 'managed' | 'imported' | 'copilot';
+
+/**
  * MCP server status for the /mcp panel
  */
 export interface McpServerStatus {
 	name: string;
 	rawKey: string;
-	type: 'managed' | 'user';
+	type: McpServerSource;
 	status: McpServerStatusValue;
 	toolCount?: number;
 	tools?: string[];
 	error?: string;
+	/** Raw config (for `user` rows, used to prefill the edit form). */
+	config?: Record<string, any>;
 }
 
 export interface McpStatusPayload extends BaseMessage {
 	type: 'mcpStatus';
 	servers: McpServerStatus[];
+}
+
+/** Result of an McpServerActionPayload — surfaces validation/save errors to the form. */
+export interface McpServerActionResultPayload extends BaseMessage {
+	type: 'mcpServerActionResult';
+	success: boolean;
+	action: 'add' | 'edit' | 'remove' | 'setEnabled';
+	name: string;
+	errors?: string[];
 }
 
 /**
@@ -651,7 +690,8 @@ export type ExtensionMessage =
 	| ReasoningDeltaPayload
 	| CustomAgentsChangedPayload
 	| ActiveAgentChangedPayload
-	| McpStatusPayload;
+	| McpStatusPayload
+	| McpServerActionResultPayload;
 
 // ============================================================================
 // Type Guards

@@ -129,4 +129,39 @@ describe('MCPConfigurationService.getMergedMCPServers', function () {
         const result = service.getMergedMCPServers({}, {});
         assert.deepStrictEqual(result, {});
     });
+
+    describe('with imported VS Code servers (3rd arg)', () => {
+        it('includes imported servers in the merged result', () => {
+            const imported = { 'vscode-fs': { command: 'npx', tools: ['*'] } };
+
+            const result = service.getMergedMCPServers({}, {}, imported);
+
+            assert.ok(result['vscode-fs'], 'imported entry present');
+        });
+
+        it('lets copilotCLI.mcpServers win over an imported server of the same name', () => {
+            const userConfig = { shared: { command: 'from-setting' } };
+            const imported = { shared: { command: 'from-vscode', tools: ['*'] } };
+
+            const result = service.getMergedMCPServers(userConfig, {}, imported);
+
+            assert.strictEqual(result.shared.command, 'from-setting',
+                'extension setting must override imported VS Code server');
+        });
+
+        it('lets managed win over both user and imported', () => {
+            const userConfig = { _copilotcli_x: { command: 'user' } };
+            const imported = { _copilotcli_x: { command: 'imported', tools: ['*'] } };
+            const managed = { _copilotcli_x: { command: 'managed' } };
+
+            const result = service.getMergedMCPServers(userConfig, managed, imported);
+
+            assert.strictEqual(result._copilotcli_x.command, 'managed');
+        });
+
+        it('defaults the imported arg to {} (preserves existing two-arg callers)', () => {
+            const result = service.getMergedMCPServers({ a: { command: 'a' } }, {});
+            assert.ok(result.a, 'existing two-arg behavior unchanged');
+        });
+    });
 });

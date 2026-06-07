@@ -1,4 +1,20 @@
-import type { McpServerStatus, McpServerStatusValue } from '../../shared/messages';
+import type { McpServerStatus, McpServerStatusValue, McpServerSource } from '../../shared/messages';
+
+/**
+ * Classify a server's source for the panel badge. Managed servers (reserved
+ * `_copilotcli_*` keys) always win; otherwise use the caller-supplied source
+ * map, defaulting unlisted keys to `user`.
+ */
+function classifySource(
+    rawKey: string,
+    isManaged: boolean,
+    sources: Record<string, McpServerSource>
+): McpServerSource {
+    if (isManaged) {
+        return 'managed';
+    }
+    return sources[rawKey] ?? 'user';
+}
 
 export interface SdkMcpListEntry {
     name: string;
@@ -29,9 +45,10 @@ export function buildMcpServerStatusList(
     allServers: Record<string, unknown>,
     knownTools: Record<string, string[]>,
     knownStatuses: Record<string, string>,
-    capability: CapabilityFlags
+    capability: CapabilityFlags,
+    sources: Record<string, McpServerSource> = {}
 ): McpServerStatus[] {
-    return Object.entries(allServers).map(([rawKey]) => {
+    return Object.entries(allServers).map(([rawKey, rawConfig]) => {
         const isManaged = rawKey.startsWith('_copilotcli_');
         const displayName = isManaged ? rawKey.replace('_copilotcli_', '') : rawKey;
         const sdkStatus = knownStatuses[rawKey] ?? knownStatuses[displayName];
@@ -54,10 +71,11 @@ export function buildMcpServerStatusList(
         return {
             name: displayName,
             rawKey,
-            type: (isManaged ? 'managed' : 'user') as 'managed' | 'user',
+            type: classifySource(rawKey, isManaged, sources),
             status,
             toolCount: liveTools?.length ?? 0,
             tools: liveTools ?? [],
+            config: (rawConfig ?? {}) as Record<string, any>,
         };
     });
 }
@@ -69,14 +87,15 @@ export function buildMcpServerStatusList(
  */
 export function mergeMcpListWithConfig(
     allServers: Record<string, unknown>,
-    sdkList: SdkMcpListEntry[]
+    sdkList: SdkMcpListEntry[],
+    sources: Record<string, McpServerSource> = {}
 ): McpServerStatus[] {
     const byName = new Map<string, SdkMcpListEntry>();
     for (const entry of sdkList) {
         byName.set(entry.name, entry);
     }
 
-    return Object.entries(allServers).map(([rawKey]) => {
+    return Object.entries(allServers).map(([rawKey, rawConfig]) => {
         const isManaged = rawKey.startsWith('_copilotcli_');
         const displayName = isManaged ? rawKey.replace('_copilotcli_', '') : rawKey;
         const sdkEntry = byName.get(rawKey) ?? byName.get(displayName);
@@ -95,14 +114,49 @@ export function mergeMcpListWithConfig(
         const result: McpServerStatus = {
             name: displayName,
             rawKey,
-            type: isManaged ? 'managed' : 'user',
+            type: classifySource(rawKey, isManaged, sources),
             status,
             toolCount: tools.length,
             tools,
+            config: (rawConfig ?? {}) as Record<string, any>,
         };
         if (sdkEntry?.error) {
             result.error = sdkEntry.error;
         }
         return result;
     });
+}
+
+/**
+ * Append read-only rows for servers configured in the Copilot CLI's own user
+ * config (from `session.rpc.mcp.config.list()`). Servers already present in the
+ * list (by name) are skipped so our own config keeps priority in the display.
+ * These rows are display-only — the extension never writes to Copilot's config.
+ */
+export function mergeCopilotConfigList(
+    statusList: McpServerStatus[],
+    copilotServers: Record<string, unknown> | undefined
+): McpServerStatus[] {
+    if (!copilotServers || Object.keys(copilotServers).length === 0) {
+        return statusList;
+    }
+
+    const existingNames = new Set(statusList.map(s => s.name));
+    const extra: McpServerStatus[] = [];
+    for (const name of Object.keys(copilotServers)) {
+        if (existingNames.has(name)) {
+            continue;
+        }
+        extra.push({
+            name,
+            rawKey: name,
+            type: 'copilot',
+            status: 'configured',
+            toolCount: 0,
+            tools: [],
+            config: (copilotServers[name] ?? {}) as Record<string, any>,
+        });
+    }
+
+    return [...statusList, ...extra];
 }

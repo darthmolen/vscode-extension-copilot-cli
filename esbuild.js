@@ -249,6 +249,12 @@ async function main() {
 		platform: 'node',
 		outfile: 'dist/extension.js',
 		external: ['vscode'],
+		// jsonc-parser's UMD `main` uses dynamic requires esbuild can't follow,
+		// leaving a broken `require('./impl/format')` in the bundle. Force its
+		// statically-analyzable ESM build so it bundles cleanly.
+		alias: {
+			'jsonc-parser': path.resolve(__dirname, 'node_modules/jsonc-parser/lib/esm/main.js'),
+		},
 		logLevel: 'silent',
 		define: {
 			'__SDK_PEER_RANGE__': JSON.stringify(sdkPeerRange),

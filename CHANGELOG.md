@@ -4,6 +4,24 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-06-07
+
+### 🐛 Bug Fixes
+
+- **Consecutive tool calls roll back up into one region** — Every `assistant.message` that carries tool requests fires an empty output (`content: ''`) to finalize the in-progress streaming bubble (added with streaming in v3.5.0). The webview was closing the current tool group on *any* assistant message, so each empty finalization signal — one per tool batch — split a single response into ~2-tool groups with nothing visible between them. The tool group now closes only on a message carrying real content (or any user message); empty/whitespace finalization signals no longer fragment the group.
+
+### ✨ Features
+
+- **MCP server visibility across every source** — The `/mcp` panel now shows servers from all four sources, each with a badge: your own `copilotCLI.mcpServers` (`user`), extension-bundled (`managed`), VS Code's native config (`imported`), and the Copilot CLI's own config (`copilot`). Read-only sources are marked with a 🔒.
+
+- **Import VS Code's native MCP servers** — Servers configured in VS Code's `.vscode/mcp.json` (workspace) and your user-profile `mcp.json` are now loaded into Copilot CLI sessions automatically, translated into the SDK's config shape (e.g. `cwd` → `workingDirectory`, `${workspaceFolder}` expanded). Servers using `${input:...}` prompts are skipped. Toggle with the new `copilotCLI.importVSCodeMcpServers` setting (default on). On a name collision your `copilotCLI.mcpServers` entry wins.
+
+- **Manage MCP servers from the panel** — Add, edit, remove, and enable/disable servers directly in the `/mcp` panel via an inline form, instead of hand-editing JSON. Writes only ever touch this extension's own `copilotCLI.mcpServers` setting — VS Code's and Copilot's own configs are never modified.
+
+### 🔧 Under the hood
+
+- esbuild now bundles `jsonc-parser` via its ESM entry (its UMD `main` left a broken `require('./impl/format')` in the bundle).
+
 ## [3.8.1] - 2026-05-25
 
 ### 🐛 Bug Fixes

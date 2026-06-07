@@ -111,6 +111,37 @@ describe('ToolExecution - Tool Group Lifecycle', () => {
         });
     });
 
+    describe('Empty assistant finalization signal does NOT split tool groups', () => {
+        // Regression (v3.5.0 streaming): every assistant.message carrying tool
+        // requests fires an empty output (content:'') to finalize the streaming
+        // bubble. That empty message:add was closing the tool group, so each
+        // tool batch (~2 tools) landed in its own group with nothing visible
+        // between them.
+        it('keeps tools in one group across an empty assistant message', () => {
+            emitToolStart('t1');
+            emitToolStart('t2');
+
+            // Empty finalization signal (not a real assistant response)
+            eventBus.emit('message:add', { role: 'assistant', content: '' });
+
+            emitToolStart('t3');
+            emitToolStart('t4');
+
+            const groups = container.querySelectorAll('.tool-group');
+            expect(groups.length, 'empty finalization signal must not split groups').to.equal(1);
+            expect(groups[0].querySelectorAll('.tool-execution__item').length).to.equal(4);
+        });
+
+        it('ignores whitespace-only and missing content too', () => {
+            emitToolStart('w1');
+            eventBus.emit('message:add', { role: 'assistant', content: '   ' });
+            eventBus.emit('message:add', { role: 'reasoning' }); // no content field
+            emitToolStart('w2');
+
+            expect(container.querySelectorAll('.tool-group').length).to.equal(1);
+        });
+    });
+
     describe('Individual card collapse state preserved across group close', () => {
         it('should keep collapsed cards tracked after group closes', () => {
             emitToolStart('tool-c1');

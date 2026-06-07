@@ -1454,6 +1454,123 @@ button.stop-button:hover {
 	color: var(--vscode-button-foreground);
 }
 
+.mcp-status-type-badge--imported {
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	opacity: 0.85;
+}
+
+.mcp-status-type-badge--copilot {
+	background: var(--vscode-activityBarBadge-background, var(--vscode-badge-background));
+	color: var(--vscode-activityBarBadge-foreground, var(--vscode-badge-foreground));
+}
+
+.mcp-status-readonly {
+	font-size: 10px;
+	opacity: 0.6;
+	margin-left: 2px;
+}
+
+.mcp-add-btn {
+	margin-left: auto;
+	margin-right: 6px;
+	font-size: 11px;
+	padding: 1px 6px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.mcp-add-btn:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.mcp-row-actions {
+	display: inline-flex;
+	gap: 2px;
+	margin-left: 6px;
+}
+
+.mcp-row-actions button {
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 11px;
+	padding: 0 3px;
+	opacity: 0.7;
+}
+
+.mcp-row-actions button:hover {
+	opacity: 1;
+}
+
+.mcp-form {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px 10px;
+}
+
+.mcp-form-row {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.mcp-form-row label {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.mcp-form input[type="text"],
+.mcp-form textarea {
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 3px;
+	padding: 3px 5px;
+	font-size: 12px;
+	font-family: inherit;
+}
+
+.mcp-form textarea {
+	min-height: 44px;
+	resize: vertical;
+}
+
+.mcp-form-error {
+	color: var(--vscode-errorForeground);
+	font-size: 11px;
+	min-height: 14px;
+}
+
+.mcp-form-buttons {
+	display: flex;
+	gap: 6px;
+	justify-content: flex-end;
+}
+
+.mcp-form-buttons button {
+	font-size: 12px;
+	padding: 3px 10px;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.mcp-form-save {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.mcp-form-cancel {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
 .mcp-status-tools {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);

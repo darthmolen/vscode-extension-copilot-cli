@@ -83,10 +83,13 @@ export class MCPConfigurationService {
      */
     public getMergedMCPServers(
         userConfig: Record<string, any>,
-        managedConfig: Record<string, any>
+        managedConfig: Record<string, any>,
+        importedConfig: Record<string, any> = {}
     ): Record<string, any> {
         const userEnabled = this.getEnabledMCPServers(userConfig);
-        const merged = { ...userEnabled, ...managedConfig };
+        // Precedence (lowest → highest): imported VS Code native servers, then
+        // the user's own copilotCLI.mcpServers, then extension-managed servers.
+        const merged = { ...importedConfig, ...userEnabled, ...managedConfig };
         const allKeys = Object.keys(merged);
         if (allKeys.length > 0) {
             this.logger.info(`[MCP] All servers passed to SDK: ${allKeys.join(', ')}`);
