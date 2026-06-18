@@ -38,6 +38,7 @@ export type WebviewMessageType =
 	| 'newSession'
 	| 'viewPlan'
 	| 'viewDiff'
+	| 'subagentPopout'
 	| 'togglePlanMode'
 	| 'acceptPlan'
 	| 'rejectPlan'
@@ -113,6 +114,11 @@ export interface ViewPlanPayload extends BaseMessage {
 /**
  * Show diff view
  */
+export interface SubagentPopoutPayload extends BaseMessage {
+	type: 'subagentPopout';
+	agentId: string;
+}
+
 export interface ViewDiffPayload extends BaseMessage {
 	type: 'viewDiff';
 	data: DiffData;
@@ -306,6 +312,7 @@ export type WebviewMessage =
 	| NewSessionPayload
 	| ViewPlanPayload
 	| ViewDiffPayload
+	| SubagentPopoutPayload
 	| TogglePlanModePayload
 	| AcceptPlanPayload
 	| RejectPlanPayload
@@ -346,6 +353,9 @@ export type ExtensionMessageType =
 	| 'reasoningMessage'
 	| 'toolStart'
 	| 'toolUpdate'
+	| 'subagentStart'
+	| 'subagentComplete'
+	| 'subagentMessage'
 	| 'streamChunk'
 	| 'streamEnd'
 	| 'clearMessages'
@@ -455,6 +465,50 @@ export interface ToolStartPayload extends BaseMessage {
 export interface ToolUpdatePayload extends BaseMessage {
 	type: 'toolUpdate';
 	toolState: ToolState;
+}
+
+/**
+ * A sub-agent started — open/refresh its dock card.
+ */
+export interface SubagentStartPayload extends BaseMessage {
+	type: 'subagentStart';
+	subagent: {
+		agentId: string;
+		agentName?: string;
+		agentDisplayName?: string;
+		agentDescription?: string;
+		color?: string; // authoritative agent color (bar = drawer = pop-out tab)
+	};
+}
+
+/**
+ * A sub-agent emitted a comment / reasoning chunk — append to its sub-conversation.
+ */
+export interface SubagentMessagePayload extends BaseMessage {
+	type: 'subagentMessage';
+	subagent: {
+		agentId: string;
+		content?: string;
+		reasoningText?: string;
+	};
+}
+
+/**
+ * A sub-agent finished (or failed) — render its receipt.
+ */
+export interface SubagentCompletePayload extends BaseMessage {
+	type: 'subagentComplete';
+	subagent: {
+		agentId: string;
+		status: 'complete' | 'failed';
+		agentName?: string;
+		agentDisplayName?: string;
+		model?: string;
+		totalToolCalls?: number;
+		totalTokens?: number;
+		durationMs?: number;
+		error?: string;
+	};
 }
 
 /**
@@ -668,6 +722,9 @@ export type ExtensionMessage =
 	| ReasoningMessagePayload
 	| ToolStartPayload
 	| ToolUpdatePayload
+	| SubagentStartPayload
+	| SubagentMessagePayload
+	| SubagentCompletePayload
 	| StreamChunkPayload
 	| StreamEndPayload
 	| ClearMessagesPayload
@@ -713,6 +770,7 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'newSession',
 		'viewPlan',
 		'viewDiff',
+		'subagentPopout',
 		'togglePlanMode',
 		'acceptPlan',
 		'rejectPlan',
@@ -752,6 +810,9 @@ export const EXTENSION_MESSAGE_TYPES: ExtensionMessageType[] = [
 	'reasoningMessage',
 	'toolStart',
 	'toolUpdate',
+	'subagentStart',
+	'subagentComplete',
+	'subagentMessage',
 	'streamChunk',
 	'streamEnd',
 	'clearMessages',

@@ -437,3 +437,36 @@ Fires when session ends. Contains `codeChanges` metrics and `modelMetrics` usage
 ### fleet-rpc-workflow.md and community-speaks-about-fleet-in-copilot-cli.md — NOT produced
 
 Agents 2 and 3 were still running when `session.idle` fired. The spike collected until `session.idle` (old behavior) and exited, so those agents' output files were never written. A spike-08 should test collecting past `session.idle` when `backgroundTasks.agents` is non-empty.
+
+---
+
+## Spike 08: Fleet on current SDK 0.3.0 / CLI 1.0.44 (2026-06-14)
+
+**File:** `spike-08-fleet-1054.mjs` · **Results:** `results/08/`
+
+Re-ran fleet on the current stack to compare against the new **ad-hoc sub-agent** spike
+(`planning/spikes/adhoc-subagent/`). Full comparison + table live in that spike's `FINDINGS.md`.
+
+Key points:
+- `rpc.fleet.start({prompt})` → `{started:true}`, spawned **3 `explore` sub-agents** concurrently, all completed **out of order**, `session.idle` then fired with `bgAgents=0` (the **#2263 fix works** — idle now waits).
+- **Fleet emits the SAME attribution contract as ad-hoc `task`-tool sub-agents:** envelope `agentId` === sub-agent `toolCallId`, present on child **tools and messages**; `subagent.started/completed` lifecycle; `parentToolCallId` redundant fallback. → one `agentId`-keyed dock renders both.
+- **Still open on current version:** `fleet.*` events absent (**#2264**), `session.task_complete` does not fire (**#2262**). Infer completion via `subagent.completed` counts + `session.idle`.
+
+---
+
+## Spike 09: Custom-agent dispatch — #2261 RESOLVED (2026-06-14)
+
+**File:** `spike-09-custom-agent-dispatch.mjs` · **Results:** `results/09/`
+
+The biggest historical fleet blocker — **#2261 "fleet ignores customAgents, always dispatches built-in explore/general-purpose"** — is **FIXED** on SDK 0.3.0 / CLI 1.0.44.
+
+Registered two SDK `customAgents` (`spike-researcher`, `spike-auditor`, `infer:true`), confirmed via `rpc.agent.list()`, then:
+- **Fleet** (`rpc.fleet.start`) dispatched **2 custom agents, 0 built-in**.
+- **Ad-hoc** `task` tool with `agent_type: spike-researcher` dispatched **1 custom, 0 built-in**.
+- `subagent.started.agentName`/`agentDisplayName` carry the custom identity (e.g. `Spike Researcher`).
+- The orchestrator selects which registered agent to dispatch (fleet has no agent param — `FleetStartRequest` is `{prompt?}` only).
+- `fleet.start` still **blocks** (returned @118s; sub-agents started @10.9s) → fire-and-forget.
+
+This reverses the old spike-06 finding (0.1.32). Fleet is now genuinely useful with user-defined agents.
+
+**SDK fleet surface (search):** one experimental method `session.rpc.fleet.start({prompt?}) → {started}` (`@experimental`). No Node examples/tests; only a *mocked* Python timeout unit test and two doc-table mentions. `/fleet` is TUI-only; SDK equivalent is `fleet.start`.

@@ -46,6 +46,7 @@ async function main() {
 	const modelSelectorDistDir = path.join(componentsDistDir, 'ModelSelector');
 	const customAgentsPanelDistDir = path.join(componentsDistDir, 'CustomAgentsPanel');
 	const mcpStatusPanelDistDir = path.join(componentsDistDir, 'MCPStatusPanel');
+	const subagentDockDistDir = path.join(componentsDistDir, 'SubagentDock');
 
 	if (!fs.existsSync(rpcDistDir)) {
 		fs.mkdirSync(rpcDistDir, { recursive: true });
@@ -97,6 +98,9 @@ async function main() {
 	}
 	if (!fs.existsSync(mcpStatusPanelDistDir)) {
 		fs.mkdirSync(mcpStatusPanelDistDir, { recursive: true });
+	}
+	if (!fs.existsSync(subagentDockDistDir)) {
+		fs.mkdirSync(subagentDockDistDir, { recursive: true });
 	}
 
 	// Copy CSS file (no processing needed)
@@ -213,6 +217,11 @@ async function main() {
 	fs.copyFileSync(
 		path.join(__dirname, 'src', 'webview', 'app', 'components', 'MCPStatusPanel', 'MCPStatusPanel.js'),
 		path.join(mcpStatusPanelDistDir, 'MCPStatusPanel.js')
+	);
+	// SubagentDock component
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'components', 'SubagentDock', 'SubagentDock.js'),
+		path.join(subagentDockDistDir, 'SubagentDock.js')
 	);
 
 	// Read SDK peer-dep range at build time so we don't have to ship node_modules

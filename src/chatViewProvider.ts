@@ -409,6 +409,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);
 		}));
 
+		this._reg(this.rpcRouter.onSubagentPopout((payload) => {
+			vscode.commands.executeCommand('copilot-cli-extension.openSubagentPanel', payload.agentId);
+		}));
+
 		this._reg(this.rpcRouter.onAcceptPlan(() => {
 			this.logger.info('Accept plan requested from UI');
 			vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
@@ -699,6 +703,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.toolUpdate(toolState);
 	}
 
+	public startSubagent(subagent: any) {
+		this.rpcRouter?.subagentStart(subagent);
+	}
+
+	public subagentMessage(subagent: any) {
+		this.rpcRouter?.subagentMessage(subagent);
+	}
+
+	public completeSubagent(subagent: any) {
+		this.rpcRouter?.subagentComplete(subagent);
+	}
+
 	public notifyDiffAvailable(data: any) {
 		this.rpcRouter?.sendDiffAvailable(data);
 	}
@@ -972,6 +988,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	<div id="custom-agents-mount"></div>
 
 	<main role="main">
+		<div id="subagent-dock-mount"></div>
 		<div id="messages-mount"></div>
 		<div id="acceptance-mount"></div>
 		<div id="input-mount"></div>

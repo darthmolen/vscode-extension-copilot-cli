@@ -16,6 +16,9 @@ import {
 	ReasoningMessagePayload,
 	ToolStartPayload,
 	ToolUpdatePayload,
+	SubagentStartPayload,
+	SubagentMessagePayload,
+	SubagentCompletePayload,
 	StreamChunkPayload,
 	StreamEndPayload,
 	ClearMessagesPayload,
@@ -37,6 +40,7 @@ import {
 	NewSessionPayload,
 	ViewPlanPayload,
 	ViewDiffPayload,
+	SubagentPopoutPayload,
 	TogglePlanModePayload,
 	AcceptPlanPayload,
 	RejectPlanPayload,
@@ -183,6 +187,27 @@ export class ExtensionRpcRouter {
 			toolState
 		};
 		this.send(message);
+	}
+
+	/**
+	 * A sub-agent started — open its dock card.
+	 */
+	subagentStart(subagent: SubagentStartPayload['subagent']): void {
+		this.send({ type: 'subagentStart', subagent });
+	}
+
+	/**
+	 * A sub-agent emitted a comment / reasoning chunk.
+	 */
+	subagentMessage(subagent: SubagentMessagePayload['subagent']): void {
+		this.send({ type: 'subagentMessage', subagent });
+	}
+
+	/**
+	 * A sub-agent completed/failed — render its receipt.
+	 */
+	subagentComplete(subagent: SubagentCompletePayload['subagent']): void {
+		this.send({ type: 'subagentComplete', subagent });
 	}
 	
 	/**
@@ -502,6 +527,13 @@ export class ExtensionRpcRouter {
 	 */
 	onViewDiff(handler: MessageHandler<ViewDiffPayload>): Disposable {
 		return this.registerHandler('viewDiff', handler);
+	}
+
+	/**
+	 * Register handler for subagentPopout (open a sub-agent's traffic in an editor tab)
+	 */
+	onSubagentPopout(handler: MessageHandler<SubagentPopoutPayload>): Disposable {
+		return this.registerHandler('subagentPopout', handler);
 	}
 	
 	/**
