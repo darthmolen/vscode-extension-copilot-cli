@@ -56,6 +56,9 @@ export class ToolExecution {
     }
 
     handleToolStart(toolState) {
+        // Sub-agent tools (tagged with agentId) are rendered by the SubagentDock, not the
+        // flat transcript path. Ignore them here.
+        if (toolState && toolState.agentId) return;
         // Store initial tool state
         this.tools.set(toolState.toolCallId, {
             ...toolState,

@@ -4,6 +4,27 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-06-15
+
+### Added
+- **Sub-Agent Dock** — a pinned, persistent ledger of sub-agent (and fleet) activity, attributed
+  by the SDK envelope `agentId`, so concurrent sub-agents are tracked independently and complete
+  out of order cleanly.
+  - **Master/detail:** each sub-agent is a **colored** bar (status · current action · tool-call
+    counter · chevron · pop-out) inside a clearly-bordered dock region (🚀 "Running Sub-Agents").
+    Clicking a bar opens one shared read-only detail pane beneath the list, color-matched,
+    interleaving the agent's **comments and tool calls** chronologically; reasoning sits behind a
+    per-comment "show thinking" toggle.
+  - **Pop-out (tmux-style):** the ⤢ button opens a sub-agent's full traffic (comments + tools +
+    reasoning) in a **full-width editor tab** that streams live, with a **colored dot tab icon and
+    sticky color header matching its sidebar bar**, and `#N` numbering for same-named agents — run
+    several side-by-side, each scrolling independently.
+  - Auto-shows on start, minimizable (state persisted), per-card clear, completion receipt
+    (model · tool calls · tokens · duration), and stale-card cleanup on session abort/end.
+  - **No more dissonance:** sub-agent comments/reasoning no longer leak into the main transcript
+    as loose "assistant" messages — they render only in the dock/pop-out. Sub-agent traffic that
+    previously showed nothing (silent until timeout) now streams live.
+
 ## [3.9.0] - 2026-06-07
 
 ### 🐛 Bug Fixes

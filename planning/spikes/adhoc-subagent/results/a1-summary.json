@@ -1,0 +1,159 @@
+{
+  "label": "a1",
+  "sessionId": "1420d57d-e962-4d69-8614-ef343b10adbf",
+  "totalEvents": 363,
+  "distinctAgentIds": [
+    "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf"
+  ],
+  "byType": {
+    "pending_messages.modified": 4,
+    "session.custom_agents_updated": 1,
+    "session.model_change": 1,
+    "session.skills_loaded": 1,
+    "system.message": 1,
+    "session.tools_updated": 1,
+    "user.message": 1,
+    "session.title_changed": 1,
+    "assistant.turn_start": 13,
+    "session.usage_info": 13,
+    "assistant.usage": 21,
+    "assistant.message": 21,
+    "assistant.reasoning": 3,
+    "tool.execution_start": 31,
+    "hook.start": 15,
+    "hook.end": 15,
+    "tool.execution_complete": 31,
+    "assistant.turn_end": 13,
+    "permission.requested": 21,
+    "permission.completed": 21,
+    "session.background_tasks_changed": 130,
+    "subagent.started": 1,
+    "subagent.completed": 1,
+    "system.notification": 1,
+    "session.idle": 1
+  },
+  "agentIdByType": {
+    "subagent.started": 1,
+    "assistant.usage": 8,
+    "assistant.message": 8,
+    "tool.execution_start": 15,
+    "tool.execution_complete": 15,
+    "subagent.completed": 1
+  },
+  "streamingEventsWithAgentId": 8,
+  "subagentLifecycle": [
+    {
+      "t": "53.0s",
+      "type": "subagent.started",
+      "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "env": {
+        "type": "subagent.started",
+        "id": "3a423634-0b56-4af3-8268-2c053b7dae32",
+        "timestamp": "2026-06-14T12:57:55.224Z",
+        "parentId": "0b53e205-c940-42b8-9a63-b1e32f1cfb38",
+        "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf"
+      }
+    },
+    {
+      "t": "140.2s",
+      "type": "subagent.completed",
+      "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "env": {
+        "type": "subagent.completed",
+        "id": "82653adc-abcd-4b4f-bb78-7cbf049f5d3f",
+        "timestamp": "2026-06-14T12:59:22.388Z",
+        "parentId": "2143208f-cd3a-4756-825d-5ad4509b8c5e",
+        "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf"
+      }
+    }
+  ],
+  "taskDispatches": [
+    {
+      "t": "53.0s",
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "name": "plan-reviewer",
+      "agent_type": "general-purpose",
+      "mode": "background"
+    }
+  ],
+  "sampleChildEvent": {
+    "type": "tool.execution_start",
+    "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+    "envelope": {
+      "type": "tool.execution_start",
+      "id": "420eefd7-161f-4f30-840c-9e2a5bec18ff",
+      "timestamp": "2026-06-14T12:58:00.032Z",
+      "parentId": "b3a01059-c230-41e5-931d-ffb298d8ebea",
+      "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf"
+    },
+    "data_keys": [
+      "parentToolCallId",
+      "toolCallId",
+      "toolName",
+      "arguments"
+    ],
+    "toolCallId": "toolu_bdrk_01VH3GrPX4Fe8LGKih4AvGzo",
+    "parentToolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+    "toolName": "report_intent",
+    "turnId": null,
+    "messageId": null,
+    "reasoningId": null,
+    "args_name": null,
+    "args_agent_type": null,
+    "args_mode": null,
+    "agent_id_result": null,
+    "t": "57.8s"
+  },
+  "lifecycleSequence": [
+    {
+      "t": "53.0s",
+      "type": "tool.execution_start",
+      "toolName": "task",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "parentToolCallId": null
+    },
+    {
+      "t": "53.0s",
+      "type": "subagent.started",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "parentToolCallId": null
+    },
+    {
+      "t": "56.4s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_012L2rU3i8oNBRZ481HvxsHJ",
+      "parentToolCallId": null
+    },
+    {
+      "t": "92.7s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_01MpsAcTZ4SLWFzzemReByR1",
+      "parentToolCallId": null
+    },
+    {
+      "t": "128.8s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_015X644nB23Zw5U7gqXUWSpi",
+      "parentToolCallId": null
+    },
+    {
+      "t": "140.2s",
+      "type": "subagent.completed",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "toolCallId": "toolu_bdrk_01CiBoHXB4wSZPXYqS5DKtaf",
+      "parentToolCallId": null
+    }
+  ]
+}

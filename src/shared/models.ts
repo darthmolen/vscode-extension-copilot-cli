@@ -45,6 +45,8 @@ export interface ToolState {
 	input?: any;
 	output?: string;
 	error?: string;
+	agentId?: string;          // set when this tool runs inside a sub-agent (routes to the dock)
+	parentToolCallId?: string; // redundant fallback
 }
 
 /**

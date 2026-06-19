@@ -6,6 +6,7 @@ import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { SessionService } from './extension/services/SessionService';
+import { SubagentPanelService } from './extension/services/SubagentPanelService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
 import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
@@ -21,6 +22,7 @@ let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatViewProvider;
+let subagentPanels: SubagentPanelService;
 let lastDropdownRefresh = 0;
 
 /** Wraps an event handler with try/catch to prevent one handler error from breaking others. */
@@ -34,6 +36,22 @@ function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => 
 	};
 }
 
+// Authoritative sub-agent color palette — one source of truth shared by the sidebar dock bar,
+// its drawer, and the pop-out editor tab. Assigned per agentId in first-seen order.
+const SUBAGENT_PALETTE = [
+	'#4FC1FF', '#C586C0', '#9CDCFE', '#CE9178', '#6A9955',
+	'#DCDCAA', '#569CD6', '#D7BA7D', '#F48771', '#B5CEA8',
+];
+const subagentColors = new Map<string, string>();
+function assignSubagentColor(agentId: string): string {
+	let color = subagentColors.get(agentId);
+	if (!color) {
+		color = SUBAGENT_PALETTE[subagentColors.size % SUBAGENT_PALETTE.length];
+		subagentColors.set(agentId, color);
+	}
+	return color;
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
 	backendState = getBackendState();
@@ -41,6 +59,14 @@ export function activate(context: vscode.ExtensionContext) {
 	// Create chat provider and register as sidebar webview
 	chatProvider = new ChatViewProvider(context.extensionUri);
 	context.subscriptions.push(chatProvider);
+
+	// Pop-out panel service — created ONCE per activation (buffers sub-agent traffic, opens
+	// editor-tab panels on request). Must not live in wireManagerEvents(), which re-runs per session.
+	subagentPanels = new SubagentPanelService(context.globalStorageUri);
+	context.subscriptions.push(subagentPanels);
+	context.subscriptions.push(vscode.commands.registerCommand('copilot-cli-extension.openSubagentPanel', (agentId: string) => {
+		subagentPanels.open(agentId);
+	}));
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
 			ChatViewProvider.viewType,
@@ -670,6 +696,7 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 
 	context.subscriptions.push(manager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
 		logger.info(`[Tool Start] ${toolState.toolName}`);
+		subagentPanels.onTool(toolState);
 		chatProvider.addToolExecution(toolState);
 	})));
 
@@ -681,6 +708,26 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	context.subscriptions.push(manager.onDidCompleteTool(safeHandler('onDidCompleteTool', (toolState) => {
 		logger.info(`[Tool Complete] ${toolState.toolName} - ${toolState.status}`);
 		chatProvider.updateToolExecution(toolState);
+	})));
+
+	context.subscriptions.push(manager.onDidStartSubagent(safeHandler('onDidStartSubagent', (subagent) => {
+		logger.info(`[Subagent Start] ${subagent.agentDisplayName ?? subagent.agentName} (${subagent.agentId})`);
+		// Assign the agent's color ONCE here so the sidebar bar, drawer, and pop-out tab all agree.
+		const color = assignSubagentColor(subagent.agentId);
+		const enriched = { ...subagent, color };
+		subagentPanels.onStart(enriched);
+		chatProvider.startSubagent(enriched);
+	})));
+
+	context.subscriptions.push(manager.onDidSubagentMessage(safeHandler('onDidSubagentMessage', (subagent) => {
+		subagentPanels.onMessage(subagent);
+		chatProvider.subagentMessage(subagent);
+	})));
+
+	context.subscriptions.push(manager.onDidCompleteSubagent(safeHandler('onDidCompleteSubagent', (subagent) => {
+		logger.info(`[Subagent Complete] ${subagent.agentDisplayName ?? subagent.agentName} - ${subagent.status}`);
+		subagentPanels.onComplete(subagent);
+		chatProvider.completeSubagent(subagent);
 	})));
 
 	context.subscriptions.push(manager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {

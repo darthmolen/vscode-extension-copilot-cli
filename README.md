@@ -60,6 +60,17 @@ Define named agents as simple Markdown files with YAML frontmatter — drop them
 
 Agents use Markdown frontmatter for configuration — name, description, allowed tools, and a system prompt in the body. See the [Custom Agents Guide](documentation/CUSTOM-AGENTS.md) for the full format and examples.
 
+### 🚀 Sub-Agent Dock
+
+When a skill, fleet, or the agent itself spawns **sub-agents**, their work no longer floods your main conversation. The Sub-Agent Dock gives every sub-agent its own lane:
+
+- **One color-coded card per sub-agent** — pinned at the top of the panel, showing live status, the current tool call, a running tool-call counter, and on completion a receipt: *model · tool calls · tokens · duration*.
+- **Master/detail drawer** — click a card to open a read-only sub-conversation beneath it, color-matched to the card, interleaving that agent's **comments and tool calls** chronologically. Reasoning sits behind a "show thinking" toggle.
+- **Pop-out breakout (tmux-style)** — hit ⤢ to open a sub-agent's full traffic in a **full-width editor tab** that streams live, with a colored dot so you always know which agent it is. Run several side-by-side, each scrolling independently.
+- **Built for concurrency** — multiple sub-agents run at once and complete out of order, each tracked independently. Minimize the dock, clear finished cards, and the whole thing auto-shows the moment a sub-agent starts.
+
+The point: **sub-agent reasoning and tool calls stay out of your main transcript** — delineation without breaking flow, instead of one muddied stream.
+
 ### 🛠️ Rich Agent Experience
 
 - **In-Stream Tool Execution** — Collapsible tool groups show exactly what the agent is doing, inline with the conversation.

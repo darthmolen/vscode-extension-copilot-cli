@@ -8,6 +8,7 @@ import { InputArea } from './app/components/InputArea/InputArea.js';
 import { SessionToolbar } from './app/components/SessionToolbar/SessionToolbar.js';
 import { AcceptanceControls } from './app/components/AcceptanceControls/AcceptanceControls.js';
 import { CustomAgentsPanel } from './app/components/CustomAgentsPanel/CustomAgentsPanel.js';
+import { SubagentDock } from './app/components/SubagentDock/SubagentDock.js';
 // Import extracted event handlers
 import {
 	handleReasoningToggle,
@@ -65,6 +66,23 @@ const acceptanceControls = new AcceptanceControls(acceptanceControlsContainer);
 // Initialize CustomAgentsPanel component
 const customAgentsPanelContainer = document.getElementById('custom-agents-mount');
 const customAgentsPanel = new CustomAgentsPanel(customAgentsPanelContainer, eventBus);
+
+// Initialize SubagentDock — pinned ledger of sub-agent activity (status + tool calls).
+// Minimize state persists via the webview state channel. Guarded so DOMs without the
+// mount (some integration harnesses) don't crash bootstrap.
+const subagentDockContainer = document.getElementById('subagent-dock-mount');
+let subagentDock = null;
+if (subagentDockContainer) {
+	const _readState = () => (rpc.vscode && rpc.vscode.getState && rpc.vscode.getState()) || {};
+	subagentDock = new SubagentDock(subagentDockContainer, eventBus, {
+		minimized: !!_readState().subagentDockMinimized,
+		onMinimizeChange: (v) => {
+			if (rpc.vscode && rpc.vscode.setState) {
+				rpc.vscode.setState({ ..._readState(), subagentDockMinimized: v });
+			}
+		},
+	});
+}
 
 // ============================================================================
 // Component Event Wiring
@@ -509,7 +527,13 @@ export function handleResetPlanModeMessage(payload) {
 export function handleStatusMessage(payload) {
 	const status = payload.data.status;
 	console.log('[STATUS EVENT] Received status:', status, 'Full data:', payload.data);
-	
+
+	// Stale-tile cleanup: terminal/abort states leave no subagent.completed, so close
+	// any still-running dock cards.
+	if (status === 'aborted' || status === 'stopped' || status === 'exited' || status === 'session_expired') {
+		eventBus.emit('subagent:sessionEnded');
+	}
+
 	// Handle metrics reset
 	if (payload.data.resetMetrics) {
 		const postTokens = payload.data.postCompactionTokens;
@@ -675,6 +699,10 @@ rpc.onClearMessages(handleClearMessagesMessage);
 rpc.onUpdateSessions(handleUpdateSessionsMessage);
 rpc.onToolStart(handleToolStartMessage);
 rpc.onToolUpdate(handleToolUpdateMessage);
+rpc.onSubagentStart((payload) => eventBus.emit('subagent:start', payload.subagent));
+rpc.onSubagentMessage((payload) => eventBus.emit('subagent:message', payload.subagent));
+rpc.onSubagentComplete((payload) => eventBus.emit('subagent:complete', payload.subagent));
+eventBus.on('subagent:popout', (d) => rpc.popoutSubagent(d.agentId));
 rpc.onDiffAvailable(handleDiffAvailableMessage);
 rpc.onUsageInfo(handleUsageInfoMessage);
 rpc.onResetPlanMode(handleResetPlanModeMessage);

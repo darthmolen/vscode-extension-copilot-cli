@@ -393,6 +393,41 @@ class WebviewRpcClient {
 	onToolUpdate(handler) {
 		return this._registerHandler('toolUpdate', handler);
 	}
+
+	/**
+	 * Register handler for subagentStart
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onSubagentStart(handler) {
+		return this._registerHandler('subagentStart', handler);
+	}
+
+	/**
+	 * Register handler for subagentMessage
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onSubagentMessage(handler) {
+		return this._registerHandler('subagentMessage', handler);
+	}
+
+	/**
+	 * Ask the extension to open a sub-agent's full traffic in an editor tab.
+	 * @param {string} agentId
+	 */
+	popoutSubagent(agentId) {
+		this._send({ type: 'subagentPopout', agentId });
+	}
+
+	/**
+	 * Register handler for subagentComplete
+	 * @param {Function} handler - Handler function
+	 * @returns {{dispose: Function}} Disposable subscription
+	 */
+	onSubagentComplete(handler) {
+		return this._registerHandler('subagentComplete', handler);
+	}
 	
 	/**
 	 * Register handler for streamChunk

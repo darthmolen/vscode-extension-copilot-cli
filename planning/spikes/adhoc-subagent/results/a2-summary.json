@@ -1,0 +1,275 @@
+{
+  "label": "a2",
+  "sessionId": "fa807146-2eac-45d8-a0f1-62cb9a006f9f",
+  "totalEvents": 136,
+  "distinctAgentIds": [
+    "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+    "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+    "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g"
+  ],
+  "byType": {
+    "pending_messages.modified": 8,
+    "session.custom_agents_updated": 1,
+    "session.model_change": 1,
+    "session.skills_loaded": 1,
+    "system.message": 1,
+    "session.tools_updated": 1,
+    "user.message": 1,
+    "session.title_changed": 1,
+    "assistant.turn_start": 3,
+    "session.usage_info": 3,
+    "assistant.usage": 10,
+    "assistant.message": 10,
+    "assistant.reasoning": 2,
+    "tool.execution_start": 14,
+    "session.background_tasks_changed": 30,
+    "hook.start": 7,
+    "hook.end": 7,
+    "tool.execution_complete": 14,
+    "subagent.started": 3,
+    "assistant.turn_end": 3,
+    "permission.requested": 4,
+    "permission.completed": 4,
+    "subagent.completed": 3,
+    "system.notification": 3,
+    "session.idle": 1
+  },
+  "agentIdByType": {
+    "subagent.started": 3,
+    "assistant.usage": 7,
+    "assistant.message": 7,
+    "tool.execution_start": 7,
+    "tool.execution_complete": 7,
+    "subagent.completed": 3
+  },
+  "streamingEventsWithAgentId": 7,
+  "subagentLifecycle": [
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "env": {
+        "type": "subagent.started",
+        "id": "d6db3b84-aa1f-4ce4-ac62-360ead13d53f",
+        "timestamp": "2026-06-14T13:02:12.134Z",
+        "parentId": "ff45b1db-1b0f-4ccf-abde-230e24374710",
+        "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc"
+      }
+    },
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "env": {
+        "type": "subagent.started",
+        "id": "819b1fe9-699a-4429-a2aa-08d73fd226bc",
+        "timestamp": "2026-06-14T13:02:12.134Z",
+        "parentId": "d6db3b84-aa1f-4ce4-ac62-360ead13d53f",
+        "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU"
+      }
+    },
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "env": {
+        "type": "subagent.started",
+        "id": "b8a7adfc-900b-46f0-897c-1d2fca7a37f2",
+        "timestamp": "2026-06-14T13:02:12.134Z",
+        "parentId": "819b1fe9-699a-4429-a2aa-08d73fd226bc",
+        "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g"
+      }
+    },
+    {
+      "t": "29.6s",
+      "type": "subagent.completed",
+      "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "env": {
+        "type": "subagent.completed",
+        "id": "b340fdc7-8a3d-42b8-8275-415d5464afe8",
+        "timestamp": "2026-06-14T13:02:26.279Z",
+        "parentId": "1ed16f51-6ff8-45f0-919a-add029a8a57f",
+        "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc"
+      }
+    },
+    {
+      "t": "35.3s",
+      "type": "subagent.completed",
+      "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "env": {
+        "type": "subagent.completed",
+        "id": "f7f813d6-c59f-4ea0-9349-8c731e9ca1f3",
+        "timestamp": "2026-06-14T13:02:32.025Z",
+        "parentId": "f213c0ce-8bb8-45b7-b35f-ed07084d5915",
+        "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g"
+      }
+    },
+    {
+      "t": "37.6s",
+      "type": "subagent.completed",
+      "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "env": {
+        "type": "subagent.completed",
+        "id": "5c849ea9-f975-4d8c-a715-3971b10fb3a6",
+        "timestamp": "2026-06-14T13:02:34.295Z",
+        "parentId": "616ab513-ed1f-40ce-bdb4-17d780c5f2f9",
+        "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU"
+      }
+    }
+  ],
+  "taskDispatches": [
+    {
+      "t": "15.4s",
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "name": "review-cache-layer",
+      "agent_type": "general-purpose",
+      "mode": "background"
+    },
+    {
+      "t": "15.4s",
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "name": "review-status-debounce",
+      "agent_type": "general-purpose",
+      "mode": "background"
+    },
+    {
+      "t": "15.4s",
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "name": "review-retry-cli-install",
+      "agent_type": "general-purpose",
+      "mode": "background"
+    }
+  ],
+  "sampleChildEvent": {
+    "type": "tool.execution_start",
+    "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+    "envelope": {
+      "type": "tool.execution_start",
+      "id": "075413d9-091b-422c-b06e-b4e9b62d05a8",
+      "timestamp": "2026-06-14T13:02:15.409Z",
+      "parentId": "6bd69fa8-d3e0-4856-8874-3c4388a408ab",
+      "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g"
+    },
+    "data_keys": [
+      "parentToolCallId",
+      "toolCallId",
+      "toolName",
+      "arguments"
+    ],
+    "toolCallId": "toolu_bdrk_01WdtaxfEegGANkr9o1HQzHs",
+    "parentToolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+    "toolName": "report_intent",
+    "turnId": null,
+    "messageId": null,
+    "reasoningId": null,
+    "args_name": null,
+    "args_agent_type": null,
+    "args_mode": null,
+    "agent_id_result": null,
+    "t": "18.7s"
+  },
+  "lifecycleSequence": [
+    {
+      "t": "15.4s",
+      "type": "tool.execution_start",
+      "toolName": "task",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "parentToolCallId": null
+    },
+    {
+      "t": "15.4s",
+      "type": "tool.execution_start",
+      "toolName": "task",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "parentToolCallId": null
+    },
+    {
+      "t": "15.4s",
+      "type": "tool.execution_start",
+      "toolName": "task",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "parentToolCallId": null
+    },
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "parentToolCallId": null
+    },
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "parentToolCallId": null
+    },
+    {
+      "t": "15.4s",
+      "type": "subagent.started",
+      "toolName": null,
+      "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "parentToolCallId": null
+    },
+    {
+      "t": "20.2s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_0125ZLHuK8JjfDsbeNonBLr4",
+      "parentToolCallId": null
+    },
+    {
+      "t": "20.2s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_012YPSudUzcE6HZzPLP6t9qq",
+      "parentToolCallId": null
+    },
+    {
+      "t": "20.2s",
+      "type": "tool.execution_start",
+      "toolName": "read_agent",
+      "agentId": null,
+      "toolCallId": "toolu_bdrk_015Qt9HVj798J5aduhpLA3ZG",
+      "parentToolCallId": null
+    },
+    {
+      "t": "29.6s",
+      "type": "subagent.completed",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "toolCallId": "toolu_bdrk_01PNBB18MznxnuK3G27FVTEc",
+      "parentToolCallId": null
+    },
+    {
+      "t": "35.3s",
+      "type": "subagent.completed",
+      "toolName": null,
+      "agentId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "toolCallId": "toolu_bdrk_014iDTLR2kSz8LFLwFo3L43g",
+      "parentToolCallId": null
+    },
+    {
+      "t": "37.6s",
+      "type": "subagent.completed",
+      "toolName": null,
+      "agentId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "toolCallId": "toolu_bdrk_01WKGukLjjy9pHXZpNa4jFeU",
+      "parentToolCallId": null
+    }
+  ]
+}

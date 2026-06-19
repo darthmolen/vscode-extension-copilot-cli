@@ -1,0 +1,23 @@
+[CLI subprocess] (node:50846) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+[5.9s] session 85a57521-3c0d-4185-857e-2be3bfa42871
+[5.9s] fleet.start (fire-and-forget)...
+[17.8s] subagent.started #1 agentId=toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ name=explore
+[17.8s] subagent.started #2 agentId=toolu_bdrk_01TzFYHyPVVNybLsvPnH3yhV name=explore
+[17.8s] subagent.started #3 agentId=toolu_bdrk_01VSGRtny4TTLTRajb6cBVcg name=explore
+[25.9s] subagent.completed (1) agentId=toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ
+[26.2s] subagent.completed (2) agentId=toolu_bdrk_01TzFYHyPVVNybLsvPnH3yhV
+[26.6s] subagent.completed (3) agentId=toolu_bdrk_01VSGRtny4TTLTRajb6cBVcg
+[35.0s] session.idle (bgAgents=0, started=3, completed=3)
+[35.0s] fleet.start returned: {"started":true} (started=3)
+
+========== FLEET SUMMARY ==========
+fleet.start result: {"started":true}
+subagents: started=3 completed=3
+distinct envelope agentIds: ["toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ","toolu_bdrk_01TzFYHyPVVNybLsvPnH3yhV","toolu_bdrk_01VSGRtny4TTLTRajb6cBVcg"]
+fleet.* wildcard events: [] (issue #2264)
+session.task_complete fired: false (issue #2262)
+agentId carried by types: {"subagent.started":3,"assistant.usage":12,"assistant.message":12,"tool.execution_start":9,"tool.execution_complete":9,"subagent.completed":3}
+sample child event: {"type":"tool.execution_start","agentId":"toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ","envelope":{"type":"tool.execution_start","id":"03b95c02-0831-4f7b-add5-12d8f04fd03e","timestamp":"2026-06-14T13:04:24.359Z","parentId":"d12396ae-5927-4f9c-bee9-7fa6b615d7de","agentId":"toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ"},"toolCallId":"toolu_bdrk_01DRW7FfbbWii4Q7PeKLJ373","parentToolCallId":"toolu_bdrk_01RPi9dTy2k1Rw1zPYUSFehQ","toolName":"view","args_agent_type":null,"args_mode":null,"t":"19.8s"}
+[35.0s] EXIT=0
+EXIT=0

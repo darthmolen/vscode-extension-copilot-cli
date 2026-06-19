@@ -10,12 +10,13 @@ npx @vscode/vsce package --no-git-tag-version --allow-star-activation --allow-mi
 
 echo ""
 echo "🗑️  Uninstalling old version..."
-code --uninstall-extension copilot-cli-extension 2>/dev/null || true
+code --uninstall-extension darthmolen.copilot-cli-extension 2>/dev/null || true
 
 echo ""
 echo "📥 Installing new version..."
 VSIX=$(ls -t copilot-cli-extension-*.vsix | head -1)
-code --install-extension "$VSIX"
+# --force so a same-version reinstall (common during dev iteration) is not skipped
+code --install-extension "$VSIX" --force
 
 echo ""
 echo "✅ Done! Extension installed: $VSIX"

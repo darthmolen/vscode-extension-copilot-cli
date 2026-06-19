@@ -213,6 +213,8 @@ export interface ToolExecutionState {
     error?: { message: string; code?: string };
     progress?: string;
     intent?: string;  // Intent from the message containing this tool call
+    agentId?: string;          // Sub-agent instance id (envelope) when this tool runs inside a sub-agent
+    parentToolCallId?: string; // Redundant fallback: the spawning task's toolCallId
 }
 
 export interface StatusData {
@@ -252,6 +254,31 @@ export interface UsageData {
 
 export interface TaskCompleteData {
     summary?: string;
+}
+
+export interface SubagentStartData {
+    agentId: string;          // envelope agentId (== spawning task's toolCallId)
+    agentName?: string;
+    agentDisplayName?: string;
+    agentDescription?: string;
+}
+
+export interface SubagentMessageData {
+    agentId: string;
+    content?: string;       // the sub-agent's comment / output text
+    reasoningText?: string; // plaintext reasoning ("thinking"), when present
+}
+
+export interface SubagentCompleteData {
+    agentId: string;
+    status: 'complete' | 'failed';
+    agentName?: string;
+    agentDisplayName?: string;
+    model?: string;
+    totalToolCalls?: number;
+    totalTokens?: number;
+    durationMs?: number;
+    error?: string;
 }
 
 type SessionMode = 'work' | 'plan';
@@ -304,6 +331,15 @@ export class SDKSessionManager implements vscode.Disposable {
 
     private readonly _onDidTaskComplete = this._reg(new BufferedEmitter<TaskCompleteData>());
     readonly onDidTaskComplete = this._onDidTaskComplete.event;
+
+    private readonly _onDidStartSubagent = this._reg(new BufferedEmitter<SubagentStartData>());
+    readonly onDidStartSubagent = this._onDidStartSubagent.event;
+
+    private readonly _onDidCompleteSubagent = this._reg(new BufferedEmitter<SubagentCompleteData>());
+    readonly onDidCompleteSubagent = this._onDidCompleteSubagent.event;
+
+    private readonly _onDidSubagentMessage = this._reg(new BufferedEmitter<SubagentMessageData>());
+    readonly onDidSubagentMessage = this._onDidSubagentMessage.event;
     
     private logger: Logger;
     private workingDirectory: string;
@@ -714,7 +750,17 @@ export class SDKSessionManager implements vscode.Disposable {
                 // See ADR-006 Decision 3.
                 const hasToolRequests = event.data.toolRequests && event.data.toolRequests.length > 0;
                 const hasContent = event.data.content && event.data.content.trim().length > 0;
-                if (hasContent && !hasToolRequests) {
+                if (event.agentId) {
+                    // Sub-agent message: route to the dock, NEVER the main transcript.
+                    // Only real comments (content without mid-thought tool fragments) carry through.
+                    if ((hasContent && !hasToolRequests) || event.data.reasoningText) {
+                        this._onDidSubagentMessage.fire({
+                            agentId: event.agentId,
+                            content: hasContent && !hasToolRequests ? event.data.content : undefined,
+                            reasoningText: event.data.reasoningText,
+                        });
+                    }
+                } else if (hasContent && !hasToolRequests) {
                     this._onDidReceiveOutput.fire({ content: event.data.content, messageId: event.data.messageId ?? '' });
                 } else if (hasToolRequests && event.data.messageId) {
                     // Suppress content but send empty signal to finalize any in-progress streaming bubble
@@ -723,10 +769,12 @@ export class SDKSessionManager implements vscode.Disposable {
                 break;
 
             case 'assistant.reasoning':
+                if (event.agentId) { break; } // sub-agent reasoning never enters the main transcript
                 this._onDidReceiveReasoning.fire({ reasoningId: event.data.reasoningId ?? '', content: event.data.content });
                 break;
 
             case 'assistant.reasoning_delta':
+                if (event.agentId) { break; } // sub-agent reasoning deltas suppressed from main
                 this._onDidReceiveReasoningDelta.fire({
                     reasoningId: event.data.reasoningId,
                     deltaContent: event.data.deltaContent,
@@ -737,6 +785,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 break;
 
             case 'assistant.message_delta':
+                if (event.agentId) { break; } // sub-agent text streams via onDidSubagentMessage, not the main bubble
                 this._onDidMessageDelta.fire({
                     messageId: event.data.messageId,
                     deltaContent: event.data.deltaContent,
@@ -880,9 +929,42 @@ export class SDKSessionManager implements vscode.Disposable {
                 }
                 break;
 
-            case 'subagent.started':
+            case 'subagent.started': {
+                const d = event.data ?? {};
+                const agentId = event.agentId ?? d.toolCallId;
+                this.logger.info(`[Subagent Start] ${d.agentDisplayName ?? d.agentName} (${agentId})`);
+                if (agentId) {
+                    this._onDidStartSubagent.fire({
+                        agentId,
+                        agentName: d.agentName,
+                        agentDisplayName: d.agentDisplayName,
+                        agentDescription: d.agentDescription,
+                    });
+                }
+                break;
+            }
+
             case 'subagent.completed':
-            case 'subagent.failed':
+            case 'subagent.failed': {
+                const d = event.data ?? {};
+                const agentId = event.agentId ?? d.toolCallId;
+                const status = event.type === 'subagent.failed' ? 'failed' : 'complete';
+                this.logger.info(`[Subagent Complete] ${d.agentDisplayName ?? d.agentName} (${agentId}) status=${status}`);
+                if (agentId) {
+                    this._onDidCompleteSubagent.fire({
+                        agentId, status,
+                        agentName: d.agentName,
+                        agentDisplayName: d.agentDisplayName,
+                        model: d.model,
+                        totalToolCalls: d.totalToolCalls,
+                        totalTokens: d.totalTokens,
+                        durationMs: d.durationMs,
+                        error: d.error,
+                    });
+                }
+                break;
+            }
+
             case 'subagent.selected':
             case 'hook.start':
             case 'hook.end':
@@ -956,6 +1038,8 @@ export class SDKSessionManager implements vscode.Disposable {
                 status: 'running',
                 startTime: eventTime,
                 intent: this.lastMessageIntent,  // Attach the intent from report_intent
+                agentId: event.agentId,                  // envelope: set when this tool runs inside a sub-agent
+                parentToolCallId: data.parentToolCallId, // redundant fallback
             };
 
             // Clear intent after first use to prevent it sticking to all subsequent tools

@@ -385,3 +385,96 @@ Deferred to `planning/3-8-0-fleet-command-phase-2.md`.
 ### Assessment
 **Implementable as written?** With fixes
 **Reasoning:** Well-structured plan with strong codebase knowledge, SDK awareness, and TDD discipline. Three issues need resolution before implementation: (1) `acceptAndFleet()`/`acceptPlan()` relationship must be clarified to avoid duplicated session lifecycle logic, (2) `compact-slash-handlers.test.js` reference must be corrected to an existing file, (3) `session.background_tasks_changed` assumption should be validated in Phase 0 spike or replaced with count-based completion detection. None require fundamental redesign — targeted plan updates before Phase 1 begins.
+
+---
+
+## Plan Review (Re-review)
+
+**Reviewed:** 2026-06-18 17:34
+**Reviewer:** Claude Code (plan-review-intake)
+
+### Prior Review Issue Status
+
+**Critical 1 — Phase 2.5 references `compact-slash-handlers.test.js` which doesn't exist:** RESOLVED
+- File verified at `tests/unit/extension/compact-slash-handlers.test.js`.
+
+**Critical 2 — `acceptAndFleet()` duplicates `acceptPlan()` logic without specifying relationship:** STILL PRESENT
+- `acceptPlan()` (lines 2087–2120) includes snapshot clearing, plan path calculation, visual message emission, and heading extraction for auto-rename. Plan's `acceptAndFleet()` mentions only read/disablePlanMode/emit/startFleet. Relationship to the full acceptPlan sequence is still unspecified.
+
+**Important 3 — No `BufferedEmitter` specified for `_onDidFleetStatusMessage`:** STILL PRESENT
+- Phase 9a says "Add private emitters" but doesn't specify BufferedEmitter. All existing emitters in sdkSessionManager.ts use BufferedEmitter (lines 296–341). This must be explicit.
+
+**Important 4 — `session.background_tasks_changed` as fleet-done signal is unverified:** PARTIALLY ADDRESSED
+- Phase 0 findings confirm this event fires 14× per run on every agent state change, not just at completion, and always returns `{}`. Plan Phase 9a still says "check if all agents done" on this event — which requires a count-based approach. The plan doesn't specify where this count state lives or how it's initialized.
+
+**Important 5 — Phase numbering gap (no Phase 8):** STILL PRESENT
+
+**Important 6 — Markdown vs XSS risk:** PARTIALLY ADDRESSED
+- User-supplied fields like `agentDescription` can contain arbitrary content and feed into fleet message templates. Plan doesn't specify escaping for these fields. Extension-controlled fields are safe; user-via-SDK fields are not.
+
+**Important 7 — No error handling for `acceptAndFleet()` when plan.md missing/empty:** STILL PRESENT
+- `acceptPlan()` guards with `fs.existsSync(planPath)`. Plan's `acceptAndFleet()` doesn't mention this guard.
+
+**Important 8 — `handleFleetCommand` dependency injection pattern unclear:** STILL PRESENT
+- Phase 7 shows free functions but existing handlers (CompactSlashHandlers, CodeReviewSlashHandlers) are classes with constructor injection. Inconsistency not addressed.
+
+### New Issues Found
+
+#### Critical
+
+**Phase 0 spike findings contradict plan assumptions — plan never updated**
+- Section: Phase 0 Decision gate / Phase 9a
+- What's wrong: Phase 0 finding: "Fleet always uses built-in `explore`/`general-purpose` agents — `customAgents` does NOT influence fleet dispatch." But the decision gate table (line 98) still shows the unfilled hypothetical: "Fleet uses custom agents → Note in Phase 9a; expose `agentDisplayName`." The plan proceeds to Phase 1+ without incorporating these findings. This is a fatal sequencing error — Phase 0 was meant to gate Phase 1.
+- Fix: Update the decision gate with actual findings; revise Phase 9a to remove customAgents path since fleet ignores them.
+
+**`role: 'fleet'` not added to the `Message` type in models.ts**
+- Section: Phase 1 / Phase 9c
+- What's wrong: The `Message` interface in models.ts only allows `role: 'user' | 'assistant' | 'reasoning' | 'tool'`. Phase 9c emits `message:fleet` and MessageDisplay handles it via a new case, but MessageDisplay.addMessage() (line 269) extracts `{ role, content }` from Message objects. `role: 'fleet'` is never added to Phase 1's models.ts task list.
+- Fix: Add `'fleet'` to the `Message.role` union in Phase 1.
+
+**`acceptAndFleet()` would break dual-session architecture**
+- Section: Technical Considerations / Phase 9a
+- What's wrong: Plan says "Fresh work session after `disablePlanMode()` has no conversation history." But `acceptPlan()` → `disablePlanMode()` RESUMES the existing work session (not a fresh one). Plan's decision gate says "if `resumeSession` rejects `customAgents`, create fresh session" — but Phase 0 found that `ResumeSessionConfig` DOES accept `customAgents`. So this fresh-session branch should never trigger, yet the plan's mental model of "fresh session = no history" is wrong.
+- Fix: Clarify that `acceptAndFleet()` resumes the work session (same as `acceptPlan()`), then calls `startFleet()` on the resumed session.
+
+#### Important
+
+**Wrong line numbers in Phase 9a**
+- Section: Phase 9a
+- What's wrong: Plan says "Replace log-only handling at lines 854–880." Lines 854–880 of sdkSessionManager.ts are quota/usage handling (`session.usage_info`), not subagent events. Subagent event handling is elsewhere (~line 979 for `session.background_tasks_changed`, ~line 992 for `session.task_complete`).
+- Fix: Correct line references before implementation begins, or drop them and describe by event type name instead.
+
+**Phase 7 shows free functions; all existing slash handlers are classes**
+- Section: Phase 7
+- What's wrong: `handleFleetCommand(args, sessionManager)` as free function. CompactSlashHandlers and all other slash handlers use class with constructor injection. An implementer following the plan produces inconsistent code.
+- Fix: Specify `class FleetSlashHandlers` with constructor-injected `sessionManager`, matching existing patterns.
+
+**Phase 9a Map cleanup never specified**
+- Section: Phase 9a
+- What's wrong: Plan adds `Map<toolCallId, SubagentState>` but never specifies when to clear it. Memory leak if not cleaned up on session end/switch.
+- Fix: Specify Map is cleared in `stop()` or `switchSession()`, whichever fires on session teardown.
+
+**Phase 9c conflates two event emission patterns**
+- Section: Phase 9c
+- What's wrong: Plan says both `eventBus.emit('message:fleet', payload)` AND `MessageDisplay: subscribe to 'message:fleet'`. But approach header (line 23) says fleet messages have `role: 'fleet'` which implies `message:add`. The plan shows two different event names without resolving which is authoritative.
+- Fix: Pick one: either `message:add` with `role: 'fleet'` (reuses existing handler) or new `message:fleet` (requires new handler). Document the choice.
+
+**Phase 0 Decision gate table should be marked COMPLETE**
+- The unfilled decision gate table at lines 96–106 creates confusion — it looks like Phase 0 hasn't been run, but Phase 0 findings ARE in the plan. Mark the gate as "COMPLETED — see findings" or delete the template rows.
+
+#### Minor
+
+**Phase 4 test file name uses inconsistent naming**
+- `slash-command-panel-fleet.test.js` — other test files for this component (e.g., `slash-command-panel.test.js`) use singular "command". Inconsistency in test naming.
+
+**Phase 6 "Update JSDoc" is imprecise**
+- AcceptanceControls.js uses a plain comment block for events, not JSDoc `@fires` tags. Should say "Update Events comment block."
+
+**Phase 11 destination path for plan file is ambiguous**
+- Says "Move to `planning/needs-review/completed/`" — correct destination is `planning/needs-review/completed/` (verified by ls).
+
+### Assessment
+
+**Implementable as written?** No
+
+**Reasoning:** Three fatal issues: (1) Phase 0 was meant to gate Phase 1 — the plan proceeds without incorporating spike findings that contradict the customAgents and acceptAndFleet assumptions; (2) `role: 'fleet'` is missing from the Message type in models.ts, causing a type-system gap that spans Phase 1 through 9c; (3) the plan conflates two event emission patterns for fleet messages without resolving which to use. Fix these three plus the wrong line numbers and class-vs-function pattern, and the plan becomes implementable.

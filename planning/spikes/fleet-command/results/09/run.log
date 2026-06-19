@@ -1,0 +1,46 @@
+[CLI subprocess] (node:69948) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+[CLI subprocess] (Use `node --trace-warnings ...` to show where the warning was created)
+[1.1s] session 1ae3d38a-6141-4b4f-9fe4-5bdb4a6a4bb6
+[1.1s] rpc.agent.list: {"agents":[{"name":"spike-researcher","displayName":"Spike Researcher","description":"Reads source files and summarizes their purpose. Read-only research agent."},{"name":"spike-auditor","displayName":"Spike Auditor","description":"Audits a source file for one architectural risk. Read-only."}]}
+
+[1.1s] PART 1: fleet.start with custom agents registered...
+[10.9s] [fleet] task tool: agent_type=spike-researcher name=researcher
+[10.9s] [fleet] task tool: agent_type=spike-auditor name=auditor
+[10.9s] [fleet] subagent.started name=spike-researcher custom=true
+[10.9s] [fleet] subagent.started name=spike-auditor custom=true
+[118.4s] fleet.start returned: {"started":true}
+
+[126.4s] PART 2: ad-hoc task tool targeting custom agent_type...
+[135.3s] [adhoc] task tool: agent_type=spike-researcher name=readme-researcher
+[135.3s] [adhoc] subagent.started name=spike-researcher custom=true
+
+========== CUSTOM-AGENT DISPATCH SUMMARY ==========
+registered agents: {"agents":[{"name":"spike-researcher","displayName":"Spike Researcher","description":"Reads source files and summarizes their purpose. Read-only research agent."},{"name":"spike-auditor","displayName":"Spike Auditor","description":"Audits a source file for one architectural risk. Read-only."}]}
+all subagent.started: [
+  {
+    "phase": "fleet",
+    "agentName": "spike-researcher",
+    "agentDisplayName": "Spike Researcher",
+    "agentId": "toolu_bdrk_01WcjBmJbgsFtu7x9sdNUDH2",
+    "custom": true
+  },
+  {
+    "phase": "fleet",
+    "agentName": "spike-auditor",
+    "agentDisplayName": "Spike Auditor",
+    "agentId": "toolu_bdrk_011euLMFzY7af6N1hLXgQNti",
+    "custom": true
+  },
+  {
+    "phase": "adhoc",
+    "agentName": "spike-researcher",
+    "agentDisplayName": "Spike Researcher",
+    "agentId": "toolu_bdrk_017aDPWxeNNvBQoDkQABtPvm",
+    "custom": true
+  }
+]
+FLEET dispatched custom agents: 2 (built-in seen: [])
+AD-HOC dispatched custom agents: 1 (built-in seen: [])
+>>> #2261 FIXED for fleet (custom agents dispatched)
+[195.3s] EXIT=0
+EXIT=0
