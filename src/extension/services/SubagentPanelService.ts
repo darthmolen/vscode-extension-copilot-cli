@@ -148,7 +148,10 @@ export class SubagentPanelService implements vscode.Disposable {
 	}
 
 	private html(buf: AgentBuffer): string {
-		const initial = JSON.stringify({ items: buf.items, status: buf.status, receipt: buf.receipt });
+		// Sub-agent content is untrusted (model/tool output). Escape `<` so a literal `</script>`
+		// can't break out of the inline <script> block (modern webview engines accept U+2028/9 in strings).
+		const initial = JSON.stringify({ items: buf.items, status: buf.status, receipt: buf.receipt })
+			.replace(/</g, '\\u003c');
 		// Pop-out shows reasoning ON by default.
 		return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 			body { margin: 0; font-family: var(--vscode-font-family); color: var(--vscode-foreground); }

@@ -48,7 +48,7 @@ export class SubagentDock {
 			<div class="subagent-dock__bar">
 				<span class="subagent-dock__title">🚀 Running Sub-Agents</span>
 				<span class="subagent-dock__summary"></span>
-				<button class="subagent-dock__minimize" type="button" title="Minimize">▾</button>
+				<button class="subagent-dock__minimize" type="button" title="Minimize" aria-label="Minimize sub-agent dock"><span aria-hidden="true">▾</span></button>
 			</div>
 			<div class="subagent-dock__list">
 				<div class="subagent-dock__active"></div>
@@ -108,7 +108,7 @@ export class SubagentDock {
 				<span class="subagent-dock__name"></span>
 				<span class="subagent-dock__action"></span>
 				<span class="subagent-dock__counter">0 tool calls</span>
-				<button class="subagent-dock__popout" type="button" title="Open in editor tab">⤢</button>
+				<button class="subagent-dock__popout" type="button" title="Open in editor tab" aria-label="Open sub-agent in editor tab"><span aria-hidden="true">⤢</span></button>
 			</div>
 		`;
 		el.querySelector('.subagent-dock__name').textContent = d.agentDisplayName || d.agentName || id;
@@ -212,6 +212,7 @@ export class SubagentDock {
 			const toggle = document.createElement('button');
 			toggle.type = 'button';
 			toggle.className = 'subagent-dock__think-toggle';
+			toggle.setAttribute('aria-label', 'Toggle agent reasoning');
 			toggle.textContent = '▸ show thinking';
 			const think = document.createElement('div');
 			think.className = 'subagent-dock__think subagent-dock__think--hidden';
@@ -248,6 +249,7 @@ export class SubagentDock {
 			clear.type = 'button';
 			clear.className = 'subagent-dock__clear';
 			clear.title = 'Clear';
+			clear.setAttribute('aria-label', 'Clear sub-agent card');
 			clear.textContent = '✕';
 			clear.addEventListener('click', (e) => { e.stopPropagation(); this.removeTile(tile.id); });
 			tile.el.querySelector('.subagent-dock__header').appendChild(clear);

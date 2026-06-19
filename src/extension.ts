@@ -22,6 +22,7 @@ let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatViewProvider;
+let subagentPanels: SubagentPanelService;
 let lastDropdownRefresh = 0;
 
 /** Wraps an event handler with try/catch to prevent one handler error from breaking others. */
@@ -58,6 +59,14 @@ export function activate(context: vscode.ExtensionContext) {
 	// Create chat provider and register as sidebar webview
 	chatProvider = new ChatViewProvider(context.extensionUri);
 	context.subscriptions.push(chatProvider);
+
+	// Pop-out panel service — created ONCE per activation (buffers sub-agent traffic, opens
+	// editor-tab panels on request). Must not live in wireManagerEvents(), which re-runs per session.
+	subagentPanels = new SubagentPanelService(context.globalStorageUri);
+	context.subscriptions.push(subagentPanels);
+	context.subscriptions.push(vscode.commands.registerCommand('copilot-cli-extension.openSubagentPanel', (agentId: string) => {
+		subagentPanels.open(agentId);
+	}));
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(
 			ChatViewProvider.viewType,
@@ -684,13 +693,6 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				break;
 		}
 	})));
-
-	// Pop-out panel service — buffers each sub-agent's traffic and opens it in an editor tab on request.
-	const subagentPanels = new SubagentPanelService(context.globalStorageUri);
-	context.subscriptions.push(subagentPanels);
-	context.subscriptions.push(vscode.commands.registerCommand('copilot-cli-extension.openSubagentPanel', (agentId: string) => {
-		subagentPanels.open(agentId);
-	}));
 
 	context.subscriptions.push(manager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
 		logger.info(`[Tool Start] ${toolState.toolName}`);
