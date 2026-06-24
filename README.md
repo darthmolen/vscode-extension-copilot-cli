@@ -97,13 +97,13 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
 
 ⚠️ **Important**: This extension starts Copilot SDK sessions in **headless mode** (background, without an interactive terminal auth flow). In that mode, the SDK needs GitHub authentication from the **GitHub CLI** (`gh`). A standalone `copilot` login by itself is not enough. The extension still bundles the Copilot CLI runtime automatically on first activation, but you must have `gh` installed and authenticated first.
 
-- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later.
+- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later, including the Node binary VS Code uses for its extension host, not just the one on your shell PATH.
 - **VS Code** 1.108.1 or higher
 - **GitHub CLI (`gh`)** — required for headless SDK authentication
   - **Linux/macOS**: [Install GitHub CLI](https://cli.github.com/)
   - **Windows**: `winget install --id GitHub.cli`
   - Then verify with: `gh auth status`
-- **GitHub Copilot CLI** (standalone `copilot` command) — needed for manual or extension-launched interactive `copilot login` flows
+- **GitHub Copilot CLI** (standalone `copilot` command) — needed for initial manual or extension-launched interactive `copilot login` authentication
   - **Linux/macOS**: `brew install copilot-cli`
   - **Windows**: `winget install GitHub.Copilot`
   - **Note**: Requires PowerShell v6+ on Windows
@@ -125,7 +125,7 @@ code --install-extension darthmolen.copilot-cli-extension
 
 ### Authentication
 
-Before using the extension, authenticate **GitHub CLI first**, then complete Copilot CLI login if prompted.
+Before using the extension, authenticate **GitHub CLI first** for SDK sessions, then complete `copilot login` only if the extension prompts you for interactive authentication.
 
 #### Option 1: Interactive Login (Recommended)
 
