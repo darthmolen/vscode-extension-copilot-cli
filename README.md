@@ -91,6 +91,198 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
 - **Enterprise SSO** — First-class GitHub Enterprise support for sso authentication.
 - **Cross-Platform** — Linux, macOS, and Windows (PowerShell v6+).
 
+## 📦 Installation
+
+### Prerequisites
+
+⚠️ **Important**: In headless mode, the SDK needs GitHub authentication from the **GitHub CLI** (`gh`). A standalone `copilot` login by itself is not enough. The extension still bundles the Copilot CLI runtime automatically on first activation, but you must have `gh` installed and authenticated first.
+
+- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
+- **VS Code** 1.108.1 or higher
+- **GitHub CLI (`gh`)** — required for headless SDK authentication
+  - **Linux/macOS**: [Install GitHub CLI](https://cli.github.com/)
+  - **Windows**: `winget install --id GitHub.cli`
+  - Then verify with: `gh auth status`
+- **GitHub Copilot CLI** (standalone `copilot` command) — still useful for interactive login flows
+  - **Linux/macOS**: `brew install copilot-cli`
+  - **Windows**: `winget install GitHub.Copilot`
+  - **Note**: Requires PowerShell v6+ on Windows
+  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
+- **Active Copilot subscription**
+
+### From VS Code Marketplace
+
+1. Open VS Code
+2. Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac)
+3. Search for "Copilot CLI Chat"
+4. Click **Install**
+
+### From Command Line
+
+```bash
+code --install-extension darthmolen.copilot-cli-extension
+```
+
+### Troubleshooting: Session Won't Start
+
+If the extension hangs on "Starting CLI process..." or times out with "createSession timed out", check these in order:
+
+**1. Node.js version (most common)**
+
+SDK 0.2.1+ and CLI 1.0.17 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
+
+```bash
+# Check what Node version VS Code is using
+node --version
+```
+
+If you use **nvm**, ensure VS Code launches with the correct version:
+
+```bash
+# Set Node 24 as default
+nvm alias default 24
+nvm use 24
+
+# On WSL: kill cached VS Code server processes, then relaunch
+pkill -f vscode-server
+code .
+```
+
+A simple reload (`Ctrl+Shift+P` → "Developer: Reload Window") will **not** pick up a new Node binary. You must fully restart the VS Code server.
+
+**2. Authentication**
+
+Headless sessions need a valid GitHub CLI login. Check and fix:
+
+```bash
+# Check GitHub CLI auth status
+gh auth status
+
+# Sign in if needed
+gh auth login -h github.com
+
+# Then ensure Copilot CLI is also logged in
+copilot login
+```
+
+If `copilot login` succeeded earlier but `gh auth status` is not authenticated, authenticate with `gh` and restart VS Code. The SDK uses the GitHub CLI token in headless mode.
+
+**3. CLI version**
+
+Update the CLI to the latest version:
+
+```bash
+# Update the npm package
+npm install -g @github/copilot@latest
+
+# Verify
+copilot --version
+```
+
+The Go launcher binary may report a different version than the actual CLI runtime — it reflects the version at the time you first installed it. The launcher auto-downloads newer CLI versions to `~/.copilot/pkg/universal/` and delegates to the latest at runtime.
+
+### Authentication
+
+Before using the extension, authenticate **GitHub CLI first**, then Copilot CLI if needed.
+
+#### Option 1: Interactive Login (Recommended)
+
+1. Install and authenticate GitHub CLI:
+
+   ```bash
+   gh auth login -h github.com
+   gh auth status
+   ```
+
+2. Open the chat panel (Ctrl+Shift+P → "Copilot CLI: Open Chat")
+3. If not authenticated, click **"Authenticate Now"** in the error dialog
+4. The extension opens a terminal with the `copilot login` command pre-filled
+5. Follow the device code flow in your browser to complete authentication
+6. Click **"Retry"** in VS Code to start your session
+
+**Manual authentication**: You can also run `copilot login` in any terminal after `gh auth login`, then restart the extension.
+
+#### Option 2: Environment Variable
+
+For automation or CI/CD scenarios, set an authentication token as an environment variable:
+
+1. Create a fine-grained Personal Access Token (PAT) with "Copilot Requests" permission
+   - Go to: [GitHub token settings](https://github.com/settings/tokens?type=beta)
+   - Generate new token → Select "Copilot Requests" scope
+2. Set the environment variable (priority order):
+   - **`COPILOT_GITHUB_TOKEN`** (highest priority)
+   - **`GH_TOKEN`**
+   - **`GITHUB_TOKEN`** (lowest priority)
+3. Restart VS Code to pick up the environment variable
+
+**Linux/macOS**:
+
+```bash
+export GH_TOKEN="ghp_your_token_here"
+code  # Restart VS Code from terminal to inherit env vars
+```
+
+**Windows (PowerShell)**:
+
+```powershell
+$env:GH_TOKEN="ghp_your_token_here"
+code  # Restart VS Code
+```
+
+**Note**: If a token is set but authentication fails, the extension will notify you that the token appears invalid or expired.
+
+#### GitHub Enterprise with SSO
+
+**Only for enterprises with SSO enabled** (most enterprises don't need this):
+
+If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{slug}/sso` authentication path:
+
+1. Get your enterprise slug from your admin (e.g., `acme`)
+2. Configure in VS Code settings:
+   - Open Settings (Ctrl+,)
+   - Search for "Copilot CLI GH SSO Enterprise Slug"
+   - Enter just the slug: `acme`
+3. When authenticating, the extension will automatically generate:
+
+   ```bash
+   copilot login --host https://github.com/enterprises/acme/sso
+   ```
+
+**When to use this**:
+
+- ✅ Your enterprise has SSO enabled and requires `/enterprises/{slug}/sso` path
+- ❌ Using github.com (public GitHub) - leave empty
+- ❌ Using GitHub Enterprise Server (self-hosted) - leave empty
+- ❌ Using GitHub Enterprise Cloud without SSO - leave empty
+
+**Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
+
+### Troubleshooting: Authentication Error
+
+If you see this error:
+
+```text
+Error: Session was not created with authentication info or custom provider
+```
+
+the SDK could not find usable GitHub authentication for headless mode.
+
+1. Check GitHub CLI auth:
+
+   ```bash
+   gh auth status
+   ```
+
+2. If GitHub CLI is not authenticated, sign in:
+
+   ```bash
+   gh auth login -h github.com
+   ```
+
+3. If you previously authenticated only with `copilot login`, run the `gh` login above as well. The headless SDK requires the GitHub CLI token.
+4. Re-run `copilot login` if the Copilot CLI prompts for authentication.
+5. Restart VS Code and try again.
+
 ### v3.9.0 - MCP Server Management 🧩
 
 - **See every MCP server, from every source** — The `/mcp` panel now lists servers from all four sources, each with a badge: `user` (your `copilotCLI.mcpServers` setting), `managed` (bundled by the extension), `imported` (VS Code's native config), and `copilot` (the Copilot CLI's own config). Read-only sources are marked with a 🔒.
@@ -160,161 +352,6 @@ Copilot learns about your codebase across sessions — coding agent, code review
 **Managing memories:** Repository owners can view memories chronologically, delete individual entries, or batch-delete.
 
 See: [Copilot Memory documentation](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/copilot-memory)
-
-## 📦 Installation
-
-### Prerequisites
-
-⚠️ **Important**: This extension requires the **new standalone Copilot CLI** (`copilot` command) for initial authentication. The CLI runtime is now bundled — the extension auto-installs a compatible version on first activation, so you don't need a globally-installed `copilot` for day-to-day use.
-
-- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
-- **VS Code** 1.108.1 or higher
-- **GitHub Copilot CLI** (standalone `copilot` command) — needed for **initial authentication only**
-  - **Linux/macOS**: `brew install copilot-cli`
-  - **Windows**: `winget install GitHub.Copilot`
-  - **Note**: Requires PowerShell v6+ on Windows
-  - See: [Copilot CLI docs](https://docs.github.com/copilot/concepts/agents/about-copilot-cli)
-- **Active Copilot subscription**
-
-### From VS Code Marketplace
-
-1. Open VS Code
-2. Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac)
-3. Search for "Copilot CLI Chat"
-4. Click **Install**
-
-### From Command Line
-
-```bash
-code --install-extension darthmolen.copilot-cli-extension
-```
-
-### Troubleshooting: Session Won't Start
-
-If the extension hangs on "Starting CLI process..." or times out with "createSession timed out", check these in order:
-
-**1. Node.js version (most common)**
-
-SDK 0.2.1+ and CLI 1.0.17 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
-
-```bash
-# Check what Node version VS Code is using
-node --version
-```
-
-If you use **nvm**, ensure VS Code launches with the correct version:
-
-```bash
-# Set Node 24 as default
-nvm alias default 24
-nvm use 24
-
-# On WSL: kill cached VS Code server processes, then relaunch
-pkill -f vscode-server
-code .
-```
-
-A simple reload (`Ctrl+Shift+P` → "Developer: Reload Window") will **not** pick up a new Node binary. You must fully restart the VS Code server.
-
-**2. Authentication**
-
-After reboots, GitHub auth tokens may expire. Check and fix:
-
-```bash
-# Check auth status
-gh auth status
-
-# Re-authenticate if needed
-gh auth login -h github.com
-
-# Also re-auth the Copilot CLI
-copilot auth
-```
-
-**3. CLI version**
-
-Update the CLI to the latest version:
-
-```bash
-# Update the npm package
-npm install -g @github/copilot@latest
-
-# Verify
-copilot --version
-```
-
-The Go launcher binary may report a different version than the actual CLI runtime — it reflects the version at the time you first installed it. The launcher auto-downloads newer CLI versions to `~/.copilot/pkg/universal/` and delegates to the latest at runtime.
-
-### Authentication
-
-Before using the extension, you must authenticate the Copilot CLI with GitHub.
-
-#### Option 1: Interactive Login (Recommended)
-
-The extension will automatically guide you if authentication is needed:
-
-1. Open the chat panel (Ctrl+Shift+P → "Copilot CLI: Open Chat")
-2. If not authenticated, click **"Authenticate Now"** in the error dialog
-3. The extension opens a terminal with the `copilot login` command pre-filled
-4. Follow the device code flow in your browser to complete authentication
-5. Click **"Retry"** in VS Code to start your session
-
-**Manual authentication**: You can also run `copilot login` in any terminal, then restart the extension.
-
-#### Option 2: Environment Variable
-
-For automation or CI/CD scenarios, set an authentication token as an environment variable:
-
-1. Create a fine-grained Personal Access Token (PAT) with "Copilot Requests" permission
-   - Go to: [GitHub token settings](https://github.com/settings/tokens?type=beta)
-   - Generate new token → Select "Copilot Requests" scope
-2. Set the environment variable (priority order):
-   - **`COPILOT_GITHUB_TOKEN`** (highest priority)
-   - **`GH_TOKEN`**
-   - **`GITHUB_TOKEN`** (lowest priority)
-3. Restart VS Code to pick up the environment variable
-
-**Linux/macOS**:
-
-```bash
-export GH_TOKEN="ghp_your_token_here"
-code  # Restart VS Code from terminal to inherit env vars
-```
-
-**Windows (PowerShell)**:
-
-```powershell
-$env:GH_TOKEN="ghp_your_token_here"
-code  # Restart VS Code
-```
-
-**Note**: If a token is set but authentication fails, the extension will notify you that the token appears invalid or expired.
-
-#### GitHub Enterprise with SSO
-
-**Only for enterprises with SSO enabled** (most enterprises don't need this):
-
-If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{slug}/sso` authentication path:
-
-1. Get your enterprise slug from your admin (e.g., `acme`)
-2. Configure in VS Code settings:
-   - Open Settings (Ctrl+,)
-   - Search for "Copilot CLI GH SSO Enterprise Slug"
-   - Enter just the slug: `acme`
-3. When authenticating, the extension will automatically generate:
-
-   ```bash
-   copilot login --host https://github.com/enterprises/acme/sso
-   ```
-
-**When to use this**:
-
-- ✅ Your enterprise has SSO enabled and requires `/enterprises/{slug}/sso` path
-- ❌ Using github.com (public GitHub) - leave empty
-- ❌ Using GitHub Enterprise Server (self-hosted) - leave empty
-- ❌ Using GitHub Enterprise Cloud without SSO - leave empty
-
-**Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
 
 ## 🚀 Quick Start
 
