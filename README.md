@@ -97,7 +97,7 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
 
 ⚠️ **Important**: In headless mode, the SDK needs GitHub authentication from the **GitHub CLI** (`gh`). A standalone `copilot` login by itself is not enough. The extension still bundles the Copilot CLI runtime automatically on first activation, but you must have `gh` installed and authenticated first.
 
-- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later. If sessions don't start, see [Troubleshooting](#troubleshooting-session-wont-start).
+- **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later.
 - **VS Code** 1.108.1 or higher
 - **GitHub CLI (`gh`)** — required for headless SDK authentication
   - **Linux/macOS**: [Install GitHub CLI](https://cli.github.com/)
@@ -123,71 +123,13 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
 code --install-extension darthmolen.copilot-cli-extension
 ```
 
-### Troubleshooting: Session Won't Start
-
-If the extension hangs on "Starting CLI process..." or times out with "createSession timed out", check these in order:
-
-**1. Node.js version (most common)**
-
-SDK 0.2.1+ and CLI 1.0.17 require **Node.js 24 or later**. VS Code's extension host must run Node 24 — this is the Node binary VS Code uses internally, not just what's on your PATH.
-
-```bash
-# Check what Node version VS Code is using
-node --version
-```
-
-If you use **nvm**, ensure VS Code launches with the correct version:
-
-```bash
-# Set Node 24 as default
-nvm alias default 24
-nvm use 24
-
-# On WSL: kill cached VS Code server processes, then relaunch
-pkill -f vscode-server
-code .
-```
-
-A simple reload (`Ctrl+Shift+P` → "Developer: Reload Window") will **not** pick up a new Node binary. You must fully restart the VS Code server.
-
-**2. Authentication**
-
-Headless sessions need a valid GitHub CLI login. Check and fix:
-
-```bash
-# Check GitHub CLI auth status
-gh auth status
-
-# Sign in if needed
-gh auth login -h github.com
-
-# Then ensure Copilot CLI is also logged in
-copilot login
-```
-
-If `copilot login` succeeded earlier but `gh auth status` is not authenticated, authenticate with `gh` and restart VS Code. The SDK uses the GitHub CLI token in headless mode.
-
-**3. CLI version**
-
-Update the CLI to the latest version:
-
-```bash
-# Update the npm package
-npm install -g @github/copilot@latest
-
-# Verify
-copilot --version
-```
-
-The Go launcher binary may report a different version than the actual CLI runtime — it reflects the version at the time you first installed it. The launcher auto-downloads newer CLI versions to `~/.copilot/pkg/universal/` and delegates to the latest at runtime.
-
 ### Authentication
 
-Before using the extension, authenticate **GitHub CLI first**, then Copilot CLI if needed.
+Before using the extension, authenticate **GitHub CLI first**, then complete Copilot CLI login if prompted.
 
 #### Option 1: Interactive Login (Recommended)
 
-1. Install and authenticate GitHub CLI:
+1. Authenticate GitHub CLI:
 
    ```bash
    gh auth login -h github.com
@@ -256,32 +198,6 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
 - ❌ Using GitHub Enterprise Cloud without SSO - leave empty
 
 **Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
-
-### Troubleshooting: Authentication Error
-
-If you see this error:
-
-```text
-Error: Session was not created with authentication info or custom provider
-```
-
-the SDK could not find usable GitHub authentication for headless mode.
-
-1. Check GitHub CLI auth:
-
-   ```bash
-   gh auth status
-   ```
-
-2. If GitHub CLI is not authenticated, sign in:
-
-   ```bash
-   gh auth login -h github.com
-   ```
-
-3. If you previously authenticated only with `copilot login`, run the `gh` login above as well. The headless SDK requires the GitHub CLI token.
-4. Re-run `copilot login` if the Copilot CLI prompts for authentication.
-5. Restart VS Code and try again.
 
 ### v3.9.0 - MCP Server Management 🧩
 
