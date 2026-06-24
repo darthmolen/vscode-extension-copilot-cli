@@ -95,7 +95,7 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
 
 ### Prerequisites
 
-⚠️ **Important**: In headless mode, the SDK needs GitHub authentication from the **GitHub CLI** (`gh`). A standalone `copilot` login by itself is not enough. The extension still bundles the Copilot CLI runtime automatically on first activation, but you must have `gh` installed and authenticated first.
+⚠️ **Important**: This extension starts Copilot SDK sessions in **headless mode** (background, without an interactive terminal auth flow). In that mode, the SDK needs GitHub authentication from the **GitHub CLI** (`gh`). A standalone `copilot` login by itself is not enough. The extension still bundles the Copilot CLI runtime automatically on first activation, but you must have `gh` installed and authenticated first.
 
 - **Node.js 24+** — The Copilot SDK and bundled CLI require Node 24 or later.
 - **VS Code** 1.108.1 or higher
@@ -103,7 +103,7 @@ The point: **sub-agent reasoning and tool calls stay out of your main transcript
   - **Linux/macOS**: [Install GitHub CLI](https://cli.github.com/)
   - **Windows**: `winget install --id GitHub.cli`
   - Then verify with: `gh auth status`
-- **GitHub Copilot CLI** (standalone `copilot` command) — still useful for interactive login flows
+- **GitHub Copilot CLI** (standalone `copilot` command) — needed for manual or extension-launched interactive `copilot login` flows
   - **Linux/macOS**: `brew install copilot-cli`
   - **Windows**: `winget install GitHub.Copilot`
   - **Note**: Requires PowerShell v6+ on Windows
