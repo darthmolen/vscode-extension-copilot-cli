@@ -83,14 +83,14 @@ describe('ModelSelector Component', () => {
 
 		it('should mark current model with checkmark', () => {
 			const selector = new ModelSelector(container, eventBus);
-			selector.setModel('claude-sonnet-4.5');
+			selector.setModel('claude-sonnet-4.6');
 
 			const bar = container.querySelector('.model-selector-bar');
 			bar.click();
 
 			const items = container.querySelectorAll('.model-option');
 			const currentItem = Array.from(items).find(
-				item => item.dataset.model === 'claude-sonnet-4.5'
+				item => item.dataset.model === 'claude-sonnet-4.6'
 			);
 			expect(currentItem).to.not.be.undefined;
 			expect(currentItem.classList.contains('current')).to.be.true;
@@ -151,7 +151,7 @@ describe('ModelSelector Component', () => {
 
 		it('should not emit if same model is clicked', () => {
 			const selector = new ModelSelector(container, eventBus);
-			selector.setModel('claude-sonnet-4.5');
+			selector.setModel('claude-sonnet-4.6');
 
 			let emitCount = 0;
 			eventBus.on('modelSelected', () => { emitCount++; });
@@ -161,7 +161,7 @@ describe('ModelSelector Component', () => {
 
 			const items = container.querySelectorAll('.model-option');
 			const currentItem = Array.from(items).find(
-				item => item.dataset.model === 'claude-sonnet-4.5'
+				item => item.dataset.model === 'claude-sonnet-4.6'
 			);
 			currentItem.click();
 

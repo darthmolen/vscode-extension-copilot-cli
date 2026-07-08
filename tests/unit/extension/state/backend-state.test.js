@@ -58,17 +58,25 @@ describe('BackendState - Session Tracking', () => {
     });
 
     describe('Session Duration Calculation', () => {
-        it('should calculate session duration in seconds', (done) => {
-            state.setSessionActive(true);
-            
-            // Wait 100ms to get measurable duration
-            setTimeout(() => {
-                const duration = state.getSessionDuration();
-                expect(duration).to.be.a('number');
-                expect(duration).to.be.at.least(0);
-                expect(duration).to.be.at.most(1); // Should be less than 1 second
-                done();
-            }, 100);
+        // Stub Date.now instead of sleeping on a real timer: duration is pure
+        // `(Date.now() - startTime)/1000` math, and a real wall clock can jump backward
+        // mid-run (WSL/NTP skew) making elapsed time negative — a flake under full-suite load.
+        // Controlling the clock tests the actual math deterministically.
+        let realNow;
+        let now;
+        beforeEach(() => {
+            realNow = Date.now;
+            now = 1_700_000_000_000;
+            Date.now = () => now;
+        });
+        afterEach(() => { Date.now = realNow; });
+
+        it('should calculate session duration in seconds', () => {
+            state.setSessionActive(true);   // startTime = now
+            now += 100;                      // advance 100ms deterministically
+            const duration = state.getSessionDuration();
+            expect(duration).to.be.a('number');
+            expect(duration).to.be.closeTo(0.1, 1e-9);   // 100ms → 0.1s
         });
 
         it('should return 0 when no session has started', () => {
@@ -76,15 +84,12 @@ describe('BackendState - Session Tracking', () => {
             expect(duration).to.equal(0);
         });
 
-        it('should return duration even when session is inactive', (done) => {
+        it('should return duration even when session is inactive', () => {
             state.setSessionActive(true);
-            
-            setTimeout(() => {
-                state.setSessionActive(false);
-                const duration = state.getSessionDuration();
-                expect(duration).to.be.greaterThan(0);
-                done();
-            }, 100);
+            now += 100;
+            state.setSessionActive(false);   // deactivate does not clear startTime
+            const duration = state.getSessionDuration();
+            expect(duration).to.be.greaterThan(0);
         });
     });
 

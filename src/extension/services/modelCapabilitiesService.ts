@@ -28,7 +28,12 @@ export interface ModelInfo {
     id: string;
     name: string;
     capabilities: ModelCapabilities;
-    billing?: { multiplier: number };
+    /**
+     * Billing info. As of CLI 1.0.6x, `multiplier` is no longer populated for
+     * token-billed accounts — models carry `tokenPrices` instead. Cost tiering
+     * uses `multiplier` when present, else derives from `tokenPrices.outputPrice`.
+     */
+    billing?: { multiplier?: number; tokenPrices?: { outputPrice?: number } };
 }
 
 /**

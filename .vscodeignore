@@ -26,6 +26,8 @@ test.txt
 summary.txt
 fibonacci.py
 test-extension.sh
+scripts/**
+.github/**
 .claude/**
 documentation/**
 CHANGELOG-DRAFT.md

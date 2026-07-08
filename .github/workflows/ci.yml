@@ -1,0 +1,30 @@
+name: CI
+
+# Runs on every PR to main. Deterministic gate only: type-check + lint + bundle.
+# NOTE: the unit-test suite is intentionally NOT run in CI yet — it has a known flake tail
+# (JSDOM/global leakage congests the single mocha process). Tests are the LOCAL pre-flight
+# (`npm test` / ./test-extension.sh). Re-enable `npm run test:ci` here once the component-test
+# de-leak lands and the split runner is reliable (scripts/test-ci.sh already exists).
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24        # extension requires Node >=24 (node:sqlite, SDK/CLI)
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Type-check + lint + bundle
+        run: npm run compile

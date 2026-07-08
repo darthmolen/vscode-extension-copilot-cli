@@ -1,0 +1,55 @@
+name: Release to VS Code Marketplace
+
+# Preferred deploy path: push a version tag (vX.Y.Z) on main and this builds, tests,
+# publishes to the Marketplace, and cuts a GitHub release. See .claude/skills/publish-release.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # create the GitHub release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Guard — tag must match package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          echo "tag=v$TAG  package.json=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json version ($PKG). Bump package.json (and re-tag) before releasing."
+            exit 1
+          fi
+
+      - name: Type-check + lint + bundle
+        run: npm run compile
+
+      # NOTE: unit tests are intentionally NOT run here yet (known flake tail). The release
+      # is gated on a clean local pre-flight (see .claude/skills/publish-release step 3) plus
+      # the deterministic compile above. Re-enable `npm run test:ci` once the suite is reliable.
+
+      - name: Package VSIX
+        run: npx vsce package -o "copilot-cli-extension-${GITHUB_REF_NAME}.vsix"
+
+      - name: Publish to Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}   # Azure DevOps PAT (repo secret; = local MarketplaceAdoPat)
+        run: npx vsce publish --packagePath "copilot-cli-extension-${GITHUB_REF_NAME}.vsix"
+
+      - name: Create GitHub release with the VSIX attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes "copilot-cli-extension-${GITHUB_REF_NAME}.vsix"

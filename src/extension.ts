@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
-import { SDKSessionManager, CLIConfig } from './sdkSessionManager';
+import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
@@ -944,7 +944,9 @@ function getCLIConfig(): CLIConfig {
 		denyUrls: config.get<string[]>('denyUrls', []),
 		addDirs: config.get<string[]>('addDirs', []),
 		agent: config.get<string>('agent', ''),
-		model: config.get<string>('model', ''),
+		// Empty (unset) resolves to 'auto' so Copilot's server-side router picks the
+		// best model per turn. planModel stays empty to inherit the work model.
+		model: config.get<string>('model', '') || DEFAULT_MODEL,
 		planModel: config.get<string>('planModel', ''),
 		noAskUser: config.get<boolean>('noAskUser', false),
 		streaming: config.get<boolean>('streaming', true)

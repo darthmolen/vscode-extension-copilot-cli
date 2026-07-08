@@ -40,22 +40,33 @@ let CopilotClient: any;
 let CopilotSession: any;
 let defineTool: any;
 
-/** Fallback model used when configured model is unsupported or mistyped */
-export const FALLBACK_MODEL = 'claude-sonnet-4.6';
+/**
+ * Default model used when the user has not explicitly configured one.
+ * 'auto' lets Copilot's server-side router pick the best available model per turn.
+ */
+export const DEFAULT_MODEL = 'auto';
+
+/**
+ * Fallback model used when a configured model is unsupported or mistyped.
+ * 'auto' is the safest fallback — server-side routing never fails on an
+ * unsupported model or a reasoning-effort mismatch.
+ */
+export const FALLBACK_MODEL = 'auto';
 
 /**
  * Preferred model order for fallback selection.
  * When the requested model is unavailable, we pick the first model from this
- * list that appears in the user's available models.
+ * list that appears in the user's available models. 'auto' is first because it
+ * is always available and never fails.
  */
 export const MODEL_PREFERENCE_ORDER = [
+    'auto',
+    'claude-sonnet-5',
     'claude-sonnet-4.6',
-    'claude-sonnet-4.5',
-    'gpt-5',
+    'gpt-5.4',
     'claude-haiku-4.5',
     'gpt-5-mini',
-    'claude-opus-4.6',
-    'gpt-4.1',
+    'claude-opus-4.8',
 ];
 
 /**
@@ -544,7 +555,11 @@ export class SDKSessionManager implements vscode.Disposable {
             const useYolo = yolo && !hasToolPolicy;
             this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
 
-            this.logger.info('CopilotClient created, initializing session...');
+            // SDK 1.0.x no longer auto-starts (the old `autoStart` option is gone);
+            // the connection must be established explicitly before any RPC.
+            await this.client.start();
+
+            this.logger.info('CopilotClient created and started, initializing session...');
 
             // Initialize model capabilities service with the client
             await this.modelCapabilitiesService.initialize(this.client);
@@ -770,11 +785,19 @@ export class SDKSessionManager implements vscode.Disposable {
 
             case 'assistant.reasoning':
                 if (event.agentId) { break; } // sub-agent reasoning never enters the main transcript
+                // Guard: some models (e.g. gpt via `auto`) emit reasoning with empty content
+                // and only an opaque encrypted reasoningId — nothing to display. Forwarding it
+                // renders a blank "Assistant Reasoning" box, so skip empty/whitespace content.
+                if (!event.data.content || !event.data.content.trim()) { break; }
                 this._onDidReceiveReasoning.fire({ reasoningId: event.data.reasoningId ?? '', content: event.data.content });
                 break;
 
             case 'assistant.reasoning_delta':
                 if (event.agentId) { break; } // sub-agent reasoning deltas suppressed from main
+                // Symmetric with the assistant.reasoning guard: don't forward empty deltas
+                // across the RPC boundary (the webview also defers bubble creation until the
+                // first non-empty delta, so this is defense-in-depth, not the sole guard).
+                if (!event.data.deltaContent) { break; }
                 this._onDidReceiveReasoningDelta.fire({
                     reasoningId: event.data.reasoningId,
                     deltaContent: event.data.deltaContent,
@@ -1319,7 +1342,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 // Destroy the stale session object
                 if (this.session) {
                     try {
-                        await this.session.destroy();
+                        await this.session.disconnect();
                     } catch (e) {
                         // Ignore errors destroying expired session
                         this.logger.debug('Error destroying expired session (expected)');
@@ -1556,7 +1579,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('[Agent Reload] Reloading agents: destroy + resume');
         this._onDidChangeStatus.fire({ status: 'thinking' } as any);
         try {
-            await this.session.destroy();
+            await this.session.disconnect();
             this.session = null;
             this._sessionAgent = null;
             const mcpServers = this.getEnabledMCPServers();
@@ -1668,9 +1691,12 @@ export class SDKSessionManager implements vscode.Disposable {
 
         this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
 
+        // SDK 1.0.x requires an explicit start() (autoStart was removed).
+        await this.client.start();
+
         this.modelCapabilitiesService.clearCache();
         await this.modelCapabilitiesService.initialize(this.client);
-        this.logger.info('[Client Recreate] Fresh CopilotClient created');
+        this.logger.info('[Client Recreate] Fresh CopilotClient created and started');
     }
 
     /**
@@ -1731,7 +1757,7 @@ export class SDKSessionManager implements vscode.Disposable {
         
         if (this.session) {
             try {
-                await this.session.destroy();
+                await this.session.disconnect();
             } catch (error) {
                 this.logger.error('Error destroying session', error instanceof Error ? error : undefined);
             }
@@ -2001,7 +2027,7 @@ export class SDKSessionManager implements vscode.Disposable {
         // Destroy plan session (could keep it for reference if desired)
         if (this.planSession) {
             try {
-                await this.planSession.destroy();
+                await this.planSession.disconnect();
                 this.logger.info('Plan session destroyed');
             } catch (error) {
                 this.logger.error('Error destroying plan session', error instanceof Error ? error : undefined);
@@ -2361,7 +2387,7 @@ export class SDKSessionManager implements vscode.Disposable {
     private async updateModelCapabilities(): Promise<void> {
         try {
             // Get model ID from config or session
-            this.currentModelId = this.config.model || 'gpt-5'; // Default model
+            this.currentModelId = this.config.model || DEFAULT_MODEL; // Default model
             
             // Log capabilities using the service
             await this.modelCapabilitiesService.logCapabilities(this.currentModelId);
@@ -2421,10 +2447,15 @@ export class SDKSessionManager implements vscode.Disposable {
     /**
      * Get available models from the SDK for populating UI dropdowns
      */
-    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number }>> {
+    public async getAvailableModels(): Promise<Array<{ id: string; name: string; multiplier?: number; outputPrice?: number }>> {
         try {
             const models = await this.modelCapabilitiesService.getAllModels();
-            return models.map(m => ({ id: m.id, name: m.name, multiplier: m.billing?.multiplier }));
+            return models.map(m => ({
+                id: m.id,
+                name: m.name,
+                multiplier: m.billing?.multiplier,
+                outputPrice: m.billing?.tokenPrices?.outputPrice,
+            }));
         } catch {
             return [];
         }
