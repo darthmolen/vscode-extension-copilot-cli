@@ -18,6 +18,10 @@
 # Local devs can keep using `npm run test:unit` (single fast process, strict).
 
 set -uo pipefail
+# `**` is only recursive with globstar; nullglob makes an unmatched glob expand to nothing
+# rather than a literal pattern. Both keep the compgen guards and file discovery correct on
+# any bash (e.g. CI ubuntu) regardless of the caller's shell options.
+shopt -s globstar nullglob
 
 TIMEOUT="${MOCHA_TIMEOUT:-45000}"
 RETRIES="${MOCHA_RETRIES:-2}"
