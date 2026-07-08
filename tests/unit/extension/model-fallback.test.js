@@ -34,20 +34,20 @@ describe('Smart Model Fallback', function () {
         debug: () => {}
     };
 
-    // Standard available models for tests
+    // Standard available models for tests (current-gen, includes auto)
     const standardModels = [
+        { id: 'auto', name: 'Auto', capabilities: { supports: {} } },
+        { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', capabilities: { supports: { vision: true } } },
         { id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', capabilities: { supports: { vision: true } } },
-        { id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', capabilities: { supports: { vision: true } } },
-        { id: 'gpt-5', name: 'GPT-5', capabilities: { supports: { vision: true } } },
         { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', capabilities: { supports: { vision: true } } },
-        { id: 'gpt-4.1', name: 'GPT-4.1', capabilities: { supports: { vision: false } } },
+        { id: 'gpt-5.4', name: 'GPT-5.4', capabilities: { supports: { vision: true } } },
+        { id: 'gpt-5-mini', name: 'GPT-5 Mini', capabilities: { supports: { vision: false } } },
     ];
 
-    // Enterprise-restricted models (no Claude)
+    // Account with no Claude / auto models
     const enterpriseModelsNoClaude = [
-        { id: 'gpt-5', name: 'GPT-5', capabilities: { supports: { vision: true } } },
+        { id: 'gpt-5.4', name: 'GPT-5.4', capabilities: { supports: { vision: true } } },
         { id: 'gpt-5-mini', name: 'GPT-5 Mini', capabilities: { supports: { vision: false } } },
-        { id: 'gpt-4.1', name: 'GPT-4.1', capabilities: { supports: { vision: false } } },
     ];
 
     before(function () {
@@ -66,36 +66,37 @@ describe('Smart Model Fallback', function () {
     });
 
     describe('selectFallbackModel', function () {
-        it('should return preferred model when available', async function () {
+        it('should return auto (top preference) when available', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
             const result = await selectFallbackModel(service, new Set(['nonexistent-model']), mockLogger);
 
-            assert.strictEqual(result, 'claude-sonnet-4.6');
+            assert.strictEqual(result, 'auto');
         });
 
         it('should skip a single excluded model', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
-            const result = await selectFallbackModel(service, new Set(['claude-sonnet-4.6']), mockLogger);
+            // Exclude auto — next preference present is claude-sonnet-5
+            const result = await selectFallbackModel(service, new Set(['auto']), mockLogger);
 
-            assert.strictEqual(result, 'claude-sonnet-4.5');
+            assert.strictEqual(result, 'claude-sonnet-5');
         });
 
         it('should skip multiple excluded models and pick next preferred', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => standardModels });
 
-            // Exclude top two preferences — should pick gpt-5
+            // Exclude top two preferences — should pick claude-sonnet-4.6
             const result = await selectFallbackModel(
                 service,
-                new Set(['claude-sonnet-4.6', 'claude-sonnet-4.5']),
+                new Set(['auto', 'claude-sonnet-5']),
                 mockLogger
             );
 
-            assert.strictEqual(result, 'gpt-5');
+            assert.strictEqual(result, 'claude-sonnet-4.6');
         });
 
         it('should return first available when no preferred model matches', async function () {
@@ -111,13 +112,13 @@ describe('Smart Model Fallback', function () {
             assert.strictEqual(result, 'custom-enterprise-model');
         });
 
-        it('should pick gpt-5 when no Claude models are available', async function () {
+        it('should pick gpt-5.4 when no Claude/auto models are available', async function () {
             const service = new ModelCapabilitiesService();
             service.setClient({ listModels: async () => enterpriseModelsNoClaude });
 
             const result = await selectFallbackModel(service, new Set(['some-model']), mockLogger);
 
-            assert.strictEqual(result, 'gpt-5');
+            assert.strictEqual(result, 'gpt-5.4');
         });
 
         it('should return FALLBACK_MODEL when getAllModels() throws', async function () {
@@ -158,7 +159,7 @@ describe('Smart Model Fallback', function () {
 
             const result = await selectFallbackModel(service, new Set(), mockLogger);
 
-            assert.strictEqual(result, 'claude-sonnet-4.6');
+            assert.strictEqual(result, 'auto');
         });
     });
 
@@ -168,18 +169,18 @@ describe('Smart Model Fallback', function () {
             assert.ok(MODEL_PREFERENCE_ORDER.length > 0);
         });
 
-        it('should contain claude-sonnet-4.6 as first preference', function () {
-            assert.strictEqual(MODEL_PREFERENCE_ORDER[0], 'claude-sonnet-4.6');
+        it('should contain auto as first preference', function () {
+            assert.strictEqual(MODEL_PREFERENCE_ORDER[0], 'auto');
         });
 
-        it('should contain claude-sonnet-4.5 as second preference', function () {
-            assert.strictEqual(MODEL_PREFERENCE_ORDER[1], 'claude-sonnet-4.5');
+        it('should contain claude-sonnet-5 as second preference', function () {
+            assert.strictEqual(MODEL_PREFERENCE_ORDER[1], 'claude-sonnet-5');
         });
     });
 
     describe('FALLBACK_MODEL', function () {
-        it('should be claude-sonnet-4.6', function () {
-            assert.strictEqual(FALLBACK_MODEL, 'claude-sonnet-4.6');
+        it('should be auto', function () {
+            assert.strictEqual(FALLBACK_MODEL, 'auto');
         });
     });
 });

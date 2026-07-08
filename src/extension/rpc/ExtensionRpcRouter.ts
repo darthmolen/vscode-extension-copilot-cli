@@ -420,7 +420,7 @@ export class ExtensionRpcRouter {
 	/**
 	 * Send available models list to webview
 	 */
-	sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>): void {
+	sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number; outputPrice?: number }>): void {
 		const message: AvailableModelsPayload = {
 			type: 'availableModels',
 			models

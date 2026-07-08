@@ -331,12 +331,18 @@ describe('findSystemNodeRuntime', () => {
     });
 });
 
-describe('pickCliPath (Node-24-availability decision, cross-platform)', () => {
-    const pkgDir = path.join('/fake', 'node_modules', '@github', 'copilot');
+describe('pickCliPath (existence-aware entrypoint resolution, cross-platform)', () => {
+    // As of CLI 1.0.6x the runnable entrypoints (native binary AND index.js) live in
+    // the platform package @github/copilot-<platform>-<arch>; the meta package
+    // @github/copilot is just an npm-loader shim. pickCliPath must probe what actually
+    // exists on disk, preferring the self-contained native binary (SDK execs it directly
+    // with windowsHide — no system-Node dependency, no Electron argv issue on Windows).
+    let tmp;
     let origPlatform;
     let origArch;
 
     beforeEach(() => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pickcli-'));
         origPlatform = process.platform;
         origArch = process.arch;
     });
@@ -344,58 +350,75 @@ describe('pickCliPath (Node-24-availability decision, cross-platform)', () => {
     afterEach(() => {
         Object.defineProperty(process, 'platform', { value: origPlatform, configurable: true });
         Object.defineProperty(process, 'arch', { value: origArch, configurable: true });
+        fs.rmSync(tmp, { recursive: true, force: true });
     });
 
-    it('returns the index.js path when runtime has nodeMajorVersion >= 24', () => {
-        const runtime = { nodeExe: '/n', nodeMajorVersion: 24, npmCliJs: null };
-        const result = pickCliPath(pkgDir, runtime);
-        assert.strictEqual(result, path.join(pkgDir, 'index.js'),
-            'with system Node 24+, use the pure-Node entrypoint so the SDK spawns under it');
+    // Seed a package layout under tmp/node_modules/@github and return the meta pkg dir.
+    function seed({ platform, arch, nativeBinary = false, platformIndex = false, metaIndex = false }) {
+        Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+        Object.defineProperty(process, 'arch', { value: arch, configurable: true });
+        const gh = path.join(tmp, 'node_modules', '@github');
+        const metaDir = path.join(gh, 'copilot');
+        const platformDir = path.join(gh, `copilot-${platform}-${arch}`);
+        fs.mkdirSync(metaDir, { recursive: true });
+        fs.mkdirSync(platformDir, { recursive: true });
+        const binName = platform === 'win32' ? 'copilot.exe' : 'copilot';
+        if (nativeBinary) { fs.writeFileSync(path.join(platformDir, binName), ''); }
+        if (platformIndex) { fs.writeFileSync(path.join(platformDir, 'index.js'), ''); }
+        if (metaIndex) { fs.writeFileSync(path.join(metaDir, 'index.js'), ''); }
+        return { metaDir, platformDir, binName };
+    }
+
+    const NODE24 = { nodeExe: '/n', nodeMajorVersion: 24, npmCliJs: null };
+
+    it('prefers the native binary in the platform package (new 1.0.6x layout, Linux)', () => {
+        const { metaDir, platformDir, binName } = seed({ platform: 'linux', arch: 'x64', nativeBinary: true, platformIndex: true });
+        const result = pickCliPath(metaDir, NODE24);
+        assert.strictEqual(result, path.join(platformDir, binName),
+            'native binary is preferred — SDK execs it directly, no Node/execPath dependency');
     });
 
-    it('falls back to the native binary (Windows) when nodeMajorVersion < 24', () => {
-        Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-        Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
+    it('prefers copilot.exe on Windows (new layout)', () => {
+        const { metaDir, platformDir } = seed({ platform: 'win32', arch: 'x64', nativeBinary: true, platformIndex: true });
+        const result = pickCliPath(metaDir, NODE24);
+        assert.strictEqual(result, path.join(platformDir, 'copilot.exe'),
+            'Windows must resolve copilot.exe in @github/copilot-win32-x64');
+    });
+
+    it('uses process.arch in the platform package name (arm64)', () => {
+        const { metaDir, platformDir, binName } = seed({ platform: 'darwin', arch: 'arm64', nativeBinary: true });
+        const result = pickCliPath(metaDir, NODE24);
+        assert.strictEqual(result, path.join(platformDir, binName));
+        assert.ok(result.includes('copilot-darwin-arm64'));
+    });
+
+    it('falls back to platform index.js under Node 24+ when no native binary exists', () => {
+        const { metaDir, platformDir } = seed({ platform: 'linux', arch: 'x64', platformIndex: true });
+        const result = pickCliPath(metaDir, NODE24);
+        assert.strictEqual(result, path.join(platformDir, 'index.js'),
+            'pure-Node platform entrypoint is the next choice when the native binary is absent');
+    });
+
+    it('falls back to legacy meta index.js (old fat layout) under Node 24+', () => {
+        const { metaDir } = seed({ platform: 'linux', arch: 'x64', metaIndex: true });
+        const result = pickCliPath(metaDir, NODE24);
+        assert.strictEqual(result, path.join(metaDir, 'index.js'),
+            'CLI <=1.0.5x shipped index.js in the meta package — still supported');
+    });
+
+    it('does not use index.js when system Node is <24 (native binary only)', () => {
+        const { metaDir, platformDir, binName } = seed({ platform: 'linux', arch: 'x64', nativeBinary: true, platformIndex: true });
         const runtime = { nodeExe: '/n', nodeMajorVersion: 22, npmCliJs: null };
-        const result = pickCliPath(pkgDir, runtime);
-        const expected = path.join(path.dirname(pkgDir), 'copilot-win32-x64', 'copilot.exe');
-        assert.strictEqual(result, expected,
-            'Windows fallback must point at copilot.exe in the platform-specific sibling package');
+        const result = pickCliPath(metaDir, runtime);
+        assert.strictEqual(result, path.join(platformDir, binName),
+            'without Node 24 the pure-Node index.js is not runnable; must use the native binary');
     });
 
-    it('falls back to the native binary (Linux) when nodeMajorVersion < 24', () => {
-        Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
-        Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
-        const runtime = { nodeExe: '/n', nodeMajorVersion: 22, npmCliJs: null };
-        const result = pickCliPath(pkgDir, runtime);
-        const expected = path.join(path.dirname(pkgDir), 'copilot-linux-x64', 'copilot');
-        assert.strictEqual(result, expected,
-            'POSIX fallback must point at the bare-name binary (no .exe) in copilot-${platform}-${arch}');
-    });
-
-    it('falls back to the native binary when runtime is null (no Node found)', () => {
-        Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-        Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
-        const result = pickCliPath(pkgDir, null);
-        const expected = path.join(path.dirname(pkgDir), 'copilot-win32-x64', 'copilot.exe');
-        assert.strictEqual(result, expected);
-    });
-
-    it('falls back to the native binary when nodeMajorVersion is null (probe failed)', () => {
-        Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
-        Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true });
-        const runtime = { nodeExe: '/n', nodeMajorVersion: null, npmCliJs: null };
-        const result = pickCliPath(pkgDir, runtime);
-        const expected = path.join(path.dirname(pkgDir), 'copilot-linux-arm64', 'copilot');
-        assert.strictEqual(result, expected);
-    });
-
-    it('uses process.arch in the sibling package name (covers x64 / arm64 / etc.)', () => {
-        Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
-        Object.defineProperty(process, 'arch', { value: 'arm64', configurable: true });
-        const result = pickCliPath(pkgDir, null);
-        assert.ok(result.includes('copilot-darwin-arm64'),
-            `expected sibling dir to include darwin-arm64, got: ${result}`);
+    it('returns the native binary path even when nothing exists (clean error path)', () => {
+        const { metaDir, platformDir, binName } = seed({ platform: 'linux', arch: 'x64' });
+        const result = pickCliPath(metaDir, null);
+        assert.strictEqual(result, path.join(platformDir, binName),
+            'when no entrypoint is found, return the native binary path so the caller existence-check fails with a sensible path');
     });
 });
 

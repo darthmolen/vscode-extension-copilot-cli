@@ -47,6 +47,12 @@ describe('SDK Call Timeout Protection', function () {
             // A promise that never resolves
             const neverResolves = new Promise(() => {});
 
+            // Fire withTimeout's internal timer on the next tick instead of waiting a real
+            // 100ms. Under full-suite load a real short timer can be starved past the mocha
+            // budget (flake); firing immediately makes this deterministic. The error message
+            // still reports the requested `ms` (100), so the assertions are unchanged.
+            const realSetTimeout = global.setTimeout;
+            global.setTimeout = (fn) => realSetTimeout(fn, 0);
             try {
                 await withTimeout(neverResolves, 100, 'resumeSession');
                 assert.fail('Should have timed out');
@@ -54,6 +60,8 @@ describe('SDK Call Timeout Protection', function () {
                 assert.match(error.message, /timed out/i);
                 assert.match(error.message, /100ms/);
                 assert.match(error.message, /resumeSession/);
+            } finally {
+                global.setTimeout = realSetTimeout;
             }
         });
 

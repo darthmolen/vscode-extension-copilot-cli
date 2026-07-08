@@ -233,4 +233,46 @@ describe('MessageDisplay — reasoning streaming (JSDOM)', function () {
         assert.ok(reasoningEls[0].textContent.includes('Historical reasoning content'),
             'Historical reasoning content should be visible');
     });
+
+    // =========================================================================
+    // Empty-content guard: gpt/`auto` models emit reasoning with no plaintext.
+    // =========================================================================
+
+    it('does NOT create a reasoning element for empty content', function () {
+        eventBus.emit('reasoning:toggle', true);
+        eventBus.emit('message:add', { role: 'reasoning', content: '', reasoningId: 'r-empty', timestamp: Date.now() });
+        const els = md.messagesContainer.querySelectorAll('.message-display__item--reasoning');
+        assert.strictEqual(els.length, 0, 'empty reasoning content must not render a blank box');
+    });
+
+    it('does NOT create a reasoning element for whitespace-only content', function () {
+        eventBus.emit('reasoning:toggle', true);
+        eventBus.emit('message:add', { role: 'reasoning', content: '   \n ', timestamp: Date.now() });
+        const els = md.messagesContainer.querySelectorAll('.message-display__item--reasoning');
+        assert.strictEqual(els.length, 0, 'whitespace-only reasoning content must not render a blank box');
+    });
+
+    it('DOES create a reasoning element for non-empty content', function () {
+        eventBus.emit('reasoning:toggle', true);
+        eventBus.emit('message:add', { role: 'reasoning', content: 'real thinking', timestamp: Date.now() });
+        const els = md.messagesContainer.querySelectorAll('.message-display__item--reasoning');
+        assert.strictEqual(els.length, 1, 'non-empty reasoning must still render');
+    });
+
+    // =========================================================================
+    // Streaming-race guard: no bubble until the first non-empty delta.
+    // =========================================================================
+
+    it('does NOT create a streaming bubble on an empty delta (expand-mid-stream race)', function () {
+        eventBus.emit('reasoning:toggle', true);
+        eventBus.emit('reasoning:delta', { reasoningId: 'r-stream', deltaContent: '' });
+        const els = md.messagesContainer.querySelectorAll('.message-display__item--reasoning');
+        assert.strictEqual(els.length, 0, 'an empty delta must not create a blank streaming bubble');
+
+        // First non-empty delta creates the bubble.
+        eventBus.emit('reasoning:delta', { reasoningId: 'r-stream', deltaContent: 'now thinking' });
+        const after = md.messagesContainer.querySelectorAll('.message-display__item--reasoning');
+        assert.strictEqual(after.length, 1, 'first non-empty delta creates the bubble');
+        assert.ok(after[0].textContent.includes('now thinking'));
+    });
 });

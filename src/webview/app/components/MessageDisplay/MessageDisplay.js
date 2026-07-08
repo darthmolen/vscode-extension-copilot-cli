@@ -102,6 +102,9 @@ export class MessageDisplay {
         this.eventBus.on('reasoning:delta', (data) => {
             if (!this.showReasoning) { return; }
             let state = this.reasoningStreamingBubbles.get(data.reasoningId);
+            // Defer bubble creation until the first non-empty delta so expanding a
+            // reasoning block mid-stream can't momentarily show a blank box.
+            if (!state && (!data.deltaContent || !data.deltaContent.trim())) { return; }
             if (!state) {
                 const el = document.createElement('div');
                 el.className = 'message message-display__item message-display__item--reasoning';
@@ -306,8 +309,10 @@ export class MessageDisplay {
             return; // Don't create a duplicate bubble
         }
 
-        // Guard: skip creating an empty assistant bubble (e.g. finalization signal from Part 2 suppression)
-        if (role === 'assistant' && (!content || !content.trim())) {
+        // Guard: skip creating an empty assistant bubble (e.g. finalization signal from Part 2
+        // suppression), or an empty reasoning bubble (gpt/`auto` models emit reasoning with no
+        // plaintext content — only an opaque reasoningId — which would render as a blank box).
+        if ((role === 'assistant' || role === 'reasoning') && (!content || !content.trim())) {
             return;
         }
 

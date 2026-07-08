@@ -762,7 +762,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.sendCurrentModel(model);
 	}
 
-	public sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number }>) {
+	public sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number; outputPrice?: number }>) {
 		this.rpcRouter?.sendAvailableModels(models);
 	}
 

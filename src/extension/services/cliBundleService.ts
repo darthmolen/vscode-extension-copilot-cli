@@ -337,25 +337,53 @@ export function findSystemNodeRuntime(probe?: (cmd: string, args: string[]) => s
 export const findWindowsNpmRuntime = findSystemNodeRuntime;
 
 /**
- * Choose between the pure-Node `index.js` entrypoint (requires system Node 24+)
- * and the native binary in the sibling `@github/copilot-${platform}-${arch}`
- * package. Same decision rule on all platforms; the platform only affects the
- * native binary's filename.
+ * Resolve the runnable CLI entrypoint inside an installed `@github/copilot`, by
+ * probing what actually exists on disk. The package layout changed across CLI
+ * releases, so a fixed path is wrong:
  *
- * When Node 24+ is unavailable, we point cliPath directly at the native binary
- * rather than `npm-loader.js`. Both ultimately invoke the same Go binary, but
- * the SDK's `spawn(cliPath, ...)` already passes `windowsHide: true` — so
- * spawning the binary directly avoids the persistent console window that
- * `npm-loader.js`'s internal `spawnSync` (without windowsHide) would surface
- * on Windows.
+ *   - CLI ≤1.0.5x: `@github/copilot` is a "fat" package shipping `index.js` and
+ *     the whole runtime; the platform sibling held only the native binary.
+ *   - CLI ≥1.0.6x: `@github/copilot` is a thin `npm-loader.js` shim; BOTH the
+ *     native binary AND `index.js` moved into the platform package
+ *     `@github/copilot-${platform}-${arch}`.
+ *
+ * Preference order:
+ *   1. The self-contained native binary in the platform package. The SDK execs
+ *      it directly (`spawn(cliPath, args)`, `windowsHide: true`) — no system-Node
+ *      dependency, no `process.execPath` override, and it sidesteps the Windows
+ *      Electron-argv mismatch that the node-spawned `index.js` path needs
+ *      `ensureNodeExecPath` to work around.
+ *   2. A pure-Node `index.js` (only runnable under system Node 24+), probing the
+ *      new platform-package location first, then the legacy meta-package one.
+ *
+ * If nothing is found, returns the native-binary path so the caller's
+ * `fs.existsSync` check fails cleanly with a sensible path in its error.
+ *
+ * Note: `process.platform` is `linux` on both glibc and musl, so the sibling
+ * name never resolves to `copilot-linuxmusl-*`. musl users are handled by the
+ * CLI's own `npm-loader.js` (via `detect-libc`), not by this direct path — a
+ * pre-existing limitation, unchanged here.
  */
 export function pickCliPath(cliPkgDir: string, runtime: SystemNodeRuntime | null): string {
-    if (runtime && runtime.nodeMajorVersion !== null && runtime.nodeMajorVersion >= 24) {
-        return path.join(cliPkgDir, 'index.js');
+    const platformDir = path.join(path.dirname(cliPkgDir), `copilot-${process.platform}-${process.arch}`);
+    const nativeBinary = path.join(platformDir, process.platform === 'win32' ? 'copilot.exe' : 'copilot');
+
+    if (fs.existsSync(nativeBinary)) {
+        return nativeBinary;
     }
-    const sibling = `copilot-${process.platform}-${process.arch}`;
-    const binaryName = process.platform === 'win32' ? 'copilot.exe' : 'copilot';
-    return path.join(path.dirname(cliPkgDir), sibling, binaryName);
+
+    if (runtime && runtime.nodeMajorVersion !== null && runtime.nodeMajorVersion >= 24) {
+        const platformIndex = path.join(platformDir, 'index.js');
+        if (fs.existsSync(platformIndex)) {
+            return platformIndex;
+        }
+        const metaIndex = path.join(cliPkgDir, 'index.js');
+        if (fs.existsSync(metaIndex)) {
+            return metaIndex;
+        }
+    }
+
+    return nativeBinary;
 }
 
 const MIN_SYSTEM_NODE_MAJOR = 24;
