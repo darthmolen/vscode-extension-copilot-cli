@@ -12,26 +12,16 @@ const { expect } = require('chai');
 const path = require('path');
 const os = require('os');
 const { withoutVscode } = require('../../helpers/without-vscode');
+const { createFakeHost } = require('../../helpers/fake-host');
 
 const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js');
 
-
-function fakeHost() {
-    return {
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
-        getConfig(_key, defaultValue) { return defaultValue; },
-        getWorkspaceFolder() { return os.tmpdir(); },
-        getGlobalStorageDir() { return path.join(os.tmpdir(), 'fake-global-storage'); },
-        showError() {}, showWarning() {},
-        async askSessionRecovery() { return 'new'; }
-    };
-}
 
 /** Builds a manager and drives one raw SDK event through its handler. */
 function emitSdkEvent(event) {
     return withoutVscode(() => {
         const { SDKSessionManager } = require(MANAGER_PATH);
-        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, fakeHost());
+        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost());
 
         const seen = [];
         manager.onDidUpdateMcpServers(payload => seen.push(payload));
@@ -105,7 +95,7 @@ describe('SDKSessionManager — sticky agent comes from the host, not global sta
         await withoutVscode(async () => {
             const { SDKSessionManager } = require(MANAGER_PATH);
             const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, {
-                ...fakeHost(),
+                ...createFakeHost(),
                 getActiveAgent() {
                     asked++;
                     return null; // nothing to restore; we only assert the source

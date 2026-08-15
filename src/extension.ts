@@ -5,6 +5,9 @@ import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
+import { createVSCodeHostBridge } from './extension/hostBridge';
+import { SUBAGENT_PALETTE } from './shared/subagentPalette';
+import { forkCurrentSession } from './extension/commands/forkSession';
 import { SessionService } from './extension/services/SessionService';
 import { SubagentPanelService } from './extension/services/SubagentPanelService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
@@ -36,12 +39,6 @@ function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => 
 	};
 }
 
-// Authoritative sub-agent color palette — one source of truth shared by the sidebar dock bar,
-// its drawer, and the pop-out editor tab. Assigned per agentId in first-seen order.
-const SUBAGENT_PALETTE = [
-	'#4FC1FF', '#C586C0', '#9CDCFE', '#CE9178', '#6A9955',
-	'#DCDCAA', '#569CD6', '#D7BA7D', '#F48771', '#B5CEA8',
-];
 const subagentColors = new Map<string, string>();
 function assignSubagentColor(agentId: string): string {
 	let color = subagentColors.get(agentId);
@@ -444,24 +441,27 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 }
 
 async function handleForkSession(context: vscode.ExtensionContext): Promise<void> {
-	const currentSessionId = sessionManager?.getSessionId();
-	if (!currentSessionId) {
-		vscode.window.showWarningMessage('No active session to fork.');
-		return;
-	}
-
-	const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
-
-	try {
-		logger.info(`[Fork Session] Forking session ${currentSessionId}`);
-		const newSessionId = SessionService.forkSession(currentSessionId, sessionStateDir);
-		logger.info(`[Fork Session] Created fork: ${newSessionId}`);
-		await handleSwitchSession(context, newSessionId);
-		vscode.window.showInformationMessage('Session forked — you are now on the fork.');
-	} catch (error: any) {
-		logger.error(`[Fork Session] Fork failed: ${error.message}`, error);
-		vscode.window.showErrorMessage(`Failed to fork session: ${error.message}`);
-	}
+	// Thin binder: the decision logic lives in forkCurrentSession, which takes
+	// its collaborators explicitly so it can be tested without a vscode mock.
+	const manager = sessionManager;
+	await forkCurrentSession({
+		getSessionId: () => manager?.getSessionId() ?? null,
+		fork: (sessionId, opts) => {
+			// getSessionId() already returned null if the manager was gone, so
+			// this is unreachable in practice — but assert it rather than
+			// silencing the compiler with a non-null assertion.
+			if (!manager) { throw new Error('Session manager is not available'); }
+			return manager.forkSession(sessionId, opts);
+		},
+		switchTo: (sessionId) => handleSwitchSession(context, sessionId),
+		notify: {
+			info: (m) => { vscode.window.showInformationMessage(m); },
+			warn: (m) => { vscode.window.showWarningMessage(m); },
+			error: (m) => { vscode.window.showErrorMessage(m); }
+		},
+		logger,
+		sessionStateDir: path.join(os.homedir(), '.copilot', 'session-state')
+	});
 }
 
 async function handleStopChat(): Promise<void> {
@@ -599,7 +599,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 			config,
 			resumeLastSession,
 			specificSessionId,
-			resolvedCli?.cliPath
+			resolvedCli?.cliPath,
+			// The host owns session state, so it supplies the sticky-agent accessor
+			// rather than the bridge reaching into the backendState singleton.
+			createVSCodeHostBridge(context, {
+				getActiveAgent: () => getBackendState().getActiveAgent()
+			})
 		);
 		wireManagerEvents(context, sessionManager);
 

@@ -263,12 +263,34 @@ the canonical doc. Read it before starting any slice.
 
 What it means for this plan:
 
-| This plan says | Work order says |
+| This plan says | Status |
 | --- | --- |
-| Slice 1 — v3.12.0 | ✅ Unchanged. It is **spine step S1** — ship it standalone, with review items **C3 and C4 fixed first**. |
+| Slice 1 — v3.12.0 | ✅ **DONE — built by Lane A on the spine, do not start it.** Commits `386d6e6` + `ab6e9e8` on `feature/3.12.0-shared-spine`. See "What actually shipped" below — it differs from this plan in two ways that matter. |
 | Slice 2a — `CopilotClientProvider` | **Reassigned to Lane A** as spine step **S4**. Do not build it here. It is the same extraction either way, and doing it once removes six collision points in `sdkSessionManager.ts`. |
-| Slice 2 — "v4.0.0, phase 0" | ❌ **Both labels are already taken.** Slices 2b–2f become **v3.13.0**. See review I3. |
-| Slice 3 — "v4.0.x minor" | ❌ Self-contradictory. Becomes **v3.14.0**. |
+| Slices 2b–2f | **This is Lane B's work.** The tab surface is yours. Renumbered to **v3.13.0** — "v4.0.0, phase 0" is taken by the AHP/ACP split whose Phase 0 is already complete (review I3). |
+| Slice 3 — per-message fork | Lane B, renumbered to **v3.14.0** ("v4.0.x minor" was self-contradictory). |
+
+### What actually shipped in Slice 1 — two deviations from this plan
+
+**1. No `CliCapabilityService` flag.** This plan proposed adding `supportsSessionForkRpc`
+alongside `supportsMcpListRpc`. That was dropped (review C3, option b): the service is
+constructed in `cliBundleBootstrap.ts` and injected only into `ChatViewProvider` — it is
+**not reachable from `SDKSessionManager`**, and `semver` is never imported there. Adding a
+seam purely to gate one `@experimental` call was unjustified when a runtime probe degrades
+correctly. Fork now falls back on absent-method *or* JSON-RPC `-32601`, and propagates every
+other error rather than silently running a filesystem copy after a legitimate failure.
+
+**2. Passing `name` to the RPC does not fix the label — this is the one that affects Slice 3.**
+The spike ([FINDINGS](../../spikes/session-fork-rpc/FINDINGS.md), 8/8 against bundled CLI
+1.0.68) found the CLI honours `name` by writing it to the fork's `workspace.yaml` as `name:`
+— but never writes `session-name.txt`, and `SessionService.formatSessionLabel` reads
+`session-name.txt` first, then `plan.md`'s H1, then workspace.yaml's **`summary`** (not
+`name`), then the id prefix. A purely-RPC fork therefore still rendered as `385d7269`. Both
+paths now write `session-name.txt` explicitly.
+
+Consequence worth carrying into Slice 3: **`formatSessionLabel` ignores `workspace.yaml`'s
+`name:` entirely**, so any CLI-named session is mislabeled in our dropdown, not just forks.
+Filed as a follow-up rather than fixed, because it changes labels for existing sessions.
 
 **File ownership after S4** — Lane B owns `extension.ts`, `chatViewProvider.ts`, `backendState.ts`,
 `SessionService.ts`, `cliCapabilityService.ts`, `ExtensionRpcRouter.ts`, `shared/messages.ts`,
@@ -456,3 +478,60 @@ The real cost is not waste, it is **serialisation**. `v4.0-ahp-acp-split.md` say
 **Implementable as written?** **With fixes.**
 
 **Reasoning:** Slice 1 is nearly ready — its central API claim is verified in the installed SDK, and it needs only C3 (the capability flag has no home and no version constant) and C4 (the fallback path doesn't get the name fix it advertises) before an engineer can start. Slice 2 is a sound and strategically well-aligned architecture — it builds the session-scoped state boundary that IN-4 explicitly lacks and adds essentially nothing to the bespoke RPC — but it is a design document, not an implementation plan: it has no task decomposition, understates its largest workstream by 3.5× (75 `chatProvider.*` sites, not the `getBackendState()` migration it flags), does not account for the `HostBridge` seam that Phase 0.1 just landed, and has no answer for concurrent file mutation, which is the very scenario it exists to enable.
+
+---
+
+## Plan Review
+
+**Reviewed:** 2026-08-15 18:02
+**Reviewer:** Claude Code (plan-review-intake)
+
+### Strengths
+- **Context / Decisions taken:** The plan correctly treats chat-in-a-tab as an architectural decoupling problem, not a UI pop-out. Keeping the sidebar on the parent and opening the fork in a tab is a coherent product decision.
+- **Section 2c / 2d:** Reusing the existing chat HTML and per-webview router follows the codebase's current patterns and respects the CLAUDE.md webview/CSP constraints.
+- **Precedence — this is Lane B:** The lane ownership and version renumbering reduce branch-collision risk and make the shared-spine dependency explicit.
+- **Verification:** The manual checks are concrete and falsifiable, especially tab restore, dual streaming, and single-CLI-process validation.
+
+### Issues
+
+#### Critical (Must Address Before Implementation)
+- **Reference:** Sections **2a / 2e / Risks / Verification**
+  - **What's wrong or missing:** The plan does not define the concurrency contract for two live sessions editing the same workspace files.
+  - **Why it matters:** `SDKSessionManager` owns a per-manager `FileSnapshotService`, and permissions are auto-approved. Two sessions can independently snapshot and write the same file, creating a real lost-update/data-loss path.
+  - **Suggested fix:** Add an explicit rule before Slice 2 ships: shared write lock, conflict warning, or serialized accept/apply behavior. Add a verification step where both sessions modify the same file and confirm the second action is blocked, warned, or conflict-resolved.
+
+- **Reference:** Sections **2b / 2c / 2d**
+  - **What's wrong or missing:** The plan does not separate **surface attachment** from **session bootstrap/resume**.
+  - **Why it matters:** Today the sidebar's ready flow is split across `chatViewProvider.ts` and `extension.ts` and includes auto-resume on webview readiness. If that behavior is copied into tabs/serializer rehydration, opening or restoring a tab can incorrectly re-resume, double-init, or recreate an already-live session.
+  - **Suggested fix:** Add a dedicated lifecycle task: `ChatSessionHost` owns resume/start; surfaces only attach/detach. Specify serializer behavior for (a) live session, (b) resumable stopped session, and (c) missing/expired session.
+
+#### Important (Should Address)
+- **Reference:** Section **2b**
+  - **What's wrong or missing:** The plan treats `BackendState` as purely session-scoped, but it currently mixes session state with shared/environment state (`workspacePath`, `activeFilePath`, MCP server tools/status).
+  - **Why it matters:** Blindly making one `BackendState` per host will duplicate or stale shared state across surfaces and create inconsistent MCP/status behavior.
+  - **Suggested fix:** Split `BackendState` into session-scoped vs shared runtime/UI state, or explicitly document which fields stay shared and where that shared store lives.
+
+- **Reference:** Section **Slice 3 — Degradation** and **Verification**, versus **"What actually shipped in Slice 1"**
+  - **What's wrong or missing:** Slice 3 still depends on `supportsSessionForkRpc`, but the plan later says that flag was intentionally not added.
+  - **Why it matters:** The per-message fork affordance is not implementable as specified because its gating signal no longer exists.
+  - **Suggested fix:** Replace the flag with a real capability source (for example, a host/session-level "exclusive fork supported" result derived from runtime probing/spike findings) and update verification accordingly.
+
+- **Reference:** Sections **2b–2f**
+  - **What's wrong or missing:** The Lane B work is still large prose slices rather than ordered implementation tasks with explicit entry criteria and per-task verification.
+  - **Why it matters:** This is a high-churn refactor across `extension.ts`, `chatViewProvider.ts`, `backendState.ts`, new host/registry code, and panel lifecycle. Without finer decomposition, it is easy to start before the S4 prerequisite lands or to bundle too much risk into one pass.
+  - **Suggested fix:** Break 2b–2f into numbered tasks with dependencies, each with a verification command/checkpoint. Make "S4 landed" an explicit prerequisite, not just a note.
+
+#### Minor (Consider)
+- **Reference:** Section **2f**
+  - **What's wrong or missing:** `copilot-cli-extension.openSessionInTab` is described as opening "any session," but the command contract is not specified.
+  - **Why it matters:** Implementation will diverge unless it is clear whether the command takes a `sessionId`, opens the current session, or prompts with a picker.
+  - **Suggested fix:** State the invocation contract explicitly.
+
+### Recommendations
+- Add a short lifecycle diagram for **create host / attach surface / resume session / restore panel**.
+- Split shared vs per-session state before the de-singleton migration starts.
+- Turn Lane B into a gated checklist: prerequisite landed, one refactor step, full verification, then next step.
+
+### Assessment
+**Implementable as written?** With fixes
+**Reasoning:** The architectural direction is strong and aligned with the codebase, but the current plan leaves multi-session write safety and tab/bootstrap lifecycle behavior unresolved. Those gaps would likely cause rework or correctness bugs if implementation started exactly from this version.

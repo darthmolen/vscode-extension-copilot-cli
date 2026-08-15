@@ -72,9 +72,11 @@ describe('SessionService.forkSession()', function () {
             this.skip();
         }
 
+        // Deliberately NOT this.skip() — SessionService.forkSession is the
+        // fallback path for SDKSessionManager.forkSession, so if it vanishes
+        // these eight assertions must FAIL, not quietly report success.
         if (typeof SessionService?.forkSession !== 'function') {
-            console.log('[TDD RED] SessionService.forkSession does not exist yet');
-            this.skip();
+            throw new Error('SessionService.forkSession is missing — the fork fallback is gone');
         }
     });
 

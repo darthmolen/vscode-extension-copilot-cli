@@ -126,6 +126,22 @@ MessageDisplay → ToolExecution (internal child)
 InputArea → ActiveFileDisplay, StatusBar, PlanModeControls, SlashCommandPanel
 ```
 
+## File Naming & Organization
+
+**A name must convey its value from a directory listing alone.** If you have to open the file to learn what it holds or which variant it is, the name has failed. For a contract with implementations, the contract takes the bare name and each implementation is named for what it implements:
+
+```
+hostBridge.ts        → the HostBridge interface
+vscodeHostBridge.ts  → the VS Code implementation
+acpHostBridge.ts     → the ACP implementation
+```
+
+**Multiple classes in one file require a stated reason.** The default is one class per file, named for the class. Co-location is a decision to defend — shared private state, a contract and its no-op default, a sealed variant set — not a convenience to fall into. Write the reason in the file header, and tie it to the choice it justifies rather than only describing the mechanism.
+
+Both rules exist because `hostBridge.ts` shipped holding an interface, a factory, and a class under a generic name. Months later it cost a full session to answer "is there even an interface?" — the answer was yes, invisibly. See `planning/backlog/hostbridge-split-and-fallback-seam.md`.
+
+Caveat: legibility alone rarely justifies renaming existing code. A rename that leaves the underlying coupling in place is cosmetic — pair it with a structural fix, or leave it and document why.
+
 ## Testing Approach
 
 This project uses strict TDD. Tests must import production code, not mocks. A test that passes immediately without failing first is not valid.

@@ -76,10 +76,25 @@ export class NoopMessageEnhancer implements MessageEnhancerLike {
 }
 
 /**
+ * Host-supplied collaborators the bridge cannot source for itself.
+ *
+ * These exist so the bridge stays free of global state: whoever constructs it
+ * already holds the session state, so they pass in the accessor rather than
+ * the bridge reaching for a singleton.
+ */
+export interface HostBridgeDeps {
+    /** Returns the agent the user has pinned, or null. */
+    getActiveAgent?(): string | null;
+}
+
+/**
  * The VS Code implementation. `vscode` and the editor-bound services are
  * required lazily so importing this module stays safe in a non-VS Code host.
  */
-export function createVSCodeHostBridge(context: vscode.ExtensionContext): HostBridge {
+export function createVSCodeHostBridge(
+    context: vscode.ExtensionContext,
+    deps: HostBridgeDeps = {}
+): HostBridge {
     const vscodeApi = require('vscode');
     const { Logger } = require('../logger');
     const { showSessionRecoveryDialog } = require('../sessionErrorUtils');
@@ -124,8 +139,7 @@ export function createVSCodeHostBridge(context: vscode.ExtensionContext): HostBr
         },
 
         getActiveAgent(): string | null {
-            const { getBackendState } = require('../backendState');
-            return getBackendState().getActiveAgent();
+            return deps.getActiveAgent?.() ?? null;
         },
 
         createMessageEnhancer(): MessageEnhancerLike {

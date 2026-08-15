@@ -4,6 +4,67 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-08-15
+
+### Fixed
+
+- **Forked sessions finally get a distinct name.** The v3.7.0 notes below claim a fork gets "a
+  distinct label" — it never did. `fs.cpSync` copied the parent's `session-name.txt`, and
+  `ensureSessionName()` is no-clobber, so its existence check short-circuited and the fork silently
+  inherited the parent's label. Both fork paths now write `<parent name> (fork)` explicitly.
+
+### Changed
+
+- **Fork uses the SDK's `sessions.fork` RPC.** Fork was a hand-rolled directory copy plus a patch of
+  line 0 of `events.jsonl` — a reimplementation of a first-party RPC the SDK has had all along. The
+  filesystem copy remains as a fallback for CLIs that predate the method.
+  - Falls back only when the method is genuinely unavailable — absent, or rejected with JSON-RPC
+    method-not-found. Any other failure is reported rather than silently running a copy, because a
+    copy after a legitimate error produces a wrong result instead of an error.
+  - Passing `name` to the RPC is not sufficient on its own: the CLI persists it to the fork's
+    `workspace.yaml` as `name:`, but session labels are read from `session-name.txt` first. Both
+    paths write that file.
+
+### Internal
+
+- **`HostBridge` gains injected dependencies.** The sticky-agent accessor is supplied by the host
+  instead of the bridge reaching into the `BackendState` singleton — the last host coupling in the
+  module whose purpose is to have none.
+- **One sub-agent palette.** Three copies of the same ten colors collapsed to
+  `src/shared/subagentPalette.ts`. The webview keeps its own literal (esbuild copies webview files
+  rather than bundling them, so it cannot import from `src/`) with a test that fails if the two drift.
+- **The fork command has a signature.** Its logic moved to
+  `src/extension/commands/forkSession.ts`, taking collaborators explicitly rather than reaching for
+  module globals — which is what made it testable. Two previously unasserted behaviours now are: a
+  failed fork leaves you on the parent, and a failed switch after a successful fork surfaces the
+  error rather than reporting success.
+
+## [3.11.0] - 2026-07-08
+
+Backfilled — this version shipped to the Marketplace without a changelog entry.
+
+### Added
+
+- **Copilot "auto" model**, enabled and made the default, pinned to the top of the model dropdown.
+
+### Changed
+
+- Refreshed the baked-in model catalog and settings enums to current-generation IDs; cost tiers now
+  derive from `tokenPrices.outputPrice`, since the SDK no longer populates `billing.multiplier`.
+- Upgraded `@github/copilot-sdk` from `^0.3.0` to `^1.0.5` (bundled CLI floor `^1.0.67`).
+
+### Fixed
+
+- SDK 1.0.5 breaking changes: `session.destroy` → `disconnect`; client options now use
+  `connection.forStdio`, `workingDirectory`, and an explicit `client.start()`.
+- `pickCliPath` for the new `@github/copilot` package layout — native-binary-first and
+  existence-aware.
+- Blank "Assistant Reasoning" boxes when a model returns no reasoning text.
+
+### Internal
+
+- Tag-triggered Marketplace release workflow, PR compile CI, and the `publish-release` skill.
+
 ## [3.10.0] - 2026-06-15
 
 ### Added
@@ -109,7 +170,7 @@ All notable changes to the Copilot CLI Chat extension.
 
 ### 🔧 Internal
 
-- **`SessionService.forkSession()`** — New method in `SessionService.ts`. Copies the source session directory to a new UUID via `fs.cpSync()`, patches the `session.start` event's `sessionId` field in the cloned `events.jsonl`, and calls `ensureSessionName()` so the fork gets a distinct label in the session list.
+- **`SessionService.forkSession()`** — New method in `SessionService.ts`. Copies the source session directory to a new UUID via `fs.cpSync()`, patches the `session.start` event's `sessionId` field in the cloned `events.jsonl`, and calls `ensureSessionName()`. **Correction (v3.12.0):** that last step never produced a distinct label — `cpSync` copies the parent's `session-name.txt` and `ensureSessionName()` is no-clobber, so the fork inherited the parent's name. Fixed in 3.12.0.
 - **`forkSession` RPC message** — New `ForkSessionPayload` type in `messages.ts`, `forkSession()` on `WebviewRpcClient`, `onForkSession()` on `ExtensionRpcRouter`, and `onDidRequestForkSession` event on `ChatViewProvider`.
 - **`copilot-cli-extension.forkSession` command** — Registered in `package.json` and wired in `extension.ts` via `handleForkSession()`.
 - **19 new tests** across 4 test files: `fork-session-button.test.js`, `fork-session-rpc.test.js` (×2), `session-fork.test.js` — all written RED before implementation.

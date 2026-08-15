@@ -21,7 +21,10 @@
  *   subagent:popout   { agentId }
  */
 
-const PALETTE = [
+// Mirror of SUBAGENT_PALETTE in src/shared/subagentPalette.ts. The webview is
+// COPIED by esbuild, not bundled, so it cannot import from src/. Exported so
+// tests/unit/components/subagent-palette-drift.test.js can prove the two match.
+export const PALETTE = [
 	'#4FC1FF', '#C586C0', '#9CDCFE', '#CE9178', '#6A9955',
 	'#DCDCAA', '#569CD6', '#D7BA7D', '#F48771', '#B5CEA8',
 ];

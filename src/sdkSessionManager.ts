@@ -1,6 +1,10 @@
 // Type-only: erased at compile time. Everything this module needs from the
 // host arrives through HostBridge, so it can run outside the extension host.
 import type * as vscode from 'vscode';
+// ESM package imported from a CJS file, so the type import needs an explicit
+// resolution mode. Aliased because `CopilotClient` is already a module-level
+// `let` holding the lazily-required constructor.
+import type { CopilotClient as CopilotClientApi } from '@github/copilot-sdk' with { 'resolution-mode': 'import' };
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
@@ -307,6 +311,18 @@ export interface SubagentCompleteData {
 }
 
 type SessionMode = 'work' | 'plan';
+
+/** Display cap that `SessionService.formatSessionLabel` truncates every label to. */
+const LABEL_MAX = 40;
+
+/**
+ * True when a JSON-RPC rejection means "this peer has no such method" — the
+ * over-the-wire equivalent of the method simply being absent.
+ */
+function isMethodNotFound(error: unknown): boolean {
+    const code = (error as { code?: unknown } | null)?.code;
+    return code === -32601;
+}
 
 export class SDKSessionManager implements vscode.Disposable {
     private client: any | null = null;
@@ -1567,6 +1583,71 @@ export class SDKSessionManager implements vscode.Disposable {
         }
         const result = await this.session.rpc.mcp.list();
         return result?.servers ?? result ?? [];
+    }
+
+    /**
+     * Fork a session, preferring the SDK's `sessions.fork` RPC over the
+     * filesystem copy in `SessionService`.
+     *
+     * Naming: the fork must get a label distinct from its parent — that is the
+     * user-visible point. The spike proved passing `name` to the RPC is
+     * necessary but NOT sufficient: the CLI persists it to the fork's
+     * workspace.yaml as `name:`, but `formatSessionLabel` reads
+     * `session-name.txt` first and workspace.yaml's `summary` (not `name`)
+     * third, so a purely-RPC fork still renders as its id prefix. Both paths
+     * therefore write `session-name.txt` with the same computed string.
+     *
+     * Failure policy: `sessions.fork` is `@experimental`. Fall back only when
+     * the method is genuinely unavailable — absent, or rejected with JSON-RPC
+     * method-not-found. Any other failure propagates, because running a
+     * filesystem copy after a legitimate error would produce a WRONG RESULT
+     * rather than an error.
+     */
+    public async forkSession(
+        sourceSessionId: string,
+        opts?: { sessionStateDir?: string }
+    ): Promise<string> {
+        const sessionStateDir = opts?.sessionStateDir
+            ?? path.join(os.homedir(), '.copilot', 'session-state');
+        const parentLabel = SessionService.formatSessionLabel(
+            sourceSessionId,
+            path.join(sessionStateDir, sourceSessionId)
+        );
+        // formatSessionLabel truncates every branch to LABEL_MAX. Appending the
+        // suffix to an already-maxed label would push it back over the cap and
+        // the suffix would be truncated away — leaving the fork rendering
+        // identically to its parent, which is the bug this is meant to fix.
+        const suffix = ' (fork)';
+        const name = parentLabel.slice(0, LABEL_MAX - suffix.length).trimEnd() + suffix;
+
+        // The SDK type declares `fork` unconditionally, but the running CLI may
+        // predate it. Partial<> models exactly that gap while keeping full
+        // parameter and return typing — no cast, no `any`.
+        const sessionsRpc: Partial<CopilotClientApi['rpc']['sessions']> | undefined =
+            this.client?.rpc?.sessions;
+
+        if (typeof sessionsRpc?.fork === 'function') {
+            try {
+                const result = await sessionsRpc.fork({ sessionId: sourceSessionId, name });
+                this.logger.info(`[Fork] sessions.fork -> ${result.sessionId} ("${name}")`);
+                // Don't depend on the CLI having created the directory first: a lost
+                // write here silently reinstates the inherited-name bug.
+                const forkDir = path.join(sessionStateDir, result.sessionId);
+                fs.mkdirSync(forkDir, { recursive: true });
+                SessionService.writeSessionName(forkDir, name);
+                return result.sessionId;
+            } catch (error) {
+                if (!isMethodNotFound(error)) {
+                    throw error;
+                }
+                this.logger.warn('[Fork] CLI does not implement sessions.fork; using filesystem copy');
+            }
+        }
+
+        const newId = SessionService.forkSession(sourceSessionId, sessionStateDir);
+        SessionService.writeSessionName(path.join(sessionStateDir, newId), name);
+        this.logger.info(`[Fork] filesystem copy -> ${newId} ("${name}")`);
+        return newId;
     }
 
     /**
