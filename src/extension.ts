@@ -7,6 +7,7 @@ import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { createVSCodeHostBridge } from './extension/hostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
+import { forkCurrentSession } from './extension/commands/forkSession';
 import { SessionService } from './extension/services/SessionService';
 import { SubagentPanelService } from './extension/services/SubagentPanelService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
@@ -440,27 +441,27 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 }
 
 async function handleForkSession(context: vscode.ExtensionContext): Promise<void> {
+	// Thin binder: the decision logic lives in forkCurrentSession, which takes
+	// its collaborators explicitly so it can be tested without a vscode mock.
 	const manager = sessionManager;
-	const currentSessionId = manager?.getSessionId();
-	if (!manager || !currentSessionId) {
-		vscode.window.showWarningMessage('No active session to fork.');
-		return;
-	}
-
-	const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
-
-	try {
-		logger.info(`[Fork Session] Forking session ${currentSessionId}`);
-		// Prefers the SDK's sessions.fork RPC; falls back to the filesystem copy
-		// when the CLI predates it. Both paths give the fork a distinct label.
-		const newSessionId = await manager.forkSession(currentSessionId, { sessionStateDir });
-		logger.info(`[Fork Session] Created fork: ${newSessionId}`);
-		await handleSwitchSession(context, newSessionId);
-		vscode.window.showInformationMessage('Session forked — you are now on the fork.');
-	} catch (error: any) {
-		logger.error(`[Fork Session] Fork failed: ${error.message}`, error);
-		vscode.window.showErrorMessage(`Failed to fork session: ${error.message}`);
-	}
+	await forkCurrentSession({
+		getSessionId: () => manager?.getSessionId() ?? null,
+		fork: (sessionId, opts) => {
+			// getSessionId() already returned null if the manager was gone, so
+			// this is unreachable in practice — but assert it rather than
+			// silencing the compiler with a non-null assertion.
+			if (!manager) { throw new Error('Session manager is not available'); }
+			return manager.forkSession(sessionId, opts);
+		},
+		switchTo: (sessionId) => handleSwitchSession(context, sessionId),
+		notify: {
+			info: (m) => { vscode.window.showInformationMessage(m); },
+			warn: (m) => { vscode.window.showWarningMessage(m); },
+			error: (m) => { vscode.window.showErrorMessage(m); }
+		},
+		logger,
+		sessionStateDir: path.join(os.homedir(), '.copilot', 'session-state')
+	});
 }
 
 async function handleStopChat(): Promise<void> {

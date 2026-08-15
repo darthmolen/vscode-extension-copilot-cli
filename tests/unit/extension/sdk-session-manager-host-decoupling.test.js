@@ -15,33 +15,10 @@ const { expect } = require('chai');
 const path = require('path');
 const os = require('os');
 const { withoutVscode } = require('../../helpers/without-vscode');
+const { createFakeHost } = require('../../helpers/fake-host');
 
 const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js');
 
-
-/** Minimal HostBridge implementation — no vscode anywhere. */
-function createFakeHost(overrides = {}) {
-    return {
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
-        getConfig(key, defaultValue) {
-            return Object.prototype.hasOwnProperty.call(overrides.config || {}, key)
-                ? overrides.config[key]
-                : defaultValue;
-        },
-        getWorkspaceFolder() {
-            return overrides.workspaceFolder ?? os.tmpdir();
-        },
-        getGlobalStorageDir() {
-            return overrides.globalStorageDir ?? path.join(os.tmpdir(), 'fake-global-storage');
-        },
-        showError() {},
-        showWarning() {},
-        async askSessionRecovery() {
-            return 'new';
-        },
-        ...(overrides.extra || {})
-    };
-}
 
 describe('SDKSessionManager — host decoupling (Phase 0.1)', () => {
     it('loads as a module when the vscode module is absent', () => {

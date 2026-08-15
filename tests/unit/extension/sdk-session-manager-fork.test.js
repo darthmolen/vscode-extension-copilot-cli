@@ -26,19 +26,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { withoutVscode } = require('../../helpers/without-vscode');
+const { createFakeHost } = require('../../helpers/fake-host');
 
 const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js');
-
-function fakeHost() {
-    return {
-        logger: { debug() {}, info() {}, warn() {}, error() {} },
-        getConfig(_key, defaultValue) { return defaultValue; },
-        getWorkspaceFolder() { return os.tmpdir(); },
-        getGlobalStorageDir() { return path.join(os.tmpdir(), 'fake-global-storage'); },
-        showError() {}, showWarning() {},
-        async askSessionRecovery() { return 'new'; }
-    };
-}
 
 /** A JSON-RPC "method not found" rejection, as an older CLI would send. */
 function methodNotFound() {
@@ -54,7 +44,7 @@ function methodNotFound() {
 function withManager(forkImpl, fn) {
     return withoutVscode(async () => {
         const { SDKSessionManager } = require(MANAGER_PATH);
-        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, fakeHost());
+        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost());
         manager.client = forkImpl === undefined
             ? { rpc: { sessions: {} } }
             : { rpc: { sessions: { fork: forkImpl } } };
