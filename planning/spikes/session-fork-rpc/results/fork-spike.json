@@ -1,0 +1,57 @@
+{
+  "startedAt": "2026-08-15T22:24:53.744Z",
+  "steps": [
+    {
+      "name": "0. resolved the bundled CLI",
+      "ok": true,
+      "detail": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot"
+    },
+    {
+      "name": "0b. CLI identity",
+      "ok": true,
+      "detail": "bundled package 1.0.68 · binary reports \"GitHub Copilot CLI 1.0.68.\nRun 'copilot update' to check for updates.\""
+    },
+    {
+      "name": "1a. parent session created and answered",
+      "ok": true,
+      "detail": "parentId=575a8816-25c1-432b-a254-d8a0e8f0d005"
+    },
+    {
+      "name": "1b. sessions.fork is exposed by this CLI",
+      "ok": true,
+      "detail": "typeof fork = function"
+    },
+    {
+      "name": "1. sessions.fork succeeded",
+      "ok": true,
+      "detail": "{\"sessionId\":\"385d7269-f132-40c3-83e5-3e2d320337ff\",\"name\":\"Spike Parent (fork 1786832697162)\"}"
+    },
+    {
+      "name": "2. the name we passed landed on the fork",
+      "ok": true,
+      "detail": "rpc returned name=\"Spike Parent (fork 1786832697162)\" · session-name.txt=null"
+    },
+    {
+      "name": "2b. parent name untouched",
+      "ok": true,
+      "detail": "parent session-name.txt=null"
+    },
+    {
+      "name": "3. fork resumable while parent is still live on the same client",
+      "ok": true,
+      "detail": "forkId=385d7269-f132-40c3-83e5-3e2d320337ff"
+    }
+  ],
+  "cliPath": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot",
+  "bundledVersion": "1.0.68",
+  "reportedVersion": "GitHub Copilot CLI 1.0.68.\nRun 'copilot update' to check for updates.",
+  "forkName": {
+    "requested": "Spike Parent (fork 1786832697162)",
+    "returned": "Spike Parent (fork 1786832697162)",
+    "persisted": null
+  },
+  "parentName": null,
+  "finishedAt": "2026-08-15T22:24:59.806Z",
+  "passed": 8,
+  "total": 8
+}

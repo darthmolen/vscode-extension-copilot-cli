@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | S3a — decouple `getActiveAgent` | ✅ done | `451a7c3` |
 | S2 — one sub-agent palette | ✅ done | `c3f0c9b` |
-| S1 — spike: `sessions.fork` | ⬜ not started | — |
+| S1 — spike: `sessions.fork` | ✅ done, 8/8 | `ecf93eb` |
 | S1 — SDK-native fork | ⬜ not started | — |
 | Release — v3.12.0 | ⬜ not started | — |
 
@@ -153,8 +153,17 @@ consumed twice rather than being an implementation detail of each path.
   (`session-name.txt` → `plan.md` H1 → `workspace.yaml` summary → 8-char id prefix).
 - **Rule:** `SDKSessionManager.forkSession` computes `` `${parentLabel} (fork)` `` **once**, before
   branching.
-- **Native path:** passes it as the RPC's `name`.
+- **Native path:** passes it as the RPC's `name`, **then also calls
+  `writeSessionName(forkDir, name)`.**
 - **Fallback path:** hands the same string to `writeSessionName(destDir, name)`.
+
+**Why the native path must write the file too — proven by the spike, not assumed.** The CLI honours
+`name` and persists it to the fork's `workspace.yaml` as `name:`, but it never writes
+`session-name.txt`. `formatSessionLabel` reads `session-name.txt` → `plan.md` H1 → workspace.yaml's
+**`summary`** → id prefix, so the CLI's `name:` field is invisible to it and a purely-RPC fork still
+renders as `385d7269`. Measured directly in
+[the spike findings](../spikes/session-fork-rpc/FINDINGS.md). Passing `name` to the RPC is necessary
+but not sufficient.
 
 Never leave `name` undefined on the native path — that reintroduces the exact bug this release fixes.
 
