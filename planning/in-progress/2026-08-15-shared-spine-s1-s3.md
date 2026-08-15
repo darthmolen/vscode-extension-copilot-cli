@@ -9,7 +9,7 @@
 | S3a — decouple `getActiveAgent` | ✅ done | `451a7c3` |
 | S2 — one sub-agent palette | ✅ done | `c3f0c9b` |
 | S1 — spike: `sessions.fork` | ✅ done, 8/8 | `ecf93eb` |
-| S1 — SDK-native fork | ⬜ not started | — |
+| S1 — SDK-native fork | ✅ done | `eda08d2` |
 | Release — v3.12.0 | ⬜ not started | — |
 
 Review applied: 6 accepted + 1 merged, from

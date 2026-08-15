@@ -440,8 +440,9 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 }
 
 async function handleForkSession(context: vscode.ExtensionContext): Promise<void> {
-	const currentSessionId = sessionManager?.getSessionId();
-	if (!currentSessionId) {
+	const manager = sessionManager;
+	const currentSessionId = manager?.getSessionId();
+	if (!manager || !currentSessionId) {
 		vscode.window.showWarningMessage('No active session to fork.');
 		return;
 	}
@@ -450,7 +451,9 @@ async function handleForkSession(context: vscode.ExtensionContext): Promise<void
 
 	try {
 		logger.info(`[Fork Session] Forking session ${currentSessionId}`);
-		const newSessionId = SessionService.forkSession(currentSessionId, sessionStateDir);
+		// Prefers the SDK's sessions.fork RPC; falls back to the filesystem copy
+		// when the CLI predates it. Both paths give the fork a distinct label.
+		const newSessionId = await manager.forkSession(currentSessionId, { sessionStateDir });
 		logger.info(`[Fork Session] Created fork: ${newSessionId}`);
 		await handleSwitchSession(context, newSessionId);
 		vscode.window.showInformationMessage('Session forked — you are now on the fork.');
