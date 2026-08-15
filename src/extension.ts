@@ -6,6 +6,7 @@ import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
 import { createVSCodeHostBridge } from './extension/hostBridge';
+import { SUBAGENT_PALETTE } from './shared/subagentPalette';
 import { SessionService } from './extension/services/SessionService';
 import { SubagentPanelService } from './extension/services/SubagentPanelService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
@@ -37,12 +38,6 @@ function safeHandler<T>(name: string, handler: (data: T) => void): (data: T) => 
 	};
 }
 
-// Authoritative sub-agent color palette — one source of truth shared by the sidebar dock bar,
-// its drawer, and the pop-out editor tab. Assigned per agentId in first-seen order.
-const SUBAGENT_PALETTE = [
-	'#4FC1FF', '#C586C0', '#9CDCFE', '#CE9178', '#6A9955',
-	'#DCDCAA', '#569CD6', '#D7BA7D', '#F48771', '#B5CEA8',
-];
 const subagentColors = new Map<string, string>();
 function assignSubagentColor(agentId: string): string {
 	let color = subagentColors.get(agentId);

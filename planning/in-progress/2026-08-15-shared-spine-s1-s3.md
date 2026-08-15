@@ -7,7 +7,7 @@
 | Phase | State | Commit |
 | --- | --- | --- |
 | S3a — decouple `getActiveAgent` | ✅ done | `451a7c3` |
-| S2 — one sub-agent palette | ⬜ not started | — |
+| S2 — one sub-agent palette | ✅ done | `c3f0c9b` |
 | S1 — spike: `sessions.fork` | ⬜ not started | — |
 | S1 — SDK-native fork | ⬜ not started | — |
 | Release — v3.12.0 | ⬜ not started | — |

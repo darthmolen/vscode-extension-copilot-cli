@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { SUBAGENT_PALETTE } from '../../shared/subagentPalette';
 import type {
 	SubagentStartData,
 	SubagentMessageData,
@@ -20,10 +21,7 @@ interface AgentBuffer {
 	items: Item[];
 }
 
-const PALETTE = [
-	'#4FC1FF', '#C586C0', '#9CDCFE', '#CE9178', '#6A9955',
-	'#DCDCAA', '#569CD6', '#D7BA7D', '#F48771', '#B5CEA8',
-];
+
 
 /**
  * Buffers each sub-agent's traffic (comments + tools + reasoning) and, on request, opens it in a
@@ -48,7 +46,7 @@ export class SubagentPanelService implements vscode.Disposable {
 			agentId: d.agentId,
 			displayName,
 			title: sameName > 0 ? `${displayName} #${sameName + 1}` : displayName,
-			color: d.color || PALETTE[this.colorSeq++ % PALETTE.length],
+			color: d.color || SUBAGENT_PALETTE[this.colorSeq++ % SUBAGENT_PALETTE.length],
 			status: 'running',
 			items: [],
 		});
