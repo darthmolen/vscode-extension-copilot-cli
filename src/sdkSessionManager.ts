@@ -312,6 +312,9 @@ export interface SubagentCompleteData {
 
 type SessionMode = 'work' | 'plan';
 
+/** Display cap that `SessionService.formatSessionLabel` truncates every label to. */
+const LABEL_MAX = 40;
+
 /**
  * True when a JSON-RPC rejection means "this peer has no such method" — the
  * over-the-wire equivalent of the method simply being absent.
@@ -1610,7 +1613,12 @@ export class SDKSessionManager implements vscode.Disposable {
             sourceSessionId,
             path.join(sessionStateDir, sourceSessionId)
         );
-        const name = `${parentLabel} (fork)`;
+        // formatSessionLabel truncates every branch to LABEL_MAX. Appending the
+        // suffix to an already-maxed label would push it back over the cap and
+        // the suffix would be truncated away — leaving the fork rendering
+        // identically to its parent, which is the bug this is meant to fix.
+        const suffix = ' (fork)';
+        const name = parentLabel.slice(0, LABEL_MAX - suffix.length).trimEnd() + suffix;
 
         // The SDK type declares `fork` unconditionally, but the running CLI may
         // predate it. Partial<> models exactly that gap while keeping full

@@ -108,6 +108,43 @@ describe('SDKSessionManager.forkSession — native RPC path', () => {
         expect(fs.readFileSync(forkNamePath, 'utf-8')).to.equal('Refactor the router (fork)');
     });
 
+    it('keeps the "(fork)" suffix visible when the parent label is at the 40-char cap', async () => {
+        // formatSessionLabel truncates every branch to 40 chars. A 40-char parent
+        // plus " (fork)" is 47, which truncates straight back to the parent's
+        // label — the fork would render IDENTICALLY, reinstating the exact bug
+        // this release fixes.
+        const parentDir = path.join(stateDir, 'parent-1');
+        fs.mkdirSync(parentDir, { recursive: true });
+        fs.writeFileSync(path.join(parentDir, 'session-name.txt'), 'A'.repeat(40), 'utf-8');
+
+        await withManager(
+            async () => ({ sessionId: 'forked-1' }),
+            m => m.forkSession('parent-1', { sessionStateDir: stateDir })
+        );
+
+        const { SessionService } = require(path.join(__dirname, '../../..', 'out', 'extension', 'services', 'SessionService.js'));
+        const parentLabel = SessionService.formatSessionLabel('parent-1', path.join(stateDir, 'parent-1'));
+        const forkLabel = SessionService.formatSessionLabel('forked-1', path.join(stateDir, 'forked-1'));
+
+        expect(forkLabel, 'suffix truncated away — fork is indistinguishable').to.not.equal(parentLabel);
+        expect(forkLabel, 'the "(fork)" marker must survive truncation').to.match(/\(fork\)$/);
+    });
+
+    it('does not exceed the 40-char display cap it is fitting into', async () => {
+        const parentDir = path.join(stateDir, 'parent-1');
+        fs.mkdirSync(parentDir, { recursive: true });
+        fs.writeFileSync(path.join(parentDir, 'session-name.txt'), 'B'.repeat(40), 'utf-8');
+
+        const calls = [];
+        await withManager(
+            async params => { calls.push(params); return { sessionId: 'forked-1' }; },
+            m => m.forkSession('parent-1', { sessionStateDir: stateDir })
+        );
+
+        expect(calls[0].name.length).to.be.at.most(40);
+        expect(calls[0].name).to.match(/\(fork\)$/);
+    });
+
     it('gives the fork a label distinct from its parent', async () => {
         const parentDir = path.join(stateDir, 'parent-1');
         fs.mkdirSync(parentDir, { recursive: true });
