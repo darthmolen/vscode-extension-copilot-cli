@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 export class DisposableStore implements vscode.Disposable {
     private _disposables: vscode.Disposable[] = [];

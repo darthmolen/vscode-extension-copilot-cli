@@ -1,0 +1,60 @@
+{
+  "startedAt": "2026-08-15T16:02:50.384Z",
+  "offline": true,
+  "steps": [
+    {
+      "name": "1. manager module loads with vscode absent",
+      "ok": true
+    },
+    {
+      "name": "0. resolved a Copilot CLI entry point",
+      "ok": true,
+      "detail": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot"
+    },
+    {
+      "name": "1b. manager constructs with an injected HostBridge",
+      "ok": true
+    },
+    {
+      "name": "4a. plan-mode tool closures build outside the extension host",
+      "ok": true,
+      "detail": "6 tools: create_plan_file, edit_plan_file, plan_bash_explore, present_plan, task_agent_type_explore, update_work_plan"
+    },
+    {
+      "name": "4b. availableTools whitelist is intact",
+      "ok": true,
+      "detail": "13 entries"
+    }
+  ],
+  "planModeToolNames": [
+    "create_plan_file",
+    "edit_plan_file",
+    "plan_bash_explore",
+    "present_plan",
+    "task_agent_type_explore",
+    "update_work_plan"
+  ],
+  "availableTools": [
+    "plan_bash_explore",
+    "task_agent_type_explore",
+    "edit_plan_file",
+    "create_plan_file",
+    "update_work_plan",
+    "present_plan",
+    "skill",
+    "view",
+    "grep",
+    "glob",
+    "web_fetch",
+    "fetch_copilot_cli_documentation",
+    "report_intent"
+  ],
+  "finishedAt": "2026-08-15T16:02:50.423Z",
+  "passed": 5,
+  "total": 5,
+  "log": [
+    "[info] Working directory set to: /home/smolen/dev/vscode-copilot-cli-extension",
+    "[debug] [FileSnapshot] Temp directory created: /tmp/copilot-cli-snapshots-tKmOhH",
+    "[debug] [PlanModeToolsService] Created for session: spike-work-session"
+  ]
+}

@@ -15,7 +15,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Logger } from '../../logger';
+import { Logger, LoggerLike } from '../../logger';
 import { FileSnapshotService } from './fileSnapshotService';
 
 /**
@@ -51,15 +51,15 @@ async function loadSDK() {
 }
 
 export class PlanModeToolsService {
-    private logger: Logger;
+    private logger: LoggerLike;
     
     constructor(
         private readonly workSessionId: string,
         private readonly workingDirectory: string,
-        private readonly onDidChangeStatus: vscode.EventEmitter<any>,
+        private readonly onDidChangeStatus: { fire(data: any): void },
         private readonly fileSnapshotService: FileSnapshotService,
         private readonly emitDiff: (diffData: { toolCallId: string; beforeUri: string; afterUri: string; title: string }) => void,
-        logger?: Logger
+        logger?: LoggerLike
     ) {
         this.logger = logger || Logger.getInstance();
         this.logger.debug(`[PlanModeToolsService] Created for session: ${workSessionId}`);
