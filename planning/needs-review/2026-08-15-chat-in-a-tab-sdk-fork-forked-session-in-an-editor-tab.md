@@ -263,12 +263,34 @@ the canonical doc. Read it before starting any slice.
 
 What it means for this plan:
 
-| This plan says | Work order says |
+| This plan says | Status |
 | --- | --- |
-| Slice 1 — v3.12.0 | ✅ Unchanged. It is **spine step S1** — ship it standalone, with review items **C3 and C4 fixed first**. |
+| Slice 1 — v3.12.0 | ✅ **DONE — built by Lane A on the spine, do not start it.** Commits `386d6e6` + `ab6e9e8` on `feature/3.12.0-shared-spine`. See "What actually shipped" below — it differs from this plan in two ways that matter. |
 | Slice 2a — `CopilotClientProvider` | **Reassigned to Lane A** as spine step **S4**. Do not build it here. It is the same extraction either way, and doing it once removes six collision points in `sdkSessionManager.ts`. |
-| Slice 2 — "v4.0.0, phase 0" | ❌ **Both labels are already taken.** Slices 2b–2f become **v3.13.0**. See review I3. |
-| Slice 3 — "v4.0.x minor" | ❌ Self-contradictory. Becomes **v3.14.0**. |
+| Slices 2b–2f | **This is Lane B's work.** The tab surface is yours. Renumbered to **v3.13.0** — "v4.0.0, phase 0" is taken by the AHP/ACP split whose Phase 0 is already complete (review I3). |
+| Slice 3 — per-message fork | Lane B, renumbered to **v3.14.0** ("v4.0.x minor" was self-contradictory). |
+
+### What actually shipped in Slice 1 — two deviations from this plan
+
+**1. No `CliCapabilityService` flag.** This plan proposed adding `supportsSessionForkRpc`
+alongside `supportsMcpListRpc`. That was dropped (review C3, option b): the service is
+constructed in `cliBundleBootstrap.ts` and injected only into `ChatViewProvider` — it is
+**not reachable from `SDKSessionManager`**, and `semver` is never imported there. Adding a
+seam purely to gate one `@experimental` call was unjustified when a runtime probe degrades
+correctly. Fork now falls back on absent-method *or* JSON-RPC `-32601`, and propagates every
+other error rather than silently running a filesystem copy after a legitimate failure.
+
+**2. Passing `name` to the RPC does not fix the label — this is the one that affects Slice 3.**
+The spike ([FINDINGS](../../spikes/session-fork-rpc/FINDINGS.md), 8/8 against bundled CLI
+1.0.68) found the CLI honours `name` by writing it to the fork's `workspace.yaml` as `name:`
+— but never writes `session-name.txt`, and `SessionService.formatSessionLabel` reads
+`session-name.txt` first, then `plan.md`'s H1, then workspace.yaml's **`summary`** (not
+`name`), then the id prefix. A purely-RPC fork therefore still rendered as `385d7269`. Both
+paths now write `session-name.txt` explicitly.
+
+Consequence worth carrying into Slice 3: **`formatSessionLabel` ignores `workspace.yaml`'s
+`name:` entirely**, so any CLI-named session is mislabeled in our dropdown, not just forks.
+Filed as a follow-up rather than fixed, because it changes labels for existing sessions.
 
 **File ownership after S4** — Lane B owns `extension.ts`, `chatViewProvider.ts`, `backendState.ts`,
 `SessionService.ts`, `cliCapabilityService.ts`, `ExtensionRpcRouter.ts`, `shared/messages.ts`,
