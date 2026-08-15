@@ -5,6 +5,11 @@ ticket in this directory; this table is the follow-up surface.
 
 **Compiled:** 2026-08-15 · **Gap analysis:** [gap-register.md](../gap-register.md) · **Spike:** [FINDINGS.md](../../spikes/acp-agent/FINDINGS.md)
 
+> **Parallel work:** a second session is building chat-in-a-tab at the same time. Order of precedence,
+> the shared spine, and file ownership are in
+> [acp-ahp-chat-tabs-dual-stream-work-order.md](../../acp-ahp-chat-tabs-dual-stream-work-order.md).
+> **IN-3 does not open until the spine reaches S4.**
+
 ## Legend
 
 - **Cat** — a (shipped upstream) / b (argue for it) / c (we build it) / d (upstream, in flight)
