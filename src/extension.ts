@@ -5,6 +5,7 @@ import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
+import { createVSCodeHostBridge } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
 import { SubagentPanelService } from './extension/services/SubagentPanelService';
 import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffService';
@@ -599,7 +600,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 			config,
 			resumeLastSession,
 			specificSessionId,
-			resolvedCli?.cliPath
+			resolvedCli?.cliPath,
+			// The host owns session state, so it supplies the sticky-agent accessor
+			// rather than the bridge reaching into the backendState singleton.
+			createVSCodeHostBridge(context, {
+				getActiveAgent: () => getBackendState().getActiveAgent()
+			})
 		);
 		wireManagerEvents(context, sessionManager);
 
