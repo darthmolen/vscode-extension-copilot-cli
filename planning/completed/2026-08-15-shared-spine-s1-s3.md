@@ -2,7 +2,13 @@
 
 ## Progress
 
-**Branch:** `feature/3.12.0-shared-spine` · **Started:** 2026-08-15 · one commit per phase.
+**Branch:** `feature/3.12.0-shared-spine` (merged, deleted) · **Started/completed:** 2026-08-15 · one commit per phase.
+**Shipped:** v3.12.0 to the Marketplace via PR #41 → tag `v3.12.0` → `release.yml`.
+
+**Late catch worth remembering:** the PR reviewer found the `(fork)` suffix was truncated away when the
+parent label already sat at `formatSessionLabel`'s 40-char cap — the fork rendered *identically* to its
+parent, i.e. the exact bug this release fixes, surviving at the boundary. Reproduced before fixing.
+The base label is now trimmed so the suffix always survives.
 
 | Phase | State | Commit |
 | --- | --- | --- |
@@ -10,7 +16,7 @@
 | S2 — one sub-agent palette | ✅ done | `c3f0c9b` |
 | S1 — spike: `sessions.fork` | ✅ done, 8/8 | `ecf93eb` |
 | S1 — SDK-native fork (+ testability fix `702aa04`) | ✅ done | `eda08d2` |
-| Release — v3.12.0 | 🚀 in flight | — |
+| Release — v3.12.0 | ✅ **published** | `9eb8909` · tag `v3.12.0` · PR #41 |
 
 Review applied: 6 accepted + 1 merged, from
 `planning/needs-review/completed/2026-08-15-shared-spine-s1-s3-shipping-as-v3-12-0.md`.
