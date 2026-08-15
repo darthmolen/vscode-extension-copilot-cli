@@ -20,7 +20,7 @@ ticket in this directory; this table is the follow-up surface.
 
 | ID | Title | Venue | Cat | Score | Blocking? | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| [OUT-1](OUT-1-ahp-acp-adapter-question.md) | Is ACP-as-adapter a third-party extension point? | AHP [#282](https://github.com/microsoft/agent-host-protocol/issues/282) | b | Confidence **High** (of an answer) | Decides roadmap | Drafted, unsent |
+| [OUT-1](OUT-1-ahp-acp-adapter-question.md) | Is ACP-as-adapter a third-party extension point? | AHP [#282](https://github.com/microsoft/agent-host-protocol/issues/282) | b | Confidence **High** (of an answer) | Decides roadmap | ✅ **Posted 2026-08-15** — [awaiting reply](https://github.com/microsoft/agent-host-protocol/issues/282#issuecomment-5303296347) |
 | [OUT-2](OUT-2-localhost-agent-host-connection.md) | Agents window cannot connect to a localhost Agent Host | vscode — new issue | b | Confidence **Medium** | No (workaround: our own host) | Drafted, unsent |
 | [OUT-3](OUT-3-comment-on-325827.md) | Support external agent registration | vscode [#325827](https://github.com/microsoft/vscode/issues/325827) | b | Confidence **Low–Medium** | Yes, for the VS Code picker | Drafted, unsent |
 | OUT-4 | Do hosts parse client-published MCP customizations? | AHP — new issue | b | Confidence **Medium** | No | Not drafted |
