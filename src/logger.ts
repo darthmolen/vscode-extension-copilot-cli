@@ -1,4 +1,6 @@
-import * as vscode from 'vscode';
+// Type-only: erased at compile time, so requiring this module never pulls in
+// the vscode runtime. The output channel is created lazily in the constructor.
+import type * as vscode from 'vscode';
 
 export enum LogLevel {
     DEBUG = 0,
@@ -7,13 +9,36 @@ export enum LogLevel {
     ERROR = 3
 }
 
+/**
+ * The logging surface every consumer actually uses.
+ *
+ * Services depend on this rather than on `Logger` so they can run outside the
+ * extension host (e.g. inside a separate agent process).
+ */
+export interface LoggerLike {
+    debug(message: string): void;
+    info(message: string): void;
+    warn(message: string, error?: Error): void;
+    error(message: string, error?: Error): void;
+}
+
 export class Logger {
     private static instance: Logger;
     private outputChannel: vscode.OutputChannel;
     private logLevel: LogLevel = LogLevel.DEBUG;
 
     private constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('Copilot CLI');
+        // Required lazily so this module can load where vscode does not exist.
+        const vscodeApi = require('vscode');
+        this.outputChannel = vscodeApi.window.createOutputChannel('Copilot CLI');
+    }
+
+    /**
+     * Install a logger for hosts that have no VS Code output channel.
+     * Pass `undefined` to fall back to the lazily-created VS Code logger.
+     */
+    public static setInstance(logger: LoggerLike | undefined): void {
+        Logger.instance = logger as Logger | undefined as Logger;
     }
 
     public static getInstance(): Logger {

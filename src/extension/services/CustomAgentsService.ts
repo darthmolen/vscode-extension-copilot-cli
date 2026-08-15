@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+
 import { CustomAgentDefinition } from '../../shared/models';
 import { AgentFileService } from './AgentFileService';
 
@@ -45,12 +45,22 @@ builtIn: true,
 export class CustomAgentsService {
 private readonly agentFileService: AgentFileService;
 
-constructor(agentFileService?: AgentFileService) {
+constructor(agentFileService?: AgentFileService, workspaceRootProvider?: () => string | undefined) {
 this.agentFileService = agentFileService ?? new AgentFileService();
+this.workspaceRootProvider = workspaceRootProvider ?? (() => {
+// Lazy require keeps this module loadable in a host with no vscode.
+try {
+return require('vscode').workspace.workspaceFolders?.[0]?.uri.fsPath;
+} catch {
+return undefined;
+}
+});
 }
 
+private readonly workspaceRootProvider: () => string | undefined;
+
 private get workspaceRoot(): string | undefined {
-return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+return this.workspaceRootProvider();
 }
 
 /**

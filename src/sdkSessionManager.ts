@@ -1,20 +1,21 @@
-import * as vscode from 'vscode';
+// Type-only: erased at compile time. Everything this module needs from the
+// host arrives through HostBridge, so it can run outside the extension host.
+import type * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
-import { Logger } from './logger';
+import { Logger, LoggerLike } from './logger';
+import { HostBridge, MessageEnhancerLike, NoopMessageEnhancer, createVSCodeHostBridge } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
 import { PlanModeToolsService, PLAN_MODE_AVAILABLE_TOOLS } from './extension/services/planModeToolsService';
-import { MessageEnhancementService } from './extension/services/messageEnhancementService';
 import { FileSnapshotService } from './extension/services/fileSnapshotService';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { getImportedServers } from './extension/services/vscodeMcpImportService';
 import { CustomAgentsService } from './extension/services/CustomAgentsService';
 import { resolveSkillDirectories } from './extension/services/SkillDirectoriesService';
-import { getBackendState } from './backendState';
 import { DisposableStore, MutableDisposable, toDisposable } from './utilities/disposable';
 import { BufferedEmitter } from './utilities/bufferedEmitter';
 import {
@@ -81,7 +82,7 @@ export const MODEL_PREFERENCE_ORDER = [
 export async function selectFallbackModel(
     modelCapabilitiesService: ModelCapabilitiesService,
     excludeModels: Set<string>,
-    logger?: Logger
+    logger?: LoggerLike
 ): Promise<string> {
     try {
         const availableModels = await modelCapabilitiesService.getAllModels();
@@ -138,11 +139,15 @@ export async function selectFallbackModel(
  * 3. PATH lookup via `which`/`where`
  * 4. Throw with install instructions
  */
-export function resolveCliPath(logger: { info: (msg: string) => void }, configuredPath?: string): string {
+export function resolveCliPath(
+    logger: { info: (msg: string) => void },
+    configuredPath?: string,
+    host?: HostBridge
+): string {
     // 1. User-configured path takes priority (skip bare default — it needs PATH resolution)
     const configured = configuredPath !== undefined
         ? configuredPath
-        : vscode.workspace.getConfiguration('copilotCLI').get<string>('cliPath');
+        : host?.getConfig<string>('cliPath');
     if (configured && configured !== 'copilot') {
         logger.info(`Using configured CLI path: ${configured}`);
         return configured;
@@ -280,6 +285,15 @@ export interface SubagentMessageData {
     reasoningText?: string; // plaintext reasoning ("thinking"), when present
 }
 
+/** One or more MCP servers whose tool list or runtime status changed. */
+export interface McpServersUpdateData {
+    servers: Array<{
+        name: string;
+        status: string;
+        tools: string[];
+    }>;
+}
+
 export interface SubagentCompleteData {
     agentId: string;
     status: 'complete' | 'failed';
@@ -351,8 +365,11 @@ export class SDKSessionManager implements vscode.Disposable {
 
     private readonly _onDidSubagentMessage = this._reg(new BufferedEmitter<SubagentMessageData>());
     readonly onDidSubagentMessage = this._onDidSubagentMessage.event;
+
+    private readonly _onDidUpdateMcpServers = this._reg(new BufferedEmitter<McpServersUpdateData>());
+    readonly onDidUpdateMcpServers = this._onDidUpdateMcpServers.event;
     
-    private logger: Logger;
+    private logger: LoggerLike;
     private workingDirectory: string;
     private resumeSession: boolean;
     private toolExecutions: Map<string, ToolExecutionState> = new Map();
@@ -371,7 +388,7 @@ export class SDKSessionManager implements vscode.Disposable {
     private modelCapabilitiesService: ModelCapabilitiesService;
     private currentModelId: string | null = null;
     private planModeToolsService: PlanModeToolsService | null = null;
-    private messageEnhancementService: MessageEnhancementService;
+    private _messageEnhancementService: MessageEnhancerLike | null = null;
     private fileSnapshotService: FileSnapshotService;
     private mcpConfigurationService: MCPConfigurationService;
     private managedMCPRegistry: ManagedMCPRegistry;
@@ -385,22 +402,32 @@ export class SDKSessionManager implements vscode.Disposable {
         return this.injectedCliPath;
     }
 
+    private readonly host: HostBridge;
+
     constructor(
-        private readonly context: vscode.ExtensionContext,
+        context: vscode.ExtensionContext | undefined,
         private readonly config: CLIConfig = {},
         resumeLastSession: boolean = true,
         specificSessionId?: string,
-        cliPath?: string
+        cliPath?: string,
+        hostBridge?: HostBridge
     ) {
         this.injectedCliPath = cliPath ?? null;
-        this.logger = Logger.getInstance();
-        this.workingDirectory = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+        this.host = hostBridge ?? createVSCodeHostBridge(context as vscode.ExtensionContext);
+        this.logger = this.host.logger;
+        // Services constructed below reach for the Logger singleton directly, so
+        // point it at the host's logger to keep them working where there is no
+        // output channel. Guarded because tests substitute the logger module.
+        const loggerClass = Logger as Partial<typeof Logger>;
+        if (typeof loggerClass.setInstance === 'function') {
+            loggerClass.setInstance(this.logger);
+        }
+        this.workingDirectory = this.host.getWorkspaceFolder() || process.cwd();
         this.logger.info(`Working directory set to: ${this.workingDirectory}`);
         this.resumeSession = resumeLastSession;
         
         // Initialize services
         this.modelCapabilitiesService = new ModelCapabilitiesService();
-        this.messageEnhancementService = new MessageEnhancementService();
         this.fileSnapshotService = new FileSnapshotService();
         this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
         this.managedMCPRegistry = new ManagedMCPRegistry();
@@ -417,6 +444,18 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
     
+    /**
+     * The message enhancer reads editor state, so it is built on first use
+     * rather than at construction — a manager that never enhances a prompt
+     * (or runs in a host with no editor) never creates one.
+     */
+    private get messageEnhancementService(): MessageEnhancerLike {
+        if (!this._messageEnhancementService) {
+            this._messageEnhancementService = this.host.createMessageEnhancer?.() ?? new NoopMessageEnhancer();
+        }
+        return this._messageEnhancementService;
+    }
+
     private _reg<T extends vscode.Disposable>(d: T): T {
         this._disposables.add(d);
         return d;
@@ -424,7 +463,7 @@ export class SDKSessionManager implements vscode.Disposable {
 
     private loadLastSessionId(): void {
         try {
-            const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
+            const filterByFolder = this.host.getConfig<boolean>('filterSessionsByFolder', true) ?? true;
             const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
             const sessionId = SessionService.getMostRecentSession(sessionStateDir, this.workingDirectory, filterByFolder);
             
@@ -481,8 +520,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 
                 this.logger.warn(`[Resume] All retries exhausted, showing user dialog (error type: ${errorType})`);
                 
-                const userChoice = await showSessionRecoveryDialog(
-                    vscode,
+                const userChoice = await this.host.askSessionRecovery(
                     sessionId,
                     errorType,
                     3, // Max attempts reached
@@ -532,7 +570,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.logger.info('Starting SDK Session Manager...');
 
         try {
-            const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger);
+            const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger, undefined, this.host);
             if (this.injectedCliPath) {
                 this.logger.info(`Using injected CLI path: ${cliPath}`);
             }
@@ -550,7 +588,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-            const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
+            const yolo = this.host.getConfig<boolean>('yolo', false) ?? false;
             const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
             const useYolo = yolo && !hasToolPolicy;
             this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
@@ -1020,18 +1058,26 @@ export class SDKSessionManager implements vscode.Disposable {
             case 'session.mcp_servers_loaded': {
                 const servers = event.data?.servers ?? [];
                 this.logger.info(`[MCP] mcp_servers_loaded: ${servers.map((s: any) => `${s.name}=${s.status}`).join(', ')}`);
-                for (const s of servers) {
-                    getBackendState().setMcpServerTools(s.name, s.tools ?? []);
-                    getBackendState().setMcpServerStatus(s.name, s.status);
-                }
+                this._onDidUpdateMcpServers.fire({
+                    servers: servers.map((s: any) => ({
+                        name: s.name,
+                        status: s.status,
+                        tools: s.tools ?? []
+                    }))
+                });
                 break;
             }
 
             case 'session.mcp_server_status_changed':
                 this.logger.info(`[MCP] mcp_server_status_changed: ${event.data?.serverName}=${event.data?.status}`);
                 if (event.data?.serverName) {
-                    getBackendState().setMcpServerTools(event.data.serverName, event.data.tools ?? []);
-                    getBackendState().setMcpServerStatus(event.data.serverName, event.data.status);
+                    this._onDidUpdateMcpServers.fire({
+                        servers: [{
+                            name: event.data.serverName,
+                            status: event.data.status,
+                            tools: event.data.tools ?? []
+                        }]
+                    });
                 }
                 break;
 
@@ -1213,18 +1259,16 @@ export class SDKSessionManager implements vscode.Disposable {
         if (this.skillDirectoriesCache !== null) {
             return this.skillDirectoriesCache;
         }
-        const additionalDirs = vscode.workspace.getConfiguration('copilotCLI')
-            .get<string[]>('additionalSkillDirectories', []);
+        const additionalDirs = this.host.getConfig<string[]>('additionalSkillDirectories', []) ?? [];
         this.skillDirectoriesCache = resolveSkillDirectories(additionalDirs);
         return this.skillDirectoriesCache;
     }
     
     private getEnabledMCPServers(): Record<string, any> {
-        const config = vscode.workspace.getConfiguration('copilotCLI');
-        const userConfig = config.get<Record<string, any>>('mcpServers', {});
+        const userConfig = this.host.getConfig<Record<string, any>>('mcpServers', {}) ?? {};
         const managed = this.managedMCPRegistry.getManagedServers();
-        const imported = config.get<boolean>('importVSCodeMcpServers', true)
-            ? getImportedServers(this.workingDirectory, this.context.globalStorageUri.fsPath)
+        const imported = (this.host.getConfig<boolean>('importVSCodeMcpServers', true) ?? true)
+            ? getImportedServers(this.workingDirectory, this.host.getGlobalStorageDir())
             : {};
         return this.mcpConfigurationService.getMergedMCPServers(userConfig, managed, imported);
     }
@@ -1548,11 +1592,11 @@ export class SDKSessionManager implements vscode.Disposable {
     }
 
     /**
-     * After session (re)creation, restore the sticky agent from backendState if one was set.
+     * After session (re)creation, restore the sticky agent the host reports, if any.
      * This ensures agent selection survives session reconnects.
      */
     private async _restoreStickyAgentIfNeeded(): Promise<void> {
-        const activeAgent = getBackendState().getActiveAgent();
+        const activeAgent = this.host.getActiveAgent?.() ?? null;
         if (activeAgent && activeAgent !== this._sessionAgent) {
             this.logger.info(`[Agent] Restoring sticky agent "${activeAgent}" after session (re)creation`);
             await this.selectAgent(activeAgent);
@@ -1684,8 +1728,8 @@ export class SDKSessionManager implements vscode.Disposable {
             this.client = null;
         }
 
-        const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger);
-        const yolo = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('yolo', false);
+        const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger, undefined, this.host);
+        const yolo = this.host.getConfig<boolean>('yolo', false) ?? false;
         const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
         const useYolo = yolo && !hasToolPolicy;
 
@@ -2350,7 +2394,7 @@ export class SDKSessionManager implements vscode.Disposable {
 
             // All fallback attempts failed
             this.logger.error(`[Model Fallback] All fallback attempts exhausted. Tried: [${Array.from(triedModels).join(', ')}]`);
-            vscode.window.showErrorMessage(
+            this.host.showError(
                 `Model "${requestedModel}" is not supported by your account and no supported fallback model could be selected.`
             );
             this._onDidReceiveOutput.fire({ content:
@@ -2368,7 +2412,7 @@ export class SDKSessionManager implements vscode.Disposable {
      * Notify the user about a model fallback via both chat and OS-level toast.
      */
     private notifyModelFallback(requestedModel: string, actualModel: string): void {
-        vscode.window.showWarningMessage(
+        this.host.showWarning(
             `Model "${requestedModel}" is not available. Using "${actualModel}" instead.`
         );
         this._onDidReceiveOutput.fire({ content:
@@ -2476,7 +2520,7 @@ export class SDKSessionManager implements vscode.Disposable {
         this.stop();
         
         // Dispose all services
-        this.messageEnhancementService.dispose();
+        this._messageEnhancementService?.dispose();
         this.fileSnapshotService.dispose();
         if (this.planModeToolsService) {
             this.planModeToolsService.dispose();

@@ -730,6 +730,16 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 		chatProvider.completeSubagent(subagent);
 	})));
 
+	context.subscriptions.push(manager.onDidUpdateMcpServers(safeHandler('onDidUpdateMcpServers', (update) => {
+		// The manager no longer writes MCP state into backendState directly; it
+		// emits, and the host records it. Keeps the store host-side so the
+		// manager can run in its own process.
+		for (const server of update.servers) {
+			getBackendState().setMcpServerTools(server.name, server.tools);
+			getBackendState().setMcpServerStatus(server.name, server.status);
+		}
+	})));
+
 	context.subscriptions.push(manager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {
 		logger.info(`[File Change] ${fileChange.path} (${fileChange.type})`);
 	})));
