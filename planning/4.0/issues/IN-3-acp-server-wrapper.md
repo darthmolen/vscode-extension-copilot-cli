@@ -18,7 +18,11 @@ That is the whole basis of the hybrid posture. Nothing here waits on Microsoft.
 
 ## What Phase 0 already established
 
-- The manager runs with `vscode` absent and takes a `HostBridge` (IN-1).
+- The manager runs with `vscode` absent and takes a `HostBridge` (IN-1) — true as long as
+  the caller injects one, but not yet enforced by the module graph: `sdkSessionManager.ts`
+  still statically falls back to `createVSCodeHostBridge`. Removing that, and splitting
+  `vscodeHostBridge.ts` out, belongs to this issue —
+  [backlog memo](../../backlog/hostbridge-split-and-fallback-seam.md).
 - Its 16 `BufferedEmitter` events carry **plain JSON-serializable structs** — no
   `vscode.Uri`, no `Disposable`, no functions cross the boundary. This is the
   natural `session/update` mapping.
