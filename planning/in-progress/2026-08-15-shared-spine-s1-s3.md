@@ -10,7 +10,7 @@
 | S2 — one sub-agent palette | ✅ done | `c3f0c9b` |
 | S1 — spike: `sessions.fork` | ✅ done, 8/8 | `ecf93eb` |
 | S1 — SDK-native fork (+ testability fix `702aa04`) | ✅ done | `eda08d2` |
-| Release — v3.12.0 | ⬜ not started | — |
+| Release — v3.12.0 | 🚀 in flight | — |
 
 Review applied: 6 accepted + 1 merged, from
 `planning/needs-review/completed/2026-08-15-shared-spine-s1-s3-shipping-as-v3-12-0.md`.
