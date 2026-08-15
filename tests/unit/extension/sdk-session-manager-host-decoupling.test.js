@@ -14,38 +14,10 @@ const { describe, it, before, after } = require('mocha');
 const { expect } = require('chai');
 const path = require('path');
 const os = require('os');
-const Module = require('module');
+const { withoutVscode } = require('../../helpers/without-vscode');
 
 const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js');
 
-/** Simulates a process with no vscode module for the duration of `fn`. */
-function withoutVscode(fn) {
-    const originalRequire = Module.prototype.require;
-    // Drop anything already cached so the module graph reloads under the ban.
-    const cleared = [];
-    for (const key of Object.keys(require.cache)) {
-        if (key.includes(`${path.sep}out${path.sep}`)) {
-            cleared.push(key);
-            delete require.cache[key];
-        }
-    }
-    Module.prototype.require = function (id) {
-        if (id === 'vscode') {
-            const err = new Error("Cannot find module 'vscode'");
-            err.code = 'MODULE_NOT_FOUND';
-            throw err;
-        }
-        return originalRequire.apply(this, arguments);
-    };
-    try {
-        return fn();
-    } finally {
-        Module.prototype.require = originalRequire;
-        for (const key of cleared) {
-            delete require.cache[key];
-        }
-    }
-}
 
 /** Minimal HostBridge implementation — no vscode anywhere. */
 function createFakeHost(overrides = {}) {
@@ -126,5 +98,14 @@ describe('SDKSessionManager — host decoupling (Phase 0.1)', () => {
         });
 
         expect(seen).to.include('filterSessionsByFolder');
+    });
+});
+
+describe('SDKSessionManager — construction requires a host', () => {
+    it('throws a clear error when given neither a VS Code context nor a HostBridge', () => {
+        const { SDKSessionManager } = require(MANAGER_PATH);
+
+        expect(() => new SDKSessionManager(undefined, {}, false))
+            .to.throw(/HostBridge|ExtensionContext/i);
     });
 });

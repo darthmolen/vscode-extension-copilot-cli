@@ -413,6 +413,13 @@ export class SDKSessionManager implements vscode.Disposable {
         hostBridge?: HostBridge
     ) {
         this.injectedCliPath = cliPath ?? null;
+        if (!hostBridge && !context) {
+            // Without either, the VS Code bridge would be built over an undefined
+            // context and fail later inside getGlobalStorageDir() — far from the cause.
+            throw new Error(
+                'SDKSessionManager requires either a vscode.ExtensionContext or an injected HostBridge.'
+            );
+        }
         this.host = hostBridge ?? createVSCodeHostBridge(context as vscode.ExtensionContext);
         this.logger = this.host.logger;
         // Services constructed below reach for the Logger singleton directly, so

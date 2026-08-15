@@ -11,36 +11,10 @@ const { describe, it, beforeEach } = require('mocha');
 const { expect } = require('chai');
 const path = require('path');
 const os = require('os');
-const Module = require('module');
+const { withoutVscode } = require('../../helpers/without-vscode');
 
 const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js');
 
-function withoutVscode(fn) {
-    const originalRequire = Module.prototype.require;
-    const cleared = [];
-    for (const key of Object.keys(require.cache)) {
-        if (key.includes(`${path.sep}out${path.sep}`)) {
-            cleared.push(key);
-            delete require.cache[key];
-        }
-    }
-    Module.prototype.require = function (id) {
-        if (id === 'vscode') {
-            const err = new Error("Cannot find module 'vscode'");
-            err.code = 'MODULE_NOT_FOUND';
-            throw err;
-        }
-        return originalRequire.apply(this, arguments);
-    };
-    try {
-        return fn();
-    } finally {
-        Module.prototype.require = originalRequire;
-        for (const key of cleared) {
-            delete require.cache[key];
-        }
-    }
-}
 
 function fakeHost() {
     return {
