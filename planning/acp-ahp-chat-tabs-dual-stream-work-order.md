@@ -169,11 +169,19 @@ between `start()` and `recreateClient()` now exists once.
 not stop it; a manager that built its own owns it. Without that rule the first tab to close would
 stop the shared CLI process out from under every other session.
 
-**A live bug went with it.** `_lifecycleListenersAttached` was reset in `recreateClient()` but not in
-`stop()`, so after any `restart()` the fresh client got no stderr, no exit code and no
-connection-close signal — the extension ran blind through exactly the failure these listeners exist
-to explain. The flag now changes only where the client it describes changes, so they cannot drift.
-Mutation-checked: decoupling them again fails two tests.
+**A latent defect went with it — latent, not live.** `_lifecycleListenersAttached` was reset in
+`recreateClient()` but not in `stop()`, so a stop-then-start on the *same* manager would leave the
+fresh client with no stderr, no exit code and no connection-close signal.
+
+That path is unreachable in production, and an earlier draft of this section wrongly claimed
+otherwise. `restart()` ([sdkSessionManager.ts:1889](../src/sdkSessionManager.ts#L1889)) is the only
+caller and has **none of its own**; all three real `stop()` sites
+([extension.ts:396](../src/extension.ts#L396), :421, :473) null the manager, and `startCLISession`
+(:597) builds a new one with a fresh flag. `recreateClient()` always reset it correctly.
+
+So this is correct-by-construction hardening, not a user-facing repair: the flag now changes only
+where the client it describes changes. Mutation-checked — decoupling them again fails two tests.
+**S4's justification does not rest on it**; the de-duplication and the ownership seam are the point.
 
 **The constructor gained one optional trailing parameter.** `extension.ts` — Lane B's file — needed
 no edit, so S4 touched nothing Lane B owns.

@@ -107,6 +107,64 @@ describe('SDKSessionManager — client provider ownership (S4)', () => {
     });
 });
 
+/**
+ * `recreateClient()` is the only production-reachable behaviour S4 changed —
+ * four live connection-recovery call sites drive it. (`restart()`, the other
+ * stop-and-replace path, has no callers; every real `stop()` is followed by a
+ * brand-new manager.) So this is the delegation that actually has to be right.
+ */
+describe('SDKSessionManager — client recreation (S4)', () => {
+    /** Records call order across both collaborators, so ordering can be asserted. */
+    function recreateContext() {
+        const order = [];
+        const replacement = { id: 'replacement-client' };
+        return {
+            order,
+            replacement,
+            ctx: {
+                logger: silentLogger,
+                client: { id: 'dead-client' },
+                modelCapabilitiesService: {
+                    clearCache() { order.push('clearCache'); }
+                },
+                clientProvider: {
+                    async recreate() { order.push('recreate'); return replacement; }
+                }
+            }
+        };
+    }
+
+    it('replaces its client with the provider’s new one', async () => {
+        const { ctx, replacement } = recreateContext();
+
+        await SDKSessionManager.prototype.recreateClient.call(ctx);
+
+        expect(ctx.client, 'kept the dead client').to.equal(replacement);
+    });
+
+    it('clears the model-capabilities cache', async () => {
+        const { ctx, order } = recreateContext();
+
+        await SDKSessionManager.prototype.recreateClient.call(ctx);
+
+        expect(order).to.include('clearCache');
+    });
+
+    /**
+     * Capabilities are per-client and the provider's onClientStarted hook
+     * re-initializes them during recreate(). Clearing afterwards would wipe the
+     * fresh values and leave the cache empty; clearing before is what makes the
+     * replacement's own capabilities land.
+     */
+    it('clears the cache before recreating, not after', async () => {
+        const { ctx, order } = recreateContext();
+
+        await SDKSessionManager.prototype.recreateClient.call(ctx);
+
+        expect(order).to.deep.equal(['clearCache', 'recreate']);
+    });
+});
+
 describe('SDKSessionManager — client provider construction (S4)', () => {
     it('uses an injected provider rather than building its own', () => {
         const injected = newProvider();
