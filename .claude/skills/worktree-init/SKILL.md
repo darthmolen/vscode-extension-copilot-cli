@@ -20,7 +20,7 @@ and nothing complains until someone ships an assumption.
 
 **This skill is repo-agnostic in shape but repo-specific in content.** The two directories above
 are this project's facts. If a third gitignored-but-required directory appears, add it to
-`SHARED_DIRS` in step 2 and to the table above.
+`SHARED_DIRS` in step 3 and to the table above.
 
 ## Arguments
 
@@ -54,14 +54,23 @@ shows `$BRANCH`, stop and use that directory instead of creating a second one.
 ```bash
 git fetch -q origin
 if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-    git worktree add "$DEST" "$BRANCH"
+    git worktree add "$DEST" "$BRANCH"                                   # local branch exists
+elif git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+    git worktree add --track -b "$BRANCH" "$DEST" "origin/$BRANCH"       # remote-only: track it
 else
-    git worktree add -b "$BRANCH" "$DEST" "$BASE"
+    git worktree add -b "$BRANCH" "$DEST" "$BASE"                        # genuinely new
 fi
 ```
 
 Branch off the **base ref**, not off whatever the current worktree happens to have checked out —
 parallel lanes routinely sit on unrelated branches.
+
+**The remote-only case is not an edge case.** Checking `refs/heads` alone would create a *new*
+branch off `$BASE` that shares a name with an existing `origin/` branch, then silently diverge from
+it — the push fails, or worse, succeeds after a force. This is the normal state after any
+`gh pr merge --delete-branch`, and after cloning: at the time this skill was written, nine of this
+repo's branches existed on `origin` with no local ref, including one merged the same day. Check
+`refs/remotes/origin` before concluding a branch is new.
 
 ### 3. Link the shared gitignored directories
 
@@ -137,5 +146,7 @@ The symlinks live inside the worktree, so they go with it; the shared originals 
   fixed one tree and not the other.
 - **Branching off the current worktree's HEAD** instead of the intended base, silently inheriting
   another lane's in-flight commits.
+- **Treating a remote-only branch as new** because only `refs/heads` was checked, producing a
+  same-named branch that diverges from `origin/`.
 - **Installing a VSIX from two trees** and concluding the extension is broken, when the other
   tree's build simply overwrote yours.
