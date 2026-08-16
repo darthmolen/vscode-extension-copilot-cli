@@ -4,6 +4,7 @@ import * as os from 'os';
 import { Logger } from './logger';
 import { getBackendState } from './backendState';
 import { ExtensionRpcRouter } from './extension/rpc';
+import { registerChatHandlers, ChatHandlerContext } from './extension/rpc/registerChatHandlers';
 import { buildChatHtml } from './extension/webview/chatHtml';
 import { resolveChatHtmlAssets } from './extension/webview/chatHtmlAssets';
 import { DisposableStore } from './utilities/disposable';
@@ -44,8 +45,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private rpcRouter: ExtensionRpcRouter | undefined;
 	private isSessionActive: boolean = false;
 	private currentWorkspacePath: string | undefined;
-	private lastSentMessage: string | undefined;
-	private lastSentTime: number = 0;
+	/** Duplicate-send suppression, shared by reference with the RPC handlers. */
+	private readonly sendDedup = { lastMessage: undefined as string | undefined, lastTime: 0 };
 	private validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;
 
 	// Slash command services
@@ -321,321 +322,65 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	 */
 	private _setupRpcHandlers(webview: vscode.Webview): void {
 		this.rpcRouter = new ExtensionRpcRouter(webview);
-
-		this._reg(this.rpcRouter.onReady(() => {
-			this.logger.info('Webview is ready');
-
-			const backendState = getBackendState();
-			const fullState = backendState.getFullState();
-
-			this.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);
-
-			this.rpcRouter!.sendInit({
-				sessionId: fullState.sessionId,
-				sessionActive: fullState.sessionActive,
-				messages: fullState.messages as any,
-				planModeStatus: fullState.planModeStatus,
-				workspacePath: fullState.workspacePath,
-				activeFilePath: fullState.activeFilePath,
-				currentModel: fullState.currentModel,
-				showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
-			});
-
-			this._onDidBecomeReady.fire();
-		}));
-
-		this._reg(this.rpcRouter.onSendMessage((payload) => {
-			// Prevent duplicate sends (same message within 1 second)
-			const now = Date.now();
-			if (this.lastSentMessage === payload.text &&
-			    now - this.lastSentTime < 1000) {
-				this.logger.warn(`Ignoring duplicate message send: ${payload.text.substring(0, 50)}...`);
-				return;
-			}
-			this.lastSentMessage = payload.text;
-			this.lastSentTime = now;
-
-			this.logger.info(`User sent message: ${payload.text.substring(0, 100)}...`);
-			if (payload.attachments && payload.attachments.length > 0) {
-				this.logger.info(`  with ${payload.attachments.length} attachment(s)`);
-			}
-			this._onDidReceiveUserMessage.fire({
-				text: payload.text,
-				attachments: payload.attachments,
-				agentName: payload.agentName
-			});
-		}));
-
-		this._reg(this.rpcRouter.onPickFiles(() => {
-			this.logger.info('File picker requested from UI');
-			this._handleFilePicker();
-		}));
-
-		this._reg(this.rpcRouter.onPasteImage((payload) => {
-			this.logger.info(`Pasted image received: ${payload.fileName}`);
-			this._handlePastedImage(payload.dataUri, payload.mimeType, payload.fileName);
-		}));
-
-		this._reg(this.rpcRouter.onSaveMermaidImage(async (payload) => {
-			this.logger.info('Save mermaid image requested');
-			await this._handleSaveMermaidImage(payload.svgContent, payload.source);
-		}));
-
-		this._reg(this.rpcRouter.onAbortMessage(() => {
-			this.logger.info('Abort requested from UI');
-			this._onDidRequestAbort.fire();
-		}));
-
-		this._reg(this.rpcRouter.onSwitchSession((payload) => {
-			this.logger.info(`Switch session requested: ${payload.sessionId}`);
-			vscode.commands.executeCommand('copilot-cli-extension.switchSession', payload.sessionId);
-		}));
-
-		this._reg(this.rpcRouter.onNewSession(() => {
-			this.logger.info('New session requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.newSession');
-		}));
-
-		this._reg(this.rpcRouter.onViewPlan(() => {
-			this.logger.info('View plan requested from UI');
-			this._onDidRequestViewPlan.fire();
-		}));
-
-		this._reg(this.rpcRouter.onViewDiff((payload) => {
-			this.logger.info(`View diff requested from UI: ${JSON.stringify(payload)}`);
-			vscode.commands.executeCommand('copilot-cli-extension.viewDiff', payload);
-		}));
-
-		this._reg(this.rpcRouter.onTogglePlanMode((payload) => {
-			this.logger.info(`Plan mode toggle requested: ${payload.enabled}`);
-			vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);
-		}));
-
-		this._reg(this.rpcRouter.onSubagentPopout((payload) => {
-			vscode.commands.executeCommand('copilot-cli-extension.openSubagentPanel', payload.agentId);
-		}));
-
-		this._reg(this.rpcRouter.onAcceptPlan(() => {
-			this.logger.info('Accept plan requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
-		}));
-
-		this._reg(this.rpcRouter.onRejectPlan(() => {
-			this.logger.info('Reject plan requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
-		}));
-
-		// Initialize slash command services
-		// Create sessionService adapter
-		const sessionService = {
-			getCurrentSession: () => {
-				const backendState = getBackendState();
-				const sessionId = backendState.getSessionId();
-				return sessionId ? { id: sessionId } : null;
-			},
-			getPlanPath: (sessionId: string) => {
-				const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
-				return path.join(sessionStateDir, sessionId, 'plan.md');
-			}
-		};
-
-		this.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);
-		const mcpRegistry = new ManagedMCPRegistry();
-		this.mcpConfigService = new MCPConfigurationService(
-			vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
-		);
-		this.infoHandlers = new InfoSlashHandlers(
-			() => {
-				const userConfig = vscode.workspace.getConfiguration('copilotCLI')
-					.get<Record<string, any>>('mcpServers', {});
-				return this.mcpConfigService!.getMergedMCPServers(userConfig, mcpRegistry.getManagedServers());
-			},
-			getBackendState(),
-			() => this.cliCapability,
-			{
-				extensionVersion: typeof __EXTENSION_VERSION__ !== 'undefined' ? __EXTENSION_VERSION__ : 'unknown',
-				sdkVersion: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : 'unknown',
-			}
-		);
-		this.notSupportedHandlers = new NotSupportedSlashHandlers();
-		this.cliPassthroughService = new CLIPassthroughService(vscode);
-
-		// Handle slash commands from webview
-		this._reg(this.rpcRouter.onShowPlanContent(async () => {
-			this.logger.info('Show plan content requested from UI');
-			const result = await this.codeReviewHandlers!.handleReview();
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onOpenDiffView(async (payload) => {
-			this.logger.info(`Open diff view requested: ${payload.file1} vs ${payload.file2}`);
-			const result = await this.codeReviewHandlers!.handleDiff(payload.file1, payload.file2);
-			if (!result.success && result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onShowMcpConfig(async () => {
-			this.logger.info('[MCP] /mcp command received — building server status');
-			await this.buildAndSendMcpStatus();
-		}));
-
-		this._reg(this.rpcRouter.onMcpServerAction(async (payload) => {
-			await this.handleMcpServerAction(payload);
-		}));
-
-		this._reg(this.rpcRouter.onShowUsageMetrics(async () => {
-			this.logger.info('Show usage metrics requested from UI');
-			const result = await this.infoHandlers!.handleUsage();
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onShowHelp(async (payload) => {
-			this.logger.info(`Show help requested from UI: ${payload.command || 'all'}`);
-			const result = await this.infoHandlers!.handleHelp(payload.command);
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onShowVersionInfo(async () => {
-			this.logger.info('Show version info requested from UI');
-			const result = await this.infoHandlers!.handleVersion();
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onShowNotSupported(async (payload) => {
-			this.logger.info(`Not supported command: ${payload.command}`);
-			const result = await this.notSupportedHandlers!.handleNotSupported(payload.command);
-			if (result.success && result.content) {
-				this.rpcRouter!.addAssistantMessage(result.content);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onOpenInCLI(async (payload) => {
-			this.logger.info(`Open in CLI requested: ${payload.command}`);
-			
-			// Get current session ID and workspace path
-			const backendState = getBackendState();
-			const sessionId = backendState.getSessionId();
-			const workspacePath = backendState.getWorkspacePath() || this.currentWorkspacePath || null;
-
-			if (!sessionId) {
-				this.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');
-				return;
-			}
-
-			const result = this.cliPassthroughService!.openCLI(payload.command, sessionId, workspacePath);
-			
-			if (result.success && result.instruction) {
-				this.rpcRouter!.addAssistantMessage(result.instruction);
-			} else if (result.error) {
-				this.rpcRouter!.addAssistantMessage(`Error: ${result.error}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onSwitchModel((payload) => {
-			this.logger.info(`Switch model requested: ${payload.model}`);
-			this._onDidRequestSwitchModel.fire(payload.model);
-		}));
-
-		this._reg(this.rpcRouter.onRenameSession((payload) => {
-			this.logger.info(`Rename session requested: "${payload.name}"`);
-			this._onDidRequestRenameSession.fire(payload.name);
-		}));
-
-		this._reg(this.rpcRouter.onForkSession(() => {
-			this.logger.info('[Fork] Fork session requested from UI');
-			this._onDidRequestForkSession.fire();
-		}));
-
-		this._reg(this.rpcRouter.onCompact(() => {
-			this.logger.info('[Compact] Compact requested from UI');
-			this._onDidRequestCompact.fire();
-		}));
-
-		this._reg(this.rpcRouter.onGetCustomAgents(async () => {
-			this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
-		}));
-
-		this._reg(this.rpcRouter.onSaveCustomAgent(async (payload) => {
-			try {
-				await this.customAgentsService.save(payload.agent);
-				this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
-			} catch (e: any) {
-				this.rpcRouter!.setStatus(`Failed to save agent: ${e.message}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onDeleteCustomAgent(async (payload) => {
-			try {
-				await this.customAgentsService.delete(payload.name);
-				this.rpcRouter!.sendCustomAgentsChanged(this.customAgentsService.getAll());
-			} catch (e: any) {
-				this.rpcRouter!.setStatus(`Failed to delete agent: ${e.message}`);
-			}
-		}));
-
-		this._reg(this.rpcRouter.onSelectAgent(async (payload) => {
-			const state = getBackendState();
-			const agentName = payload.name.trim();
-			this.logger.info(`[selectAgent] ${agentName || '(clear)'}`);
-			if (!agentName) {
-				state.setActiveAgent(null);
-				this.rpcRouter!.sendActiveAgentChanged(null);
-				this._onDidSelectAgent.fire(null);
-				return;
-			}
-			const all = this.customAgentsService.getAll();
-			const agent = all.find(a => a.name === agentName);
-			if (!agent) {
-				this.rpcRouter!.setStatus(`Unknown agent: ${agentName}. Available: ${all.map(a => a.name).join(', ')}`);
-				return;
-			}
-			state.setActiveAgent(agentName);
-			this.rpcRouter!.sendActiveAgentChanged(agent);
-			this._onDidSelectAgent.fire(agentName);
-		}));
-
-		this._reg(this.rpcRouter.onAgentsPanelClosed(async () => {
-			this._onDidRequestReloadAgents.fire();
-		}));
-
-		this._reg(this.rpcRouter.onOpenFile(async (payload) => {
-			this.logger.info(`[OpenFile] ${payload.filePath}`);
-			const resolved = path.resolve(payload.filePath);
-			const workspaceFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [];
-			const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
-			const allowed = workspaceFolders.some(ws => resolved.startsWith(ws + path.sep)) ||
-				resolved.startsWith(sessionStateDir + path.sep);
-			if (!allowed) {
-				this.logger.warn(`[OpenFile] Blocked: path outside workspace and session-state`);
-				return;
-			}
-			try {
-				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
-				await vscode.window.showTextDocument(doc, { preview: true });
-			} catch (err: any) {
-				this.logger.warn(`[OpenFile] Failed: ${err.message}`);
-			}
-		}));
-
+		registerChatHandlers(this._handlerContext(this.rpcRouter));
 		// Start listening for messages from webview
 		this.rpcRouter.listen();
+	}
+
+	/**
+	 * Adapt this view to the surface-agnostic handler contract.
+	 *
+	 * Getters rather than plain properties throughout: several of these are
+	 * assigned after construction (`setCliCapability`, `setWorkspacePath`, the
+	 * slash-command services) and handlers run long after registration, so
+	 * copying values here would freeze whatever happened to be set at resolve
+	 * time.
+	 */
+	private _handlerContext(rpcRouter: ExtensionRpcRouter): ChatHandlerContext {
+		const self = this;
+		return {
+			rpcRouter,
+			reg: <T extends vscode.Disposable>(d: T) => self._reg(d),
+			sendDedup: this.sendDedup,
+			get logger() { return self.logger; },
+			get currentWorkspacePath() { return self.currentWorkspacePath; },
+			get customAgentsService() { return self.customAgentsService; },
+			// These five are *assigned* by the handler module — it constructs the
+			// slash-command services during registration — so they need setters,
+			// not just getters. Accessor-only properties would throw under strict
+			// mode the moment the /ready handler ran.
+			//
+			// That the services are built during registration rather than at
+			// construction is a wart inherited from `_setupRpcHandlers`. It is
+			// harmless with one surface, but registering a second surface would
+			// rebuild and overwrite them. Task 4 moves this to `ChatSessionHost`.
+			get infoHandlers() { return self.infoHandlers; },
+			set infoHandlers(v) { self.infoHandlers = v; },
+			get codeReviewHandlers() { return self.codeReviewHandlers; },
+			set codeReviewHandlers(v) { self.codeReviewHandlers = v; },
+			get notSupportedHandlers() { return self.notSupportedHandlers; },
+			set notSupportedHandlers(v) { self.notSupportedHandlers = v; },
+			get mcpConfigService() { return self.mcpConfigService; },
+			set mcpConfigService(v) { self.mcpConfigService = v; },
+			get cliPassthroughService() { return self.cliPassthroughService; },
+			set cliPassthroughService(v) { self.cliPassthroughService = v; },
+			get cliCapability() { return self.cliCapability; },
+			buildAndSendMcpStatus: () => self.buildAndSendMcpStatus(),
+			handleMcpServerAction: (payload) => self.handleMcpServerAction(payload),
+			_handleFilePicker: () => self._handleFilePicker(),
+			_handlePastedImage: (dataUri, mimeType, fileName) => self._handlePastedImage(dataUri, mimeType, fileName),
+			_handleSaveMermaidImage: (svg, source) => self._handleSaveMermaidImage(svg, source),
+			_onDidReceiveUserMessage: this._onDidReceiveUserMessage,
+			_onDidRequestAbort: this._onDidRequestAbort,
+			_onDidRequestViewPlan: this._onDidRequestViewPlan,
+			_onDidBecomeReady: this._onDidBecomeReady,
+			_onDidRequestSwitchModel: this._onDidRequestSwitchModel,
+			_onDidRequestRenameSession: this._onDidRequestRenameSession,
+			_onDidRequestForkSession: this._onDidRequestForkSession,
+			_onDidRequestCompact: this._onDidRequestCompact,
+			_onDidSelectAgent: this._onDidSelectAgent,
+			_onDidRequestReloadAgents: this._onDidRequestReloadAgents,
+		};
 	}
 
 	public postMessage(message: any) {

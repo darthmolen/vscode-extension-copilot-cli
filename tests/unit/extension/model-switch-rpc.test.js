@@ -213,12 +213,11 @@ describe('Model Switch RPC Contract', function () {
 			);
 		});
 
-		it('registers onSwitchModel handler', function () {
-			assert.ok(
-				providerSource.includes('onSwitchModel'),
-				'chatViewProvider should register onSwitchModel handler'
-			);
-		});
+		// The onSwitchModel registration moved to
+		// src/extension/rpc/registerChatHandlers.ts in v3.13.0 Task 2, and is now
+		// covered functionally by register-chat-handlers.test.js. The assertion
+		// that lived here read the provider's source text, so it verified nothing
+		// a comment could not have satisfied.
 
 		it('exposes onDidRequestSwitchModel event', function () {
 			assert.ok(
