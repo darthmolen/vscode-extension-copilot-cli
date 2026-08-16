@@ -79,6 +79,12 @@ done
 **Symlink, not copy.** 824 MB of duplication buys nothing: `research/` is read-only reference
 material, and `node_modules` is valid across worktrees because they share a platform and arch.
 
+**The symlinks must be gitignored as symlinks, not as directories.** `.gitignore` entries written
+with a trailing slash (`research/`) match a *directory* — a symlink pointing at one is a symlink, so
+the pattern misses it and the links show up untracked, ready for the next `git add -A` to commit a
+broken absolute path into the repo. This project's `.gitignore` lists them without the slash for
+exactly that reason; keep it that way, and check `git status --short` is clean after linking.
+
 **The tradeoff to state out loud:** an `npm install` in *either* tree mutates *both*. That is
 acceptable while no lane is changing dependencies, and this repo changes them rarely — 10 commits
 touched the dependency block between Jan and Aug 2026, and 4 of those were `@github/copilot-sdk`
@@ -95,6 +101,7 @@ cd "$DEST"
 npm run check-types                                          # proves node_modules resolves
 ls research/copilot-sdk/nodejs/src/ >/dev/null               # proves the SDK source is reachable
 npx mocha tests/unit/extension/copilot-client-provider.test.js --timeout 10000
+git status --short                                           # must be clean — see the symlink note above
 ```
 
 One fast unit file is enough; a full `npm test` here is wasted time and, given the suite flake,
