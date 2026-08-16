@@ -4,6 +4,8 @@ import * as os from 'os';
 import { Logger } from './logger';
 import { getBackendState } from './backendState';
 import { ExtensionRpcRouter } from './extension/rpc';
+import { buildChatHtml } from './extension/webview/chatHtml';
+import { resolveChatHtmlAssets } from './extension/webview/chatHtmlAssets';
 import { DisposableStore } from './utilities/disposable';
 import { CodeReviewSlashHandlers } from './extension/services/slashCommands/CodeReviewSlashHandlers';
 import { InfoSlashHandlers } from './extension/services/slashCommands/InfoSlashHandlers';
@@ -963,49 +965,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	}
 
 	private _getHtmlForWebview(webview: vscode.Webview) {
-		const nonce = getNonce();
-
-		const styleUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'styles.css')
-		);
-		const scriptUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview', 'main.js')
-		);
-
-		return `<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource} https://cdn.jsdelivr.net; img-src ${webview.cspSource} data:; font-src ${webview.cspSource} data:;">
-	<title>Copilot CLI Chat</title>
-	<script nonce="${nonce}" src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
-	<link rel="stylesheet" href="${styleUri}">
-</head>
-<body>
-	<!-- Component Mount Points - Components render themselves here -->
-	<div id="session-toolbar-mount"></div>
-	<div id="custom-agents-mount"></div>
-
-	<main role="main">
-		<div id="subagent-dock-mount"></div>
-		<div id="messages-mount"></div>
-		<div id="acceptance-mount"></div>
-		<div id="input-mount"></div>
-	</main>
-
-	<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
+		return buildChatHtml(resolveChatHtmlAssets(webview, this.extensionUri));
 	}
 
-}
-
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
 }
