@@ -24,6 +24,33 @@ Run single test file: `npx mocha tests/unit/components/some-test.test.js --timeo
 
 Known baseline failure: `main.js size constraint` in integration tests is expected and not a regression.
 
+### The suite is flaky — a single red run proves nothing
+
+`npm test` fails on **most** full runs (measured: 6/6 consecutive runs, 1–2 failures each, no code
+changes between them). The failures are always **timeouts**, never assertion failures, and the victim
+rotates: a synchronous DOM `before each` hook one run, an async retry test the next.
+
+**Every failure seen so far passes when its file is run alone.**
+
+So, before believing a failure:
+
+```bash
+npx mocha <the-failing-file> --timeout 20000     # does it fail alone?
+```
+
+- **Passes alone → it is the known flake.** Re-run the suite and carry on.
+- **Fails alone → it is real.** Fix it.
+
+The inverse also holds and matters more: **a single green run is not evidence either.** Verify
+anything you are about to ship over several runs, not one.
+
+Root cause is characterised — ~1800 tests share one mocha process and at least four globals leak
+across files (`requestAnimationFrame` is permanently no-op'd after the first component file,
+`Module.prototype.require` is patched and never restored by ~10 files, `global.setTimeout` is
+replaced by three). Three attempted fixes each surfaced a different problem, so it needs a design
+decision rather than another patch. Evidence and options:
+`planning/backlog/test-suite-flake-cross-file-global-pollution.md`.
+
 ## Debugging
 
 **F5 works.** The extension bundle has no `navigator` references, and the launch.json is correctly configured for `extensionHost`. Press F5 to launch the Extension Development Host. The preLaunchTask runs `npm run compile` (type-check + lint + esbuild).
