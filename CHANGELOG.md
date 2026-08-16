@@ -740,15 +740,6 @@ Each service is independently testable with clear boundaries and responsibilitie
   - Now history loads reliably on first open instead of requiring session switch
   - Prevents 138ms race condition between webview ready and file stream close events
 
-## [Unreleased]
-
-### 🧹 Chore
-
-- Removed deprecated `cliProcessManager.ts` (v1.0 legacy implementation)
-  - This file was superseded by `sdkSessionManager.ts` in v2.0 (January 2026)
-  - No functionality lost - all features are in the SDK-based implementation
-  - Historical reference preserved in git history (pre-v2.0 commits)
-
 ## [2.2.1] - 2026-02-06
 
 ### 🔐 Authentication & Enterprise Support
@@ -798,6 +789,12 @@ Each service is independently testable with clear boundaries and responsibilitie
 - Fixed: "Retry" button in notification disappears - now shows clear instructions in chat panel with "Start New Session" guidance
 
 ## [2.2.0] - 2026-02-06
+
+### 🧹 Chore
+- Removed deprecated `cliProcessManager.ts` (v1.0 legacy implementation)
+  - This file was superseded by `sdkSessionManager.ts` in v2.0 (January 2026)
+  - No functionality lost - all features are in the SDK-based implementation
+  - Historical reference preserved in git history (pre-v2.0 commits)
 
 ### 🎨 New Features
 

@@ -79,6 +79,20 @@ class MockSDKSessionManager {
 	stop() { this._running = false; return Promise.resolve(); }
 }
 
+// These tests create, scan and delete session directories. Point os.homedir()
+// at a temp root so they never touch the developer's live ~/.copilot store.
+//
+// That store is shared with the running extension and the CLI: on this machine
+// it held 1263 sessions / 284MB. Scanning it made these tests' runtime a
+// function of how much the developer had used the product, and writing to it
+// raced a live writer — which is how a 14s suite occasionally took 52s and blew
+// a 30s timeout. Hermetic tests do not have that failure mode.
+// NOTE: installed in before()/after(), never at module scope. Mocha loads every
+// test file before running any of them, so a module-scope stub would redirect
+// os.homedir() for the entire suite, not just this file.
+let TEST_HOME = null;
+const realHomedir = os.homedir;
+
 // Test helper: create a session directory with events.jsonl
 function createTestSession(sessionId, messageCount = 3) {
 	const sessionDir = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
@@ -153,6 +167,9 @@ describe('Session Resume Integration Test', function () {
 	let getBackendState;
 
 	before(async function () {
+		TEST_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'session-resume-home-'));
+		os.homedir = () => TEST_HOME;
+
 		createTestSession(testSessionId1, 5);
 
 		// Wait a bit so session2 is newer
@@ -174,6 +191,14 @@ describe('Session Resume Integration Test', function () {
 		cleanupSession(testSessionId1);
 		cleanupSession(testSessionId2);
 		cleanupSession(corruptSessionId);
+	});
+
+	after(function () {
+		os.homedir = realHomedir;
+		if (TEST_HOME) {
+			fs.rmSync(TEST_HOME, { recursive: true, force: true });
+			TEST_HOME = null;
+		}
 	});
 
 	it('should find the most recent session via getMostRecentSession', function () {
