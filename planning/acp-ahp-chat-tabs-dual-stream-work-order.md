@@ -144,3 +144,52 @@ The contention map re-measured two figures quoted in the plan review:
 - `chatProvider.` in `extension.ts` — **75 sites across 39 distinct methods**. The review's figure was
   exact. Concentrated in `registerChatProviderHandlers` (~30) and `wireManagerEvents` (~28), which is
   the 2e core.
+
+---
+
+## Spine status
+
+| Step | State | Landed as |
+| --- | --- | --- |
+| S0 · HostBridge / Phase 0 decouple | ✅ | PR #40 |
+| S1 · SDK-native fork + name fix | ✅ | **v3.12.0** (published) |
+| S2 · Palette consolidation | ✅ | v3.12.0 |
+| S3 · Session-per-manager + `getActiveAgent` | ✅ | v3.12.0 |
+| S4 · `CopilotClientProvider` | ✅ | `feature/s4-copilot-client-provider` |
+
+**The spine is complete. Both lanes are open**, subject to the two notes below.
+
+### What S4 actually delivered
+
+`CopilotClientProvider` owns build → start → wire-diagnostics → replace → stop. `SDKSessionManager`
+keeps a reference and no longer performs any of it; the create-and-start sequence that was duplicated
+between `start()` and `recreateClient()` now exists once.
+
+**Ownership is the contract Lane B consumes.** A manager *given* a provider is a consumer and must
+not stop it; a manager that built its own owns it. Without that rule the first tab to close would
+stop the shared CLI process out from under every other session.
+
+**A latent defect went with it — latent, not live.** `_lifecycleListenersAttached` was reset in
+`recreateClient()` but not in `stop()`, so a stop-then-start on the *same* manager would leave the
+fresh client with no stderr, no exit code and no connection-close signal.
+
+That path is unreachable in production, and an earlier draft of this section wrongly claimed
+otherwise. `restart()` ([sdkSessionManager.ts:1889](../src/sdkSessionManager.ts#L1889)) is the only
+caller and has **none of its own**; all three real `stop()` sites
+([extension.ts:396](../src/extension.ts#L396), :421, :473) null the manager, and `startCLISession`
+(:597) builds a new one with a fresh flag. `recreateClient()` always reset it correctly.
+
+So this is correct-by-construction hardening, not a user-facing repair: the flag now changes only
+where the client it describes changes. Mutation-checked — decoupling them again fails two tests.
+**S4's justification does not rest on it**; the de-duplication and the ownership seam are the point.
+
+**The constructor gained one optional trailing parameter.** `extension.ts` — Lane B's file — needed
+no edit, so S4 touched nothing Lane B owns.
+
+### Two things the lanes still need to settle
+
+1. **Lane B: Slice 3 gates on `supportsSessionForkRpc`, which does not exist.** S1 shipped a runtime
+   probe on `client.rpc.sessions.fork` plus a JSON-RPC `-32601` fallback instead, and deliberately
+   skipped the `CliCapabilityService` flag. Slice 3's gating needs rewriting against the probe. This
+   does not block Slices 2b–2f.
+2. **Both lanes rebase now.** S4 is a declared sync point.
