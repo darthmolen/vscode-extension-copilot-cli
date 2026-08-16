@@ -91,6 +91,33 @@ Once the spine lands, this is the contract. **Neither lane edits the other's fil
 4. **New shared files become spine items.** If both lanes want to edit something new, it is a spine
    step, not a race.
 
+### Each lane gets its own worktree
+
+Both lanes are active at once, so they no longer share a checkout. Use the **`worktree-init`** skill
+(`.claude/skills/worktree-init/`) rather than a bare `git worktree add` — a fresh worktree does not
+get `research/` or `node_modules/`, both gitignored, and neither absence errors at setup time. A tree
+missing `research/` silently makes CLAUDE.md's SDK-First rule unfollowable.
+
+```
+worktree-init <suffix> <branch> [base]      # e.g. lane-a feature/4.0-in3-acp-server main
+```
+
+| Lane | Worktree | Branch |
+| --- | --- | --- |
+| **B** | `vscode-copilot-cli-extension` (the original checkout) | `feature/3.13.0-chat-in-a-tab` |
+| **A** | `vscode-copilot-cli-extension-lane-a` | `feature/4.0-in3-acp-server` |
+
+**The one thing worktrees do not solve:** `./test-extension.sh` installs
+`darthmolen.copilot-cli-extension` globally into VS Code, so only one lane's build can be installed
+at a time and the last one to run wins **silently**. Lane A's IN-3 is out-of-host — spikes, unit
+tests, type-checks — so it should rarely need a VSIX. Lane B needs the sidebar constantly.
+**Coordinate before installing from the Lane A tree.**
+
+`node_modules` is symlinked between the trees, so an `npm install` in either mutates both. Fine while
+neither lane changes dependencies — neither plan calls for a new package, and IN-3 is explicitly
+dependency-free. The trigger to watch is an **SDK upgrade**, which also moves the bundled CLI version
+and is therefore loud. When that happens, break the symlink and install into each tree separately.
+
 ---
 
 ## S3 — the decision neither plan owned
