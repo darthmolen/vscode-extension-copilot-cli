@@ -59,7 +59,7 @@ export class CopilotClientProvider {
     /** The started client, creating and wiring one on first use. */
     public async get(): Promise<ManagedClient> {
         if (this.client) {
-            this.attachLifecycleListeners();
+            this.ensureListenersAttached();
             return this.client;
         }
         return this.create();
@@ -106,7 +106,7 @@ export class CopilotClientProvider {
         // SDK 1.0.x removed `autoStart`; the connection must be opened explicitly
         // before any RPC.
         await client.start();
-        this.attachLifecycleListeners();
+        this.ensureListenersAttached();
         await this.deps.onClientStarted?.(client);
 
         return client;
@@ -121,8 +121,11 @@ export class CopilotClientProvider {
     /**
      * The SDK swallows CLI stderr, process exit and connection close. Without
      * these, a dead CLI looks like an unexplained hang.
+     *
+     * Idempotent and synchronous, so callers that only learn the CLI has spawned
+     * later (`setActiveSession`) can re-ask without tracking state themselves.
      */
-    private attachLifecycleListeners(): void {
+    public ensureListenersAttached(): void {
         if (!this.client || this.listenersAttached) {
             return;
         }

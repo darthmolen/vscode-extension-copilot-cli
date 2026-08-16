@@ -34,7 +34,7 @@ import {
 import { extractPlanHeading, buildKickoffMessage } from './extension/utils/planModeUtils';
 import { parseCliVersion } from './utilities/cliVersion';
 import { buildCliSpawnCommand } from './utilities/cliSpawn';
-import { buildCopilotClientOptions } from './utilities/copilotClientOptions';
+import { CopilotClientProvider } from './extension/services/CopilotClientProvider';
 import { findSystemNodeRuntime, ensureNodeExecPath } from './extension/services/cliBundleService';
 
 // Re-export so existing callers (tests included) keep working.
@@ -420,13 +420,24 @@ export class SDKSessionManager implements vscode.Disposable {
 
     private readonly host: HostBridge;
 
+    /**
+     * Owns building, starting, replacing and stopping the CopilotClient. Public
+     * because it is a seam, not an internal: a caller running several managers
+     * against one CLI process constructs the provider and injects it.
+     */
+    public readonly clientProvider: CopilotClientProvider;
+
+    /** False when the provider was injected — a consumer must not stop what it shares. */
+    private readonly ownsClientProvider: boolean;
+
     constructor(
         context: vscode.ExtensionContext | undefined,
         private readonly config: CLIConfig = {},
         resumeLastSession: boolean = true,
         specificSessionId?: string,
         cliPath?: string,
-        hostBridge?: HostBridge
+        hostBridge?: HostBridge,
+        clientProvider?: CopilotClientProvider
     ) {
         this.injectedCliPath = cliPath ?? null;
         if (!hostBridge && !context) {
@@ -455,7 +466,14 @@ export class SDKSessionManager implements vscode.Disposable {
         this.mcpConfigurationService = new MCPConfigurationService(this.workingDirectory);
         this.managedMCPRegistry = new ManagedMCPRegistry();
         this.customAgentsService = new CustomAgentsService();
-        
+
+        // A provider handed in is shared — typically one CLI process behind several
+        // managers — so this manager consumes it and must never stop it. Building
+        // our own makes us the owner, which is the single-sidebar case.
+        this.ownsClientProvider = !clientProvider;
+        this.clientProvider = clientProvider ?? this.createOwnClientProvider();
+
+
         // If specific session ID provided, use it
         if (specificSessionId) {
             this.sessionId = specificSessionId;
@@ -467,6 +485,29 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
     
+    /**
+     * The provider used when nobody supplied one. Every dependency is resolved
+     * lazily, per client creation, so a re-created client picks up the current
+     * CLI path and yolo setting rather than whatever they were at construction.
+     */
+    private createOwnClientProvider(): CopilotClientProvider {
+        return new CopilotClientProvider({
+            logger: this.logger,
+            workingDirectory: this.workingDirectory,
+            resolveCliPath: () => this.injectedCliPath ?? resolveCliPath(this.logger, undefined, this.host),
+            useYolo: () => {
+                const yolo = this.host.getConfig<boolean>('yolo', false) ?? false;
+                // An explicit allow/deny policy is finer-grained than --yolo, so
+                // the policy wins and the flag is dropped.
+                const hasToolPolicy =
+                    (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
+                return yolo && !hasToolPolicy;
+            },
+            createClient: options => new CopilotClient(options),
+            onClientStarted: client => this.modelCapabilitiesService.initialize(client)
+        });
+    }
+
     /**
      * The message enhancer reads editor state, so it is built on first use
      * rather than at construction — a manager that never enhances a prompt
@@ -611,19 +652,11 @@ export class SDKSessionManager implements vscode.Disposable {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-            const yolo = this.host.getConfig<boolean>('yolo', false) ?? false;
-            const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
-            const useYolo = yolo && !hasToolPolicy;
-            this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
-
-            // SDK 1.0.x no longer auto-starts (the old `autoStart` option is gone);
-            // the connection must be established explicitly before any RPC.
-            await this.client.start();
+            // The provider builds, starts, and wires diagnostics on the client, and
+            // initializes model capabilities via its onClientStarted hook.
+            this.client = await this.clientProvider.get();
 
             this.logger.info('CopilotClient created and started, initializing session...');
-
-            // Initialize model capabilities service with the client
-            await this.modelCapabilitiesService.initialize(this.client);
 
             // Create or resume session
             const mcpServers = this.getEnabledMCPServers();
@@ -785,9 +818,9 @@ export class SDKSessionManager implements vscode.Disposable {
     private setActiveSession(session: any): void {
         this.session = session;
         this.setupSessionEventHandlers();
-        // Attach process lifecycle listeners now that a session is active
-        // (the CLI process is guaranteed to be spawned by this point)
-        this.attachClientLifecycleListeners();
+        // The CLI process is guaranteed to be spawned by this point, so a client
+        // created before it existed can now get its diagnostics wired.
+        this.clientProvider.ensureListenersAttached();
     }
 
     private setupSessionEventHandlers(): void {
@@ -1761,74 +1794,14 @@ export class SDKSessionManager implements vscode.Disposable {
     }
 
     /**
-     * Attach listeners to the SDK's internal CLI process and JSON-RPC connection.
-     * The SDK silently swallows stderr, exit events, and connection errors.
-     * This gives us visibility into why the CLI dies.
-     */
-    private _lifecycleListenersAttached = false;
-
-    private attachClientLifecycleListeners(): void {
-        if (!this.client || this._lifecycleListenersAttached) {
-            return;
-        }
-
-        const proc = (this.client as any).cliProcess;
-        if (!proc) {
-            return; // CLI process not yet spawned — will retry on next setActiveSession
-        }
-        this._lifecycleListenersAttached = true;
-        if (proc?.stderr) {
-            proc.stderr.on('data', (data: Buffer) => {
-                const lines = data.toString().split('\n').filter((l: string) => l.trim());
-                for (const line of lines) {
-                    this.logger.warn(`[CLI stderr] ${line}`);
-                }
-            });
-        }
-
-        if (proc) {
-            proc.on('exit', (code: number | null, signal: string | null) => {
-                this.logger.error(`[CLI Process] Exited with code=${code}, signal=${signal}`);
-            });
-        }
-
-        const conn = (this.client as any).connection;
-        if (conn?.onClose) {
-            conn.onClose(() => {
-                this.logger.error('[CLI Connection] JSON-RPC connection closed');
-            });
-        }
-    }
-
-    /**
      * Stop the dead client and create a fresh one with current config.
      * Called before any createSession/resumeSession after a connection loss.
      */
     private async recreateClient(): Promise<void> {
-        this.logger.info('[Client Recreate] Recreating CopilotClient...');
-        this._lifecycleListenersAttached = false;
-        if (this.client) {
-            try {
-                await this.client.stop();
-            } catch (e: any) {
-                this.logger.debug(`[Client Recreate] Error stopping dead client (expected): ${e.message}`);
-            }
-            this.client = null;
-        }
-
-        const cliPath = this.injectedCliPath ?? resolveCliPath(this.logger, undefined, this.host);
-        const yolo = this.host.getConfig<boolean>('yolo', false) ?? false;
-        const hasToolPolicy = (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
-        const useYolo = yolo && !hasToolPolicy;
-
-        this.client = new CopilotClient(buildCopilotClientOptions(cliPath, this.workingDirectory, { useYolo }));
-
-        // SDK 1.0.x requires an explicit start() (autoStart was removed).
-        await this.client.start();
-
+        // Capabilities are per-client, so drop them before the replacement's
+        // onClientStarted hook re-initializes them.
         this.modelCapabilitiesService.clearCache();
-        await this.modelCapabilitiesService.initialize(this.client);
-        this.logger.info('[Client Recreate] Fresh CopilotClient created and started');
+        this.client = await this.clientProvider.recreate();
     }
 
     /**
@@ -1897,13 +1870,11 @@ export class SDKSessionManager implements vscode.Disposable {
             this._sessionAgent = null;
         }
 
-        if (this.client) {
-            try {
-                await this.client.stop();
-            } catch (error) {
-                this.logger.error('Error stopping client', error instanceof Error ? error : undefined);
-            }
-            this.client = null;
+        // Only tear down a client we own. A shared provider outlives any one
+        // manager — stopping it here would kill every other session's CLI.
+        this.client = null;
+        if (this.ownsClientProvider) {
+            await this.clientProvider.stop();
         }
 
         this.sessionId = null;
