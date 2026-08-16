@@ -48,6 +48,8 @@ export interface CopilotClientProviderDeps {
 export class CopilotClientProvider {
     private client: ManagedClient | null = null;
     private listenersAttached = false;
+    /** A create/recreate in progress, so concurrent callers join it. See `track()`. */
+    private inFlight: Promise<ManagedClient> | null = null;
 
     constructor(private readonly deps: CopilotClientProviderDeps) {}
 
@@ -58,11 +60,17 @@ export class CopilotClientProvider {
 
     /** The started client, creating and wiring one on first use. */
     public async get(): Promise<ManagedClient> {
+        // `create()` publishes `this.client` before awaiting `start()`, so the
+        // fast-path below would otherwise hand a caller a client whose connection
+        // is not open yet. Join the work in progress instead.
+        if (this.inFlight) {
+            return this.inFlight;
+        }
         if (this.client) {
             this.ensureListenersAttached();
             return this.client;
         }
-        return this.create();
+        return this.track(() => this.create());
     }
 
     /**
@@ -71,11 +79,34 @@ export class CopilotClientProvider {
      * normal case here, not an error.
      */
     public async recreate(): Promise<ManagedClient> {
-        this.deps.logger.info('[Client Recreate] Recreating CopilotClient...');
-        await this.stop();
-        const client = await this.create();
-        this.deps.logger.info('[Client Recreate] Fresh CopilotClient created and started');
-        return client;
+        // Several recovery paths can notice the same dead connection at once.
+        // Whatever fresh client is already on its way is the one they all want;
+        // racing would spawn a second CLI process and orphan the first.
+        if (this.inFlight) {
+            return this.inFlight;
+        }
+        return this.track(async () => {
+            this.deps.logger.info('[Client Recreate] Recreating CopilotClient...');
+            await this.stop();
+            const client = await this.create();
+            this.deps.logger.info('[Client Recreate] Fresh CopilotClient created and started');
+            return client;
+        });
+    }
+
+    /**
+     * Publish `work` as the in-flight creation so concurrent callers join it
+     * rather than starting their own, and clear it when it settles — including
+     * on failure, so a failed start does not wedge every later call.
+     */
+    private track(work: () => Promise<ManagedClient>): Promise<ManagedClient> {
+        const pending = work().finally(() => {
+            if (this.inFlight === pending) {
+                this.inFlight = null;
+            }
+        });
+        this.inFlight = pending;
+        return pending;
     }
 
     /** Stop and release the client, if any. Safe to call when there is none. */
@@ -103,11 +134,19 @@ export class CopilotClientProvider {
         const client = this.deps.createClient(options);
         this.setClient(client);
 
-        // SDK 1.0.x removed `autoStart`; the connection must be opened explicitly
-        // before any RPC.
-        await client.start();
-        this.ensureListenersAttached();
-        await this.deps.onClientStarted?.(client);
+        try {
+            // SDK 1.0.x removed `autoStart`; the connection must be opened
+            // explicitly before any RPC.
+            await client.start();
+            this.ensureListenersAttached();
+            await this.deps.onClientStarted?.(client);
+        } catch (error) {
+            // The client is published before `start()` so `ensureListenersAttached()`
+            // can find it, which means a failed start would otherwise leave the dead
+            // one installed for every later `get()` to hand out. Retract it.
+            this.setClient(null);
+            throw error;
+        }
 
         return client;
     }

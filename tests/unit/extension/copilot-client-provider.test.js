@@ -179,6 +179,98 @@ describe('CopilotClientProvider', () => {
         expect(fresh.listeners.close).to.equal(1);
     });
 
+    /**
+     * PR #42 review. `create()` assigns `this.client` before awaiting `start()`,
+     * so a second caller arriving in that window took the `if (this.client)`
+     * fast-path and got a client whose connection was not open yet. Sharing one
+     * provider across N managers makes concurrent first-calls the normal case,
+     * not an edge case — which is the whole point of the extraction.
+     */
+    describe('concurrent callers', () => {
+        /** A provider whose client cannot finish starting until the gate opens. */
+        function gatedProvider() {
+            let open;
+            const gate = new Promise(resolve => { open = resolve; });
+            const created = [];
+            const provider = new CopilotClientProvider({
+                logger: silentLogger,
+                workingDirectory: '/tmp/workspace',
+                resolveCliPath: () => '/tmp/cli/copilot',
+                useYolo: () => false,
+                createClient: () => {
+                    const client = makeFakeClient(created.length + 1);
+                    const start = client.start.bind(client);
+                    client.start = async () => { await gate; await start(); };
+                    created.push(client);
+                    return client;
+                }
+            });
+            return { provider, created, open: () => open() };
+        }
+
+        it('never hands out a client that has not finished starting', async () => {
+            const { provider, open } = gatedProvider();
+
+            const first = provider.get();
+            // Captured at the moment the second call resolves, not afterwards —
+            // otherwise the shared object would have started by assertion time.
+            const second = provider.get().then(c => c.started);
+
+            open();
+            const [, startedWhenReturned] = await Promise.all([first, second]);
+
+            expect(startedWhenReturned, 'returned a client that was still starting').to.equal(1);
+        });
+
+        it('gives concurrent callers the same client', async () => {
+            const { provider, created, open } = gatedProvider();
+
+            const both = Promise.all([provider.get(), provider.get()]);
+            open();
+            const [a, b] = await both;
+
+            expect(a).to.equal(b);
+            expect(created, 'spawned more than one client').to.have.lengthOf(1);
+        });
+
+        it('recovers after a failed start rather than wedging every later call', async () => {
+            let attempt = 0;
+            const ctx = makeProvider({
+                createClient: () => {
+                    const client = makeFakeClient(++attempt);
+                    if (attempt === 1) {
+                        client.start = async () => { throw new Error('CLI failed to spawn'); };
+                    }
+                    return client;
+                }
+            });
+
+            let failed;
+            try {
+                await ctx.provider.get();
+            } catch (error) {
+                failed = error;
+            }
+            expect(failed, 'the first get() should surface the start failure').to.be.an('error');
+
+            // If the in-flight promise were not cleared on failure, this would
+            // re-throw the first error forever instead of retrying.
+            const client = await ctx.provider.get();
+            expect(client.started).to.equal(1);
+        });
+
+        it('collapses concurrent recreate() calls into one replacement', async () => {
+            const { provider, created, open } = gatedProvider();
+            open(); // let the initial client start
+            await provider.get();
+
+            const [a, b] = await Promise.all([provider.recreate(), provider.recreate()]);
+
+            expect(a).to.equal(b);
+            expect(created, 'two recreates spawned two CLI processes').to.have.lengthOf(2);
+        });
+    });
+
     it('runs the onClientStarted hook after the client starts, before returning', async () => {
         const seen = [];
         const hooked = makeProvider({
