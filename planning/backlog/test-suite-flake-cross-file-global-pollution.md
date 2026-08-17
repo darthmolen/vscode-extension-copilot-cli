@@ -84,6 +84,20 @@ Options worth weighing, cheapest first:
   invocations. Weaker than `--parallel` in theory, but `--parallel` failing suggests contention
   worth understanding before scaling isolation up.
 
+## Refinement observed 2026-08-17: give the suite time to die first
+
+`input-area-attachments.test.js` failed **in isolation** — 1 passing, 1 failing, **41 s** — which
+contradicts "every failure seen so far passes alone." Re-run five times immediately afterwards:
+**5/5 passing, 82–100 ms each.**
+
+The difference was *when*: the failing run started in the same shell invocation as a just-finished
+`npm test`, while that suite's process was still tearing down. A 500× slowdown on the same file is
+the documented hang signature, not contention.
+
+So the isolation check is still valid, with a caveat worth stating: **do not run it in the same
+breath as a full suite.** A file that "fails alone" immediately after `npm test` should be re-run
+once the machine is quiet before being treated as a real failure.
+
 ## Working rule until this is fixed
 
 Documented in CLAUDE.md: **a single red run proves nothing.** Re-run the suite, and re-run any
