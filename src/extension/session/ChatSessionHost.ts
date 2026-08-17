@@ -43,6 +43,11 @@ export interface ChatSurface {
     sendReasoningDelta(reasoningId: string, deltaContent: string): void;
     sendTaskComplete(summary?: string): void;
     setThinking(isThinking: boolean): void;
+    addToolExecution(toolState: any): void;
+    updateToolExecution(toolState: any): void;
+    startSubagent(subagent: any): void;
+    subagentMessage(subagent: any): void;
+    completeSubagent(subagent: any): void;
 }
 
 /**
@@ -59,6 +64,12 @@ export interface SessionManagerLike {
     onDidMessageDelta(handler: (data: { messageId: string; deltaContent: string }) => void): Unsubscribe;
     onDidReceiveReasoningDelta(handler: (data: { reasoningId: string; deltaContent: string }) => void): Unsubscribe;
     onDidTaskComplete(handler: (data?: { summary?: string }) => void): Unsubscribe;
+    onDidStartTool(handler: (toolState: any) => void): Unsubscribe;
+    onDidUpdateTool(handler: (toolState: any) => void): Unsubscribe;
+    onDidCompleteTool(handler: (toolState: any) => void): Unsubscribe;
+    onDidStartSubagent(handler: (subagent: { agentId: string; [k: string]: any }) => void): Unsubscribe;
+    onDidSubagentMessage(handler: (subagent: any) => void): Unsubscribe;
+    onDidCompleteSubagent(handler: (subagent: any) => void): Unsubscribe;
 }
 
 /**
@@ -102,8 +113,18 @@ export interface ChatSessionHostDeps {
     sessionId: string | null;
     /** Window-scoped state, shared with every other host. */
     workspace: WorkspaceRuntimeState;
+    /**
+     * This conversation's state. Supplied rather than built when the host must
+     * share a transcript with something else — during the migration the sidebar's
+     * host shares the `BackendState` facade's instance, because `ChatViewProvider`
+     * still records messages through it. A host that builds its own would read an
+     * empty transcript while the surface wrote to another.
+     */
+    state?: SessionState;
     logger: LoggerLike;
     createServices?: ChatSessionServicesFactory;
+    /** Window-scoped, memoised colour allocator shared with the sub-agent panels. */
+    assignSubagentColor?: (agentId: string) => string;
     /**
      * Told whenever this host takes on a session id, so whoever indexes hosts by
      * id stays correct no matter who called `adoptSessionId`.
@@ -124,6 +145,7 @@ export class ChatSessionHost {
     private readonly logger: LoggerLike;
     private readonly disposeCallbacks: Array<() => void> = [];
     private readonly createServices?: ChatSessionServicesFactory;
+    private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
@@ -135,9 +157,10 @@ export class ChatSessionHost {
         this.workspace = deps.workspace;
         this.logger = deps.logger;
         this.createServices = deps.createServices;
+        this.assignSubagentColor = deps.assignSubagentColor;
         this.onAdoptSessionId = deps.onAdoptSessionId;
 
-        this.state = new SessionState();
+        this.state = deps.state ?? new SessionState();
         this.state.setSessionId(deps.sessionId);
     }
 
@@ -220,6 +243,36 @@ export class ChatSessionHost {
 
         this.subscribe(manager.onDidTaskComplete((data) => {
             this.surface?.sendTaskComplete(data?.summary);
+        }));
+
+        this.subscribe(manager.onDidStartTool((toolState) => {
+            this.surface?.addToolExecution(toolState);
+        }));
+
+        // Update and complete are the same thing to a surface: the tool's state
+        // changed. Only the terminal status differs, and it is inside the payload.
+        this.subscribe(manager.onDidUpdateTool((toolState) => {
+            this.surface?.updateToolExecution(toolState);
+        }));
+
+        this.subscribe(manager.onDidCompleteTool((toolState) => {
+            this.surface?.updateToolExecution(toolState);
+        }));
+
+        this.subscribe(manager.onDidStartSubagent((subagent) => {
+            // Colour is assigned through the window-scoped, memoised allocator, so
+            // this surface and the pop-out panels agree on the colour for an agent
+            // without having to share a call site.
+            const color = this.assignSubagentColor?.(subagent.agentId);
+            this.surface?.startSubagent(color ? { ...subagent, color } : subagent);
+        }));
+
+        this.subscribe(manager.onDidSubagentMessage((subagent) => {
+            this.surface?.subagentMessage(subagent);
+        }));
+
+        this.subscribe(manager.onDidCompleteSubagent((subagent) => {
+            this.surface?.completeSubagent(subagent);
         }));
     }
 

@@ -109,10 +109,15 @@ export function activate(context: vscode.ExtensionContext) {
 	sessionRegistry = new ChatSessionRegistry({
 		workspace: getWorkspaceRuntimeState(),
 		logger,
-		createServices: buildChatSessionServicesFactory()
+		createServices: buildChatSessionServicesFactory(),
+		assignSubagentColor
 	});
 	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
-	sidebarHost = sessionRegistry.create();
+	// Shares the facade's `SessionState` on purpose: `ChatViewProvider` still records
+	// messages through `getBackendState()`, so a host with its own state would read
+	// an empty transcript while the surface wrote to another. The sharing ends when
+	// the last facade call site does.
+	sidebarHost = sessionRegistry.create(null, backendState.session);
 	sidebarHost.attachSurface(chatProvider);
 	chatProvider.setSessionHost(sidebarHost);
 
@@ -746,40 +751,35 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 		}
 	})));
 
+	// Tool and sub-agent traffic reaches the owning session's surface through the
+	// host. What remains here is the pop-out panel service, which is window-scoped
+	// and buffers across sessions. Both callers colour an agent through the same
+	// memoised allocator, so they cannot disagree.
 	context.subscriptions.push(manager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
 		logger.info(`[Tool Start] ${toolState.toolName}`);
 		subagentPanels.onTool(toolState);
-		chatProvider.addToolExecution(toolState);
 	})));
 
 	context.subscriptions.push(manager.onDidUpdateTool(safeHandler('onDidUpdateTool', (toolState) => {
 		logger.debug(`[Tool Progress] ${toolState.toolName}: ${toolState.progress}`);
-		chatProvider.updateToolExecution(toolState);
 	})));
 
 	context.subscriptions.push(manager.onDidCompleteTool(safeHandler('onDidCompleteTool', (toolState) => {
 		logger.info(`[Tool Complete] ${toolState.toolName} - ${toolState.status}`);
-		chatProvider.updateToolExecution(toolState);
 	})));
 
 	context.subscriptions.push(manager.onDidStartSubagent(safeHandler('onDidStartSubagent', (subagent) => {
 		logger.info(`[Subagent Start] ${subagent.agentDisplayName ?? subagent.agentName} (${subagent.agentId})`);
-		// Assign the agent's color ONCE here so the sidebar bar, drawer, and pop-out tab all agree.
-		const color = assignSubagentColor(subagent.agentId);
-		const enriched = { ...subagent, color };
-		subagentPanels.onStart(enriched);
-		chatProvider.startSubagent(enriched);
+		subagentPanels.onStart({ ...subagent, color: assignSubagentColor(subagent.agentId) });
 	})));
 
 	context.subscriptions.push(manager.onDidSubagentMessage(safeHandler('onDidSubagentMessage', (subagent) => {
 		subagentPanels.onMessage(subagent);
-		chatProvider.subagentMessage(subagent);
 	})));
 
 	context.subscriptions.push(manager.onDidCompleteSubagent(safeHandler('onDidCompleteSubagent', (subagent) => {
 		logger.info(`[Subagent Complete] ${subagent.agentDisplayName ?? subagent.agentName} - ${subagent.status}`);
 		subagentPanels.onComplete(subagent);
-		chatProvider.completeSubagent(subagent);
 	})));
 
 	context.subscriptions.push(manager.onDidUpdateMcpServers(safeHandler('onDidUpdateMcpServers', (update) => {

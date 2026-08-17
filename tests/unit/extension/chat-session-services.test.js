@@ -20,7 +20,7 @@ const { createChatSessionServices } = require(
 const { ChatSessionRegistry } = require(
     path.join(__dirname, '../../..', 'out', 'extension', 'session', 'ChatSessionRegistry.js')
 );
-const { WorkspaceRuntimeState } = require(
+const { WorkspaceRuntimeState, SessionState, BackendState } = require(
     path.join(__dirname, '../../..', 'out', 'backendState.js')
 );
 
@@ -99,6 +99,25 @@ describe('createChatSessionServices', () => {
         await host.services.codeReviewHandlers.handleReview();
 
         expect(planPathCalls).to.deep.equal(['session-after-retry']);
+    });
+
+    /**
+     * Until every call site moves off it, `ChatViewProvider` still records messages
+     * through the `BackendState` facade. If a host builds its own `SessionState`,
+     * the transcript the surface writes and the transcript `/usage` reads are two
+     * different objects, and usage silently reports an empty session.
+     */
+    it('reports usage for messages recorded through the state it was given', async () => {
+        const shared = new SessionState();
+        const facade = new BackendState(shared, new WorkspaceRuntimeState());
+        const { registry } = makeRegistry();
+        const host = registry.create('session-a', shared);
+
+        facade.setSessionActive(true);
+        facade.addMessage({ role: 'user', type: 'user', content: 'written through the facade' });
+
+        const usage = await host.services.infoHandlers.handleUsage();
+        expect(usage.content).to.contain('**Messages sent**: 1');
     });
 
     it('shares the window-scoped collaborators rather than rebuilding them', () => {

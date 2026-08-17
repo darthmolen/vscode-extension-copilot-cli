@@ -31,7 +31,13 @@ const MANAGER_EVENTS = [
     'onDidReceiveError',
     'onDidMessageDelta',
     'onDidReceiveReasoningDelta',
-    'onDidTaskComplete'
+    'onDidTaskComplete',
+    'onDidStartTool',
+    'onDidUpdateTool',
+    'onDidCompleteTool',
+    'onDidStartSubagent',
+    'onDidSubagentMessage',
+    'onDidCompleteSubagent'
 ];
 
 function makeFakeManager() {
@@ -69,7 +75,13 @@ function makeFakeSurface() {
         sendReasoningDelta: record('sendReasoningDelta'),
         sendTaskComplete: record('sendTaskComplete'),
         setThinking: record('setThinking'),
-        names: function () { return this.calls.map(c => c.name); }
+        addToolExecution: record('addToolExecution'),
+        updateToolExecution: record('updateToolExecution'),
+        startSubagent: record('startSubagent'),
+        subagentMessage: record('subagentMessage'),
+        completeSubagent: record('completeSubagent'),
+        names: function () { return this.calls.map(c => c.name); },
+        argsFor: function (name) { return this.calls.filter(c => c.name === name).map(c => c.args); }
     };
 }
 
@@ -79,7 +91,11 @@ describe('ChatSessionHost — manager event routing', () => {
     beforeEach(() => {
         registry = new ChatSessionRegistry({
             workspace: new WorkspaceRuntimeState(),
-            logger: silentLogger
+            logger: silentLogger,
+            // Window-scoped and memoised in production, which is what lets the host
+            // and the pop-out panels colour the same agent identically without
+            // sharing a call site.
+            assignSubagentColor: (agentId) => `colour-for-${agentId}`
         });
     });
 
@@ -133,6 +149,51 @@ describe('ChatSessionHost — manager event routing', () => {
 
         expect(surface.calls[0].name).to.equal('addAssistantMessage');
         expect(surface.calls[0].args[0]).to.contain('boom');
+    });
+
+    describe('tools', () => {
+        it('sends a starting tool to its own surface', () => {
+            const a = attachedHost('session-a');
+            const b = attachedHost('session-b');
+
+            a.manager.emit('onDidStartTool', { name: 'bash', toolCallId: 't1' });
+
+            expect(a.surface.argsFor('addToolExecution')).to.deep.equal([[{ name: 'bash', toolCallId: 't1' }]]);
+            expect(b.surface.calls).to.have.lengthOf(0);
+        });
+
+        it('sends both tool updates and completions as updates', () => {
+            const { manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidUpdateTool', { toolCallId: 't1', status: 'running' });
+            manager.emit('onDidCompleteTool', { toolCallId: 't1', status: 'success' });
+
+            expect(surface.names()).to.deep.equal(['updateToolExecution', 'updateToolExecution']);
+            expect(surface.argsFor('updateToolExecution')[1][0].status).to.equal('success');
+        });
+    });
+
+    describe('sub-agents', () => {
+        it('colours a starting sub-agent before handing it to its surface', () => {
+            const { manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidStartSubagent', { agentId: 'agent-7', agentName: 'explorer' });
+
+            expect(surface.argsFor('startSubagent')).to.deep.equal([[{
+                agentId: 'agent-7', agentName: 'explorer', color: 'colour-for-agent-7'
+            }]]);
+        });
+
+        it('keeps sub-agent traffic on the surface that spawned it', () => {
+            const a = attachedHost('session-a');
+            const b = attachedHost('session-b');
+
+            a.manager.emit('onDidSubagentMessage', { agentId: 'agent-7', content: 'progress' });
+            a.manager.emit('onDidCompleteSubagent', { agentId: 'agent-7' });
+
+            expect(a.surface.names()).to.deep.equal(['subagentMessage', 'completeSubagent']);
+            expect(b.surface.calls).to.have.lengthOf(0);
+        });
     });
 
     it('subscribes to every manager event it claims to route', () => {

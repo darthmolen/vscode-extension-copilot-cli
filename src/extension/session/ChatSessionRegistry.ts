@@ -15,7 +15,7 @@
  * supplies anything that is not.
  */
 
-import { WorkspaceRuntimeState } from '../../backendState';
+import { SessionState, WorkspaceRuntimeState } from '../../backendState';
 import { LoggerLike } from '../../logger';
 import { ChatSessionHost, ChatSessionServicesFactory } from './ChatSessionHost';
 
@@ -25,6 +25,8 @@ export interface ChatSessionRegistryDeps {
     logger: LoggerLike;
     /** Passed to each host so a session's slash-command services are its own. */
     createServices?: ChatSessionServicesFactory;
+    /** Window-scoped colour allocator, shared by every host and the sub-agent panels. */
+    assignSubagentColor?: (agentId: string) => string;
 }
 
 export class ChatSessionRegistry {
@@ -46,11 +48,13 @@ export class ChatSessionRegistry {
     private readonly workspace: WorkspaceRuntimeState;
     private readonly logger: LoggerLike;
     private readonly createServices?: ChatSessionServicesFactory;
+    private readonly assignSubagentColor?: (agentId: string) => string;
 
     constructor(deps: ChatSessionRegistryDeps) {
         this.workspace = deps.workspace;
         this.logger = deps.logger;
         this.createServices = deps.createServices;
+        this.assignSubagentColor = deps.assignSubagentColor;
     }
 
     /** The live host for a session, or `undefined`. Never creates one. */
@@ -64,13 +68,15 @@ export class ChatSessionRegistry {
      * The sidebar's host is built this way at activation, before the CLI has
      * assigned an id — and stays this way for good if the CLI never starts.
      */
-    public create(sessionId: string | null = null): ChatSessionHost {
+    public create(sessionId: string | null = null, state?: SessionState): ChatSessionHost {
         const host = new ChatSessionHost({
             handle: `host#${++this.handlesIssued}`,
             sessionId,
+            state,
             workspace: this.workspace,
             logger: this.logger,
             createServices: this.createServices,
+            assignSubagentColor: this.assignSubagentColor,
             onAdoptSessionId: (adopted, previousSessionId) => {
                 this.reindex(adopted, previousSessionId);
             }
