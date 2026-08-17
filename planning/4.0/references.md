@@ -53,6 +53,14 @@ ends.
 **January 2026** — register an agent once, every ACP client can use it. Listed agents include Claude
 Code, Codex CLI, **GitHub Copilot CLI**, Gemini CLI, OpenCode, Goose.
 
+**The SDK to use: `@agentclientprotocol/sdk`** (Apache-2.0, **zero dependencies**, v1.3.0 as of
+2026-08-16). Serves both halves — `acp.agent()` for the agent side, `acp.client()` for the client —
+and `clientApp.connect(agentApp)` gives an in-process link with no transport, which is how IN-3 is
+unit-tested. **`@zed-industries/agent-client-protocol` is deprecated**; npm says it was renamed, and
+it last published 2025-10. Two behaviours that will bite you, both proven in
+[FINDINGS-acp-sdk.md](../spikes/acp-agent/FINDINGS-acp-sdk.md): `notify()`'s escape-hatch overload
+means a **typo'd method name compiles clean**, and **`initialize` is not guaranteed to run**.
+
 **Framing gotchas we already proved** (in `tests/harness/acp-spike.mjs`, and they survive the
 direction flip IN-3 makes):
 
