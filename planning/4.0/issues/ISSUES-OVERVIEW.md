@@ -5,6 +5,9 @@ ticket in this directory; this table is the follow-up surface.
 
 **Compiled:** 2026-08-15 · **Gap analysis:** [gap-register.md](../gap-register.md) · **Spike:** [FINDINGS.md](../../spikes/acp-agent/FINDINGS.md)
 
+> **New to ACP/AHP/Zed?** [references.md](../references.md) defines every acronym in these docs,
+> carries the layering diagram, and tracks the live state of each upstream issue.
+
 > **Parallel work:** a second session is building chat-in-a-tab at the same time. Order of precedence,
 > the shared spine, and file ownership are in
 > [acp-ahp-chat-tabs-dual-stream-work-order.md](../../acp-ahp-chat-tabs-dual-stream-work-order.md).
