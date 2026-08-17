@@ -318,3 +318,99 @@ this reader stays on the presentation side of that seam rather than becoming par
 - No change to `sdkSessionManager.ts` — Lane B does not own it. Should this work turn out to need one,
   it is filed as a spine item instead.
 - P1 (concurrent-edit labelling) is unaffected and stays where the parent plan put it, at Task 4.
+
+---
+
+## Plan Review (Second Pass)
+
+**Reviewed:** 2026-08-17 08:35
+**Reviewer:** Claude Code (plan-review-intake)
+
+### C1/C2/C3 Resolution Check
+
+**C1 — Resolved.**
+
+`buildToolHtml` exists at `ToolExecution.js:214`. It reads only from the `toolState` parameter — no `this.tools`, no group state, no lifecycle calls. It calls `this.formatArgumentsPreview` and `this.escapeHtml`, but those are stateless helpers reading only their arguments. `MessageDisplay` already creates a `ToolExecution` child per CLAUDE.md hierarchy, so calling `buildToolHtml` on that instance requires no new object construction. The rendering path is complete and the method is callable without touching the lifecycle.
+
+**C2 — Resolved.**
+
+`ToolExecution.js:35-43` confirms the listener fires on `message:add` and calls `closeCurrentToolGroup()` only for user or assistant/reasoning messages with real content. Replayed `kind: 'tool'` entries will trigger this check — benign, since there is no current group to close and `closeCurrentToolGroup()` no-ops when `this.currentToolGroup` is null. The dock concern is resolved and the reasoning is accurate.
+
+**C3 — Resolved.**
+
+`chatViewProvider.ts:438-451` has exactly two independent branches: `backendState.addMessage(...)` and `this.rpcRouter?.toolStart(toolState)`. Removing the first while leaving the second is a three-line deletion with no coupling risk.
+
+---
+
+### §5.1 `ToolState` on Message — Assessment
+
+**Not sound as written. Must be fixed before implementation.**
+
+The plan asserts "the webview does no translation at all" because the renderer already speaks `ToolState`. This claim is false for the type named `ToolState` in `src/shared/models.ts`.
+
+`models.ts:ToolState` has: `id`, `name`, `input`, `output`, `error: string`.
+
+`buildToolHtml` reads: `toolCallId`, `toolName`, `arguments`, `result`, `error: { message, code }` (an object, not a string).
+
+Every named field is different. If an implementer adds `tool?: ToolState` to `Message` importing from `models.ts` and passes it to `buildToolHtml`, every field will be `undefined` and the chip will render "Tool execution" — the original bug, silently reproduced. No type error (webview is untyped JS), no crash.
+
+The runtime type `buildToolHtml` actually speaks is `ToolExecutionState` in `src/sdkSessionManager.ts:225-238`: `toolCallId`, `toolName`, `arguments`, `status`, `startTime`, `endTime?`, `result?`, `error?: { message, code }`. The `models.ts:ToolState` import on `ExtensionRpcRouter.toolStart` is a type lie that compiles only because `chatViewProvider` uses `any`.
+
+The plan must specify which shape `Message.tool` carries. Three paths forward:
+1. Use `ToolExecutionState` directly (move or re-export from `src/shared/`)
+2. Update `models.ts:ToolState` to match `ToolExecutionState`'s field names
+3. Define a new wire-specific type that maps from `ToolExecutionState` to what `buildToolHtml` reads
+
+Any of these works; none is described.
+
+---
+
+### §5.4 Lazy Loading — Assessment
+
+**Implementable in principle, but two implementation surfaces are unacknowledged. Add detail.**
+
+`rpc.getToolResult(toolCallId)` does not exist — `grep -rn "getToolResult" src/` returns nothing. It needs to be added to `ExtensionRpcRouter` as both a receive handler (webview → extension) and a send handler (extension → webview), with the extension serving results by re-reading the JSONL join.
+
+The expand interaction (`<details>` with `attachHeaderCollapseListener`) is purely synchronous today. To lazy-load, it must distinguish replayed chips (no result, fetch on expand) from live chips (no result because running). This requires a change to the expand handler in `ToolExecution.js` or `MessageDisplay`. Neither surface is mentioned in the plan.
+
+These are real mid-task discoveries, not style notes. A short paragraph naming both surfaces is all that is needed.
+
+---
+
+### Strengths
+
+The spike findings are genuinely load-bearing. All three `FINDINGS.md` corrections landed without a review loop: `data.error` on failures, `parentToolCallId` on sub-agent events, and the variable key-set warning. The §7 risk table is concrete and honest. The §8a addendum (ACP's `session/load` as a third caller) strengthens the free-function architecture for `SessionEventReader` — and it arrives as context rather than a design change.
+
+---
+
+### Issues
+
+#### Critical (Must Address Before Implementation)
+
+**`ToolState` field names do not match `buildToolHtml`'s expectations**
+**Section:** §5.1
+**Files:** `src/shared/models.ts:41-50` vs `ToolExecution.js:214`
+
+`models.ts:ToolState` uses `{id, name, input, output, error: string}`; `buildToolHtml` reads `{toolCallId, toolName, arguments, result, error: {message, code}}`. Every field name diverges. The renderer will silently receive `undefined` for each field. The correct shape is `ToolExecutionState` in `sdkSessionManager.ts`. The plan must specify which type lives on the wire and reconcile field names before implementation, or the C1 fix regresses silently.
+
+---
+
+#### Important (Should Address)
+
+**§5.4 `rpc.getToolResult` and expand handler are unimplemented and unwired**
+
+`getToolResult` does not exist in `ExtensionRpcRouter` or anywhere in `src/`. The expand handler in `ToolExecution.js` is synchronous with no hook for an async RPC call. Both surfaces need to be named in the plan. A paragraph identifying them (RPC method pair + expand-handler change distinguishing replayed vs. live chips) is all that is needed.
+
+---
+
+#### Minor (Consider)
+
+The `role` alias retirement is noted in §5.1 as "a separate task that must update that check first" but does not appear as a step in the §8 verification checklist — easy to lose track of during implementation.
+
+---
+
+### Assessment
+
+**Implementable as written? No — with fixes.**
+
+The C1/C2/C3 fixes are genuine and the architecture is sound. One targeted correction to §5.1 (naming the correct wire type and reconciling field names) and one paragraph added to §5.4 (naming the two unacknowledged surfaces) would make this ready to hand off.
