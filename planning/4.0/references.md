@@ -55,6 +55,7 @@ Code, Codex CLI, **GitHub Copilot CLI**, Gemini CLI, OpenCode, Goose.
 
 **Framing gotchas we already proved** (in `tests/harness/acp-spike.mjs`, and they survive the
 direction flip IN-3 makes):
+
 - NDJSON, not `Content-Length`
 - cancel arrives as a **notification**, not a request
 - permission replies use the double-nested `{ outcome: { outcome, optionId } }` shape
@@ -63,7 +64,7 @@ direction flip IN-3 makes):
 
 | | |
 | --- | --- |
-| **What** | How a portable sessions **server** talks to *many* clients sharing a synchronized view of agent sessions. Coordination, not conversation. |
+| **What** | Upstream's words: *"how a portable, standalone **sessions server** communicates with its clients"* — plural `sessions`, and worth keeping as spelled, since that is the term to grep the spec for. Coordination across many clients, not conversation with an agent. |
 | **Who** | **Microsoft**, open-sourced under **MIT**, positioned alongside LSP and DAP. |
 | **Status** | **Pre-1.0**; VS Code's Agents window is still **Preview**. |
 | **Rollout** | Agent-host process began rolling out in **VS Code 1.129 (2026-07-15)** for Copilot, Claude and Codex; further shipped in **1.133 (2026-08-12)**. |
