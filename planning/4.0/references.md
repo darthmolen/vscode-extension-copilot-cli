@@ -104,6 +104,56 @@ constantly as the template both ACP and AHP are consciously imitating. LSP frame
 
 ---
 
+## Who builds what
+
+### Zed
+
+A **VS Code competitor**, and the reason ACP exists at all — which is why it appears throughout
+these docs.
+
+| | |
+| --- | --- |
+| **What** | Code editor from **Zed Industries**. Reached **1.0 on 2026-04-29**. |
+| **Who** | Nathan Sobo, Antonio Scandurra, Max Brunsfeld — **the creators of Atom *and* Electron**. |
+| **Built on** | Rust, with **GPUI**, their own GPU-accelerated UI framework. Metal on macOS, DirectX on Windows, Vulkan on Linux. |
+| **Not** | Not a VS Code fork. **No Electron, no Chromium, no WebView, no DOM** — the whole UI, down to the tab bar and settings panel, renders through GPUI. |
+
+**The distinction worth holding onto** is exactly the one that matters for us:
+
+| Editor | Foundation |
+| --- | --- |
+| VS Code | Electron (Chromium + Node) |
+| **Cursor** | a **fork of VS Code** — so also Electron/Chromium |
+| **Zed** | **built from scratch in Rust**; shares no lineage with either |
+
+Cursor competes with VS Code by *forking* it. Zed competes by *replacing* it. The team wrote
+Electron, spent a decade watching Atom lose to VS Code on performance, and then deliberately built
+the next one without the web stack. Reported figures (from reviews rather than primary
+benchmarks — treat as directional): ~120fps rendering, ~0.12s cold start, ~2ms input latency.
+
+**Why it matters to v4.0**, in descending order of importance:
+
+1. **Zed created ACP**, so their editor is the protocol's reference client. It is the only
+   independent implementation we can test IN-3 against — see the verification note below.
+2. **It is a shipping ACP host today.** If VS Code never opens up, Zed can drive our agent anyway.
+   That is the concrete form of "IN-3 pays off under every outcome."
+3. Its agent panel runs **multiple agents in parallel** as of 1.0 — the same breadth-vs-depth
+   question our sub-agent dock sits on.
+
+> **The verification consequence.** A scripted harness tests our ACP implementation against *our own
+> reading of the spec* — if we misread it, the harness misreads it identically and passes. Zed is an
+> independent implementation **by the people who wrote the protocol**. Since the AHP repo ships no
+> host and no ACP code at all (see the caveats above), Zed is the *only* cheap way to find out we are
+> wrong. Run it early, against a walking skeleton — a protocol misread found after all five IN-3
+> pieces are built is expensive.
+
+### Cursor
+
+VS Code fork with AI features. Named here only to keep the contrast straight: **Cursor is Electron,
+Zed is not.** Not otherwise relevant to v4.0 — it is not an ACP host and not an AHP client.
+
+---
+
 ## Terms
 
 | Term | Meaning |
@@ -157,4 +207,5 @@ IN-3:                              host ──ACP──▶ our agent ──SDK�
 - [Agent Client Protocol](https://agentclientprotocol.com) · [zed-industries/agent-client-protocol](https://github.com/zed-industries/agent-client-protocol) · [Zed — ACP](https://zed.dev/acp)
 - [The ACP Registry is Live — Zed's Blog](https://zed.dev/blog/acp-registry) · [GitHub Copilot — ACP Agent](https://zed.dev/acp/agent/github-copilot)
 - [VS Code Agent Host architecture](https://code.visualstudio.com/docs/agents/concepts/agent-host)
+- Zed 1.0 / GPUI: [Zed 1.0 review](https://chatforest.com/reviews/zed-1-0-ai-code-editor-parallel-agents-rust-review/) · [Rust-based editor reaches 1.0](https://www.programming-helper.com/tech/zed-editor-2026-ai-native-code-editor-performance) · [Complete guide to Zed 2026](https://note.com/snake_dragon/n/n21504046b929?hl=en)
 - [VS Code 1.133 — Agent Host architecture shift](https://www.ntcompatible.com/story/visual-studio-code-1133-released-major-agent-host-architecture-shift-and-open-ai-protocol) · [Microsoft decouples AI agents from the editor](https://devops.com/microsoft-decouples-ai-agents-from-the-vs-code-editor-in-latest-release/)
