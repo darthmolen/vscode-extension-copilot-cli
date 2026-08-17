@@ -29,7 +29,7 @@ describe('state split', () => {
         it('keeps messages isolated between instances', () => {
             const a = new SessionState();
             const b = new SessionState();
-            a.addMessage({ role: 'user', type: 'user', content: 'only in a' });
+            a.addMessage({ kind: 'user', content: 'only in a' });
 
             expect(a.getMessages()).to.have.lengthOf(1);
             expect(b.getMessages()).to.have.lengthOf(0);
@@ -54,9 +54,9 @@ describe('state split', () => {
 
         it('counts tool messages separately from the rest', () => {
             const s = new SessionState();
-            s.addMessage({ role: 'user', type: 'user', content: 'hi' });
-            s.addMessage({ role: 'assistant', type: 'tool', content: 'edit', toolName: 'edit' });
-            s.addMessage({ role: 'assistant', type: 'tool', content: 'bash', toolName: 'bash' });
+            s.addMessage({ kind: 'user', content: 'hi' });
+            s.addMessage({ kind: 'tool', content: 'edit', toolName: 'edit' });
+            s.addMessage({ kind: 'tool', content: 'bash', toolName: 'bash' });
 
             expect(s.getMessageCount()).to.equal(3);
             expect(s.getToolCallCount()).to.equal(2);
@@ -64,8 +64,8 @@ describe('state split', () => {
 
         it('returns a copy of messages so callers cannot mutate history', () => {
             const s = new SessionState();
-            s.addMessage({ role: 'user', type: 'user', content: 'original' });
-            s.getMessages().push({ role: 'user', type: 'user', content: 'injected' });
+            s.addMessage({ kind: 'user', content: 'original' });
+            s.getMessages().push({ kind: 'user', content: 'injected' });
 
             expect(s.getMessages()).to.have.lengthOf(1);
         });
@@ -100,7 +100,7 @@ describe('state split', () => {
             const s = new BackendState();
             s.setSessionId('abc');
             s.setWorkspacePath('/repo');
-            s.addMessage({ role: 'user', type: 'user', content: 'hello' });
+            s.addMessage({ kind: 'user', content: 'hello' });
 
             const full = s.getFullState();
             expect(full.sessionId).to.equal('abc');
@@ -113,7 +113,7 @@ describe('state split', () => {
             s.setSessionId('abc');
             s.setWorkspacePath('/repo');
             s.setActiveFilePath('/repo/a.ts');
-            s.addMessage({ role: 'user', type: 'user', content: 'hello' });
+            s.addMessage({ kind: 'user', content: 'hello' });
 
             s.reset();
 

@@ -40,7 +40,7 @@ describe('ChatSessionHost', () => {
         const a = makeHost({ sessionId: 'session-a', workspace });
         const b = makeHost({ sessionId: 'session-b', workspace });
 
-        a.state.addMessage({ role: 'user', type: 'user', content: 'only in A' });
+        a.state.addMessage({ kind: 'user', content: 'only in A' });
 
         expect(a.state.getMessages()).to.have.lengthOf(1);
         expect(b.state.getMessages()).to.have.lengthOf(0);
@@ -102,7 +102,7 @@ describe('ChatSessionHost', () => {
 
         it('keeps its transcript when it adopts an id', () => {
             const host = makeHost({ sessionId: null });
-            host.state.addMessage({ role: 'user', type: 'user', content: 'sent before start' });
+            host.state.addMessage({ kind: 'user', content: 'sent before start' });
 
             host.adoptSessionId('session-from-cli');
 

@@ -59,9 +59,9 @@ describe('createChatSessionServices', () => {
 
         busy.state.setSessionActive(true);
         idle.state.setSessionActive(true);
-        busy.state.addMessage({ role: 'user', type: 'user', content: 'one' });
-        busy.state.addMessage({ role: 'user', type: 'user', content: 'two' });
-        busy.state.addMessage({ role: 'assistant', type: 'tool', content: 'bash' });
+        busy.state.addMessage({ kind: 'user', content: 'one' });
+        busy.state.addMessage({ kind: 'user', content: 'two' });
+        busy.state.addMessage({ kind: 'tool', content: 'bash' });
 
         const busyUsage = await busy.services.infoHandlers.handleUsage();
         const idleUsage = await idle.services.infoHandlers.handleUsage();
@@ -114,7 +114,7 @@ describe('createChatSessionServices', () => {
         const host = registry.create('session-a', shared);
 
         facade.setSessionActive(true);
-        facade.addMessage({ role: 'user', type: 'user', content: 'written through the facade' });
+        facade.addMessage({ kind: 'user', content: 'written through the facade' });
 
         const usage = await host.services.infoHandlers.handleUsage();
         expect(usage.content).to.contain('**Messages sent**: 1');

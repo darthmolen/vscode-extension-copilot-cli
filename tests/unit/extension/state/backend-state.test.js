@@ -95,9 +95,9 @@ describe('BackendState - Session Tracking', () => {
 
     describe('Message and Tool Counts', () => {
         it('should count user messages', () => {
-            state.addMessage({ role: 'user', type: 'user', content: 'Hello' });
-            state.addMessage({ role: 'user', type: 'user', content: 'World' });
-            state.addMessage({ role: 'assistant', type: 'assistant', content: 'Hi' });
+            state.addMessage({ kind: 'user', content: 'Hello' });
+            state.addMessage({ kind: 'user', content: 'World' });
+            state.addMessage({ kind: 'assistant', content: 'Hi' });
 
             const count = state.getMessageCount();
             expect(count).to.equal(3);
@@ -109,23 +109,23 @@ describe('BackendState - Session Tracking', () => {
         });
 
         it('should count tool executions', () => {
-            state.addMessage({ role: 'assistant', type: 'tool', content: 'bash', toolName: 'bash', status: 'running' });
-            state.addMessage({ role: 'assistant', type: 'tool', content: 'view', toolName: 'view', status: 'success' });
-            state.addMessage({ role: 'user', type: 'user', content: 'Hello' });
+            state.addMessage({ kind: 'tool', content: 'bash', toolName: 'bash', status: 'running' });
+            state.addMessage({ kind: 'tool', content: 'view', toolName: 'view', status: 'success' });
+            state.addMessage({ kind: 'user', content: 'Hello' });
 
             const count = state.getToolCallCount();
             expect(count).to.equal(2);
         });
 
         it('should return 0 when no tool calls', () => {
-            state.addMessage({ role: 'user', type: 'user', content: 'Hello' });
+            state.addMessage({ kind: 'user', content: 'Hello' });
             const count = state.getToolCallCount();
             expect(count).to.equal(0);
         });
 
         it('should reset counts when reset() is called', () => {
-            state.addMessage({ role: 'user', type: 'user', content: 'Hello' });
-            state.addMessage({ role: 'assistant', type: 'tool', content: 'bash', toolName: 'bash' });
+            state.addMessage({ kind: 'user', content: 'Hello' });
+            state.addMessage({ kind: 'tool', content: 'bash', toolName: 'bash' });
 
             state.reset();
 

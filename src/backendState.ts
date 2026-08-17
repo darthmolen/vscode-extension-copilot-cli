@@ -19,14 +19,17 @@
  * them apart and the reason for the boundary stops being visible at a glance.
  */
 
-export interface Message {
-    role: 'user' | 'assistant' | 'system';
-    type: 'user' | 'assistant' | 'reasoning' | 'tool' | 'error';
-    content: string;
-    timestamp?: number;
-    toolName?: string;
-    status?: 'running' | 'success' | 'error';
-}
+/**
+ * One transcript entry. Re-exported from the wire contract on purpose.
+ *
+ * This file used to declare its own `Message`, and the two were not assignable in
+ * either direction: this one required `type` and had `toolName`/`status`, the wire
+ * one had neither and could not express a tool at all. That mismatch is what forced
+ * `main.js` to smuggle `type` through `role` and drop the rest, which is what made
+ * every replayed tool render as "Tool execution".
+ */
+export type { Message } from './shared/models';
+import type { Message } from './shared/models';
 
 export interface PlanModeStatus {
     enabled: boolean;
@@ -102,7 +105,7 @@ export class SessionState {
     }
 
     public getToolCallCount(): number {
-        return this.messages.filter(m => m.type === 'tool').length;
+        return this.messages.filter(m => m.kind === 'tool').length;
     }
 
     public setPlanModeStatus(status: PlanModeStatus | null): void {

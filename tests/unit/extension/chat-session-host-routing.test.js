@@ -78,7 +78,7 @@ function makeFakeSurface() {
         sendReasoningDelta: record('sendReasoningDelta'),
         sendTaskComplete: record('sendTaskComplete'),
         setThinking: record('setThinking'),
-        addToolExecution: record('addToolExecution'),
+        notifyToolStart: record('notifyToolStart'),
         updateToolExecution: record('updateToolExecution'),
         startSubagent: record('startSubagent'),
         subagentMessage: record('subagentMessage'),
@@ -168,7 +168,7 @@ describe('ChatSessionHost — manager event routing', () => {
 
             a.manager.emit('onDidStartTool', { name: 'bash', toolCallId: 't1' });
 
-            expect(a.surface.argsFor('addToolExecution')).to.deep.equal([[{ name: 'bash', toolCallId: 't1' }]]);
+            expect(a.surface.argsFor('notifyToolStart')).to.deep.equal([[{ name: 'bash', toolCallId: 't1' }]]);
             expect(b.surface.calls).to.have.lengthOf(0);
         });
 

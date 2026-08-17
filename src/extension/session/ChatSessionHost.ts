@@ -43,7 +43,7 @@ export interface ChatSurface {
     sendReasoningDelta(reasoningId: string, deltaContent: string): void;
     sendTaskComplete(summary?: string): void;
     setThinking(isThinking: boolean): void;
-    addToolExecution(toolState: any): void;
+    notifyToolStart(toolState: any): void;
     updateToolExecution(toolState: any): void;
     startSubagent(subagent: any): void;
     subagentMessage(subagent: any): void;
@@ -330,7 +330,7 @@ export class ChatSessionHost {
         }));
 
         this.subscribe(manager.onDidStartTool((toolState) => {
-            this.surface?.addToolExecution(toolState);
+            this.surface?.notifyToolStart(toolState);
         }));
 
         // Update and complete are the same thing to a surface: the tool's state

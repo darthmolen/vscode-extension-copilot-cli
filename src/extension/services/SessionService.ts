@@ -60,7 +60,6 @@ function getSessionCwd(sessionDir: string, sessionId: string): string | undefine
  * SessionService consolidates all session lifecycle logic:
  * - Session discovery (getAllSessions, filterSessionsByFolder, getMostRecentSession)
  * - Session labeling (formatSessionLabel)
- * - Session history loading (loadSessionHistory)
  * - Session resume determination (determineSessionToResume)
  *
  * All methods accept explicit paths/config — no global state dependency.
@@ -247,58 +246,6 @@ export const SessionService = {
         }
 
         return sessionId.substring(0, 8);
-    },
-
-    /**
-     * Loads user and assistant messages from an events.jsonl file.
-     * Returns a fresh array each call (no accumulation).
-     */
-    loadSessionHistory(eventsPath: string): Promise<SessionMessage[]> {
-        return new Promise((resolve) => {
-            if (!fs.existsSync(eventsPath)) {
-                resolve([]);
-                return;
-            }
-
-            const messages: SessionMessage[] = [];
-            const fileStream = fs.createReadStream(eventsPath);
-            const rl = readline.createInterface({
-                input: fileStream,
-                crlfDelay: Infinity
-            });
-
-            rl.on('line', (line: string) => {
-                try {
-                    const event = JSON.parse(line);
-                    if (event.type === 'user.message' && event.data?.content) {
-                        messages.push({
-                            role: 'user',
-                            content: event.data.content,
-                            timestamp: event.timestamp
-                        });
-                    } else if (event.type === 'assistant.message' && event.data?.content) {
-                        const content = event.data.content;
-                        if (content && typeof content === 'string') {
-                            messages.push({
-                                role: 'assistant',
-                                content,
-                                timestamp: event.timestamp
-                            });
-                        }
-                    }
-                } catch {
-                    // Skip malformed lines
-                }
-            });
-
-            rl.on('close', () => {
-                resolve(messages);
-            });
-
-            rl.on('error', () => {
-                resolve(messages);
-            });
-        });
     },
 
     /**

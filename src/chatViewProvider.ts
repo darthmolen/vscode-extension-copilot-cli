@@ -397,8 +397,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
+				kind: 'user',
 				role: 'user',
-				type: 'user',
 				content: text,
 				timestamp: Date.now()
 			});
@@ -410,8 +410,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
+				kind: 'assistant',
 				role: 'assistant',
-				type: 'assistant',
 				content: text,
 				timestamp: Date.now()
 			});
@@ -426,8 +426,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		if (storeInBackend) {
 			const backendState = getBackendState();
 			backendState.addMessage({
-				role: 'assistant',
-				type: 'reasoning',
+				kind: 'reasoning',
+				role: 'reasoning',
 				content: text,
 				timestamp: Date.now()
 			});
@@ -435,18 +435,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.rpcRouter?.addReasoningMessage(text, reasoningId);
 	}
 
-	public addToolExecution(toolState: any, storeInBackend: boolean = true) {
-		if (storeInBackend) {
-			const backendState = getBackendState();
-			backendState.addMessage({
-				role: 'assistant',
-				type: 'tool',
-				content: toolState.description || toolState.name || 'Tool execution',
-				toolName: toolState.name,
-				status: 'running',
-				timestamp: Date.now()
-			});
-		}
+	/**
+	 * Announce a tool starting to the surface.
+	 *
+	 * It no longer writes a summary of the tool into the transcript. That summary —
+	 * `description || name || 'Tool execution'`, frozen at `running` because nothing
+	 * ever updated it — was the wall of identical bubbles on replay. The CLI's event
+	 * log already records the full lifecycle, and `sessionTranscriptBuilder` reads
+	 * it, so a second lossy copy has no reason to exist.
+	 */
+	public notifyToolStart(toolState: any) {
 		this.rpcRouter?.toolStart(toolState);
 	}
 

@@ -16,6 +16,7 @@ import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 import { CliBundleService, ResolvedCli } from './extension/services/cliBundleService';
 import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
 import { getImportedServers } from './extension/services/vscodeMcpImportService';
+import { buildSessionTranscript } from './extension/services/sessionTranscriptBuilder';
 import { ChatSessionRegistry } from './extension/session/ChatSessionRegistry';
 import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { createChatSessionServices } from './extension/session/chatSessionServices';
@@ -1026,20 +1027,21 @@ function updateSessionsList() {
 	}
 }
 
+/**
+ * Rebuild a session's transcript from its event log.
+ *
+ * One projection, so the transcript is the same however you arrived at it. This
+ * previously read only `user.message` and `assistant.message`, dropping every tool
+ * call, while the webview's own re-init path read a separate in-memory summary that
+ * rendered each tool as "Tool execution" — one session, two histories.
+ */
 async function loadSessionHistory(sessionId: string): Promise<void> {
 	const eventsPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId, 'events.jsonl');
-	const messages = await SessionService.loadSessionHistory(eventsPath);
+	const messages = await buildSessionTranscript(eventsPath);
 
-	backendState.clearMessages();
-	for (const msg of messages) {
-		backendState.addMessage({
-			role: msg.role,
-			type: msg.role === 'user' ? 'user' : 'assistant',
-			content: msg.content,
-			timestamp: msg.timestamp
-		});
-	}
-	logger.info(`Loaded ${messages.length} messages from session history`);
+	backendState.setMessages(messages);
+	const toolCount = messages.filter(m => m.kind === 'tool').length;
+	logger.info(`Loaded ${messages.length} messages (${toolCount} tool calls) from session history`);
 }
 
 function updateActiveFile(editor: vscode.TextEditor | undefined) {

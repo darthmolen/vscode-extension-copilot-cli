@@ -18,12 +18,33 @@ export interface Session {
 /**
  * Chat message
  */
+/**
+ * One entry in a transcript.
+ *
+ * `kind` is the single discriminant. It replaces the old `role`/`type` pair, which
+ * encoded overlapping things — they collided on user/assistant/reasoning and
+ * diverged exactly where it mattered, since `tool` and `error` are bubble kinds
+ * with no speaker while `system` is a speaker with no bubble kind. Neither field
+ * could express a tool call, which is why replay smuggled `type` through `role`
+ * (`main.js`) and dropped everything else.
+ *
+ * `role` survives as a deprecated alias for the v3.13.0 release and is load-bearing
+ * while it does: `ToolExecution.js` closes tool groups on `message.role`, in the
+ * *live* path. Whoever removes it must fix that check first.
+ */
 export interface Message {
-	role: 'user' | 'assistant' | 'reasoning' | 'tool';
+	kind: 'user' | 'assistant' | 'reasoning' | 'tool' | 'error' | 'system';
+	/** @deprecated Use `kind`. Retained for the v3.13.0 release — see above. */
+	role?: 'user' | 'assistant' | 'reasoning' | 'tool';
+	/** @deprecated Use `kind`. */
 	type?: 'user' | 'assistant' | 'reasoning';
 	content: string;
 	timestamp: number;
 	attachments?: Attachment[];
+	/** Present only when `kind === 'tool'`. The shape `buildToolHtml` reads. */
+	tool?: ToolState;
+	/** Set when this entry belongs to a sub-agent. */
+	agentId?: string;
 }
 
 /**
@@ -38,13 +59,33 @@ export interface Attachment {
 /**
  * Tool execution state
  */
+/**
+ * Tool execution state, as it crosses the wire.
+ *
+ * These field names were `id` / `name` / `input` / `output` and described nothing
+ * that existed: what the manager emits and what `ToolExecution.buildToolHtml` reads
+ * is `toolCallId` / `toolName` / `arguments` / `result`. The declaration went
+ * unchecked because `ExtensionRpcRouter.toolStart` takes this type while
+ * `chatViewProvider.addToolExecution` passes `any` — so the live path has always
+ * carried the shape below, under the wrong names.
+ *
+ * Kept in step with `ToolExecutionState` in `sdkSessionManager.ts`, which is the
+ * emitting side of the same contract.
+ */
 export interface ToolState {
-	id: string;
-	name: string;
-	status: 'running' | 'complete' | 'failed';
-	input?: any;
-	output?: string;
-	error?: string;
+	toolCallId: string;
+	toolName: string;
+	status: 'pending' | 'running' | 'complete' | 'failed';
+	arguments?: any;
+	startTime?: number;
+	endTime?: number;
+	result?: string;
+	/** True when a replayed result was capped — see `sessionTranscriptBuilder`. */
+	resultTruncated?: boolean;
+	error?: { message: string; code?: string };
+	progress?: string;
+	intent?: string;
+	hasDiff?: boolean;
 	agentId?: string;          // set when this tool runs inside a sub-agent (routes to the dock)
 	parentToolCallId?: string; // redundant fallback
 }

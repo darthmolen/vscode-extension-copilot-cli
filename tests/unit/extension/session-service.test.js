@@ -4,7 +4,7 @@
  *
  * SessionService consolidates session logic from:
  *   - src/sessionUtils.ts (getAllSessions, filterSessionsByFolder, getMostRecentSession, getSessionCwd)
- *   - src/extension.ts (determineSessionToResume, updateSessionsList, formatSessionLabel, loadSessionHistory)
+ *   - src/extension.ts (determineSessionToResume, updateSessionsList, formatSessionLabel)
  *
  * The import of the compiled module is expected to FAIL until the implementation is written.
  */
@@ -499,156 +499,11 @@ describe('SessionService', function () {
     });
 
     // ---------------------------------------------------------------------------
-    // loadSessionHistory()
-    // ---------------------------------------------------------------------------
-    describe('loadSessionHistory()', function () {
-        it('loads user and assistant messages from events.jsonl', async function () {
-            const sessionStateDir = createTempSessionDir(tmpDir, [
-                {
-                    id: 'history-session',
-                    events: [
-                        { type: 'session.start', data: { context: { cwd: '/tmp' } }, timestamp: 1000 },
-                        { type: 'user.message', data: { content: 'What is JavaScript?' }, timestamp: 2000 },
-                        { type: 'assistant.message', data: { content: 'JavaScript is a programming language.' }, timestamp: 3000 },
-                        { type: 'user.message', data: { content: 'Thanks!' }, timestamp: 4000 }
-                    ]
-                }
-            ]);
+    // loadSessionHistory() moved to sessionTranscriptBuilder.buildSessionTranscript in
+    // v3.13.0 P2 — it dropped every tool call, which is what made replayed
+    // transcripts a wall of "Tool execution". Its four behaviours are covered by
+    // tests/unit/extension/session-transcript-builder.test.js.
 
-            const eventsPath = path.join(sessionStateDir, 'history-session', 'events.jsonl');
-            const messages = await SessionService.loadSessionHistory(eventsPath);
-
-            assert.ok(Array.isArray(messages), 'should return an array');
-            assert.strictEqual(messages.length, 3, 'should load 2 user messages and 1 assistant message');
-
-            assert.strictEqual(messages[0].role, 'user');
-            assert.strictEqual(messages[0].content, 'What is JavaScript?');
-
-            assert.strictEqual(messages[1].role, 'assistant');
-            assert.strictEqual(messages[1].content, 'JavaScript is a programming language.');
-
-            assert.strictEqual(messages[2].role, 'user');
-            assert.strictEqual(messages[2].content, 'Thanks!');
-        });
-
-        it('clears existing messages before loading', async function () {
-            const sessionStateDir = createTempSessionDir(tmpDir, [
-                {
-                    id: 'clear-test-session',
-                    events: [
-                        { type: 'session.start', data: { context: { cwd: '/tmp' } }, timestamp: 1000 },
-                        { type: 'user.message', data: { content: 'only message' }, timestamp: 2000 }
-                    ]
-                }
-            ]);
-
-            const eventsPath = path.join(sessionStateDir, 'clear-test-session', 'events.jsonl');
-
-            // Load twice -- the second call should not accumulate messages
-            await SessionService.loadSessionHistory(eventsPath);
-            const messages = await SessionService.loadSessionHistory(eventsPath);
-
-            assert.strictEqual(messages.length, 1, 'should have exactly 1 message, not accumulated duplicates');
-            assert.strictEqual(messages[0].content, 'only message');
-        });
-
-        it('handles missing events.jsonl gracefully', async function () {
-            const nonexistentPath = path.join(tmpDir, 'nonexistent', 'events.jsonl');
-            const messages = await SessionService.loadSessionHistory(nonexistentPath);
-
-            assert.ok(Array.isArray(messages), 'should return an array');
-            assert.strictEqual(messages.length, 0, 'should return empty array for missing file');
-        });
-
-        it('skips malformed JSON lines', async function () {
-            // Manually write a file with some bad lines
-            const sessionDir = path.join(tmpDir, 'malformed-session');
-            fs.mkdirSync(sessionDir, { recursive: true });
-
-            const lines = [
-                JSON.stringify({ type: 'session.start', data: { context: { cwd: '/tmp' } }, timestamp: 1000 }),
-                'this is not valid json',
-                JSON.stringify({ type: 'user.message', data: { content: 'valid message' }, timestamp: 2000 }),
-                '{broken json: [}',
-                JSON.stringify({ type: 'assistant.message', data: { content: 'also valid' }, timestamp: 3000 })
-            ];
-            fs.writeFileSync(path.join(sessionDir, 'events.jsonl'), lines.join('\n') + '\n');
-
-            const eventsPath = path.join(sessionDir, 'events.jsonl');
-            const messages = await SessionService.loadSessionHistory(eventsPath);
-
-            assert.strictEqual(messages.length, 2, 'should skip malformed lines and load 2 valid messages');
-            assert.strictEqual(messages[0].content, 'valid message');
-            assert.strictEqual(messages[1].content, 'also valid');
-        });
-    });
-
-    // ---------------------------------------------------------------------------
-    // determineSessionToResume()
-    // ---------------------------------------------------------------------------
-    describe('determineSessionToResume()', function () {
-        it('returns session ID when sessions exist', function () {
-            const sessionStateDir = createTempSessionDir(tmpDir, [
-                {
-                    id: 'resume-candidate',
-                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/workspace' } } }]
-                }
-            ]);
-
-            const result = SessionService.determineSessionToResume(
-                sessionStateDir,
-                '/home/user/workspace',
-                { filterSessionsByFolder: true }
-            );
-            assert.strictEqual(result, 'resume-candidate');
-        });
-
-        it('returns null when no sessions found', function () {
-            const emptyDir = path.join(tmpDir, 'empty-sessions');
-            fs.mkdirSync(emptyDir, { recursive: true });
-
-            const result = SessionService.determineSessionToResume(
-                emptyDir,
-                '/home/user/workspace',
-                { filterSessionsByFolder: true }
-            );
-            assert.strictEqual(result, null);
-        });
-
-        it('respects filterSessionsByFolder config setting', function () {
-            const sessionStateDir = createTempSessionDir(tmpDir, [
-                {
-                    id: 'project-a-session',
-                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/project-a' } } }]
-                },
-                {
-                    id: 'project-b-session',
-                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/project-b' } } }]
-                }
-            ]);
-
-            // Make project-b-session more recent
-            const projBDir = path.join(sessionStateDir, 'project-b-session');
-            const futureTime = Date.now() + 5000;
-            fs.utimesSync(projBDir, new Date(futureTime), new Date(futureTime));
-
-            // With filtering enabled, should return the project-a session for project-a workspace
-            const filteredResult = SessionService.determineSessionToResume(
-                sessionStateDir,
-                '/home/user/project-a',
-                { filterSessionsByFolder: true }
-            );
-            assert.strictEqual(filteredResult, 'project-a-session');
-
-            // With filtering disabled, should return the most recent global session
-            const unfilteredResult = SessionService.determineSessionToResume(
-                sessionStateDir,
-                '/home/user/project-a',
-                { filterSessionsByFolder: false }
-            );
-            assert.strictEqual(unfilteredResult, 'project-b-session');
-        });
-    });
 
     // ---------------------------------------------------------------------------
     // ensureSessionName()
