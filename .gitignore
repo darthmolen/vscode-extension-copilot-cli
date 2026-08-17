@@ -1,5 +1,5 @@
-research/
-node_modules/
+research
+node_modules
 out/
 dist/
 *.vsix
