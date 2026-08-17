@@ -4,7 +4,7 @@ import * as os from 'os';
 import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
-import { getBackendState, BackendState } from './backendState';
+import { getBackendState, getWorkspaceRuntimeState, BackendState } from './backendState';
 import { createVSCodeHostBridge } from './extension/hostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
 import { forkCurrentSession } from './extension/commands/forkSession';
@@ -16,6 +16,12 @@ import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 import { CliBundleService, ResolvedCli } from './extension/services/cliBundleService';
 import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
 import { getImportedServers } from './extension/services/vscodeMcpImportService';
+import { ChatSessionRegistry } from './extension/session/ChatSessionRegistry';
+import { ChatSessionHost } from './extension/session/ChatSessionHost';
+import { createChatSessionServices } from './extension/session/chatSessionServices';
+import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
+import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
+import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
 
 let sessionManager: SDKSessionManager | null = null;
 let resolvedCli: ResolvedCli | null = null;
@@ -25,6 +31,10 @@ let statusBarItem: vscode.StatusBarItem;
 let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatViewProvider;
+/** Every chat session live in this window. One entry today; the sidebar's. */
+let sessionRegistry: ChatSessionRegistry;
+/** The session the sidebar is showing. */
+let sidebarHost: ChatSessionHost;
 let subagentPanels: SubagentPanelService;
 let lastDropdownRefresh = 0;
 
@@ -49,6 +59,42 @@ function assignSubagentColor(agentId: string): string {
 	return color;
 }
 
+declare const __EXTENSION_VERSION__: string | undefined;
+declare const __SDK_VERSION__: string | undefined;
+
+/**
+ * Assemble the per-session service factory.
+ *
+ * The window-scoped collaborators are built once here and closed over, so every
+ * session shares them; only the session-scoped handlers are rebuilt per host.
+ * This is the construction that used to happen inside handler registration.
+ */
+function buildChatSessionServicesFactory() {
+	const mcpRegistry = new ManagedMCPRegistry();
+	const mcpConfigService = new MCPConfigurationService(
+		vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
+	);
+	const cliPassthroughService = new CLIPassthroughService(vscode);
+
+	return createChatSessionServices({
+		getMergedMcpServers: () => {
+			const userConfig = vscode.workspace.getConfiguration('copilotCLI')
+				.get<Record<string, any>>('mcpServers', {});
+			return mcpConfigService.getMergedMCPServers(userConfig, mcpRegistry.getManagedServers());
+		},
+		mcpConfigService,
+		cliPassthroughService,
+		// Read per call — the capability is set after activation begins.
+		getCliCapability: () => chatProvider.getCliCapability(),
+		versionInfo: {
+			extensionVersion: typeof __EXTENSION_VERSION__ !== 'undefined' ? __EXTENSION_VERSION__ ?? 'unknown' : 'unknown',
+			sdkVersion: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ ?? 'unknown' : 'unknown',
+		},
+		getPlanPath: (sessionId: string) =>
+			path.join(os.homedir(), '.copilot', 'session-state', sessionId, 'plan.md')
+	});
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
 	backendState = getBackendState();
@@ -56,6 +102,18 @@ export function activate(context: vscode.ExtensionContext) {
 	// Create chat provider and register as sidebar webview
 	chatProvider = new ChatViewProvider(context.extensionUri);
 	context.subscriptions.push(chatProvider);
+
+	// One registry per window; one host per conversation. The sidebar's host is
+	// built now, before the CLI has assigned an id — it adopts one in
+	// `onSessionStarted`, and never gets one at all if the CLI fails to start.
+	sessionRegistry = new ChatSessionRegistry({
+		workspace: getWorkspaceRuntimeState(),
+		logger,
+		createServices: buildChatSessionServicesFactory()
+	});
+	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
+	sidebarHost = sessionRegistry.create();
+	chatProvider.setSessionHost(sidebarHost);
 
 	// Pop-out panel service — created ONCE per activation (buffers sub-agent traffic, opens
 	// editor-tab panels on request). Must not live in wireManagerEvents(), which re-runs per session.
@@ -801,6 +859,12 @@ function onSessionStarted(manager: SDKSessionManager): void {
 	backendState.setSessionId(sessionId);
 	backendState.setSessionActive(true);
 
+	// The host was built before the CLI had an id. Adopting it here indexes the
+	// host by session, and keeps whatever was typed while the session started.
+	if (sessionId) {
+		sidebarHost.adoptSessionId(sessionId);
+	}
+
 	statusBarItem.text = "$(debug-start) CLI Running";
 	statusBarItem.tooltip = "Copilot CLI is active";
 	chatProvider.setSessionActive(true);
@@ -1075,6 +1139,9 @@ export function deactivate() {
 		logger.info('Disposing CLI manager...');
 		sessionManager.dispose();
 	}
+	// Reaches pending hosts too — a session that never started still owns
+	// subscriptions, and is unreachable by id.
+	sessionRegistry?.disposeAll();
 	logger.info('Extension deactivated');
 }
 

@@ -19,6 +19,7 @@ import { resolveImagePaths } from './extension/utils/resolveImagePaths';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CliCapabilityService } from './extension/services/cliCapabilityService';
+import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { buildMcpServerStatusList, mergeMcpListWithConfig, mergeCopilotConfigList } from './extension/services/mcpStatusBuilder';
 import type { McpServerSource, McpServerActionPayload } from './shared/messages';
 import {
@@ -49,14 +50,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	private readonly sendDedup = { lastMessage: undefined as string | undefined, lastTime: 0 };
 	private validateAttachmentsCallback: ((filePaths: string[]) => Promise<{ valid: boolean; error?: string }>) | undefined;
 
-	// Slash command services
-	private codeReviewHandlers?: CodeReviewSlashHandlers;
-	private infoHandlers?: InfoSlashHandlers;
-	private notSupportedHandlers?: NotSupportedSlashHandlers;
-	private cliPassthroughService?: CLIPassthroughService;
+	/**
+	 * The session this surface is showing.
+	 *
+	 * The slash-command services come from here rather than being fields: they
+	 * belong to a conversation, and this surface can be pointed at a different one.
+	 */
+	private sessionHost?: ChatSessionHost;
+
 	private compactHandlers?: CompactSlashHandlers;
 	private customAgentsService: CustomAgentsService = new CustomAgentsService();
-	private mcpConfigService?: MCPConfigurationService;
 
 	// Event emitters to replace Set<Function> handlers
 	private readonly _onDidReceiveUserMessage = this._reg(new vscode.EventEmitter<{text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}>());
@@ -102,6 +105,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		this.cliCapability = capability;
 	}
 
+	/**
+	 * Point this surface at a session. Must happen before the webview registers
+	 * handlers, since the slash-command services are read through the host.
+	 */
+	public setSessionHost(host: ChatSessionHost): void {
+		this.sessionHost = host;
+	}
+
+	public getSessionHost(): ChatSessionHost | undefined {
+		return this.sessionHost;
+	}
+
 	public setMcpListProvider(provider: () => Promise<any[]>): void {
 		this.mcpListProvider = provider;
 	}
@@ -144,7 +159,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			// Display set includes DISABLED user servers (with `enabled` preserved)
 			// so they remain visible/re-enableable — unlike the SDK feed, which
 			// filters them. See getMCPServersForDisplay vs getEnabledMCPServers.
-			const userDisplay = this.mcpConfigService!.getMCPServersForDisplay(userConfig);
+			const userDisplay = this.sessionHost!.services.mcpConfigService.getMCPServersForDisplay(userConfig);
 			const imported = this.importedServersProvider?.() ?? {};
 			// Precedence for display: imported < user < managed.
 			const allServers = { ...imported, ...userDisplay, ...managedServers };
@@ -345,25 +360,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			get logger() { return self.logger; },
 			get currentWorkspacePath() { return self.currentWorkspacePath; },
 			get customAgentsService() { return self.customAgentsService; },
-			// These five are *assigned* by the handler module — it constructs the
-			// slash-command services during registration — so they need setters,
-			// not just getters. Accessor-only properties would throw under strict
-			// mode the moment the /ready handler ran.
-			//
-			// That the services are built during registration rather than at
-			// construction is a wart inherited from `_setupRpcHandlers`. It is
-			// harmless with one surface, but registering a second surface would
-			// rebuild and overwrite them. Task 4 moves this to `ChatSessionHost`.
-			get infoHandlers() { return self.infoHandlers; },
-			set infoHandlers(v) { self.infoHandlers = v; },
-			get codeReviewHandlers() { return self.codeReviewHandlers; },
-			set codeReviewHandlers(v) { self.codeReviewHandlers = v; },
-			get notSupportedHandlers() { return self.notSupportedHandlers; },
-			set notSupportedHandlers(v) { self.notSupportedHandlers = v; },
-			get mcpConfigService() { return self.mcpConfigService; },
-			set mcpConfigService(v) { self.mcpConfigService = v; },
-			get cliPassthroughService() { return self.cliPassthroughService; },
-			set cliPassthroughService(v) { self.cliPassthroughService = v; },
+			// Read from the session that owns them, never assigned. Getters rather
+			// than copies because the host is attached after construction and can
+			// be replaced when this surface changes session.
+			get infoHandlers() { return self.sessionHost?.services.infoHandlers; },
+			get codeReviewHandlers() { return self.sessionHost?.services.codeReviewHandlers; },
+			get notSupportedHandlers() { return self.sessionHost?.services.notSupportedHandlers; },
+			get mcpConfigService() { return self.sessionHost?.services.mcpConfigService; },
+			get cliPassthroughService() { return self.sessionHost?.services.cliPassthroughService; },
 			get cliCapability() { return self.cliCapability; },
 			buildAndSendMcpStatus: () => self.buildAndSendMcpStatus(),
 			handleMcpServerAction: (payload) => self.handleMcpServerAction(payload),

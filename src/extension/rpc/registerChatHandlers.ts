@@ -19,7 +19,6 @@ import * as path from 'path';
 import * as os from 'os';
 import { ExtensionRpcRouter } from './ExtensionRpcRouter';
 import { getBackendState } from '../../backendState';
-import { ManagedMCPRegistry } from '../services/managedMCPRegistry';
 import { Logger } from '../../logger';
 import { CustomAgentsService } from '../services/CustomAgentsService';
 import { InfoSlashHandlers } from '../services/slashCommands/InfoSlashHandlers';
@@ -57,11 +56,16 @@ export interface ChatHandlerContext {
     currentWorkspacePath: string | undefined;
 
     customAgentsService: CustomAgentsService;
-    infoHandlers?: InfoSlashHandlers;
-    codeReviewHandlers?: CodeReviewSlashHandlers;
-    notSupportedHandlers?: NotSupportedSlashHandlers;
-    mcpConfigService?: MCPConfigurationService;
-    cliPassthroughService?: CLIPassthroughService;
+    /**
+     * Owned by the session, not by registration. `readonly` is the guard: these
+     * were assignable only so this module could build them mid-registration, which
+     * is exactly how a second surface would have clobbered the first's.
+     */
+    readonly infoHandlers?: InfoSlashHandlers;
+    readonly codeReviewHandlers?: CodeReviewSlashHandlers;
+    readonly notSupportedHandlers?: NotSupportedSlashHandlers;
+    readonly mcpConfigService?: MCPConfigurationService;
+    readonly cliPassthroughService?: CLIPassthroughService;
     cliCapability: CliCapabilityService | null;
 
     buildAndSendMcpStatus(): Promise<void>;
@@ -191,40 +195,10 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 			vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
 		}));
 
-		// Initialize slash command services
-		// Create sessionService adapter
-		const sessionService = {
-			getCurrentSession: () => {
-				const backendState = getBackendState();
-				const sessionId = backendState.getSessionId();
-				return sessionId ? { id: sessionId } : null;
-			},
-			getPlanPath: (sessionId: string) => {
-				const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
-				return path.join(sessionStateDir, sessionId, 'plan.md');
-			}
-		};
-
-		ctx.codeReviewHandlers = new CodeReviewSlashHandlers(sessionService);
-		const mcpRegistry = new ManagedMCPRegistry();
-		ctx.mcpConfigService = new MCPConfigurationService(
-			vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd()
-		);
-		ctx.infoHandlers = new InfoSlashHandlers(
-			() => {
-				const userConfig = vscode.workspace.getConfiguration('copilotCLI')
-					.get<Record<string, any>>('mcpServers', {});
-				return ctx.mcpConfigService!.getMergedMCPServers(userConfig, mcpRegistry.getManagedServers());
-			},
-			getBackendState(),
-			() => ctx.cliCapability,
-			{
-				extensionVersion: typeof __EXTENSION_VERSION__ !== 'undefined' ? __EXTENSION_VERSION__ : 'unknown',
-				sdkVersion: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : 'unknown',
-			}
-		);
-		ctx.notSupportedHandlers = new NotSupportedSlashHandlers();
-		ctx.cliPassthroughService = new CLIPassthroughService(vscode);
+		// The slash-command services are *not* built here. They belong to the
+		// session, are built once by `createChatSessionServices`, and reach this
+		// module through the context — registering a second surface used to rebuild
+		// them and overwrite the first surface's.
 
 		// Handle slash commands from webview
 		ctx.reg(ctx.rpcRouter.onShowPlanContent(async () => {
