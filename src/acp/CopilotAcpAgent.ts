@@ -32,11 +32,30 @@ async function loadAcp(): Promise<AcpModule> {
     return acpModule;
 }
 
+/**
+ * The per-session backend this agent fronts. One `SDKSessionManager` per session,
+ * per spine S3 — `setActiveSession()` disposes the previous subscription, so a
+ * single manager can only emit for one session at a time.
+ *
+ * Narrow on purpose: declare the slice we touch rather than importing the concrete
+ * manager, so this file does not pin the manager's shape the way 75 call sites
+ * would (the same reasoning behind Lane B keeping `.manager` private).
+ */
+export interface AcpSessionBackend {
+    /** The Copilot session id. Also the ACP session id — see `session/new`. */
+    readonly sessionId: string;
+}
+
 export interface CopilotAcpAgentDeps {
     logger: LoggerLike;
     /** Shown to a host so a user can tell whose agent this is. */
     agentName?: string;
     agentVersion?: string;
+    /**
+     * Starts a backend for one session. Injected rather than constructed here so
+     * the protocol surface is testable without spawning a CLI.
+     */
+    startSession(params: { cwd: string }): Promise<AcpSessionBackend>;
 }
 
 /**
@@ -74,6 +93,16 @@ export interface KnownClientCapabilities {
 
 export class CopilotAcpAgent {
     private caps: KnownClientCapabilities = structuredClone(DENY_ALL_CLIENT_CAPABILITIES);
+
+    /**
+     * Live sessions, keyed by the id we handed the client. ACP multiplexes — every
+     * request carries a `sessionId` — so inbound work is routed through here.
+     *
+     * Deliberately *not* called a registry: Lane B owns `ChatSessionRegistry`, which
+     * binds a session to a UI surface and can exist before its id does. This maps a
+     * protocol id to a running backend and cannot: the id is minted by starting one.
+     */
+    private readonly sessions = new Map<string, AcpSessionBackend>();
 
     constructor(private readonly deps: CopilotAcpAgentDeps) {}
 
@@ -124,6 +153,31 @@ export class CopilotAcpAgent {
                     version: this.deps.agentVersion ?? '0.0.0'
                 }
             };
+        })
+        .onRequest('session/new', async ({ params }) => {
+            // The ACP session id IS the Copilot session id. The SDK's example mints
+            // a random one because it has no durable session of its own; ours live
+            // in ~/.copilot/session-state and `session/load` must resume by that id.
+            // A second id space would be a mapping to maintain for no gain.
+            //
+            // Returning a session id for a backend that never started would hand the
+            // client a handle to nothing, so a failure must reject. But a bare throw
+            // is generalised to "Internal error" with the cause buried in `data`,
+            // which reaches a host UI as no explanation at all. `RequestError` keeps
+            // the reason in the message where a user will actually see it.
+            const acpModule = await loadAcp();
+            let backend: AcpSessionBackend;
+            try {
+                backend = await this.deps.startSession({ cwd: params.cwd });
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                this.deps.logger.error(`[ACP] session/new failed to start a backend: ${reason}`);
+                throw acpModule.RequestError.internalError(undefined, reason);
+            }
+            this.sessions.set(backend.sessionId, backend);
+            this.deps.logger.info(`[ACP] session/new → ${backend.sessionId}`);
+
+            return { sessionId: backend.sessionId };
         });
     }
 }
