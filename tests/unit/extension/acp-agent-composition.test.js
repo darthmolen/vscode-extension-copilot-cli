@@ -18,6 +18,7 @@
 const { describe, it } = require('mocha');
 const { expect } = require('chai');
 const path = require('path');
+const os = require('os');
 const { withoutVscode } = require('../../helpers/without-vscode');
 
 const COMPOSITION_PATH = path.join(__dirname, '../../..', 'out', 'acp', 'createAcpAgent.js');
@@ -46,8 +47,8 @@ function build(over = {}) {
     const clientProvider = { id: 'the-one-provider' };
     const startSession = createSessionStarter({
         logger: silentLogger,
-        globalStorageDir: '/tmp/agent-storage',
-        workspaceFolder: '/tmp/agent-workspace',
+        globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
+        workspaceFolder: path.join(os.tmpdir(), 'agent-workspace'),
         clientProvider,
         createManager: makeManagerFactory(built),
         ...over
@@ -67,7 +68,7 @@ describe('createAcpAgent — composition root (IN-3)', () => {
 
         const agent = createAcpAgent({
             logger: silentLogger,
-            globalStorageDir: '/tmp/agent-storage',
+            globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
             clientProvider: {},
             createManager: makeManagerFactory([])
         });
@@ -78,8 +79,8 @@ describe('createAcpAgent — composition root (IN-3)', () => {
     it('creates one manager per session', async () => {
         const { startSession, built } = build();
 
-        await startSession({ cwd: '/tmp/w' });
-        await startSession({ cwd: '/tmp/w' });
+        await startSession({ cwd: path.join(os.tmpdir(), 'w') });
+        await startSession({ cwd: path.join(os.tmpdir(), 'w') });
 
         expect(built).to.have.lengthOf(2);
         expect(built[1].sessionId).to.not.equal(built[0].sessionId);
@@ -94,8 +95,8 @@ describe('createAcpAgent — composition root (IN-3)', () => {
     it('gives every manager the same client provider', async () => {
         const { startSession, built, clientProvider } = build();
 
-        await startSession({ cwd: '/tmp/w' });
-        await startSession({ cwd: '/tmp/w' });
+        await startSession({ cwd: path.join(os.tmpdir(), 'w') });
+        await startSession({ cwd: path.join(os.tmpdir(), 'w') });
 
         expect(built.map(b => b.clientProvider)).to.deep.equal([clientProvider, clientProvider]);
     });
@@ -103,15 +104,15 @@ describe('createAcpAgent — composition root (IN-3)', () => {
     it("uses the session's cwd as the manager's workspace", async () => {
         const { startSession, built } = build();
 
-        await startSession({ cwd: '/tmp/a-specific-repo' });
+        await startSession({ cwd: path.join(os.tmpdir(), 'a-specific-repo') });
 
-        expect(built[0].workspaceFolder).to.equal('/tmp/a-specific-repo');
+        expect(built[0].workspaceFolder).to.equal(path.join(os.tmpdir(), 'a-specific-repo'));
     });
 
     it('returns a backend carrying the manager session id', async () => {
         const { startSession } = build();
 
-        const backend = await startSession({ cwd: '/tmp/w' });
+        const backend = await startSession({ cwd: path.join(os.tmpdir(), 'w') });
 
         expect(backend.sessionId).to.equal('session-1');
         expect(backend.prompt, 'must satisfy AcpSessionBackend').to.be.a('function');

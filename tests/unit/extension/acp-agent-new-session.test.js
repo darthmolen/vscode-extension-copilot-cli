@@ -24,6 +24,7 @@ import { describe, it, beforeEach } from 'mocha';
 import { expect } from 'chai';
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 
 import * as acp from '@agentclientprotocol/sdk';
@@ -76,7 +77,7 @@ describe('CopilotAcpAgent — session/new (IN-3 cycle 3)', () => {
     });
 
     it("passes the client's cwd to the backend", async () => {
-        const cwd = '/tmp/some-other-workspace';
+        const cwd = join(tmpdir(), 'some-other-workspace');
 
         await newSession(h.conn, cwd);
 

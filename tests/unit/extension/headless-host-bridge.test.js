@@ -31,8 +31,8 @@ function makeBridge(over = {}) {
     const { createHeadlessHostBridge } = load();
     const logged = [];
     const bridge = createHeadlessHostBridge({
-        workspaceFolder: '/tmp/agent-workspace',
-        globalStorageDir: '/tmp/agent-storage',
+        workspaceFolder: path.join(os.tmpdir(), 'agent-workspace'),
+        globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
         settings: { yolo: true, filterSessionsByFolder: false },
         logger: {
             debug: m => logged.push(['debug', m]),
@@ -50,7 +50,7 @@ describe('HeadlessHostBridge (IN-3 / IN-8)', () => {
         const { bridge } = makeBridge();
 
         expect(bridge).to.be.an('object');
-        expect(bridge.getWorkspaceFolder()).to.equal('/tmp/agent-workspace');
+        expect(bridge.getWorkspaceFolder()).to.equal(path.join(os.tmpdir(), 'agent-workspace'));
     });
 
     it('serves settings from the startup snapshot', () => {
@@ -113,7 +113,7 @@ describe('HeadlessHostBridge (IN-3 / IN-8)', () => {
     it('reports the storage directory it was given', () => {
         const { bridge } = makeBridge();
 
-        expect(bridge.getGlobalStorageDir()).to.equal('/tmp/agent-storage');
+        expect(bridge.getGlobalStorageDir()).to.equal(path.join(os.tmpdir(), 'agent-storage'));
     });
 
     it('defaults the workspace folder to the process cwd when none is supplied', () => {
