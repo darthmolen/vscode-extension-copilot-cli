@@ -245,3 +245,129 @@ this reader stays on the presentation side of that seam rather than becoming par
 - No change to `sdkSessionManager.ts` — Lane B does not own it. Should this work turn out to need one,
   it is filed as a spine item instead.
 - P1 (concurrent-edit labelling) is unaffected and stays where the parent plan put it, at Task 4.
+
+---
+
+## Plan Review
+
+**Reviewed:** 2026-08-17 05:09
+**Reviewer:** Claude Code (plan-review-intake)
+
+### Strengths
+
+- **§2/§4 diagnosis is correct and well-evidenced.** The two-path divergence (session-switch vs. sidebar hide/show giving different histories) is precisely identified with line references. The measured session data (af36eb01, 469 events) gives the fix a concrete foundation.
+- **§5.2 reader design is sound.** Join on `toolCallId`, `success` from complete, unmatched start → `running`. Verified against real event logs: `tool.execution_start` carries `toolCallId`/`toolName`/`arguments`/`turnId`; `tool.execution_complete.data` carries `toolCallId`/`success`/`result`/`model`/`turnId`. The join works.
+- **§9 scope control is good.** Explicitly excluding `sdkSessionManager.ts` and live rendering prevents scope bleed. The §8a addendum (reusable reader function) correctly anticipates the ACP caller.
+- **§8 TDD approach is faithful to CLAUDE.md.** The fixture-based approach for the reader, plus the contract test catching the §4 divergence, is exactly the right structure.
+- **SDK method risk correctly identified in §6.2.** `getEvents()` calling `session.getMessages` over a live connection (verified: `session.ts:1272-1277`) and throwing on disconnect is a real hazard for replay.
+
+---
+
+### Open Decisions (§6) — Reviewer Rulings
+
+**Decision 1 (Message shape): Ratify §5.1 with one structural condition.**
+
+The single `kind` discriminant is correct. The discriminated-union rejection is justified — the webview is untyped JS, so the safety gain is one-sided at significant churn cost. `agentId` belongs on `Message`, not on a parallel channel; the live path already carries it on `ToolState`, and making replay route-aware requires it on the wire type.
+
+**Condition:** `role` as a deprecated alias must be retained through the entire v3.13.0 release. `ToolExecution.js:39-40` closes groups by checking `message.role === 'assistant'`. If `role` silently disappears, the group-closing logic breaks in the live path. The implementer must update that check to `message.role === 'assistant' || message.kind === 'assistant'` (or equivalent) before removing the alias.
+
+**Decision 2 (SDK vs. JSONL): Endorse JSONL.**
+
+The evidence is conclusive. `getEvents()` uses `session.getMessages` over a live RPC connection and throws if disconnected (`session.ts:1260`). Replay is needed precisely in cases (b) and (c) of Task 6 — non-live sessions. `SessionService.forkSession` already treats `events.jsonl` as a first-class load-bearing artifact. The JSONL path is not a workaround; it is the correct architecture for offline replay.
+
+**Decision 3 (Grouping fidelity): Flat chips.**
+
+Grouped-by-turnId replay is not implementable within the stated scope. Reproducing live grouping would require emitting `tool:start` events during replay, which means touching live rendering code — explicitly forbidden by §9. Flat chips are also architecturally consistent: replay goes through `message:add` → `MessageDisplay`, not `tool:start` → `ToolExecution`. Flat chips set honest user expectations: this is history, not a live session.
+
+---
+
+### Issues
+
+#### Critical (Must Address Before Implementation)
+
+**C1 — Rendering path for replayed tool messages is unspecified**
+**Section:** §5.3
+
+`handleInitMessage` in `main.js:601-616` emits `message:add` for every message. `MessageDisplay.js:273` destructures `{ role, content, attachments, timestamp, messageId, reasoningId }` from the event — no `kind`, no `toolName`, no `status`. It then sets `className` from `role` and renders headers as "You" / "Assistant". A `kind: 'tool'` message emitted to `message:add` today would render as a malformed text bubble with class `message-display__item--undefined` and header "Assistant."
+
+The plan says "content keeps the current display string, so nothing about bubble rendering changes shape." That is only true if replayed tools appear as text bubbles — but the goal is to show real tool names and final statuses, not just the description string. `MessageDisplay` must be updated to handle `kind: 'tool'` messages, and per the CLAUDE.md component hierarchy, this means `MessageDisplay` must internally create a `ToolExecution` child for replay. None of this is described. The implementer has no specification for what to build.
+
+**Suggested fix:** Add a section describing how `MessageDisplay` handles `kind: 'tool'` entries from `message:add`: whether it delegates to an internal `ToolExecution` instance (per the component hierarchy) or renders a simpler static chip. This decision shapes roughly half of the webview work in this plan.
+
+---
+
+**C2 — SubagentDock routing claim is architecturally false**
+**Section:** §5.3
+
+The plan states: "Replayed `agentId` entries route to `SubagentDock`, matching live behaviour."
+
+Verified against `SubagentDock.js`: the dock only responds to `subagent:start`, `subagent:message`, `subagent:complete`, `tool:start`, and `tool:complete`. It does not listen to `message:add`. Even if `agentId` is present on a `message:add` event, the SubagentDock will never see it.
+
+This may be acceptable — replay showing sub-agent tools as flat history rather than re-populating the dock is arguably correct. But the plan's stated behaviour contradicts the code. The implementer will spend time pursuing something that isn't achievable with the described mechanism.
+
+**Suggested fix:** Replace the routing claim with the honest outcome: "Sub-agent tool entries in replay appear as flat history in the transcript. The dock is not re-populated on replay because its tile lifecycle (`subagent:start`) has no replay counterpart." If dock re-population is a requirement, add it as a separate task.
+
+---
+
+**C3 — `addToolExecution` deletion would break live tool rendering**
+**Section:** §5.3
+
+`addToolExecution` at `chatViewProvider.ts:438-451` does two things: (1) writes to backend state and (2) calls `this.rpcRouter?.toolStart(toolState)`. The plan says to delete this method and the `storeInBackend` parameter. Deleting the method removes the `toolStart()` call, breaking the live RPC path — the extension would stop sending `tool:start` to the webview and live tool chips would stop appearing entirely.
+
+**Suggested fix:** Clarify the deletion scope. Only the `storeInBackend` branch (the `backendState.addMessage(...)` write) should be removed. The method remains, calling `this.rpcRouter?.toolStart(toolState)` only. Or rename to `notifyToolStart` to make its reduced role explicit.
+
+---
+
+#### Important (Should Address)
+
+**I1 — §2 evidence table field access paths are ambiguous**
+
+The §2 table claims `tool.execution_start` carries `model`. In real event logs, `model` is in `tool.execution_complete.data`, not `tool.execution_start.data`. More importantly, §5.2 says "status from `complete.success`" — whether this means `event.success` or `event.data.success` is ambiguous. From actual schema, it is `event.data.success`, `event.data.toolCallId`, etc. (all fields are under `data`). The §8.1 fixture test will catch this, but the spec should be unambiguous.
+
+**Suggested fix:** Correct the §2 table and add explicit access path notation in §5.2: `event.data.success`, `event.data.toolCallId`, etc.
+
+---
+
+**I2 — Reusable reader function has no specified home**
+
+§8a correctly identifies the reader must be a reusable function because ACP needs it too. But no file location is specified. Given CLAUDE.md's file-naming rule ("a name must convey its value from a directory listing alone"), this matters.
+
+**Suggested fix:** Name the intended file/function location explicitly (e.g., `src/extension/services/SessionEventReader.ts` exporting `buildSessionHistory(eventsPath: string): Promise<Message[]>`).
+
+---
+
+#### Minor (Consider)
+
+**m1 — §8 test 3 (round-trip) needs timestamp assertion**
+
+`handleInitMessage:613` currently does `timestamp: Date.now()` instead of `msg.timestamp`. The round-trip test would pass even with wrong timestamps. Worth adding a timestamp assertion explicitly to the test spec.
+
+---
+
+### §7 "Not Yet Verified" Assessment
+
+1. **Extension-authored sessions** → **Blocks.** The plan's fixtures are from a `producer: "copilot-agent"` CLI session. Extension-created sessions with plan-mode custom tools may have different `events.jsonl` schema — specifically whether `toolCallId` appears as a top-level field vs. under `data`. One spike against an extension-produced session with plan-mode tool calls should run before building the reader.
+
+2. **`result.content` size** → **Does not block.** Design avoids surfacing `result.content`. Latent, not active.
+
+3. **Compaction** → **Does not block.** Graceful fallback (replays interrupted as `running`) is stated and acceptable.
+
+4. **Replay cost at observed scale** → **Does not block.** 61 messages / 48 tools is not a concern.
+
+---
+
+### Recommendations
+
+1. **Before any reader code, run one spike:** load `events.jsonl` from an extension-created session (with plan-mode tools) and confirm `tool.execution_start` / `tool.execution_complete` are present with the assumed field layout. This unblocks §7.1 and validates fixture choice.
+
+2. **The rendering path decision (C1) gates all webview work.** Whether `MessageDisplay` renders static chips or delegates to `ToolExecution` children changes the scope substantially. Settle this before writing any webview code.
+
+3. **The `role` deprecation window must be explicit across both files.** `src/shared/models.ts` and `src/backendState.ts` both define `Message`. Their collapse into one type should be an explicit task, with the deprecated `role` alias stated in both places for the release window.
+
+---
+
+### Assessment
+
+**Implementable as written?** No — with fixes.
+
+**Reasoning:** The diagnosis, data model, and reader design are solid. Three issues block implementation: the rendering path for replayed tool messages is unspecified (leaving the implementer to design the core webview change from scratch), the SubagentDock routing claim contradicts the code (will cause wasted implementation effort), and `addToolExecution` deletion as stated would break the live tool path. All three are correctable with targeted additions to the plan; the underlying design does not need to change.

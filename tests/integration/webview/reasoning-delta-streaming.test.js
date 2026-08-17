@@ -15,7 +15,7 @@
  * 7. messages.ts has 'reasoningDelta' type and ReasoningDeltaPayload
  * 8. ExtensionRpcRouter has sendReasoningDelta()
  * 9. chatViewProvider has sendReasoningDelta()
- * 10. extension.ts wires onDidReceiveReasoningDelta to chatProvider
+ * 10. (removed in Task 5 — routing moved to ChatSessionHost; see note at end of file)
  */
 
 const assert = require('assert');
@@ -29,13 +29,12 @@ const SDK_SOURCE = path.join(__dirname, '../../../src/sdkSessionManager.ts');
 const MESSAGES_SOURCE = path.join(__dirname, '../../../src/shared/messages.ts');
 const RPC_ROUTER_SOURCE = path.join(__dirname, '../../../src/extension/rpc/ExtensionRpcRouter.ts');
 const CHAT_VIEW_SOURCE = path.join(__dirname, '../../../src/chatViewProvider.ts');
-const EXTENSION_SOURCE = path.join(__dirname, '../../../src/extension.ts');
 
 describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
     this.timeout(10000);
 
     let mainSource, rpcClientSource, messageDisplaySource;
-    let sdkSource, messagesSource, rpcRouterSource, chatViewSource, extensionSource;
+    let sdkSource, messagesSource, rpcRouterSource, chatViewSource;
 
     before(function () {
         mainSource = fs.readFileSync(MAIN_JS, 'utf8');
@@ -45,7 +44,6 @@ describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
         messagesSource = fs.readFileSync(MESSAGES_SOURCE, 'utf8');
         rpcRouterSource = fs.readFileSync(RPC_ROUTER_SOURCE, 'utf8');
         chatViewSource = fs.readFileSync(CHAT_VIEW_SOURCE, 'utf8');
-        extensionSource = fs.readFileSync(EXTENSION_SOURCE, 'utf8');
     });
 
     // -------------------------------------------------------------------------
@@ -165,18 +163,11 @@ describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
         });
     });
 
-    // -------------------------------------------------------------------------
-    // extension.ts wiring
-    // -------------------------------------------------------------------------
-    describe('extension.ts — onDidReceiveReasoningDelta wiring', function () {
-        it('should subscribe to onDidReceiveReasoningDelta', function () {
-            assert.ok(extensionSource.includes('onDidReceiveReasoningDelta'),
-                'extension.ts must subscribe to onDidReceiveReasoningDelta');
-        });
-
-        it('should forward to chatProvider.sendReasoningDelta', function () {
-            assert.ok(extensionSource.includes('sendReasoningDelta'),
-                'extension.ts must call chatProvider.sendReasoningDelta');
-        });
-    });
+    // The two extension.ts checks that lived here were deleted in v3.13.0 Task 5.
+    // They asserted that the *source text* of extension.ts contained
+    // 'onDidReceiveReasoningDelta' and 'sendReasoningDelta' — string matches that
+    // would have passed against a comment. The routing they gestured at now lives
+    // in ChatSessionHost, where `chat-session-host-routing.test.js` covers it by
+    // running it: a reasoning delta emitted by a session's manager reaches that
+    // session's surface, and no other.
 });

@@ -24,6 +24,43 @@ import type { NotSupportedSlashHandlers } from '../services/slashCommands/NotSup
 import type { MCPConfigurationService } from '../services/mcpConfigurationService';
 import type { CLIPassthroughService } from '../services/CLIPassthroughService';
 
+/** What a subscription hands back. Structural, so `vscode.Disposable` satisfies it. */
+export interface Unsubscribe {
+    dispose(): void;
+}
+
+/**
+ * What a host needs from whatever is rendering it.
+ *
+ * Declared as the slice actually used rather than by importing `ChatViewProvider`,
+ * so a second implementation (Task 7's panel surface) owes nothing beyond these,
+ * and so the unit suite can supply a fake.
+ */
+export interface ChatSurface {
+    addAssistantMessage(text: string, messageId?: string): void;
+    addReasoningMessage(text: string, storeInBackend?: boolean, reasoningId?: string): void;
+    sendMessageDelta(messageId: string, deltaContent: string): void;
+    sendReasoningDelta(reasoningId: string, deltaContent: string): void;
+    sendTaskComplete(summary?: string): void;
+    setThinking(isThinking: boolean): void;
+}
+
+/**
+ * The slice of `SDKSessionManager` a host touches.
+ *
+ * Deliberately not the concrete class — v4.0 moves the manager across a process
+ * boundary, and call sites written against a narrow contract survive that move.
+ * Same reason `CopilotClientProvider` declares `ManagedClient` (spine S4).
+ */
+export interface SessionManagerLike {
+    onDidReceiveOutput(handler: (data: { content: string; messageId?: string }) => void): Unsubscribe;
+    onDidReceiveReasoning(handler: (data: { reasoningId?: string; content: string }) => void): Unsubscribe;
+    onDidReceiveError(handler: (error: string) => void): Unsubscribe;
+    onDidMessageDelta(handler: (data: { messageId: string; deltaContent: string }) => void): Unsubscribe;
+    onDidReceiveReasoningDelta(handler: (data: { reasoningId: string; deltaContent: string }) => void): Unsubscribe;
+    onDidTaskComplete(handler: (data?: { summary?: string }) => void): Unsubscribe;
+}
+
 /**
  * The slash-command collaborators one session owns.
  *
@@ -89,6 +126,8 @@ export class ChatSessionHost {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
     private builtServices?: ChatSessionServices;
+    private surface?: ChatSurface;
+    private readonly managerSubscriptions: Unsubscribe[] = [];
 
     constructor(deps: ChatSessionHostDeps) {
         this.handle = deps.handle;
@@ -137,6 +176,71 @@ export class ChatSessionHost {
         return this.builtServices;
     }
 
+    /** Point this host at what renders it. */
+    public attachSurface(surface: ChatSurface): void {
+        this.surface = surface;
+    }
+
+    /**
+     * Take ownership of a manager and route its events to this host's surface.
+     *
+     * This routing used to live in `wireManagerEvents`, closed over the single
+     * module-level `chatProvider` — so every session's output reached the sidebar
+     * regardless of which session produced it. Here the destination is *this*
+     * host's surface, which is what makes two live sessions possible.
+     */
+    public attachManager(manager: SessionManagerLike): void {
+        // A host outlives its managers — every restart and session switch builds a
+        // new one. Replace the wiring rather than adding to it, or each restart
+        // doubles every message on screen.
+        this.detachManager();
+
+        this.subscribe(manager.onDidReceiveOutput(({ content, messageId }) => {
+            this.surface?.addAssistantMessage(content, messageId);
+            this.surface?.setThinking(false);
+        }));
+
+        this.subscribe(manager.onDidReceiveReasoning(({ content, reasoningId }) => {
+            this.surface?.addReasoningMessage(content, true, reasoningId);
+        }));
+
+        this.subscribe(manager.onDidReceiveError((error) => {
+            this.logger.error(`[ChatSessionHost ${this.handle}] ${error}`);
+            this.surface?.addAssistantMessage(`Error: ${error}`);
+            this.surface?.setThinking(false);
+        }));
+
+        this.subscribe(manager.onDidMessageDelta(({ messageId, deltaContent }) => {
+            this.surface?.sendMessageDelta(messageId, deltaContent);
+        }));
+
+        this.subscribe(manager.onDidReceiveReasoningDelta(({ reasoningId, deltaContent }) => {
+            this.surface?.sendReasoningDelta(reasoningId, deltaContent);
+        }));
+
+        this.subscribe(manager.onDidTaskComplete((data) => {
+            this.surface?.sendTaskComplete(data?.summary);
+        }));
+    }
+
+    /** Stop routing whatever manager is currently attached. */
+    public detachManager(): void {
+        for (const subscription of this.managerSubscriptions) {
+            subscription.dispose();
+        }
+        this.managerSubscriptions.length = 0;
+    }
+
+    /**
+     * Hold a manager subscription until the manager is replaced or the host dies.
+     *
+     * Kept apart from `disposeCallbacks` because these have the shorter life of the
+     * two: a host sheds managers repeatedly and is disposed once.
+     */
+    private subscribe(subscription: Unsubscribe): void {
+        this.managerSubscriptions.push(subscription);
+    }
+
     /**
      * Register cleanup to run when this host is torn down.
      *
@@ -149,6 +253,11 @@ export class ChatSessionHost {
 
     /** Tear down everything this session owns. */
     public dispose(): void {
+        // Dropped first: teardown below unsubscribes, but an event already queued
+        // must not reach a surface this host no longer speaks for.
+        this.surface = undefined;
+        this.detachManager();
+
         for (const callback of this.disposeCallbacks) {
             try {
                 callback();
