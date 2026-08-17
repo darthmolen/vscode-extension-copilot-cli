@@ -22,8 +22,6 @@ npm run lint             # ESLint on src/ (TypeScript only)
 
 Run single test file: `npx mocha tests/unit/components/some-test.test.js --timeout 10000`
 
-Known baseline failure: `main.js size constraint` in integration tests is expected and not a regression.
-
 ### The suite is flaky — a single red run proves nothing
 
 `npm test` fails on **most** full runs (measured: 6/6 consecutive runs, 1–2 failures each, no code
