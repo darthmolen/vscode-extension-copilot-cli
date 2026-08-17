@@ -37,7 +37,10 @@ const MANAGER_EVENTS = [
     'onDidCompleteTool',
     'onDidStartSubagent',
     'onDidSubagentMessage',
-    'onDidCompleteSubagent'
+    'onDidCompleteSubagent',
+    'onDidChangeStatus',
+    'onDidProduceDiff',
+    'onDidUpdateUsage'
 ];
 
 function makeFakeManager() {
@@ -80,6 +83,10 @@ function makeFakeSurface() {
         startSubagent: record('startSubagent'),
         subagentMessage: record('subagentMessage'),
         completeSubagent: record('completeSubagent'),
+        setSessionActive: record('setSessionActive'),
+        sendModelSwitched: record('sendModelSwitched'),
+        postMessage: record('postMessage'),
+        notifyDiffAvailable: record('notifyDiffAvailable'),
         names: function () { return this.calls.map(c => c.name); },
         argsFor: function (name) { return this.calls.filter(c => c.name === name).map(c => c.args); }
     };
@@ -95,7 +102,10 @@ describe('ChatSessionHost — manager event routing', () => {
             // Window-scoped and memoised in production, which is what lets the host
             // and the pop-out panels colour the same agent identically without
             // sharing a call site.
-            assignSubagentColor: (agentId) => `colour-for-${agentId}`
+            assignSubagentColor: (agentId) => `colour-for-${agentId}`,
+            // Reading the before/after files is window-scoped I/O, injected so the
+            // host stays testable and free of fs.
+            enrichDiff: (diffData) => ({ ...diffData, diffLines: ['+one'], diffTotalLines: 1 })
         });
     });
 
@@ -194,6 +204,114 @@ describe('ChatSessionHost — manager event routing', () => {
             expect(a.surface.names()).to.deep.equal(['subagentMessage', 'completeSubagent']);
             expect(b.surface.calls).to.have.lengthOf(0);
         });
+    });
+
+    /**
+     * The status switch mixes two lifetimes: what the session's surface shows, and
+     * window-scoped work (status bar, toasts, the session dropdown). Only the first
+     * belongs to a host — the second must stay in `extension.ts`, or a background
+     * tab would rewrite the window's status bar.
+     */
+    describe('status', () => {
+        it('drives the spinner from thinking and ready', () => {
+            const { manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'thinking' });
+            manager.emit('onDidChangeStatus', { status: 'ready' });
+
+            expect(surface.argsFor('setThinking')).to.deep.equal([[true], [false]]);
+        });
+
+        it('marks its own session inactive when the CLI exits', () => {
+            const a = attachedHost('session-a');
+            const b = attachedHost('session-b');
+
+            a.manager.emit('onDidChangeStatus', { status: 'exited' });
+
+            expect(a.surface.argsFor('setSessionActive')).to.deep.equal([[false]]);
+            expect(a.host.state.isSessionActive()).to.equal(false);
+            expect(b.surface.calls).to.have.lengthOf(0);
+        });
+
+        it('reports an abort on its own surface', () => {
+            const { manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'aborted' });
+
+            expect(surface.argsFor('addAssistantMessage')[0][0]).to.contain('stopped by user');
+            expect(surface.argsFor('setThinking')).to.deep.equal([[false]]);
+        });
+
+        it('adopts the replacement id when its session expires', () => {
+            const { host, manager } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'session_expired', newSessionId: 'session-fresh' });
+
+            expect(host.sessionId).to.equal('session-fresh');
+            expect(registry.get('session-fresh')).to.equal(host);
+            expect(registry.get('session-a')).to.equal(undefined);
+        });
+
+        it('records a model switch on its own state and tells its surface', () => {
+            const { host, manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'model_switched', model: 'claude-opus-5' });
+
+            expect(host.state.getCurrentModel()).to.equal('claude-opus-5');
+            expect(surface.argsFor('sendModelSwitched')).to.deep.equal([['claude-opus-5', true]]);
+        });
+
+        it('reports a failed model switch without recording it', () => {
+            const { host, manager, surface } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'model_switch_failed', model: 'claude-opus-5' });
+
+            expect(host.state.getCurrentModel()).to.equal(null);
+            expect(surface.argsFor('sendModelSwitched')).to.deep.equal([['claude-opus-5', false]]);
+        });
+
+        it('forwards plan-mode status to its own surface', () => {
+            const a = attachedHost('session-a');
+            const b = attachedHost('session-b');
+
+            a.manager.emit('onDidChangeStatus', { status: 'plan_accepted' });
+
+            expect(a.surface.argsFor('postMessage')).to.deep.equal([
+                [{ type: 'status', data: { status: 'plan_accepted' } }]
+            ]);
+            expect(a.surface.argsFor('setThinking')).to.deep.equal([[true]]);
+            expect(b.surface.calls).to.have.lengthOf(0);
+        });
+
+        it('ignores a status that means nothing to a surface', () => {
+            const { surface, manager } = attachedHost('session-a');
+
+            manager.emit('onDidChangeStatus', { status: 'session_renamed', name: 'renamed' });
+
+            expect(surface.calls).to.have.lengthOf(0);
+        });
+    });
+
+    it('sends a diff to its own surface, enriched', () => {
+        const a = attachedHost('session-a');
+        const b = attachedHost('session-b');
+
+        a.manager.emit('onDidProduceDiff', { title: 'edit', beforeUri: '/a', afterUri: '/b' });
+
+        expect(a.surface.argsFor('notifyDiffAvailable')).to.deep.equal([[{
+            title: 'edit', beforeUri: '/a', afterUri: '/b', diffLines: ['+one'], diffTotalLines: 1
+        }]]);
+        expect(b.surface.calls).to.have.lengthOf(0);
+    });
+
+    it('sends token usage to its own surface', () => {
+        const { manager, surface } = attachedHost('session-a');
+
+        manager.emit('onDidUpdateUsage', { currentTokens: 10, tokenLimit: 100 });
+
+        expect(surface.argsFor('postMessage')).to.deep.equal([[{
+            type: 'usage_info', data: { currentTokens: 10, tokenLimit: 100 }
+        }]]);
     });
 
     it('subscribes to every manager event it claims to route', () => {

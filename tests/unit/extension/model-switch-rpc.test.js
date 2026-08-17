@@ -163,41 +163,13 @@ describe('Model Switch RPC Contract', function () {
 		});
 	});
 
-	// ================================================================
-	// extension.ts — status handler wiring
-	// ================================================================
-
-	describe('extension.ts model switch status wiring', function () {
-		let extensionSource;
-
-		before(function () {
-			extensionSource = fs.readFileSync(
-				path.join(__dirname, '..', '..', '..', 'src', 'extension.ts'),
-				'utf-8'
-			);
-		});
-
-		it('handles model_switched status', function () {
-			assert.ok(
-				extensionSource.includes("'model_switched'"),
-				'extension.ts should handle model_switched status'
-			);
-		});
-
-		it('handles model_switch_failed status', function () {
-			assert.ok(
-				extensionSource.includes("'model_switch_failed'"),
-				'extension.ts should handle model_switch_failed status'
-			);
-		});
-
-		it('calls sendModelSwitched on model switch events', function () {
-			assert.ok(
-				extensionSource.includes('sendModelSwitched'),
-				'extension.ts should call sendModelSwitched'
-			);
-		});
-	});
+	// The three extension.ts source-scans that lived here were deleted in v3.13.0
+	// Task 5. They asserted that extension.ts's *text* contained 'model_switched',
+	// 'model_switch_failed' and 'sendModelSwitched' — matches a comment would have
+	// satisfied. The status handling moved to ChatSessionHost.applyStatus, where
+	// chat-session-host-routing.test.js covers it by running it: a switch records
+	// the model on the session's own state and tells that session's surface, and a
+	// failed switch tells the surface without recording anything.
 
 	// ================================================================
 	// chatViewProvider.ts — switchModel event wiring

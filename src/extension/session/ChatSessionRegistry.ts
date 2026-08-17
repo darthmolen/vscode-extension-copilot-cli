@@ -27,6 +27,8 @@ export interface ChatSessionRegistryDeps {
     createServices?: ChatSessionServicesFactory;
     /** Window-scoped colour allocator, shared by every host and the sub-agent panels. */
     assignSubagentColor?: (agentId: string) => string;
+    /** Window-scoped diff enrichment (filesystem reads), passed to every host. */
+    enrichDiff?: (diffData: any) => any;
 }
 
 export class ChatSessionRegistry {
@@ -49,12 +51,14 @@ export class ChatSessionRegistry {
     private readonly logger: LoggerLike;
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
+    private readonly enrichDiff?: (diffData: any) => any;
 
     constructor(deps: ChatSessionRegistryDeps) {
         this.workspace = deps.workspace;
         this.logger = deps.logger;
         this.createServices = deps.createServices;
         this.assignSubagentColor = deps.assignSubagentColor;
+        this.enrichDiff = deps.enrichDiff;
     }
 
     /** The live host for a session, or `undefined`. Never creates one. */
@@ -77,6 +81,7 @@ export class ChatSessionRegistry {
             logger: this.logger,
             createServices: this.createServices,
             assignSubagentColor: this.assignSubagentColor,
+            enrichDiff: this.enrichDiff,
             onAdoptSessionId: (adopted, previousSessionId) => {
                 this.reindex(adopted, previousSessionId);
             }

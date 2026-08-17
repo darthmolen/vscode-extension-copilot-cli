@@ -59,6 +59,30 @@ function assignSubagentColor(agentId: string): string {
 	return color;
 }
 
+/**
+ * Read the before/after files and compute the inline diff.
+ *
+ * Window-scoped filesystem work, injected into each host so the host routes the
+ * result to its own surface without doing I/O itself.
+ */
+function enrichDiffWithInlineLines(diffData: any): any {
+	let diffLines: DiffLine[] = [];
+	let diffTruncated = false;
+	let diffTotalLines = 0;
+	try {
+		const fs = require('fs');
+		const beforeContent = fs.existsSync(diffData.beforeUri) ? fs.readFileSync(diffData.beforeUri, 'utf-8') : '';
+		const afterContent = fs.existsSync(diffData.afterUri) ? fs.readFileSync(diffData.afterUri, 'utf-8') : '';
+		const inlineDiff = computeInlineDiff(beforeContent, afterContent);
+		diffLines = inlineDiff.lines;
+		diffTruncated = inlineDiff.truncated;
+		diffTotalLines = inlineDiff.totalLines;
+	} catch (error) {
+		Logger.getInstance().warn(`[Diff] Failed to compute inline diff: ${error instanceof Error ? error.message : error}`);
+	}
+	return { ...diffData, diffLines, diffTruncated, diffTotalLines };
+}
+
 declare const __EXTENSION_VERSION__: string | undefined;
 declare const __SDK_VERSION__: string | undefined;
 
@@ -110,7 +134,8 @@ export function activate(context: vscode.ExtensionContext) {
 		workspace: getWorkspaceRuntimeState(),
 		logger,
 		createServices: buildChatSessionServicesFactory(),
-		assignSubagentColor
+		assignSubagentColor,
+		enrichDiff: enrichDiffWithInlineLines
 	});
 	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
 	// Shares the facade's `SessionState` on purpose: `ChatViewProvider` still records
@@ -689,60 +714,32 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	// the status bar, toasts, the session list, the sub-agent panels.
 	sidebarHost.attachManager(manager);
 
+	// Only the window's half of a status change lives here. What the session's
+	// surface shows is the host's — see `ChatSessionHost.applyStatus`.
 	context.subscriptions.push(manager.onDidChangeStatus(safeHandler('onDidChangeStatus', (statusData) => {
 		logger.info(`[CLI Status] ${JSON.stringify(statusData)}`);
 		switch (statusData.status) {
-			case 'thinking':
-				chatProvider.setThinking(true);
-				break;
 			case 'ready':
-				chatProvider.setThinking(false);
 				if (Date.now() - lastDropdownRefresh > 30_000) {
 					updateSessionsList();
 				}
 				break;
 			case 'exited':
 			case 'stopped':
-				backendState.setSessionActive(false);
 				statusBarItem.text = "$(comment-discussion) CLI Exited";
 				statusBarItem.tooltip = "Copilot CLI ended";
-				chatProvider.setSessionActive(false);
 				vscode.window.showWarningMessage('Copilot CLI session ended');
-				break;
-			case 'aborted':
-				chatProvider.addAssistantMessage('_Generation stopped by user._');
-				chatProvider.setThinking(false);
 				break;
 			case 'session_expired':
 				logger.info(`Session expired, new session created: ${statusData.newSessionId}`);
-				backendState.setSessionId(statusData.newSessionId || '');
 				vscode.window.showInformationMessage(`Session expired. New session started: ${statusData.newSessionId}`);
 				break;
 			case 'plan_mode_enabled':
 			case 'plan_mode_disabled':
-				chatProvider.postMessage({ type: 'status', data: statusData });
 				updateSessionsList();
 				break;
-			case 'plan_accepted':
-				chatProvider.postMessage({ type: 'status', data: statusData });
-				chatProvider.setThinking(true); // show immediately; auto-cleared when first CLI response arrives
-				break;
-			case 'plan_rejected':
-				chatProvider.postMessage({ type: 'status', data: statusData });
-				break;
 			case 'plan_ready':
-				chatProvider.postMessage({ type: 'status', data: statusData });
 				viewPlanFile();
-				break;
-			case 'reset_metrics':
-				chatProvider.postMessage({ type: 'status', data: statusData });
-				break;
-			case 'model_switched':
-				backendState.setCurrentModel(statusData.model || null);
-				chatProvider.sendModelSwitched(statusData.model || '', true);
-				break;
-			case 'model_switch_failed':
-				chatProvider.sendModelSwitched(statusData.model || '', false);
 				break;
 			case 'session_renamed':
 				logger.info(`[Rename Session] Renamed to: "${statusData.name}"`);
@@ -795,39 +792,6 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	context.subscriptions.push(manager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {
 		logger.info(`[File Change] ${fileChange.path} (${fileChange.type})`);
 	})));
-
-	context.subscriptions.push(manager.onDidProduceDiff(safeHandler('onDidProduceDiff', (diffData) => {
-		logger.info(`[Diff Available] ${diffData.title}`);
-
-		// Compute inline diff lines from before/after files
-		let diffLines: DiffLine[] = [];
-		let diffTruncated = false;
-		let diffTotalLines = 0;
-		try {
-			const fs = require('fs');
-			const beforeContent = fs.existsSync(diffData.beforeUri) ? fs.readFileSync(diffData.beforeUri, 'utf-8') : '';
-			const afterContent = fs.existsSync(diffData.afterUri) ? fs.readFileSync(diffData.afterUri, 'utf-8') : '';
-			const inlineDiff = computeInlineDiff(beforeContent, afterContent);
-			diffLines = inlineDiff.lines;
-			diffTruncated = inlineDiff.truncated;
-			diffTotalLines = inlineDiff.totalLines;
-		} catch (error) {
-			logger.warn(`[Diff] Failed to compute inline diff: ${error instanceof Error ? error.message : error}`);
-		}
-
-		chatProvider.notifyDiffAvailable({
-			...diffData,
-			diffLines,
-			diffTruncated,
-			diffTotalLines
-		});
-	})));
-
-	context.subscriptions.push(manager.onDidUpdateUsage(safeHandler('onDidUpdateUsage', (usageData) => {
-		logger.debug(`[Usage Info] ${usageData.currentTokens}/${usageData.tokenLimit}`);
-		chatProvider.postMessage({ type: 'usage_info', data: usageData });
-	})));
-
 }
 
 /** Post-start setup: update state, UI, and session dropdown. */

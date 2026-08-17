@@ -48,6 +48,10 @@ export interface ChatSurface {
     startSubagent(subagent: any): void;
     subagentMessage(subagent: any): void;
     completeSubagent(subagent: any): void;
+    setSessionActive(active: boolean): void;
+    sendModelSwitched(model: string, success: boolean): void;
+    postMessage(message: any): void;
+    notifyDiffAvailable(diff: any): void;
 }
 
 /**
@@ -70,6 +74,9 @@ export interface SessionManagerLike {
     onDidStartSubagent(handler: (subagent: { agentId: string; [k: string]: any }) => void): Unsubscribe;
     onDidSubagentMessage(handler: (subagent: any) => void): Unsubscribe;
     onDidCompleteSubagent(handler: (subagent: any) => void): Unsubscribe;
+    onDidChangeStatus(handler: (status: { status: string; model?: string; newSessionId?: string; [k: string]: any }) => void): Unsubscribe;
+    onDidProduceDiff(handler: (diffData: any) => void): Unsubscribe;
+    onDidUpdateUsage(handler: (usage: any) => void): Unsubscribe;
 }
 
 /**
@@ -126,6 +133,11 @@ export interface ChatSessionHostDeps {
     /** Window-scoped, memoised colour allocator shared with the sub-agent panels. */
     assignSubagentColor?: (agentId: string) => string;
     /**
+     * Reads the before/after files and computes the inline diff. Injected because
+     * it is filesystem work — the host routes the result, it does not do I/O.
+     */
+    enrichDiff?: (diffData: any) => any;
+    /**
      * Told whenever this host takes on a session id, so whoever indexes hosts by
      * id stays correct no matter who called `adoptSessionId`.
      */
@@ -146,6 +158,7 @@ export class ChatSessionHost {
     private readonly disposeCallbacks: Array<() => void> = [];
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
+    private readonly enrichDiff?: (diffData: any) => any;
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
@@ -158,6 +171,7 @@ export class ChatSessionHost {
         this.logger = deps.logger;
         this.createServices = deps.createServices;
         this.assignSubagentColor = deps.assignSubagentColor;
+        this.enrichDiff = deps.enrichDiff;
         this.onAdoptSessionId = deps.onAdoptSessionId;
 
         this.state = deps.state ?? new SessionState();
@@ -274,6 +288,74 @@ export class ChatSessionHost {
         this.subscribe(manager.onDidCompleteSubagent((subagent) => {
             this.surface?.completeSubagent(subagent);
         }));
+
+        this.subscribe(manager.onDidChangeStatus((statusData) => {
+            this.applyStatus(statusData);
+        }));
+
+        this.subscribe(manager.onDidProduceDiff((diffData) => {
+            this.surface?.notifyDiffAvailable(this.enrichDiff ? this.enrichDiff(diffData) : diffData);
+        }));
+
+        this.subscribe(manager.onDidUpdateUsage((usageData) => {
+            this.surface?.postMessage({ type: 'usage_info', data: usageData });
+        }));
+    }
+
+    /**
+     * The half of a status change that belongs to one conversation.
+     *
+     * The window's half — status bar, toasts, the session dropdown — deliberately
+     * stays in `extension.ts`. A background tab must not rewrite the window's
+     * status bar because its own CLI exited.
+     */
+    private applyStatus(statusData: { status: string; model?: string; newSessionId?: string }): void {
+        switch (statusData.status) {
+            case 'thinking':
+                this.surface?.setThinking(true);
+                break;
+            case 'ready':
+                this.surface?.setThinking(false);
+                break;
+            case 'exited':
+            case 'stopped':
+                this.state.setSessionActive(false);
+                this.surface?.setSessionActive(false);
+                break;
+            case 'aborted':
+                this.surface?.addAssistantMessage('_Generation stopped by user._');
+                this.surface?.setThinking(false);
+                break;
+            case 'session_expired':
+                // The CLI replaced the session underneath us. Adopting re-indexes
+                // this host, so a later lookup by the new id finds it.
+                if (statusData.newSessionId) {
+                    this.adoptSessionId(statusData.newSessionId);
+                }
+                break;
+            case 'model_switched':
+                this.state.setCurrentModel(statusData.model || null);
+                this.surface?.sendModelSwitched(statusData.model || '', true);
+                break;
+            case 'model_switch_failed':
+                this.surface?.sendModelSwitched(statusData.model || '', false);
+                break;
+            case 'plan_accepted':
+                this.surface?.postMessage({ type: 'status', data: statusData });
+                // Shown at once; cleared when the first CLI response arrives.
+                this.surface?.setThinking(true);
+                break;
+            case 'plan_mode_enabled':
+            case 'plan_mode_disabled':
+            case 'plan_rejected':
+            case 'plan_ready':
+            case 'reset_metrics':
+                this.surface?.postMessage({ type: 'status', data: statusData });
+                break;
+            default:
+                // `session_renamed` and anything new: window-scoped or nothing to show.
+                break;
+        }
     }
 
     /** Stop routing whatever manager is currently attached. */
