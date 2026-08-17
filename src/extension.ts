@@ -282,24 +282,22 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		chatProvider.addUserMessage(data.text, displayAttachments);
 		chatProvider.setThinking(true);
 
-		if (sessionManager && sessionManager.isRunning()) {
-			sessionManager.sendMessage(data.text, data.attachments, false, false, data.agentName);
+		// Goes to *this* surface's session. Reaching for the module-level
+		// sessionManager here would send a tab's message to whichever session the
+		// window happened to start last.
+		const host = chatProvider.getSessionHost();
+		if (host?.isLive) {
+			await host.prompt(data.text, { attachments: data.attachments, agentName: data.agentName });
 		} else {
 			chatProvider.addAssistantMessage('Error: CLI session not active. Please start a session first.');
 			chatProvider.setThinking(false);
 		}
 	}));
 
-	context.subscriptions.push(chatProvider.onDidRequestAbort(async () => {
+	context.subscriptions.push(chatProvider.onDidRequestAbort(() => {
 		logger.info('Abort requested by user');
-		if (sessionManager && sessionManager.isRunning()) {
-			try {
-				await sessionManager.abortMessage();
-			} catch (error) {
-				logger.error(`Failed to abort: ${error instanceof Error ? error.message : String(error)}`);
-				vscode.window.showErrorMessage('Failed to abort message');
-			}
-		}
+		// Fire-and-forget by design — see ChatSessionHost.cancel().
+		chatProvider.getSessionHost()?.cancel();
 	}));
 
 	context.subscriptions.push(chatProvider.onDidRequestViewPlan(async () => {
@@ -312,26 +310,19 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		// straight from here is what would re-resume a streaming tab.
 		await sidebarHost.ensureStarted();
 
-		// Re-send init — the first send (from onReady) was empty because backendState wasn't populated yet
-		const fullState = backendState.getFullState();
-		chatProvider.postMessage({
-			type: 'init',
-			sessionId: fullState.sessionId,
-			sessionActive: fullState.sessionActive,
-			messages: fullState.messages,
-			planModeStatus: fullState.planModeStatus,
-			workspacePath: fullState.workspacePath,
-			activeFilePath: fullState.activeFilePath,
-			currentModel: fullState.currentModel,
-			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
-		});
+		// Re-send init: the first send, from onReady, ran before the transcript was
+		// loaded. Same builder and same logged path as that first send — this used
+		// to hand-rebuild the payload and post it raw, so it was invisible in the
+		// logs and a second place to keep in step with the init shape.
+		chatProvider.sendInit();
 	}));
 
 	context.subscriptions.push(chatProvider.onDidRequestSwitchModel(async (model: string) => {
 		logger.info(`[Model Switch] Requested: ${model}`);
 		try {
-			if (sessionManager) {
-				await sessionManager.switchModel(model);
+			const host = chatProvider.getSessionHost();
+			if (host?.isLive) {
+				await host.switchModel(model);
 			} else {
 				logger.warn('[Model Switch] No active session manager');
 			}
@@ -360,7 +351,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 		// Write session-name.txt proactively — this ensures the session label
 		// updates even if the CLI throws "Workspace not found" (issue #1865).
-		const sessionId = sessionManager?.getSessionId();
+		const sessionId = chatProvider.getSessionHost()?.sessionId;
 		if (sessionId) {
 			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
 			try {
@@ -372,10 +363,11 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 
 		try {
-			if (sessionManager) {
-				await sessionManager.sendMessage(`/rename ${sessionName}`);
+			const host = chatProvider.getSessionHost();
+			if (host?.isLive) {
+				await host.rename(sessionName);
 			} else {
-				logger.warn('[Rename Session] No active session manager');
+				logger.warn('[Rename Session] No live session for this surface');
 			}
 		} catch (error: any) {
 			// CLI may throw "Workspace not found" on resumed sessions (github/copilot-cli#1865).
@@ -390,12 +382,13 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(chatProvider.onDidRequestCompact(async () => {
 		logger.info('[Compact] Compact requested');
-		if (!sessionManager) {
+		const host = chatProvider.getSessionHost();
+		if (!host?.isLive) {
 			chatProvider.addAssistantMessage('⚠ No active session — start a session first.');
 			return;
 		}
 		try {
-			const result = await sessionManager.compactSession();
+			const result = await host.compact();
 			if (!result) {
 				chatProvider.addAssistantMessage('✓ Compaction complete.');
 			} else {
@@ -412,20 +405,15 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(chatProvider.onDidSelectAgent(async (agentName: string | null) => {
-		if (!sessionManager) { return; }
 		try {
-			if (agentName) {
-				await sessionManager.selectAgent(agentName);
-			} else {
-				await sessionManager.deselectAgent();
-			}
+			await chatProvider.getSessionHost()?.selectAgent(agentName);
 		} catch (e: any) {
 			logger.warn(`[Agent] SDK select/deselect failed: ${e.message}`);
 		}
 	}));
 
 	context.subscriptions.push(chatProvider.onDidRequestReloadAgents(async () => {
-		if (sessionManager) { await sessionManager.reloadAgents(); }
+		await chatProvider.getSessionHost()?.reloadAgents();
 	}));
 }
 

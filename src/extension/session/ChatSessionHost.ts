@@ -77,6 +77,27 @@ export interface SessionManagerLike {
     onDidChangeStatus(handler: (status: { status: string; model?: string; newSessionId?: string; [k: string]: any }) => void): Unsubscribe;
     onDidProduceDiff(handler: (diffData: any) => void): Unsubscribe;
     onDidUpdateUsage(handler: (usage: any) => void): Unsubscribe;
+
+    // Commands. Named for what the session does, not for the SDK call underneath,
+    // so the host can speak ACP's verbs to its callers.
+    sendMessage(
+        text: string,
+        attachments?: unknown,
+        isRetry?: boolean,
+        isSteering?: boolean,
+        agentName?: string
+    ): unknown;
+    abortMessage(): Promise<void> | void;
+    switchModel(model: string): Promise<void>;
+    compactSession(): Promise<any>;
+    selectAgent(agentName: string): Promise<void>;
+    deselectAgent(): Promise<void>;
+    reloadAgents(): Promise<void>;
+}
+
+export interface PromptOptions {
+    attachments?: unknown;
+    agentName?: string;
 }
 
 /**
@@ -174,6 +195,16 @@ export class ChatSessionHost {
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
     private readonly managerSubscriptions: Unsubscribe[] = [];
+    /**
+     * A true `#private` field, not a TypeScript `private`.
+     *
+     * TypeScript's is erased at runtime, so `host.manager` would still resolve and
+     * a JS call site could reach straight through to the SDK. Task 5 rerouted 75
+     * call sites through this host precisely so v4.0 can swap the manager for an
+     * AHP session handle without touching them; a guarantee that only holds while
+     * everyone compiles is not the guarantee that was wanted.
+     */
+    #manager?: SessionManagerLike;
 
     constructor(deps: ChatSessionHostDeps) {
         this.handle = deps.handle;
@@ -301,6 +332,7 @@ export class ChatSessionHost {
         // new one. Replace the wiring rather than adding to it, or each restart
         // doubles every message on screen.
         this.detachManager();
+        this.#manager = manager;
 
         this.subscribe(manager.onDidReceiveOutput(({ content, messageId }) => {
             this.surface?.addAssistantMessage(content, messageId);
@@ -431,12 +463,67 @@ export class ChatSessionHost {
         }
     }
 
+    // ── Commands ─────────────────────────────────────────────────────────────
+    //
+    // Every one of these used to be a call to the module-level `sessionManager` in
+    // `extension.ts`, which answers "the window's session" rather than "this
+    // surface's". They are silent when no manager is attached: the CLI may have
+    // failed to start, and a user can still press the buttons.
+
+    /**
+     * Send a turn to this session. ACP's `session/prompt`.
+     */
+    public async prompt(text: string, options: PromptOptions = {}): Promise<void> {
+        await this.#manager?.sendMessage(text, options.attachments, false, false, options.agentName);
+    }
+
+    /**
+     * Stop the current turn. ACP's `session/cancel`, and **fire-and-forget on
+     * purpose**: on the wire it is a notification and an `AbortSignal` agent-side,
+     * so a Promise-returning cancel would not survive v4.0's process boundary.
+     */
+    public cancel(): void {
+        void this.#manager?.abortMessage();
+    }
+
+    public async switchModel(model: string): Promise<void> {
+        await this.#manager?.switchModel(model);
+    }
+
+    public async compact(): Promise<any> {
+        return this.#manager?.compactSession();
+    }
+
+    /** `null` clears the selection — one call rather than two verbs at every site. */
+    public async selectAgent(agentName: string | null): Promise<void> {
+        if (agentName) {
+            await this.#manager?.selectAgent(agentName);
+        } else {
+            await this.#manager?.deselectAgent();
+        }
+    }
+
+    public async reloadAgents(): Promise<void> {
+        await this.#manager?.reloadAgents();
+    }
+
+    /**
+     * Rename this session.
+     *
+     * The CLI takes this as a slash command rather than an RPC, so it travels as a
+     * prompt. Kept in one place so that quirk does not spread to call sites.
+     */
+    public async rename(name: string): Promise<void> {
+        await this.#manager?.sendMessage(`/rename ${name}`);
+    }
+
     /** Stop routing whatever manager is currently attached. */
     public detachManager(): void {
         for (const subscription of this.managerSubscriptions) {
             subscription.dispose();
         }
         this.managerSubscriptions.length = 0;
+        this.#manager = undefined;
     }
 
     /**

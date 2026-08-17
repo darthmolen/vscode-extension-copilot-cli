@@ -187,7 +187,15 @@ export class CopilotClientProvider {
         });
 
         proc.on('exit', (code, signal) => {
-            this.deps.logger.error(`[CLI Process] Exited with code=${code}, signal=${signal}`);
+            // A clean exit is not an error. Smoke tests read the log's `[ERROR]`
+            // count as evidence, so logging code=0 at error made every normal
+            // shutdown look like a failure and buried the real ones.
+            const message = `[CLI Process] Exited with code=${code}, signal=${signal}`;
+            if (code === 0) {
+                this.deps.logger.info(message);
+            } else {
+                this.deps.logger.error(message);
+            }
         });
 
         internals.connection?.onClose?.(() => {

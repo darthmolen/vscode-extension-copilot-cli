@@ -68,6 +68,8 @@ export interface ChatHandlerContext {
     readonly cliPassthroughService?: CLIPassthroughService;
     cliCapability: CliCapabilityService | null;
 
+    /** Send the surface's full state to its webview. The only init path. */
+    sendInit(): void;
     buildAndSendMcpStatus(): Promise<void>;
     handleMcpServerAction(payload: McpServerActionPayload): Promise<void>;
     _handleFilePicker(): Promise<void>;
@@ -95,21 +97,8 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 		ctx.reg(ctx.rpcRouter.onReady(() => {
 			ctx.logger.info('Webview is ready');
 
-			const backendState = getBackendState();
-			const fullState = backendState.getFullState();
-
-			ctx.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);
-
-			ctx.rpcRouter!.sendInit({
-				sessionId: fullState.sessionId,
-				sessionActive: fullState.sessionActive,
-				messages: fullState.messages as any,
-				planModeStatus: fullState.planModeStatus,
-				workspacePath: fullState.workspacePath,
-				activeFilePath: fullState.activeFilePath,
-				currentModel: fullState.currentModel,
-				showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
-			});
+			// One init path, shared with the re-send after the transcript loads.
+			ctx.sendInit();
 
 			ctx._onDidBecomeReady.fire();
 		}));

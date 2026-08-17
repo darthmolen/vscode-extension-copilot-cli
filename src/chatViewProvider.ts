@@ -117,6 +117,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 		return this.sessionHost;
 	}
 
+	/**
+	 * Send this surface's whole state to its webview.
+	 *
+	 * The single init path. There used to be two — one here via `sendInit`, and one
+	 * in `extension.ts` that hand-rebuilt the same payload and posted it raw. The
+	 * second was unlogged, so a smoke test showed "Sending 0 messages" while 157
+	 * were in fact replayed through the other, and every change to the init shape
+	 * had to be made twice.
+	 */
+	public sendInit(): void {
+		const fullState = getBackendState().getFullState();
+		this.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);
+		this.rpcRouter?.sendInit({
+			sessionId: fullState.sessionId,
+			sessionActive: fullState.sessionActive,
+			messages: fullState.messages as any,
+			planModeStatus: fullState.planModeStatus,
+			workspacePath: fullState.workspacePath,
+			activeFilePath: fullState.activeFilePath,
+			currentModel: fullState.currentModel,
+			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
+		});
+	}
+
 	public setMcpListProvider(provider: () => Promise<any[]>): void {
 		this.mcpListProvider = provider;
 	}
@@ -369,6 +393,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			get mcpConfigService() { return self.sessionHost?.services.mcpConfigService; },
 			get cliPassthroughService() { return self.sessionHost?.services.cliPassthroughService; },
 			get cliCapability() { return self.cliCapability; },
+			sendInit: () => self.sendInit(),
 			buildAndSendMcpStatus: () => self.buildAndSendMcpStatus(),
 			handleMcpServerAction: (payload) => self.handleMcpServerAction(payload),
 			_handleFilePicker: () => self._handleFilePicker(),
