@@ -38,7 +38,7 @@ Note this is **ergonomics, not a different wire format** — the ACP wire still 
 notification, which is what `tests/harness/acp-spike.mjs` had to handle manually against
 `copilot --acp`. The SDK wraps it for agent authors.
 
-### 3. `notify()` gives essentially **no** compile-time safety — wrap it
+### 3. Method names must come from `acp.methods`, not string literals
 
 There is no `client.sessionUpdate()`. Notifications go through
 `client.notify('session/update', …)`, which *looks* type-safe:
@@ -58,17 +58,20 @@ The second overload matches any call, so when the first fails TypeScript falls t
 
 A typo does not fail the build; it fails at runtime, or worse, silently drops transcript messages.
 
-**Consequence:** IN-3 must put the literal in exactly one place behind a typed facade, and cover
-that single crossing with a test — the same fence-and-guard pattern as the S2 sub-agent palette.
+**Superseded 2026-08-17 — the SDK already solves this, use `acp.methods`.** Once the SDK *source*
+was added to `research/acp-sdk/`, its own example turned out never to use a string literal:
 
 ```ts
-function agentMessageChunk(client: ClientCaller, sessionId: string, text: string): Promise<void> {
-    return client.notify('session/update', {
-        sessionId,
-        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } }
-    });
-}
+await cx.notify(acp.methods.client.session.update, { … });   // src/examples/agent.ts:98
 ```
+
+`acp.methods.client.session.update === "session/update"`, and a typo on the **constant** is a
+compile error — `TS2551: Property 'updat' does not exist… Did you mean 'update'?` — where the typo'd
+**string** compiled clean. So the diagnosis above holds (raw literals are unchecked) but the
+prescribed facade is unnecessary: **use the SDK's method constants everywhere and pass no literals.**
+
+Also visible in `acp.methods.agent.session`: `new, load, list, delete, fork, resume, close, setMode,
+setConfigOption, prompt, cancel`. Note **`fork`** — relevant to Lane B's Slice 3.
 
 ### 4. `initialize` is **not guaranteed to run** — default deny, upgrade on receipt
 
@@ -122,6 +125,14 @@ const keys = o => [...new Set([...Object.keys(o), ...Object.getOwnPropertyNames(
 Had we skipped the spike and gone straight to TDD, those would have been three rounds of red tests
 against a misremembered API — debugging our own mocks instead of the protocol.
 
+**The deeper cause, fixed 2026-08-17: the SDK source was not in `research/`.** CLAUDE.md's SDK-First
+rule says to read the SDK source before touching SDK behaviour, but only `copilot-sdk` was cloned
+there, so for ACP there was nothing to read and the `.d.ts` was all we had. The source is now at
+`research/acp-sdk/` (v1.3.0, matching the installed package) and **its `src/examples/agent.ts` alone
+answers every one of the three wrong guesses**, plus the `acp.methods` correction above. Cloning it
+took under a minute; not having it cost an afternoon and produced a wrong recommendation that reached
+three documents.
+
 ## What this does not prove
 
 - No real prompt was driven through `SDKSessionManager` yet; the agent handlers were stubs.
@@ -132,10 +143,10 @@ against a misremembered API — debugging our own mocks instead of the protocol.
 
 ## Consequences for the plan
 
-1. **Scope item 1 (transport) collapses** into "use the SDK, wrap `notify`."
+1. **Scope item 1 (transport) collapses** into "use the SDK, and pass method constants."
 2. **New dependency:** `@agentclientprotocol/sdk`. This tripped the `worktree-init` symlink caveat —
    Lane A's `node_modules` was made independent before installing so Lane B was untouched.
 3. **Two new invariants** for the implementation, both testable in-process before any CLI is
-   involved: the typed-facade fence, and initialize-as-upgrade.
+   involved: method constants over literals, and initialize-as-upgrade.
 4. **Zed drops from "only honesty check" to "end-to-end confirmation."** Still worth doing, less
    urgent than when the SDK did not exist.

@@ -71,11 +71,13 @@ Both are cheap to honour up front and expensive to retrofit. Both are testable i
 CLI, via `clientApp.connect(agentApp)`. Evidence:
 [FINDINGS-acp-sdk.md](../../spikes/acp-agent/FINDINGS-acp-sdk.md).
 
-**1. Fence `notify()` behind a typed facade.** There is no `client.sessionUpdate()`; notifications
-go through `client.notify('session/update', …)`, whose second overload
-(`notify<Params = unknown>(method: string, …)`) swallows every mistake. Verified with `tsc --strict`:
-a **typo'd method name compiles clean**, and so do **garbage params**. So the literal appears in
-exactly one helper, everything else calls a real method, and one test covers that crossing.
+**1. Never pass a method name as a string literal — use `acp.methods`.** There is no
+`client.sessionUpdate()`; notifications go through `client.notify(method, params)`, whose second
+overload (`notify<Params = unknown>(method: string, …)`) swallows every mistake — verified with
+`tsc --strict`, a **typo'd string compiles clean**. But the SDK exports typed constants, and its own
+example uses them (`research/acp-sdk/src/examples/agent.ts:98`):
+`cx.notify(acp.methods.client.session.update, …)`. A typo on the constant is `TS2551`. **No facade
+needed** — an earlier revision of this ticket prescribed one before the SDK source was in the corpus.
 
 **2. `initialize` may never run — default deny, upgrade on receipt.** `buildSession().start()`
 issues `session/new` only. Handlers must work uninitialized. This is security-adjacent:
