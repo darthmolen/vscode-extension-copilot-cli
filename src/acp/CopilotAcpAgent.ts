@@ -44,6 +44,10 @@ async function loadAcp(): Promise<AcpModule> {
 export interface AcpSessionBackend {
     /** The Copilot session id. Also the ACP session id — see `session/new`. */
     readonly sessionId: string;
+    /** Subscribe to assistant output. Returns an unsubscribe. */
+    onOutput(listener: (text: string) => void): () => void;
+    /** Send a prompt; resolves when the turn ends. */
+    prompt(text: string): Promise<{ stopReason: string }>;
 }
 
 export interface CopilotAcpAgentDeps {
@@ -89,6 +93,22 @@ export interface KnownClientCapabilities {
     terminal: boolean;
     auth: { terminal: boolean };
     [key: string]: unknown;
+}
+
+/**
+ * Flatten ACP content blocks to the plain prompt text the manager takes.
+ *
+ * ACP models a prompt as blocks — text, resource links, and optionally images or
+ * audio — because an agent may support richer input. We advertise none of those
+ * (see {@link ADVERTISED_CAPABILITIES}), so text is all that can legitimately
+ * arrive; anything else is dropped rather than stringified into the prompt, where
+ * it would read as noise the model tries to answer.
+ */
+function textOf(blocks: ReadonlyArray<{ type: string; text?: string }>): string {
+    return blocks
+        .filter(b => b.type === 'text' && typeof b.text === 'string')
+        .map(b => b.text as string)
+        .join('');
 }
 
 export class CopilotAcpAgent {
@@ -178,6 +198,39 @@ export class CopilotAcpAgent {
             this.deps.logger.info(`[ACP] session/new → ${backend.sessionId}`);
 
             return { sessionId: backend.sessionId };
+        })
+        .onRequest('session/prompt', async ({ params, client }) => {
+            const acpModule = await loadAcp();
+            const backend = this.sessions.get(params.sessionId);
+            if (!backend) {
+                // Name the id. "Session not found" alone leaves a host operator
+                // unable to tell a stale handle from a routing bug.
+                throw acpModule.RequestError.internalError(
+                    undefined,
+                    `unknown session: ${params.sessionId}`
+                );
+            }
+
+            // Subscribe for the turn, not for the session: the client context that
+            // can deliver notifications belongs to this request. Unsubscribing in
+            // `finally` matters more than it looks — a leak here is invisible until
+            // a long session multiplies every chunk by the number of turns taken.
+            const unsubscribe = backend.onOutput(text => {
+                void client.notify(acpModule.methods.client.session.update, {
+                    sessionId: backend.sessionId,
+                    update: {
+                        sessionUpdate: 'agent_message_chunk',
+                        content: { type: 'text', text }
+                    }
+                });
+            });
+
+            try {
+                const { stopReason } = await backend.prompt(textOf(params.prompt));
+                return { stopReason } as { stopReason: 'end_turn' };
+            } finally {
+                unsubscribe();
+            }
         });
     }
 }
