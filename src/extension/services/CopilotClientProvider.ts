@@ -28,7 +28,17 @@ import { LoggerLike } from '../../logger';
  */
 export interface ManagedClient {
     start(): Promise<void>;
-    stop(): Promise<void>;
+    /**
+     * `Promise<unknown>` rather than `Promise<void>` because the real `CopilotClient`
+     * resolves to `Error[]` — the errors seen while shutting down. This provider
+     * discards it, so the wider type costs nothing and is the true one.
+     *
+     * It read `Promise<void>` until 2026-08-17 and type-checked anyway: the SDK is
+     * loaded lazily into `let CopilotClient: any`, so `new CopilotClient(...)` was
+     * `any` and satisfied whatever this claimed. The ACP entry point is the first
+     * code to construct a *typed* client, and the first to catch it.
+     */
+    stop(): Promise<unknown>;
 }
 
 export interface CopilotClientProviderDeps {
