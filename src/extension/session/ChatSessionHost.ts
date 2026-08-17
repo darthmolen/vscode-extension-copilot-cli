@@ -130,6 +130,13 @@ export interface ChatSessionHostDeps {
     state?: SessionState;
     logger: LoggerLike;
     createServices?: ChatSessionServicesFactory;
+    /**
+     * Brings a CLI session into being and hands back its manager.
+     *
+     * Injected because building one needs the extension host. The host decides
+     * *whether* to call it; this only does it.
+     */
+    startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<SessionManagerLike>;
     /** Window-scoped, memoised colour allocator shared with the sub-agent panels. */
     assignSubagentColor?: (agentId: string) => string;
     /**
@@ -159,6 +166,10 @@ export class ChatSessionHost {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly enrichDiff?: (diffData: any) => any;
+    private readonly startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<SessionManagerLike>;
+    /** In flight, so two surfaces attaching at once cannot start two sessions. */
+    private starting?: Promise<void>;
+    private live = false;
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
@@ -172,6 +183,7 @@ export class ChatSessionHost {
         this.createServices = deps.createServices;
         this.assignSubagentColor = deps.assignSubagentColor;
         this.enrichDiff = deps.enrichDiff;
+        this.startManager = deps.startManager;
         this.onAdoptSessionId = deps.onAdoptSessionId;
 
         this.state = deps.state ?? new SessionState();
@@ -213,9 +225,66 @@ export class ChatSessionHost {
         return this.builtServices;
     }
 
-    /** Point this host at what renders it. */
+    /**
+     * Point this host at what renders it.
+     *
+     * Attachment on its own starts nothing — that is the whole separation. A
+     * surface that wants the session running asks for it with `ensureStarted()`.
+     */
     public attachSurface(surface: ChatSurface): void {
         this.surface = surface;
+    }
+
+    /** Whether a CLI session is running for this host right now. */
+    public get isLive(): boolean {
+        return this.live;
+    }
+
+    /**
+     * Make sure this host has a running session, and only then.
+     *
+     * The three cases the plan names, in one place:
+     *
+     *  (a) already live  — return immediately, start nothing. This is what a tab
+     *      attaching to a streaming session must do, and what `onDidBecomeReady`
+     *      got wrong by calling `resumeAndStartSession` unconditionally.
+     *  (b) known session, not running — resume it.
+     *  (c) no session id — start a fresh one.
+     *
+     * Replaying the transcript is deliberately *not* here. ACP separates
+     * `session/resume` from `session/load`, and so do we: this brings the session
+     * back, the reader shows its history.
+     */
+    public ensureStarted(): Promise<void> {
+        if (this.live) {
+            return Promise.resolve();
+        }
+        // Concurrent callers share one attempt rather than racing two starts.
+        if (this.starting) {
+            return this.starting;
+        }
+        if (!this.startManager) {
+            return Promise.reject(new Error(
+                `[ChatSessionHost ${this.handle}] no way to start a session was supplied`
+            ));
+        }
+
+        const resume = this.currentSessionId !== null;
+        this.starting = this.startManager({ sessionId: this.currentSessionId, resume })
+            .then((manager) => {
+                this.attachManager(manager);
+                this.live = true;
+            })
+            .finally(() => {
+                // Cleared either way: a failed start must leave the host retryable.
+                this.starting = undefined;
+            });
+        return this.starting;
+    }
+
+    /** The session ended — the host stays, and can be started again. */
+    public markStopped(): void {
+        this.live = false;
     }
 
     /**
@@ -227,6 +296,7 @@ export class ChatSessionHost {
      * host's surface, which is what makes two live sessions possible.
      */
     public attachManager(manager: SessionManagerLike): void {
+        this.live = true;
         // A host outlives its managers — every restart and session switch builds a
         // new one. Replace the wiring rather than adding to it, or each restart
         // doubles every message on screen.
@@ -319,6 +389,9 @@ export class ChatSessionHost {
                 break;
             case 'exited':
             case 'stopped':
+                // No longer live, so a later `ensureStarted()` may bring it back
+                // rather than assuming a session is still running.
+                this.markStopped();
                 this.state.setSessionActive(false);
                 this.surface?.setSessionActive(false);
                 break;
@@ -391,6 +464,7 @@ export class ChatSessionHost {
         // Dropped first: teardown below unsubscribes, but an event already queued
         // must not reach a surface this host no longer speaks for.
         this.surface = undefined;
+        this.live = false;
         this.detachManager();
 
         for (const callback of this.disposeCallbacks) {

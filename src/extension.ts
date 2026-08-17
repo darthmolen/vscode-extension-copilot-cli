@@ -135,7 +135,18 @@ export function activate(context: vscode.ExtensionContext) {
 		logger,
 		createServices: buildChatSessionServicesFactory(),
 		assignSubagentColor,
-		enrichDiff: enrichDiffWithInlineLines
+		enrichDiff: enrichDiffWithInlineLines,
+		// The host decides *whether* a session needs starting; this only does it.
+		// Guarding on the module-level `sessionManager` cannot survive a second
+		// surface — it answers "is any session running in this window", not "is
+		// mine".
+		startManager: async () => {
+			await resumeAndStartSession(context);
+			if (!sessionManager) {
+				throw new Error('CLI session failed to start');
+			}
+			return sessionManager;
+		}
 	});
 	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
 	// Shares the facade's `SessionState` on purpose: `ChatViewProvider` still records
@@ -295,8 +306,10 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(chatProvider.onDidBecomeReady(async () => {
-		// Auto-resume CLI session when webview becomes ready (e.g., after Developer Reload)
-		await resumeAndStartSession(context);
+		// A ready surface asks its host for a running session; the host starts one
+		// only if its own is not already live. Calling `resumeAndStartSession`
+		// straight from here is what would re-resume a streaming tab.
+		await sidebarHost.ensureStarted();
 
 		// Re-send init — the first send (from onReady) was empty because backendState wasn't populated yet
 		const fullState = backendState.getFullState();
