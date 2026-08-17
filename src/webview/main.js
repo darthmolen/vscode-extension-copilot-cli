@@ -602,15 +602,26 @@ export function handleInitMessage(payload) {
 	// Clear messages via MessageDisplay
 	messageDisplay.clear();
 
-	// Add messages from init
+	// Add messages from init.
+	//
+	// This used to do `const role = msg.type || msg.role`, smuggling the message
+	// kind through the role field because the wire type could not express a tool
+	// call — which dropped the tool state entirely and rendered every tool as a
+	// bubble reading "Tool execution". `kind` is now the discriminant and the tool
+	// state travels with it; `role` is still sent so ToolExecution's group-closing
+	// check keeps working through the deprecation window.
 	if (payload.messages && payload.messages.length > 0) {
 		// MessageDisplay handles hiding empty state via EventBus
 		for (const msg of payload.messages) {
-			const role = msg.type || msg.role;
+			const kind = msg.kind || msg.type || msg.role;
 			eventBus.emit('message:add', {
-				role: role,
+				kind: kind,
+				role: kind === 'tool' ? 'assistant' : kind,
 				content: msg.content,
-				timestamp: Date.now()
+				tool: msg.tool,
+				agentId: msg.agentId,
+				// The message's own time, not the moment it was replayed.
+				timestamp: msg.timestamp
 			});
 		}
 	}
