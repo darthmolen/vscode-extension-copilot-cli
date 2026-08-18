@@ -86,8 +86,6 @@ export class WebviewChatSurface implements vscode.Disposable {
 	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidSelectAgent = this._reg(new vscode.EventEmitter<string | null>());
 	private readonly _onDidRequestReloadAgents = this._reg(new vscode.EventEmitter<void>());
-	/** Fires when this surface's container is gone for good — a closed tab. */
-	private readonly _onDidClose = this._reg(new vscode.EventEmitter<void>());
 	/** This surface's handle on its window's state. Disposed with the surface. */
 	private windowStateSubscription?: { dispose(): void };
 
@@ -102,7 +100,6 @@ export class WebviewChatSurface implements vscode.Disposable {
 	readonly onDidRequestCompact = this._onDidRequestCompact.event;
 	readonly onDidSelectAgent = this._onDidSelectAgent.event;
 	readonly onDidRequestReloadAgents = this._onDidRequestReloadAgents.event;
-	readonly onDidClose = this._onDidClose.event;
 
 	private cliCapability: CliCapabilityService | null = null;
 	private mcpListProvider: (() => Promise<any[]>) | null = null;
@@ -421,9 +418,6 @@ export class WebviewChatSurface implements vscode.Disposable {
 			this.logger.info(`[${this.label}] Slot disposed${slot.closingEndsSurface ? '' : ' — VS Code will re-resolve it'}`);
 			this.slot = undefined;
 			this.rpcRouter = undefined;
-			if (slot.closingEndsSurface) {
-				this._onDidClose.fire();
-			}
 		}));
 
 		this._setupRpcHandlers(webview);

@@ -17,6 +17,7 @@ import { computeInlineDiff, DiffLine } from './extension/services/InlineDiffServ
 import { createAnimationTestPanel } from './animationTestPanel';
 import { shouldAutoEnablePlanMode } from './extension/utils/planModeUtils';
 import { CliBundleService, ResolvedCli } from './extension/services/cliBundleService';
+import type { CliCapabilityService } from './extension/services/cliCapabilityService';
 import { bootstrapCliBundle } from './extension/services/cliBundleBootstrap';
 import { getImportedServers } from './extension/services/vscodeMcpImportService';
 import { buildSessionTranscript } from './extension/services/sessionTranscriptBuilder';
@@ -45,6 +46,8 @@ let chatProvider: ChatViewProvider;
 let sidebarSurface: WebviewChatSurface;
 /** Opens and restores chat tabs. One per window, built at activation. */
 let chatPanels: ChatPanelService;
+/** Set once the CLI bundle resolves; replayed onto every surface built after. */
+let resolvedCapability: CliCapabilityService | undefined;
 /** Every chat session live in this window. One entry today; the sidebar's. */
 let sessionRegistry: ChatSessionRegistry;
 /** The session the sidebar is showing. */
@@ -192,10 +195,8 @@ export function activate(context: vscode.ExtensionContext) {
 		// A tab's surface is built the same way the sidebar's is, minus the
 		// detached-reveal fallback: a panel either exists or it does not.
 		createSurface: () => {
-			const surface = new WebviewChatSurface(context.extensionUri, {
-				label: 'Tab',
-				cliCapability: sidebarSurface.getCliCapability() ?? undefined
-			});
+			// No detached-reveal fallback: a panel either exists or it does not.
+			const surface = new WebviewChatSurface(context.extensionUri, { label: 'Tab' });
 			applySharedProviders(context, surface);
 			return surface;
 		},
@@ -272,7 +273,9 @@ async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
 	);
 	const { resolved, capability } = await bootstrapCliBundle(bundle, logger, vscode.window);
 	resolvedCli = resolved;
-	sidebarSurface.setCliCapability(capability);
+	// Kept so surfaces built later — every chat tab — get it too. Without this a
+	// tab opened before the bundle resolved would keep `null` for the window's life.
+	resolvedCapability = capability;
 	applySharedProviders(context, sidebarSurface);
 }
 
@@ -286,6 +289,9 @@ async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
  * hand-built init payloads here.
  */
 function applySharedProviders(context: vscode.ExtensionContext, surface: WebviewChatSurface): void {
+	if (resolvedCapability) {
+		surface.setCliCapability(resolvedCapability);
+	}
 	surface.setMcpListProvider(async () => {
 		if (!sessionManager || !sessionManager.hasActiveSession()) {
 			throw new Error('No active session for mcp.list');
@@ -533,7 +539,9 @@ async function resumeAndStartSession(
 	// Whose session this is. Defaulting to the sidebar keeps the command palette
 	// and activation paths working; a host asking for itself supplies its own.
 	const target = request.host ?? sidebarHost;
-	const plan = planSessionStart(request, sessionManager);
+	// `request.host` present means a host is speaking for itself, and a host only
+	// asks when it is not live — so the window's manager is another surface's.
+	const plan = planSessionStart({ ...request, onBehalfOfHost: Boolean(request.host) }, sessionManager);
 	if (plan.reuseRunning) {
 		return;
 	}
@@ -807,7 +815,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
-		wireManagerEvents(context, sessionManager);
+		wireManagerEvents(context, sessionManager, target);
 
 		logger.info('Starting CLI process...');
 		await sessionManager.start();
@@ -820,11 +828,16 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 }
 
 /** Wire all 10 granular event subscriptions from the SDK manager to the UI. */
-function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager): void {
+function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager, owner: ChatSessionHost): void {
 	// Message and streaming events are routed by the owning host, to *its* surface
 	// — see `ChatSessionHost.attachManager`. What stays here is window-scoped:
 	// the status bar, toasts, the session list, the sub-agent panels.
-	sidebarHost.attachManager(manager);
+	//
+	// `owner` is required rather than defaulted. Naming `sidebarHost` here sent
+	// every session's output to the sidebar regardless of which surface asked for
+	// it — the exact defect Task 5 removed from the event handlers, still alive one
+	// line above them because attachment had never been parameterised.
+	owner.attachManager(manager);
 
 	// Only the window's half of a status change lives here. What the session's
 	// surface shows is the host's — see `ChatSessionHost.applyStatus`.

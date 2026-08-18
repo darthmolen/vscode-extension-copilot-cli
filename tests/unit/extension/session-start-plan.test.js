@@ -50,6 +50,32 @@ describe('planSessionStart()', function () {
         });
     });
 
+    describe('a host asked on its own behalf', function () {
+        // A host only calls `startManager` when it is *not* live, so whatever is
+        // running in this window belongs to some other surface. Handing it back
+        // would put another conversation on screen.
+        it('does not hand a host the manager another surface is running', function () {
+            const plan = planSessionStart({ onBehalfOfHost: true }, running('someone-elses'));
+
+            assert.strictEqual(plan.reuseRunning, false);
+            assert.strictEqual(plan.consultAmbient, true,
+                'it still gets to pick a session — it just cannot have that one');
+        });
+
+        it('still reuses when the running manager is the very session asked for', function () {
+            const plan = planSessionStart({ sessionId: 'mine', onBehalfOfHost: true }, running('mine'));
+
+            assert.strictEqual(plan.reuseRunning, true);
+        });
+
+        it('leaves the plain command-palette path alone', function () {
+            // `handleOpenChat` has no host and means "open whatever this window has".
+            const plan = planSessionStart({}, running('the-only-session'));
+
+            assert.strictEqual(plan.reuseRunning, true);
+        });
+    });
+
     describe('a brand-new session was asked for — New Tab', function () {
         it('never resumes anything, whatever the heuristic would have picked', function () {
             const plan = planSessionStart({ fresh: true }, null);

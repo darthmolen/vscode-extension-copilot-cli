@@ -41,6 +41,15 @@ export interface SessionStartRequest {
      * tab would resume the sidebar's session into it.
      */
     fresh?: boolean;
+    /**
+     * The request comes from a `ChatSessionHost` speaking for itself.
+     *
+     * A host only asks to start when it is *not* live, so whatever is running in
+     * this window belongs to some other surface. Handing it back would put another
+     * conversation on screen — the failure the whole one-host-per-session shape
+     * exists to prevent.
+     */
+    onBehalfOfHost?: boolean;
 }
 
 export interface SessionStartPlan {
@@ -67,8 +76,9 @@ export function planSessionStart(
     }
 
     if (wanted === undefined) {
-        // Nothing named: the window's own session is as good an answer as any.
-        return live
+        // Nothing named: the window's own session is as good an answer as any —
+        // unless a host is asking, in which case it is somebody else's.
+        return live && !request.onBehalfOfHost
             ? { reuseRunning: true, requestedSessionId: undefined, consultAmbient: false, fresh: false }
             : { reuseRunning: false, requestedSessionId: undefined, consultAmbient: true, fresh: false };
     }
