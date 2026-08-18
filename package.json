@@ -65,6 +65,11 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "copilot-cli-extension.openChatInTab",
+        "title": "Copilot CLI: New Chat in Editor Tab",
+        "icon": "$(split-horizontal)"
+      },
+      {
         "command": "copilot-cli-extension.startChat",
         "title": "Copilot CLI: Start Chat Session"
       },

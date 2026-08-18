@@ -5,6 +5,8 @@ import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { WebviewChatSurface } from './extension/webview/webviewChatSurface';
+import { ChatPanelService, CHAT_PANEL_VIEW_TYPE } from './extension/webview/chatPanelService';
+import { PanelSlot, chatWebviewResourceRoots } from './extension/webview/chatWebviewSlot';
 import { getWorkspaceRuntimeState } from './backendState';
 import { createVSCodeHostBridge } from './extension/hostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
@@ -41,6 +43,8 @@ let chatProvider: ChatViewProvider;
  * VS Code registration; this is the thing a `ChatSessionHost` renders into.
  */
 let sidebarSurface: WebviewChatSurface;
+/** Opens and restores chat tabs. One per window, built at activation. */
+let chatPanels: ChatPanelService;
 /** Every chat session live in this window. One entry today; the sidebar's. */
 let sessionRegistry: ChatSessionRegistry;
 /** The session the sidebar is showing. */
@@ -178,6 +182,28 @@ export function activate(context: vscode.ExtensionContext) {
 	// editor-tab panels on request). Must not live in wireManagerEvents(), which re-runs per session.
 	subagentPanels = new SubagentPanelService(context.globalStorageUri);
 	context.subscriptions.push(subagentPanels);
+
+	chatPanels = new ChatPanelService({
+		logger,
+		registry: sessionRegistry,
+		createPanel: (viewType, title, options) => vscode.window.createWebviewPanel(
+			viewType, title, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, options
+		),
+		// A tab's surface is built the same way the sidebar's is, minus the
+		// detached-reveal fallback: a panel either exists or it does not.
+		createSurface: () => {
+			const surface = new WebviewChatSurface(context.extensionUri, {
+				label: 'Tab',
+				cliCapability: sidebarSurface.getCliCapability() ?? undefined
+			});
+			applySharedProviders(context, surface);
+			return surface;
+		},
+		makeSlot: (panel) => new PanelSlot(panel),
+		resourceRoots: () => chatWebviewResourceRoots(context.extensionUri),
+		registerHandlers: (surface) => registerSurfaceHandlers(context, surface as WebviewChatSurface),
+		loadTranscript: (sessionId, host) => loadSessionHistory(sessionId, host)
+	});
 	context.subscriptions.push(vscode.commands.registerCommand('copilot-cli-extension.openSubagentPanel', (agentId: string) => {
 		subagentPanels.open(agentId);
 	}));
@@ -205,7 +231,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(statusBarItem);
 
 	// Register chat provider event handlers
-	registerChatProviderHandlers(context);
+	context.subscriptions.push(registerSurfaceHandlers(context, sidebarSurface));
 
 	// Register all VS Code commands
 	registerCommands(context);
@@ -239,13 +265,26 @@ async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
 	const { resolved, capability } = await bootstrapCliBundle(bundle, logger, vscode.window);
 	resolvedCli = resolved;
 	sidebarSurface.setCliCapability(capability);
-	sidebarSurface.setMcpListProvider(async () => {
+	applySharedProviders(context, sidebarSurface);
+}
+
+/**
+ * Window-scoped providers, given to every surface.
+ *
+ * MCP servers, imported VS Code servers and the configured-server list are
+ * properties of the *window*, not of a conversation — every surface shows the same
+ * `/mcp` answer. Kept as one function so a new surface cannot be given three of
+ * the four by accident; that is precisely the shape that produced three
+ * hand-built init payloads here.
+ */
+function applySharedProviders(context: vscode.ExtensionContext, surface: WebviewChatSurface): void {
+	surface.setMcpListProvider(async () => {
 		if (!sessionManager || !sessionManager.hasActiveSession()) {
 			throw new Error('No active session for mcp.list');
 		}
 		return sessionManager.listMcpServers();
 	});
-	sidebarSurface.setImportedServersProvider(() => {
+	surface.setImportedServersProvider(() => {
 		const cfg = vscode.workspace.getConfiguration('copilotCLI');
 		if (!cfg.get<boolean>('importVSCodeMcpServers', true)) {
 			return {};
@@ -253,7 +292,7 @@ async function initCliBundle(context: vscode.ExtensionContext): Promise<void> {
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 		return getImportedServers(workspaceFolder, context.globalStorageUri.fsPath);
 	});
-	sidebarSurface.setMcpConfigListProvider(async () => {
+	surface.setMcpConfigListProvider(async () => {
 		if (!sessionManager || !sessionManager.hasActiveSession()) {
 			return {};
 		}
@@ -285,9 +324,18 @@ async function viewPlanFile(): Promise<void> {
 	}
 }
 
-/** Register the sidebar surface's event handlers (message, abort, view plan, ready). */
-function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
-	context.subscriptions.push(sidebarSurface.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}) => {
+/**
+ * Wire one surface's events to its own session.
+ *
+ * Was `registerChatProviderHandlers`, closed over the sidebar. Every line of it
+ * was already surface-shaped — it reads `getSessionHost()` for the session — so
+ * the only sidebar-specific thing left was the variable it named. A panel calls
+ * this too, and disposes the result when its tab closes; the sidebar's live for
+ * the window.
+ */
+function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: WebviewChatSurface): vscode.Disposable {
+	const subscriptions: vscode.Disposable[] = [];
+	subscriptions.push(surface.onDidReceiveUserMessage(async (data: {text: string; attachments?: Array<{type: 'file'; path: string; displayName?: string}>; agentName?: string}) => {
 		logger.info(`Sending user message to CLI: ${data.text.substring(0, 100)}...`);
 
 		const displayAttachments = data.attachments?.map(att => ({
@@ -295,48 +343,49 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 			webviewUri: undefined
 		}));
 
-		sidebarSurface.addUserMessage(data.text, displayAttachments);
-		sidebarSurface.setThinking(true);
+		surface.addUserMessage(data.text, displayAttachments);
+		surface.setThinking(true);
 
 		// Goes to *this* surface's session. Reaching for the module-level
 		// sessionManager here would send a tab's message to whichever session the
 		// window happened to start last.
-		const host = sidebarSurface.getSessionHost();
+		const host = surface.getSessionHost();
 		if (host?.isLive) {
 			await host.prompt(data.text, { attachments: data.attachments, agentName: data.agentName });
 		} else {
-			sidebarSurface.addAssistantMessage('Error: CLI session not active. Please start a session first.');
-			sidebarSurface.setThinking(false);
+			surface.addAssistantMessage('Error: CLI session not active. Please start a session first.');
+			surface.setThinking(false);
 		}
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestAbort(() => {
+	subscriptions.push(surface.onDidRequestAbort(() => {
 		logger.info('Abort requested by user');
 		// Fire-and-forget by design — see ChatSessionHost.cancel().
-		sidebarSurface.getSessionHost()?.cancel();
+		surface.getSessionHost()?.cancel();
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestViewPlan(async () => {
+	subscriptions.push(surface.onDidRequestViewPlan(async () => {
 		await viewPlanFile();
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidBecomeReady(async () => {
-		// A ready surface asks its host for a running session; the host starts one
-		// only if its own is not already live. Calling `resumeAndStartSession`
-		// straight from here is what would re-resume a streaming tab.
-		await sidebarHost.ensureStarted();
+	subscriptions.push(surface.onDidBecomeReady(async () => {
+		// A ready surface asks *its own* host for a running session; the host starts
+		// one only if its own is not already live. Calling `resumeAndStartSession`
+		// straight from here is what would re-resume a streaming tab, and naming
+		// `sidebarHost` here would have started the sidebar's session for a panel.
+		await surface.getSessionHost()?.ensureStarted();
 
 		// Re-send init: the first send, from onReady, ran before the transcript was
 		// loaded. Same builder and same logged path as that first send — this used
 		// to hand-rebuild the payload and post it raw, so it was invisible in the
 		// logs and a second place to keep in step with the init shape.
-		sidebarSurface.sendInit();
+		surface.sendInit();
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestSwitchModel(async (model: string) => {
+	subscriptions.push(surface.onDidRequestSwitchModel(async (model: string) => {
 		logger.info(`[Model Switch] Requested: ${model}`);
 		try {
-			const host = sidebarSurface.getSessionHost();
+			const host = surface.getSessionHost();
 			if (host?.isLive) {
 				await host.switchModel(model);
 			} else {
@@ -347,7 +396,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestRenameSession(async (name: string) => {
+	subscriptions.push(surface.onDidRequestRenameSession(async (name: string) => {
 		logger.info(`[Rename Session] Requested: "${name}"`);
 		let sessionName = name;
 		if (!sessionName) {
@@ -367,7 +416,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 
 		// Write session-name.txt proactively — this ensures the session label
 		// updates even if the CLI throws "Workspace not found" (issue #1865).
-		const sessionId = sidebarSurface.getSessionHost()?.sessionId;
+		const sessionId = surface.getSessionHost()?.sessionId;
 		if (sessionId) {
 			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
 			try {
@@ -379,7 +428,7 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 
 		try {
-			const host = sidebarSurface.getSessionHost();
+			const host = surface.getSessionHost();
 			if (host?.isLive) {
 				await host.rename(sessionName);
 			} else {
@@ -392,51 +441,54 @@ function registerChatProviderHandlers(context: vscode.ExtensionContext): void {
 		}
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestForkSession(async () => {
+	subscriptions.push(surface.onDidRequestForkSession(async () => {
 		await handleForkSession(context);
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestCompact(async () => {
+	subscriptions.push(surface.onDidRequestCompact(async () => {
 		logger.info('[Compact] Compact requested');
-		const host = sidebarSurface.getSessionHost();
+		const host = surface.getSessionHost();
 		if (!host?.isLive) {
-			sidebarSurface.addAssistantMessage('⚠ No active session — start a session first.');
+			surface.addAssistantMessage('⚠ No active session — start a session first.');
 			return;
 		}
 		try {
 			const result = await host.compact();
 			if (!result) {
-				sidebarSurface.addAssistantMessage('✓ Compaction complete.');
+				surface.addAssistantMessage('✓ Compaction complete.');
 			} else {
 				const { tokensRemoved, messagesRemoved } = result as any;
 				const parts: string[] = [];
 				if (typeof tokensRemoved === 'number') { parts.push(`freed ${tokensRemoved.toLocaleString()} tokens`); }
 				if (typeof messagesRemoved === 'number') { parts.push(`removed ${messagesRemoved} messages`); }
 				const summary = parts.length > 0 ? parts.join(', ') : 'context compacted';
-				sidebarSurface.addAssistantMessage(`✓ Compaction complete — ${summary}.`);
+				surface.addAssistantMessage(`✓ Compaction complete — ${summary}.`);
 			}
 		} catch (error: any) {
-			sidebarSurface.addAssistantMessage(`⚠ Compaction failed: ${error.message}`);
+			surface.addAssistantMessage(`⚠ Compaction failed: ${error.message}`);
 		}
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidSelectAgent(async (agentName: string | null) => {
+	subscriptions.push(surface.onDidSelectAgent(async (agentName: string | null) => {
 		try {
-			await sidebarSurface.getSessionHost()?.selectAgent(agentName);
+			await surface.getSessionHost()?.selectAgent(agentName);
 		} catch (e: any) {
 			logger.warn(`[Agent] SDK select/deselect failed: ${e.message}`);
 		}
 	}));
 
-	context.subscriptions.push(sidebarSurface.onDidRequestReloadAgents(async () => {
-		await sidebarSurface.getSessionHost()?.reloadAgents();
+	subscriptions.push(surface.onDidRequestReloadAgents(async () => {
+		await surface.getSessionHost()?.reloadAgents();
 	}));
+
+	return vscode.Disposable.from(...subscriptions);
 }
 
 /** Register all VS Code commands. */
 function registerCommands(context: vscode.ExtensionContext): void {
 	const commands = [
 		vscode.commands.registerCommand('copilot-cli-extension.openChat', () => handleOpenChat(context)),
+		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => chatPanels.openNew()),
 		vscode.commands.registerCommand('copilot-cli-extension.startChat', () => handleStartChat(context)),
 		vscode.commands.registerCommand('copilot-cli-extension.newSession', () => handleNewSession(context)),
 		vscode.commands.registerCommand('copilot-cli-extension.switchSession', (sessionId: string) => handleSwitchSession(context, sessionId)),
@@ -468,7 +520,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
  */
 async function resumeAndStartSession(
 	context: vscode.ExtensionContext,
-	request: { sessionId?: string | null; host?: ChatSessionHost } = {}
+	request: { sessionId?: string | null; fresh?: boolean; host?: ChatSessionHost } = {}
 ): Promise<void> {
 	// Whose session this is. Defaulting to the sidebar keeps the command palette
 	// and activation paths working; a host asking for itself supplies its own.
@@ -478,9 +530,12 @@ async function resumeAndStartSession(
 		return;
 	}
 
-	const resumeLastSession = plan.consultAmbient
-		? vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true)
-		: true;
+	// A fresh session resumes nothing, so the flag the manager reads must say so.
+	const resumeLastSession = plan.fresh
+		? false
+		: plan.consultAmbient
+			? vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true)
+			: true;
 	let sessionIdToResume = plan.requestedSessionId;
 
 	if (plan.consultAmbient && resumeLastSession) {

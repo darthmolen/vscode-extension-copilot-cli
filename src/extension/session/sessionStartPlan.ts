@@ -32,6 +32,15 @@ export interface SessionStartRequest {
      * this window would normally open".
      */
     sessionId?: string | null;
+    /**
+     * The caller wants a brand-new conversation, not this window's last one.
+     *
+     * *New Tab* means new. Without this, a surface with no session id is
+     * indistinguishable from the sidebar at activation, whose null id means
+     * "restore my last conversation if `resumeLastSession` says so" — so opening a
+     * tab would resume the sidebar's session into it.
+     */
+    fresh?: boolean;
 }
 
 export interface SessionStartPlan {
@@ -41,6 +50,8 @@ export interface SessionStartPlan {
     requestedSessionId: string | undefined;
     /** Whether the resume setting and the mtime heuristic still get to speak. */
     consultAmbient: boolean;
+    /** Start a new conversation rather than bringing any old one back. */
+    fresh: boolean;
 }
 
 export function planSessionStart(
@@ -50,17 +61,22 @@ export function planSessionStart(
     const wanted = request.sessionId ?? undefined;
     const live = running?.isRunning() === true;
 
+    if (request.fresh) {
+        // Nothing already running can satisfy "give me a new conversation".
+        return { reuseRunning: false, requestedSessionId: undefined, consultAmbient: false, fresh: true };
+    }
+
     if (wanted === undefined) {
         // Nothing named: the window's own session is as good an answer as any.
         return live
-            ? { reuseRunning: true, requestedSessionId: undefined, consultAmbient: false }
-            : { reuseRunning: false, requestedSessionId: undefined, consultAmbient: true };
+            ? { reuseRunning: true, requestedSessionId: undefined, consultAmbient: false, fresh: false }
+            : { reuseRunning: false, requestedSessionId: undefined, consultAmbient: true, fresh: false };
     }
 
     // Named: only the *same* session counts as already satisfied. A manager with
     // no id yet cannot be it — an unadopted session is not the one asked for.
     const alreadyThatSession = live && running?.getSessionId() === wanted;
     return alreadyThatSession
-        ? { reuseRunning: true, requestedSessionId: wanted, consultAmbient: false }
-        : { reuseRunning: false, requestedSessionId: wanted, consultAmbient: false };
+        ? { reuseRunning: true, requestedSessionId: wanted, consultAmbient: false, fresh: false }
+        : { reuseRunning: false, requestedSessionId: wanted, consultAmbient: false, fresh: false };
 }

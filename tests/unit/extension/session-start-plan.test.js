@@ -50,6 +50,29 @@ describe('planSessionStart()', function () {
         });
     });
 
+    describe('a brand-new session was asked for — New Tab', function () {
+        it('never resumes anything, whatever the heuristic would have picked', function () {
+            const plan = planSessionStart({ fresh: true }, null);
+            assert.strictEqual(plan.reuseRunning, false);
+            assert.strictEqual(plan.requestedSessionId, undefined);
+            assert.strictEqual(plan.consultAmbient, false,
+                'the gesture said *new* — resumeLastSession does not get a vote');
+            assert.strictEqual(plan.fresh, true);
+        });
+
+        it('does not hand back the session already running in this window', function () {
+            const plan = planSessionStart({ fresh: true }, running('the-sidebar-session'));
+            assert.strictEqual(plan.reuseRunning, false,
+                'reusing here would put the sidebar\'s conversation in the new tab');
+            assert.strictEqual(plan.fresh, true);
+        });
+
+        it('is not fresh when the ambient path is taken', function () {
+            assert.strictEqual(planSessionStart({}, null).fresh, false);
+            assert.strictEqual(planSessionStart({ sessionId: 'x' }, null).fresh, false);
+        });
+    });
+
     describe('a specific session was asked for — a stated intent', function () {
         it('resumes that session, and never asks the heuristic', function () {
             const plan = planSessionStart({ sessionId: 'wanted' }, null);

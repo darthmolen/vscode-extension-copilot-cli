@@ -25,9 +25,9 @@ describe('createStartManager()', function () {
             logger: noopLogger
         });
 
-        await start({ sessionId: 'wanted', resume: true, host: undefined });
+        await start({ sessionId: 'wanted', resume: true, fresh: false, host: undefined });
 
-        assert.deepStrictEqual(seen, [{ sessionId: 'wanted', host: undefined }]);
+        assert.deepStrictEqual(seen, [{ sessionId: 'wanted', fresh: false, host: undefined }]);
     });
 
     it('forwards the host itself, so bootstrap knows which one started', async function () {
@@ -53,9 +53,9 @@ describe('createStartManager()', function () {
             logger: noopLogger
         });
 
-        await start({ sessionId: null, resume: false, host: undefined });
+        await start({ sessionId: null, resume: false, fresh: true, host: undefined });
 
-        assert.deepStrictEqual(seen, [{ sessionId: null, host: undefined }]);
+        assert.deepStrictEqual(seen, [{ sessionId: null, fresh: true, host: undefined }]);
     });
 
     it('returns the manager the resume path produced', async function () {

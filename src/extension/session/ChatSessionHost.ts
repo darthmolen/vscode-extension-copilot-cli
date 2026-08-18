@@ -58,6 +58,10 @@ export interface ChatSurface {
     setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>): void;
     /** Render this surface's whole state from cold. */
     sendInit(): void;
+    /** Bring this surface to the front — what the collision rule does instead of
+     *  opening a second one for a session that already has a surface. */
+    show(preserveFocus?: boolean): void;
+    dispose(): void;
 }
 
 /**
@@ -138,6 +142,18 @@ export interface ChatSessionHostDeps {
      */
     handle: string;
     /**
+     * What starting means when this host has no session id.
+     *
+     * `'window-default'` — the sidebar at activation: bring back the last
+     * conversation if `copilotCLI.resumeLastSession` says so.
+     * `'new'` — a *New Tab*: the gesture said new, so neither the setting nor the
+     * most-recent-by-mtime heuristic gets a vote.
+     *
+     * Both cases have a null session id, which is why this cannot be inferred.
+     * Defaults to `'window-default'`, the behaviour that shipped.
+     */
+    whenNoSession?: 'window-default' | 'new';
+    /**
      * The CLI session this host speaks for, when there is one.
      *
      * `null` is the normal state for a host that exists before the CLI has
@@ -163,7 +179,7 @@ export interface ChatSessionHostDeps {
      * Injected because building one needs the extension host. The host decides
      * *whether* to call it; this only does it.
      */
-    startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
+    startManager?: (options: { sessionId: string | null; resume: boolean; fresh: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
     /** Window-scoped, memoised colour allocator shared with the sub-agent panels. */
     assignSubagentColor?: (agentId: string) => string;
     /**
@@ -193,7 +209,8 @@ export class ChatSessionHost {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly enrichDiff?: (diffData: any) => any;
-    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
+    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; fresh: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
+    private readonly whenNoSession: 'window-default' | 'new';
     /** In flight, so two surfaces attaching at once cannot start two sessions. */
     private starting?: Promise<void>;
     private live = false;
@@ -221,6 +238,7 @@ export class ChatSessionHost {
         this.assignSubagentColor = deps.assignSubagentColor;
         this.enrichDiff = deps.enrichDiff;
         this.startManager = deps.startManager;
+        this.whenNoSession = deps.whenNoSession ?? 'window-default';
         this.onAdoptSessionId = deps.onAdoptSessionId;
 
         this.state = deps.state ?? new SessionState();
@@ -296,6 +314,24 @@ export class ChatSessionHost {
         return this.surface;
     }
 
+    /**
+     * This host has nothing rendering it any more.
+     *
+     * A closed tab must say so. Left attached, the host keeps writing into a
+     * webview that no longer exists — and worse, `registry.get(id)?.getSurface()`
+     * still reports a live surface, so reopening the tab reveals a dead one and the
+     * session becomes unreachable.
+     *
+     * Guarded on identity: a surface that has already been replaced by another must
+     * not be able to detach its successor on the way out.
+     */
+    public detachSurface(surface?: ChatSurface): void {
+        if (surface && this.surface !== surface) {
+            return;
+        }
+        this.surface = undefined;
+    }
+
     /** Whether a CLI session is running for this host right now. */
     public get isLive(): boolean {
         return this.live;
@@ -331,7 +367,11 @@ export class ChatSessionHost {
         }
 
         const resume = this.currentSessionId !== null;
-        this.starting = this.startManager({ sessionId: this.currentSessionId, resume, host: this })
+        // Only a host that has *never* had a session can be asking for a new one.
+        // Once it has adopted an id it is case (b) — resume this session — and
+        // treating it as fresh would abandon the conversation it is showing.
+        const fresh = !resume && this.whenNoSession === 'new';
+        this.starting = this.startManager({ sessionId: this.currentSessionId, resume, fresh, host: this })
             .then((manager) => {
                 this.attachManager(manager);
                 this.live = true;

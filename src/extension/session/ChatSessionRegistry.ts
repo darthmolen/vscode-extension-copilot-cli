@@ -30,7 +30,7 @@ export interface ChatSessionRegistryDeps {
     /** Window-scoped diff enrichment (filesystem reads), passed to every host. */
     enrichDiff?: (diffData: any) => any;
     /** Brings a CLI session into being; the host decides whether to call it. */
-    startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<any>;
+    startManager?: (options: { sessionId: string | null; resume: boolean; fresh: boolean; host: ChatSessionHost }) => Promise<any>;
 }
 
 export class ChatSessionRegistry {
@@ -54,7 +54,7 @@ export class ChatSessionRegistry {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly enrichDiff?: (diffData: any) => any;
-    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<any>;
+    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; fresh: boolean; host: ChatSessionHost }) => Promise<any>;
 
     constructor(deps: ChatSessionRegistryDeps) {
         this.workspace = deps.workspace;
@@ -76,11 +76,16 @@ export class ChatSessionRegistry {
      * The sidebar's host is built this way at activation, before the CLI has
      * assigned an id — and stays this way for good if the CLI never starts.
      */
-    public create(sessionId: string | null = null, state?: SessionState): ChatSessionHost {
+    public create(
+        sessionId: string | null = null,
+        state?: SessionState,
+        options: { whenNoSession?: 'window-default' | 'new' } = {}
+    ): ChatSessionHost {
         const host = new ChatSessionHost({
             handle: `host#${++this.handlesIssued}`,
             sessionId,
             state,
+            whenNoSession: options.whenNoSession,
             workspace: this.workspace,
             logger: this.logger,
             createServices: this.createServices,
