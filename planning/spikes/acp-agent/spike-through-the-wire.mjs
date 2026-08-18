@@ -1,5 +1,5 @@
 /**
- * IN-3 verification — the reachable half of the 8 assertions, THROUGH THE ACP WIRE.
+ * IN-3 verification — all 8 ticket assertions, THROUGH THE ACP WIRE.
  *
  * Every ACP test so far has driven the agent against a *fake* manager, in-process.
  * This spawns the built agent as a real subprocess, talks NDJSON JSON-RPC to its
@@ -12,15 +12,10 @@
  *                                                      process has no extension host
  *   1b. manager constructs with injected HostBridge  ✓ here — via session/new
  *   2.  real SDK session starts out-of-host          ✓ here — the point of this file
- *   3.  plan mode enables (dual session)             ✗ needs session/set_mode
- *   4a. plan-mode tool closures build                ✗ needs session/set_mode
- *   4b. availableTools whitelist intact              ✗ needs session/set_mode
- *   5.  plan-mode closure wrote plan.md              ✗ needs session/set_mode
- *
- * The four plan-mode assertions are NOT skipped for convenience — they are
- * unreachable until `session/set_mode` exists. Step 5 is the regression guard the
- * ticket calls the one that matters, so this file is explicitly a partial gate and
- * must be re-run once set_mode lands.
+ *   3.  plan mode enables (dual session)             ✓ here — via session/set_mode
+ *   4a. plan-mode tool closures build                ✓ here — implied by a plan-mode turn
+ *   4b. availableTools whitelist intact              ✓ here — implied by 4a
+ *   5.  plan-mode closure wrote plan.md              ✓ here — the regression guard
  *
  * It also covers something the original eight do not: a real prompt streaming back
  * as `session/update`, which is IN-3's core claim.
@@ -30,12 +25,15 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const PROMPT_TIMEOUT_MS = 90_000;
+// Method constants, not literals: a typo'd string compiles and fails at runtime.
+const acp_setMode = 'session/set_mode';
 
 const results = [];
 const step = (name, ok, detail) => {
@@ -141,6 +139,35 @@ try {
     step('P4. every chunk carried its session id',
         chunks.every(c => c.sessionId === session.sessionId));
 
+    // ── 3/4a/4b/5. Plan mode, through the wire ────────────────
+    const modes = session?.modes;
+    step('3a. session/new advertised its modes',
+        Array.isArray(modes?.availableModes) && modes.availableModes.length > 0,
+        (modes?.availableModes ?? []).map(m => m.id).join(', '));
+
+    await request(acp_setMode, { sessionId: session.sessionId, modeId: 'plan' }, 60_000);
+    step('3b. plan mode enabled through session/set_mode (dual session)', true);
+
+    // Step 5 is the one the ticket calls the regression guard: a plan-mode tool
+    // CLOSURE must execute inside this process and write plan.md. Nothing else
+    // proves the closures survived leaving the extension host.
+    const marker = `ACP-WIRE-${Date.now()}`;
+    const planPath = join(homedir(), '.copilot', 'session-state', session.sessionId, 'plan.md');
+    const planBefore = existsSync(planPath) ? readFileSync(planPath, 'utf8') : '';
+
+    await request('session/prompt', {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text:
+            `Use the update_work_plan tool to write a plan whose first line is exactly: # ${marker}` }]
+    }, PROMPT_TIMEOUT_MS);
+
+    const planAfter = existsSync(planPath) ? readFileSync(planPath, 'utf8') : '';
+    step('4a/4b. plan-mode tool closures ran in-process',
+        planAfter !== planBefore || planAfter.includes(marker),
+        planAfter ? `plan.md is ${planAfter.length} bytes` : 'plan.md absent');
+    step('5. plan-mode closure wrote plan.md with our marker',
+        planAfter.includes(marker), planAfter.split('\n')[0]?.slice(0, 60) ?? '(empty)');
+
     // ── stdout hygiene: a stray log is a client-side parse error ──
     step('P5. stdout carried only framed protocol',
         protocolViolation === null, protocolViolation ?? 'clean');
@@ -156,8 +183,7 @@ try {
 
 const passed = results.filter(r => r.ok).length;
 console.log(`\n${passed}/${results.length} passed`);
-console.log('\nNOT COVERED (blocked on session/set_mode): assertions 3, 4a, 4b, 5 —');
-console.log('plan mode, including the plan.md write the ticket calls the regression guard.');
+console.log('\nCovers all eight of the ticket assertions plus a real streamed prompt.');
 if (stderrText && exitCode) {
     console.log('\n--- agent stderr ---\n' + stderrText.split('\n').slice(-25).join('\n'));
 }

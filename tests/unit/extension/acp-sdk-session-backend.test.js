@@ -137,3 +137,80 @@ describe('SdkSessionBackend (IN-3 cycle 5)', () => {
         expect(String(error.message)).to.match(/connection closed/);
     });
 });
+
+/**
+ * Mode support (IN-3, unblocks the ticket's plan-mode assertions 3/4a/4b/5).
+ *
+ * ACP models modes generically — `SetSessionModeRequest` is `{ sessionId, modeId }`
+ * and `SessionMode` is `{ id, name, description? }`. Our manager has exactly two,
+ * `'work' | 'plan'`, reached through `enablePlanMode()` / `disablePlanMode()`
+ * rather than a single setter, so the backend is where that impedance is absorbed.
+ */
+describe('SdkSessionBackend — modes (IN-3)', () => {
+    function makeModalManager(over = {}) {
+        const base = makeManager(over);
+        return Object.assign(base, {
+            mode: 'work',
+            planCalls: [],
+            getCurrentMode() { return this.mode; },
+            async enablePlanMode() { this.planCalls.push('enable'); this.mode = 'plan'; },
+            async disablePlanMode() { this.planCalls.push('disable'); this.mode = 'work'; },
+            ...over
+        });
+    }
+
+    it('reports the mode the manager is actually in', async () => {
+        const m = makeModalManager();
+        const backend = await SdkSessionBackend.start(m);
+
+        expect(backend.currentModeId).to.equal('work');
+        m.mode = 'plan';
+        expect(backend.currentModeId, 'must read through, not cache').to.equal('plan');
+    });
+
+    it('enables plan mode when asked for the plan mode id', async () => {
+        const m = makeModalManager();
+        const backend = await SdkSessionBackend.start(m);
+
+        await backend.setMode('plan');
+
+        expect(m.planCalls).to.deep.equal(['enable']);
+        expect(backend.currentModeId).to.equal('plan');
+    });
+
+    it('leaves plan mode when asked for work', async () => {
+        const m = makeModalManager({ mode: 'plan' });
+        const backend = await SdkSessionBackend.start(m);
+
+        await backend.setMode('work');
+
+        expect(m.planCalls).to.deep.equal(['disable']);
+        expect(backend.currentModeId).to.equal('work');
+    });
+
+    /**
+     * Re-entering the mode you are already in must not re-run the transition:
+     * enablePlanMode() creates a second SDK session, so calling it twice would
+     * strand one. Idempotence here is not tidiness, it is a leak guard.
+     */
+    it('does nothing when already in the requested mode', async () => {
+        const m = makeModalManager();
+        const backend = await SdkSessionBackend.start(m);
+
+        await backend.setMode('work');
+
+        expect(m.planCalls, 'a no-op transition still touched the manager').to.be.empty;
+    });
+
+    it('rejects a mode id it does not have, naming it', async () => {
+        const m = makeModalManager();
+        const backend = await SdkSessionBackend.start(m);
+
+        let error;
+        try { await backend.setMode('turbo'); } catch (e) { error = e; }
+
+        expect(error, 'an unknown mode must not silently succeed').to.be.an('error');
+        expect(String(error.message)).to.include('turbo');
+        expect(m.planCalls).to.be.empty;
+    });
+});

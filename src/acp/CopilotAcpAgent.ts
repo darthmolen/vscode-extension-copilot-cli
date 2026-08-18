@@ -17,6 +17,7 @@
 
 import type { AgentApp } from '@agentclientprotocol/sdk' with { 'resolution-mode': 'import' };
 import { LoggerLike } from '../logger';
+import { ACP_SESSION_MODES } from './SdkSessionBackend';
 
 // `resolution-mode` is required on both the type import above and here: TypeScript
 // will not resolve ESM types from a CommonJS file without it (TS1542).
@@ -48,6 +49,10 @@ export interface AcpSessionBackend {
     onOutput(listener: (text: string) => void): () => void;
     /** Send a prompt; resolves when the turn ends. */
     prompt(text: string): Promise<{ stopReason: string }>;
+    /** The mode the session is in right now. */
+    readonly currentModeId: string;
+    /** Enter `modeId`, or reject if it is not one this backend has. */
+    setMode(modeId: string): Promise<void>;
 }
 
 export interface CopilotAcpAgentDeps {
@@ -197,7 +202,38 @@ export class CopilotAcpAgent {
             this.sessions.set(backend.sessionId, backend);
             this.deps.logger.info(`[ACP] session/new → ${backend.sessionId}`);
 
-            return { sessionId: backend.sessionId };
+            return {
+                sessionId: backend.sessionId,
+                // A host renders the modes a session advertises, so an agent that
+                // implements set_mode without this is unreachable: nothing in any
+                // real client would ever offer the switch.
+                modes: {
+                    currentModeId: backend.currentModeId,
+                    availableModes: ACP_SESSION_MODES.map(m => ({ ...m }))
+                }
+            };
+        })
+        .onRequest('session/set_mode', async ({ params }) => {
+            const acpModule = await loadAcp();
+            const backend = this.sessions.get(params.sessionId);
+            if (!backend) {
+                throw acpModule.RequestError.internalError(
+                    undefined,
+                    `unknown session: ${params.sessionId}`
+                );
+            }
+
+            try {
+                await backend.setMode(params.modeId);
+            } catch (error) {
+                // The backend rejects unknown modes and names them. Carrying that
+                // through as a RequestError keeps the reason in the message, where a
+                // host will show it, instead of a bare "Internal error".
+                const reason = error instanceof Error ? error.message : String(error);
+                throw acpModule.RequestError.internalError(undefined, reason);
+            }
+
+            return {};
         })
         .onRequest('session/prompt', async ({ params, client }) => {
             const acpModule = await loadAcp();

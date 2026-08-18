@@ -29,7 +29,31 @@ export interface AcpManagerSlice {
     getSessionId(): string | null;
     sendMessage(message: string): Promise<void>;
     onDidMessageDelta(listener: (e: { messageId: string; deltaContent: string }) => void): Disposable;
+    getCurrentMode(): 'work' | 'plan';
+    enablePlanMode(): Promise<void>;
+    disablePlanMode(): Promise<void>;
 }
+
+/**
+ * The modes this agent offers, in ACP's vocabulary.
+ *
+ * ACP models modes generically — ids are opaque strings — so we expose the
+ * manager's two directly rather than inventing a mapping. `name` and `description`
+ * are what a host puts in front of a user, so they are written for that reader
+ * rather than echoing the internal identifier.
+ */
+export const ACP_SESSION_MODES = [
+    {
+        id: 'work',
+        name: 'Work',
+        description: 'Full tool access. The agent edits files, runs commands and commits.'
+    },
+    {
+        id: 'plan',
+        name: 'Plan',
+        description: 'Research and planning only. Writes to plan.md; no edits, commits or installs.'
+    }
+] as const;
 
 /**
  * Compile-time proof that the real `SDKSessionManager` still satisfies the slice
@@ -103,5 +127,38 @@ export class SdkSessionBackend implements AcpSessionBackend {
     public async prompt(text: string): Promise<{ stopReason: string }> {
         await this.manager.sendMessage(text);
         return { stopReason: 'end_turn' };
+    }
+
+    /**
+     * Read through to the manager rather than caching. The manager changes mode on
+     * its own in at least one place — accepting a plan drops back to work — so a
+     * cached copy here would drift and report a mode the session is not in.
+     */
+    public get currentModeId(): string {
+        return this.manager.getCurrentMode();
+    }
+
+    /**
+     * Enter `modeId`.
+     *
+     * Idempotent by necessity, not tidiness: `enablePlanMode()` creates a second SDK
+     * session, so re-entering a mode already active would strand one.
+     */
+    public async setMode(modeId: string): Promise<void> {
+        if (!ACP_SESSION_MODES.some(m => m.id === modeId)) {
+            throw new Error(
+                `unknown mode: ${modeId} (available: ${ACP_SESSION_MODES.map(m => m.id).join(', ')})`
+            );
+        }
+        if (this.manager.getCurrentMode() === modeId) {
+            return;
+        }
+
+        this.logger?.info(`[ACP] session ${this.sessionId} → mode ${modeId}`);
+        if (modeId === 'plan') {
+            await this.manager.enablePlanMode();
+        } else {
+            await this.manager.disablePlanMode();
+        }
     }
 }
