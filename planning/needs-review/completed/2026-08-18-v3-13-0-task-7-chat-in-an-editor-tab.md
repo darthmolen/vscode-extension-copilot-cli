@@ -196,3 +196,79 @@ run alone (`npx mocha <file> --timeout 20000`). There is no sanctioned baseline 
 - **The ~15 remaining `sessionManager` call sites** in command handlers (plan mode, accept/reject,
   `validateAttachments`) keep their cross-session flaw until Task 8, which is also where plan mode
   deserves a design pass given it is a first-class ACP concept (`session/set_mode`).
+
+---
+
+## Plan Review
+
+**Reviewed:** 2026-08-18 08:06
+**Reviewer:** Claude Code (plan-review-intake)
+
+### Strengths
+
+- **§2.1 / §2.3** correctly identifies the right abstraction boundary: a surface-specific router plus a shared surface contract is consistent with the current `registerChatHandlers()` / `ExtensionRpcRouter` design.
+- **§3.1** catches a real implementation hazard: `localResourceRoots` must be mirrored for panels or asset/image loading will break.
+- **§3.2** is right to register the serializer in `activate()` rather than lazily in a command.
+- **§4 / §5** show good sequencing and verification intent: reducing blast radius before adding panels, and checking restore/double-init behavior explicitly.
+
+### Issues
+
+#### Critical (Must Address Before Implementation)
+
+1. **§1 / §2.1 — plan understates remaining global-session coupling**
+   - **Section:** §1 / §2.1
+   - **What's wrong:** The plan says "only a second surface" is missing, but `ChatViewProvider` still reads/writes global `getBackendState()` for init, transcript mutation, and image/session resolution (`sendInit`, `addUserMessage`, `addAssistantMessage`, `addReasoningMessage`, `_resolveAssistantImagePaths`). `registerChatHandlers` also still reads global backend state for some actions.
+   - **Why it matters:** As written, a panel surface will not have isolated per-session state; it will read/write the sidebar's singleton state.
+   - **Suggested fix:** Add an explicit refactor task before panel work: surface state must come from `ChatSessionHost.state` / injected accessors, and transcript loading must target the host being opened/restored, not the singleton.
+
+2. **§3.2 — serializer restore path assumes `ensureStarted()` resumes the requested session, but current composition root does not**
+   - **Section:** §3.2
+   - **What's wrong:** `ChatSessionHost.ensureStarted()` passes `{ sessionId, resume }`, but `extension.ts` currently injects `startManager: async () => resumeAndStartSession(context)` and ignores those options.
+   - **Why it matters:** Restoring/opening a tab for session X can resume the wrong session or the "last session" instead of X.
+   - **Suggested fix:** Add concrete work to thread `sessionId`/`resume` through `startManager`, `resumeAndStartSession`, and `startCLISession`, with tests for "restore specific stopped session".
+
+3. **§2.1 / §5 / §6 — host/surface cardinality is unresolved**
+   - **Section:** §2.1 / §5 / §6
+   - **What's wrong:** The plan wants one host per session (`registry.get()` before create) and also expects sidebar + tab to stream concurrently, but `ChatSessionHost` currently supports only **one** `surface` (`attachSurface()` replaces it).
+   - **Why it matters:** Same-session sidebar+tab behavior is undefined: either the tab steals the host from the sidebar, or duplicate hosts appear.
+   - **Suggested fix:** Decide explicitly — either **one host → many surfaces** (fan out events), or **opening in tab transfers ownership** from sidebar. Then align sequencing and verification with that choice.
+
+#### Important (Should Address)
+
+1. **§3.1 — no entry point for opening a chat tab is planned**
+   - **Section:** §3.1
+   - **What's wrong:** The plan adds `ChatPanelService` but does not say what command/UI/RPC opens it. Current shared messages expose `subagentPopout`, not chat popout.
+   - **Why it matters:** The feature is not user-reachable as written.
+   - **Suggested fix:** Add the exact trigger: command ID, toolbar/menu location, and any required `messages.ts` / handler changes.
+
+2. **§2.2 — subscription lifetime is noted as a risk, but the plan does not define the ownership model**
+   - **Section:** §2.2
+   - **What's wrong:** The plan asks whether `onDidDispose → unsubscribe` is sufficient, but does not convert that into a task. Sidebar lifecycle is different from panel lifecycle, and sidebar resolve/dispose/re-resolve needs explicit handling.
+   - **Why it matters:** Easy source of leaks and duplicate broadcasts.
+   - **Suggested fix:** Add a concrete task defining who owns the workspace-state subscription and how it is torn down/replaced for both panel dispose and sidebar re-resolve.
+
+3. **§4 / §5 — tasks are still too coarse for strict TDD execution**
+   - **Section:** §4 / §5
+   - **What's wrong:** The plan has four commit-sized phases, but not the file-by-file, failing-test-first steps this repo expects.
+   - **Why it matters:** It is implementable for the author, but weaker as a handoff plan and easier to execute out of order.
+   - **Suggested fix:** Break each phase into smaller tasks with exact files and explicit RED → GREEN verification commands.
+
+#### Minor (Consider)
+
+1. **§6 — identified risks are not all converted into explicit work items**
+   - **Section:** §6
+   - **What's wrong:** `forceRecreate()` behavior and `retainContextWhenHidden` memory cost are documented as risks but not assigned to a task/decision point.
+   - **Why it matters:** These can become "known unknowns" left unresolved during implementation.
+   - **Suggested fix:** Attach each risk to a specific verification step or decision in §4.
+
+### Recommendations
+
+- Add a **pre-panel refactor phase** for removing singleton session-state usage from `ChatViewProvider`/handler paths.
+- Make the **session ownership model** explicit before implementation starts.
+- Expand the plan into **smaller TDD tasks** with exact files and commands, especially around serializer restore and multi-surface behavior.
+
+### Assessment
+
+**Implementable as written?** With fixes
+
+**Reasoning:** The architectural direction is mostly sound, but the plan currently misses three load-bearing realities in the codebase: singleton session state in the surface, ignored `ensureStarted()` resume parameters, and the unresolved one-host/one-surface conflict. These need to be fixed in the plan before implementation.
