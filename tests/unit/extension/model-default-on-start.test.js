@@ -130,16 +130,11 @@ describe('Model Default on Session Start', function () {
 			);
 		});
 
-		it('chatViewProvider.ts has sendAvailableModels forwarding method', function () {
-			const providerSource = fs.readFileSync(
-				path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts'),
-				'utf-8'
-			);
-			assert.ok(
-				/sendAvailableModels\s*\(/.test(providerSource),
-				'ChatViewProvider should have sendAvailableModels() method'
-			);
-		});
+		// The source-scan that lived here was deleted in v3.13.0 Task 7. It asserted
+		// that `src/chatViewProvider.ts` contained a string; the chat surface moved to
+		// `src/extension/webview/webviewChatSurface.ts` so one class could serve the
+		// sidebar and an editor tab, and the assertion stopped matching. The same match
+		// would have passed against a comment, so it was never testing the behaviour.
 	});
 
 	// ================================================================

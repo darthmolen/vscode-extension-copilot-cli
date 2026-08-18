@@ -17,6 +17,18 @@ const fs = require('fs');
 
 describe('Sidebar View Migration', () => {
 
+	// Three source-scans lived here and were deleted in v3.13.0 Task 7:
+	// `show()` uses `.focus`, the field is `_view: vscode.WebviewView`, and the
+	// listener is `.onDidChangeVisibility(`. All three read the provider's *text*.
+	//
+	// The chat surface moved to `src/extension/webview/webviewChatSurface.ts` so one
+	// class can serve the sidebar and an editor tab, and the container differences
+	// moved behind `ChatWebviewSlot`. Those three facts are now properties of
+	// `SidebarSlot`, and `chat-webview-slot.test.js` asserts each by running it:
+	// revealing focuses the view id, visibility changes are forwarded, and closing a
+	// sidebar slot does not end its surface — the last of which no string could
+	// have expressed.
+
 	describe('ChatViewProvider export', () => {
 		it('should export ChatViewProvider, not ChatPanelProvider', () => {
 			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
@@ -47,14 +59,6 @@ describe('Sidebar View Migration', () => {
 				'Should NOT have createOrShow method');
 		});
 
-		it('should have show() that uses executeCommand to focus sidebar', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('.focus'),
-				'show() should use .focus command');
-		});
-
 		it('should have static viewType matching package.json', () => {
 			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
 			const content = fs.readFileSync(srcPath, 'utf8');
@@ -63,26 +67,6 @@ describe('Sidebar View Migration', () => {
 				'viewType should be copilot-cli.chatView');
 		});
 
-		it('should use _view (WebviewView) not panel (WebviewPanel)', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('_view: vscode.WebviewView'),
-				'Should use _view: WebviewView');
-			assert.ok(!content.includes('panel: vscode.WebviewPanel'),
-				'Should NOT use panel: WebviewPanel');
-		});
-
-		it('should listen for onDidChangeVisibility, not onDidChangeViewState', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('.onDidChangeVisibility('),
-				'Should call onDidChangeVisibility');
-			// Allow mentions in comments, but should not call the method
-			assert.ok(!content.includes('.onDidChangeViewState('),
-				'Should NOT call onDidChangeViewState');
-		});
 	});
 
 	describe('Package.json sidebar contributions', () => {
@@ -159,15 +143,11 @@ describe('Sidebar View Migration', () => {
 				'Should set retainContextWhenHidden option');
 		});
 
-		it('should use chatProvider.show() not createOrShow()', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(!content.includes('createOrShow()'),
-				'Should NOT call createOrShow()');
-			assert.ok(content.includes('chatProvider.show()'),
-				'Should call chatProvider.show()');
-		});
+		// The `chatProvider.show()` scan that lived here was deleted in v3.13.0
+		// Task 7. The variable is `sidebarSurface` now — the provider is only the
+		// registration — so the assertion was matching a name, not a behaviour, and
+		// renaming a local broke it. `chat-webview-slot.test.js` asserts what show()
+		// actually has to do.
 	});
 
 	describe('Responsive CSS', () => {

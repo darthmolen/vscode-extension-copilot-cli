@@ -3,7 +3,7 @@
  *
  * RED phase: Tests FAIL before implementation.
  * Pattern: source-code scan of main.js, WebviewRpcClient.js, sdkSessionManager.ts,
- *          messages.ts, ExtensionRpcRouter.ts, chatViewProvider.ts, extension.ts.
+ *          messages.ts, ExtensionRpcRouter.ts, extension.ts.
  *
  * Covers:
  * 1. WebviewRpcClient has onReasoningDelta() method
@@ -14,7 +14,6 @@
  * 6. sdkSessionManager handles 'assistant.reasoning_delta' case
  * 7. messages.ts has 'reasoningDelta' type and ReasoningDeltaPayload
  * 8. ExtensionRpcRouter has sendReasoningDelta()
- * 9. chatViewProvider has sendReasoningDelta()
  * 10. (removed in Task 5 — routing moved to ChatSessionHost; see note at end of file)
  */
 
@@ -28,13 +27,12 @@ const MESSAGE_DISPLAY_JS = path.join(__dirname, '../../../src/webview/app/compon
 const SDK_SOURCE = path.join(__dirname, '../../../src/sdkSessionManager.ts');
 const MESSAGES_SOURCE = path.join(__dirname, '../../../src/shared/messages.ts');
 const RPC_ROUTER_SOURCE = path.join(__dirname, '../../../src/extension/rpc/ExtensionRpcRouter.ts');
-const CHAT_VIEW_SOURCE = path.join(__dirname, '../../../src/chatViewProvider.ts');
 
 describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
     this.timeout(10000);
 
     let mainSource, rpcClientSource, messageDisplaySource;
-    let sdkSource, messagesSource, rpcRouterSource, chatViewSource;
+    let sdkSource, messagesSource, rpcRouterSource;
 
     before(function () {
         mainSource = fs.readFileSync(MAIN_JS, 'utf8');
@@ -43,7 +41,6 @@ describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
         sdkSource = fs.readFileSync(SDK_SOURCE, 'utf8');
         messagesSource = fs.readFileSync(MESSAGES_SOURCE, 'utf8');
         rpcRouterSource = fs.readFileSync(RPC_ROUTER_SOURCE, 'utf8');
-        chatViewSource = fs.readFileSync(CHAT_VIEW_SOURCE, 'utf8');
     });
 
     // -------------------------------------------------------------------------
@@ -153,15 +150,11 @@ describe('Part 3 — Reasoning Delta Streaming (source-scan)', function () {
         });
     });
 
-    // -------------------------------------------------------------------------
-    // chatViewProvider.ts
-    // -------------------------------------------------------------------------
-    describe('chatViewProvider — sendReasoningDelta', function () {
-        it('should have sendReasoningDelta() method', function () {
-            assert.ok(chatViewSource.includes('sendReasoningDelta'),
-                'chatViewProvider must have sendReasoningDelta() method');
-        });
-    });
+    // The chatViewProvider scan that lived here was deleted in v3.13.0 Task 7. The
+    // chat surface moved to src/extension/webview/webviewChatSurface.ts so one
+    // class could serve the sidebar and an editor tab, and a string match against
+    // the old path stopped finding anything. It only ever proved the file
+    // contained the characters 'sendReasoningDelta'.
 
     // The two extension.ts checks that lived here were deleted in v3.13.0 Task 5.
     // They asserted that the *source text* of extension.ts contained

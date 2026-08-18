@@ -12,7 +12,6 @@
  * 5. _onDidReceiveOutput fires { content, messageId } (not bare string)
  * 6. AssistantMessagePayload has messageId field in shared/messages.ts
  * 7. sendMessageDelta(messageId, deltaContent) exists in ExtensionRpcRouter.ts
- * 8. chatViewProvider.ts has public sendMessageDelta proxy
  */
 
 const assert = require('assert');
@@ -22,18 +21,16 @@ const path = require('path');
 const SDK_SOURCE = path.join(__dirname, '../../../src/sdkSessionManager.ts');
 const MESSAGES_SOURCE = path.join(__dirname, '../../../src/shared/messages.ts');
 const RPC_ROUTER_SOURCE = path.join(__dirname, '../../../src/extension/rpc/ExtensionRpcRouter.ts');
-const CHAT_VIEW_SOURCE = path.join(__dirname, '../../../src/chatViewProvider.ts');
 
 describe('Phase 6b — Streaming Backend', function () {
     this.timeout(10000);
 
-    let sdkSource, messagesSource, rpcSource, chatViewSource;
+    let sdkSource, messagesSource, rpcSource;
 
     before(function () {
         sdkSource = fs.readFileSync(SDK_SOURCE, 'utf8');
         messagesSource = fs.readFileSync(MESSAGES_SOURCE, 'utf8');
         rpcSource = fs.readFileSync(RPC_ROUTER_SOURCE, 'utf8');
-        chatViewSource = fs.readFileSync(CHAT_VIEW_SOURCE, 'utf8');
     });
 
     // -------------------------------------------------------------------------
@@ -212,16 +209,9 @@ describe('Phase 6b — Streaming Backend', function () {
         });
     });
 
-    // -------------------------------------------------------------------------
-    // 7. chatViewProvider.ts — sendMessageDelta public proxy
-    // -------------------------------------------------------------------------
-
-    describe('chatViewProvider.ts — sendMessageDelta proxy', function () {
-        it('should have public sendMessageDelta method', function () {
-            assert.ok(
-                chatViewSource.includes('sendMessageDelta'),
-                'chatViewProvider.ts must have sendMessageDelta proxy method'
-            );
-        });
-    });
+    // The source-scan that lived here was deleted in v3.13.0 Task 7. It asserted
+    // that `src/chatViewProvider.ts` contained a string; the chat surface moved to
+    // `src/extension/webview/webviewChatSurface.ts` so one class could serve the
+    // sidebar and an editor tab, and the assertion stopped matching. The same match
+    // would have passed against a comment, so it was never testing the behaviour.
 });

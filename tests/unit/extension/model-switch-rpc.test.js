@@ -171,33 +171,11 @@ describe('Model Switch RPC Contract', function () {
 	// the model on the session's own state and tells that session's surface, and a
 	// failed switch tells the surface without recording anything.
 
-	// ================================================================
-	// chatViewProvider.ts — switchModel event wiring
-	// ================================================================
-
-	describe('chatViewProvider.ts switchModel wiring', function () {
-		let providerSource;
-
-		before(function () {
-			providerSource = fs.readFileSync(
-				path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts'),
-				'utf-8'
-			);
-		});
-
-		// The onSwitchModel registration moved to
-		// src/extension/rpc/registerChatHandlers.ts in v3.13.0 Task 2, and is now
-		// covered functionally by register-chat-handlers.test.js. The assertion
-		// that lived here read the provider's source text, so it verified nothing
-		// a comment could not have satisfied.
-
-		it('exposes onDidRequestSwitchModel event', function () {
-			assert.ok(
-				providerSource.includes('onDidRequestSwitchModel'),
-				'chatViewProvider should expose onDidRequestSwitchModel event'
-			);
-		});
-	});
+	// The source-scan that lived here was deleted in v3.13.0 Task 7. It asserted
+	// that `src/chatViewProvider.ts` contained a string; the chat surface moved to
+	// `src/extension/webview/webviewChatSurface.ts` so one class could serve the
+	// sidebar and an editor tab, and the assertion stopped matching. The same match
+	// would have passed against a comment, so it was never testing the behaviour.
 
 	// ================================================================
 	// Shared types — already verified to exist
