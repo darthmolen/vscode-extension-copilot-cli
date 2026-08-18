@@ -20,6 +20,8 @@ import { buildSessionTranscript } from './extension/services/sessionTranscriptBu
 import { ChatSessionRegistry } from './extension/session/ChatSessionRegistry';
 import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { createChatSessionServices } from './extension/session/chatSessionServices';
+import { planSessionStart } from './extension/session/sessionStartPlan';
+import { createStartManager } from './extension/session/startManager';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
@@ -141,13 +143,14 @@ export function activate(context: vscode.ExtensionContext) {
 		// Guarding on the module-level `sessionManager` cannot survive a second
 		// surface — it answers "is any session running in this window", not "is
 		// mine".
-		startManager: async () => {
-			await resumeAndStartSession(context);
-			if (!sessionManager) {
-				throw new Error('CLI session failed to start');
-			}
-			return sessionManager;
-		}
+		// The host's `{ sessionId, resume }` is threaded through rather than dropped.
+		// Discarding it is what made "open or restore the surface for session X"
+		// resume whatever `determineSessionToResume` picked by mtime.
+		startManager: createStartManager({
+			resumeAndStart: (request) => resumeAndStartSession(context, request),
+			getManager: () => sessionManager,
+			logger
+		})
 	});
 	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
 	// Shares the facade's `SessionState` on purpose: `ChatViewProvider` still records
@@ -442,21 +445,37 @@ function registerCommands(context: vscode.ExtensionContext): void {
 
 // ── Session Resume ───────────────────────────────────────────────────────────
 
-/** Shared logic: determine session to resume, load history, start CLI. */
-async function resumeAndStartSession(context: vscode.ExtensionContext): Promise<void> {
-	if (sessionManager && sessionManager.isRunning()) {
+/**
+ * Shared logic: determine session to resume, load history, start CLI.
+ *
+ * `request.sessionId` is a *stated intent* — a surface asking for the session it
+ * already belongs to (a restored tab, a host resuming). It bypasses both the
+ * `resumeLastSession` setting and the most-recent-by-mtime heuristic, because
+ * neither of those is an answer to "bring back session X".
+ */
+async function resumeAndStartSession(
+	context: vscode.ExtensionContext,
+	request: { sessionId?: string | null } = {}
+): Promise<void> {
+	const plan = planSessionStart(request, sessionManager);
+	if (plan.reuseRunning) {
 		return;
 	}
 
-	const resumeLastSession = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true);
-	let sessionIdToResume: string | undefined;
+	const resumeLastSession = plan.consultAmbient
+		? vscode.workspace.getConfiguration('copilotCLI').get<boolean>('resumeLastSession', true)
+		: true;
+	let sessionIdToResume = plan.requestedSessionId;
 
-	if (resumeLastSession) {
+	if (plan.consultAmbient && resumeLastSession) {
 		const sessionId = await determineSessionToResume(context);
 		if (sessionId) {
-			await loadSessionHistory(sessionId);
 			sessionIdToResume = sessionId;
 		}
+	}
+
+	if (sessionIdToResume) {
+		await loadSessionHistory(sessionIdToResume);
 	}
 
 	updateActiveFile(vscode.window.activeTextEditor);
@@ -659,9 +678,20 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 }
 
 async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string): Promise<void> {
-	if (sessionManager && sessionManager.isRunning()) {
+	const plan = planSessionStart({ sessionId: specificSessionId }, sessionManager);
+	if (plan.reuseRunning) {
 		logger.warn('CLI session already running');
 		return;
+	}
+	if (sessionManager && sessionManager.isRunning()) {
+		// A *different* session is live in this window. Its events keep routing to
+		// its own host (Task 5), so it does not go silent — but the module-level
+		// handle moves to the new manager, which is the cross-session flaw Task 8
+		// closes by giving each host its own. Say so rather than let it look normal.
+		logger.warn(
+			`Starting session ${specificSessionId} while ${sessionManager.getSessionId()} is still live — ` +
+			`the module-level manager handle now points at the new one`
+		);
 	}
 
 	try {
