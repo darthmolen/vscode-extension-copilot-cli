@@ -20,6 +20,7 @@ import { ManagedMCPRegistry } from '../services/managedMCPRegistry';
 import { MCPConfigurationService } from '../services/mcpConfigurationService';
 import { CliCapabilityService } from '../services/cliCapabilityService';
 import { ChatSessionHost } from '../session/ChatSessionHost';
+import type { WorkspaceStateChange } from '../../backendState';
 import { buildMcpServerStatusList, mergeMcpListWithConfig, mergeCopilotConfigList } from '../services/mcpStatusBuilder';
 import type { McpServerSource, McpServerActionPayload } from '../../shared/messages';
 import {
@@ -87,6 +88,8 @@ export class WebviewChatSurface implements vscode.Disposable {
 	private readonly _onDidRequestReloadAgents = this._reg(new vscode.EventEmitter<void>());
 	/** Fires when this surface's container is gone for good — a closed tab. */
 	private readonly _onDidClose = this._reg(new vscode.EventEmitter<void>());
+	/** This surface's handle on its window's state. Disposed with the surface. */
+	private windowStateSubscription?: { dispose(): void };
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -150,6 +153,48 @@ export class WebviewChatSurface implements vscode.Disposable {
 	 */
 	public setSessionHost(host: ChatSessionHost): void {
 		this.sessionHost = host;
+
+		// Replaced, not added to. A surface can be aimed at another conversation,
+		// and a second subscription would render every window update twice.
+		this.windowStateSubscription?.dispose();
+		this.windowStateSubscription = host.workspace.onDidChange(change => this.onWindowStateChanged(change));
+	}
+
+	/**
+	 * Window state moved; render the part of it this surface shows.
+	 *
+	 * Subscribing beats being pushed at: `updateActiveFile` and `updateSessionsList`
+	 * wrote straight to the sidebar, which with N surfaces becomes a fan-out loop
+	 * repeated at every call site until one of them quietly isn't.
+	 */
+	private onWindowStateChanged(change: WorkspaceStateChange): void {
+		switch (change) {
+			case 'activeFile':
+				this.updateActiveFile(this.sessionHost?.workspace.getActiveFilePath() ?? null);
+				break;
+			case 'sessions':
+				this.sendSessions();
+				break;
+			case 'workspacePath':
+				// Only ever read as part of the init payload; nothing to re-render.
+				break;
+		}
+	}
+
+	/**
+	 * The window's session list, paired with *this* surface's current session.
+	 *
+	 * The list is window state and identical everywhere; which one is current is
+	 * not. Combining them here rather than at the writer is what stops a tab's
+	 * dropdown highlighting the sidebar's conversation — the old call site ended
+	 * with `sessionManager?.getSessionId()`, the window's session, for everyone.
+	 */
+	public sendSessions(): void {
+		const host = this.sessionHost;
+		if (!host) {
+			return;
+		}
+		this.updateSessions(host.workspace.getSessions(), host.sessionId);
 	}
 
 	public getSessionHost(): ChatSessionHost | undefined {
@@ -182,6 +227,9 @@ export class WebviewChatSurface implements vscode.Disposable {
 			currentModel: fullState.currentModel,
 			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 		});
+		// The dropdown is not part of the init payload, so a freshly attached
+		// surface would otherwise show an empty session list until the next change.
+		this.sendSessions();
 	}
 
 	public setMcpListProvider(provider: () => Promise<any[]>): void {
@@ -779,6 +827,8 @@ export class WebviewChatSurface implements vscode.Disposable {
 	}
 
 	public dispose(): void {
+		this.windowStateSubscription?.dispose();
+		this.windowStateSubscription = undefined;
 		this._disposables.dispose();
 		this.rpcRouter = undefined;
 		// The slot is not disposed here. VS Code owns the sidebar view's lifetime,

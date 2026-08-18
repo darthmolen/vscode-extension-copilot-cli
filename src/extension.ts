@@ -1031,14 +1031,18 @@ function updateSessionsList() {
 			logger.debug(`Filtered to ${sessions.length} for workspace: ${workspaceFolder}`);
 		}
 
-		// Add current session if not yet in list (new session without events.jsonl)
-		const currentSessionId = sessionManager?.getSessionId() || null;
-		if (currentSessionId && !sessions.find(s => s.id === currentSessionId)) {
-			sessions.unshift({ id: currentSessionId, mtime: Date.now() });
+		// Add any live session not yet on disk (a new session has no events.jsonl).
+		// Every host's, not just the window manager's: with N surfaces, asking one
+		// manager for "the" current session leaves the tab you are looking at out of
+		// your own dropdown.
+		for (const liveId of sessionRegistry.liveSessionIds()) {
+			if (!sessions.find(s => s.id === liveId)) {
+				sessions.unshift({ id: liveId, mtime: Date.now() });
+			}
 		}
 
 		if (sessions.length === 0) {
-			sidebarSurface.updateSessions([], null);
+			getWorkspaceRuntimeState().setSessions([]);
 			return;
 		}
 
@@ -1048,7 +1052,9 @@ function updateSessionsList() {
 			label: SessionService.formatSessionLabel(session.id, path.join(sessionStateDir, session.id))
 		}));
 
-		sidebarSurface.updateSessions(sessionList, currentSessionId);
+		// Written, not pushed. Every surface subscribes and pairs this list with its
+		// own host's session id, so a tab's dropdown highlights the tab's session.
+		getWorkspaceRuntimeState().setSessions(sessionList);
 	} catch (error) {
 		logger.error('Failed to update sessions list', error instanceof Error ? error : undefined);
 	}
@@ -1087,7 +1093,6 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 		if (vscode.window.visibleTextEditors.length === 0) {
 			// All files are closed, clear active file
 			getWorkspaceRuntimeState().setActiveFilePath(null);
-			sidebarSurface.updateActiveFile(null);
 			lastKnownTextEditor = undefined;
 		}
 		// Otherwise, keep the last known active file (focus moved to webview)
@@ -1097,7 +1102,6 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	const includeActiveFile = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true);
 	if (!includeActiveFile) {
 		getWorkspaceRuntimeState().setActiveFilePath(null);
-		sidebarSurface.updateActiveFile(null);
 		return;
 	}
 	
@@ -1113,7 +1117,6 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	}
 	
 	getWorkspaceRuntimeState().setActiveFilePath(relativePath);
-	sidebarSurface.updateActiveFile(relativePath);
 }
 
 export function deactivate() {

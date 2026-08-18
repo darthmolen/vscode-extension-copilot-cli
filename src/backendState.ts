@@ -151,6 +151,15 @@ export class SessionState {
     }
 }
 
+/** One row of the session dropdown. */
+export interface SessionListEntry {
+    id: string;
+    label: string;
+}
+
+/** What moved. Surfaces re-render only the part that did. */
+export type WorkspaceStateChange = 'activeFile' | 'sessions' | 'workspacePath';
+
 /**
  * Window-scoped state, shared by every chat surface.
  *
@@ -160,23 +169,90 @@ export class SessionState {
 export class WorkspaceRuntimeState {
     private workspacePath: string | null = null;
     private activeFilePath: string | null = null;
+    private sessions: SessionListEntry[] = [];
     private mcpServerTools: Record<string, string[]> = {};
     private mcpServerStatuses: Record<string, string> = {};
+    private readonly listeners: Array<(change: WorkspaceStateChange) => void> = [];
+
+    /**
+     * Watch this window's state.
+     *
+     * Plain callbacks rather than `vscode.EventEmitter` so this module stays free
+     * of `vscode` and requirable from plain mocha — the same constraint
+     * `ChatSessionHost.onAdoptSessionId` is built to.
+     *
+     * The subscriber owns the returned handle. A surface that fails to dispose it
+     * keeps writing to a webview that no longer exists.
+     */
+    public onDidChange(listener: (change: WorkspaceStateChange) => void): { dispose(): void } {
+        this.listeners.push(listener);
+        return {
+            dispose: () => {
+                const index = this.listeners.indexOf(listener);
+                if (index > -1) {
+                    this.listeners.splice(index, 1);
+                }
+            }
+        };
+    }
+
+    /**
+     * Tell every surface. One broken subscriber must not silence the others —
+     * with N surfaces, a throw from a half-disposed tab would otherwise stop the
+     * rest of the window updating.
+     */
+    private announce(change: WorkspaceStateChange): void {
+        for (const listener of this.listeners.slice()) {
+            try {
+                listener(change);
+            } catch {
+                // Deliberately swallowed: this object has no logger, and losing one
+                // surface's update is better than losing all of them.
+            }
+        }
+    }
 
     public setWorkspacePath(path: string | null): void {
+        if (this.workspacePath === path) {
+            return;
+        }
         this.workspacePath = path;
+        this.announce('workspacePath');
     }
 
     public getWorkspacePath(): string | null {
         return this.workspacePath;
     }
 
+    /**
+     * Silent when nothing moved. Editor focus churn re-reports the same file
+     * constantly, and with N surfaces every repeat would be N re-renders.
+     */
     public setActiveFilePath(path: string | null): void {
+        if (this.activeFilePath === path) {
+            return;
+        }
         this.activeFilePath = path;
+        this.announce('activeFile');
     }
 
     public getActiveFilePath(): string | null {
         return this.activeFilePath;
+    }
+
+    /**
+     * The session dropdown's contents — window-scoped, unlike *which* of them is
+     * current. Each surface pairs this list with its own host's session id at
+     * render time, which is what stops a tab's dropdown highlighting the
+     * sidebar's conversation.
+     */
+    public setSessions(sessions: SessionListEntry[]): void {
+        this.sessions = sessions;
+        this.announce('sessions');
+    }
+
+    public getSessions(): SessionListEntry[] {
+        return this.sessions;
     }
 
     public setMcpServerTools(serverKey: string, tools: string[]): void {

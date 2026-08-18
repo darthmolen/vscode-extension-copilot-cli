@@ -112,6 +112,21 @@ export class ChatSessionRegistry {
         return this.liveHosts.size;
     }
 
+    /**
+     * Every session this window currently has a surface for.
+     *
+     * The dropdown is built from `~/.copilot/session-state`, which a brand-new
+     * session has not written to yet. Asking the window's single manager for "the"
+     * current id answered that for one surface; with N it has to be every host's,
+     * or the tab you are looking at is missing from your own dropdown.
+     *
+     * Hosts with no id yet are skipped — a session that has not started is not one
+     * you can switch to.
+     */
+    public liveSessionIds(): string[] {
+        return [...this.liveHosts].map(host => host.sessionId).filter((id): id is string => id !== null);
+    }
+
     public dispose(sessionId: string): void {
         const host = this.hostsBySessionId.get(sessionId);
         if (!host) {
