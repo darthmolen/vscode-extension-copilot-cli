@@ -201,6 +201,43 @@ export class WorkspaceRuntimeState {
     }
 }
 
+/** Everything a surface needs to render itself from cold. */
+export interface FullState {
+    sessionId: string | null;
+    sessionActive: boolean;
+    messages: Message[];
+    planModeStatus: PlanModeStatus | null;
+    workspacePath: string | null;
+    activeFilePath: string | null;
+    currentModel: string | null;
+    activeAgent: string | null;
+}
+
+/**
+ * The one place a surface's init payload is assembled.
+ *
+ * A free function rather than a method because there are two owners of the two
+ * halves and neither should learn the other's shape: a `ChatSessionHost` holds one
+ * conversation's `SessionState` and shares the window's `WorkspaceRuntimeState`,
+ * while `BackendState` holds one of each. Both need the same payload.
+ *
+ * Kept singular deliberately. Three hand-built init payloads shipped in this
+ * codebase before one of them was found by noticing a missing log line; a second
+ * builder here is the same defect waiting for a second surface.
+ */
+export function composeFullState(session: SessionState, workspace: WorkspaceRuntimeState): FullState {
+    return {
+        sessionId: session.getSessionId(),
+        sessionActive: session.isSessionActive(),
+        messages: session.getMessages(),
+        planModeStatus: session.getPlanModeStatus(),
+        workspacePath: workspace.getWorkspacePath(),
+        activeFilePath: workspace.getActiveFilePath(),
+        currentModel: session.getCurrentModel(),
+        activeAgent: session.getActiveAgent()
+    };
+}
+
 /**
  * The pre-split interface, preserved.
  *
@@ -247,26 +284,8 @@ export class BackendState {
     public getMcpServerStatuses(): Record<string, string> { return this.workspace.getMcpServerStatuses(); }
 
     // Get full state for webview sync
-    public getFullState(): {
-        sessionId: string | null;
-        sessionActive: boolean;
-        messages: Message[];
-        planModeStatus: PlanModeStatus | null;
-        workspacePath: string | null;
-        activeFilePath: string | null;
-        currentModel: string | null;
-        activeAgent: string | null;
-    } {
-        return {
-            sessionId: this.session.getSessionId(),
-            sessionActive: this.session.isSessionActive(),
-            messages: this.session.getMessages(),
-            planModeStatus: this.session.getPlanModeStatus(),
-            workspacePath: this.workspace.getWorkspacePath(),
-            activeFilePath: this.workspace.getActiveFilePath(),
-            currentModel: this.session.getCurrentModel(),
-            activeAgent: this.session.getActiveAgent()
-        };
+    public getFullState(): FullState {
+        return composeFullState(this.session, this.workspace);
     }
 
     /** Reset the conversation. Workspace and active file survive — they are environment. */

@@ -13,10 +13,11 @@
  */
 
 import { RunningSessionLike } from './sessionStartPlan';
+import type { ChatSessionHost } from './ChatSessionHost';
 
 export interface StartManagerDeps<TManager extends RunningSessionLike> {
     /** Resume-or-start for this window. `extension.ts` binds the context. */
-    resumeAndStart(request: { sessionId?: string | null }): Promise<void>;
+    resumeAndStart(request: { sessionId?: string | null; host?: ChatSessionHost }): Promise<void>;
     /** The manager that resulted, or null if the start failed. */
     getManager(): TManager | null;
     logger: { warn(message: string): void };
@@ -24,9 +25,11 @@ export interface StartManagerDeps<TManager extends RunningSessionLike> {
 
 export function createStartManager<TManager extends RunningSessionLike>(
     deps: StartManagerDeps<TManager>
-): (options: { sessionId: string | null; resume: boolean }) => Promise<TManager> {
-    return async ({ sessionId }) => {
-        await deps.resumeAndStart({ sessionId });
+): (options: { sessionId: string | null; resume: boolean; host?: ChatSessionHost }) => Promise<TManager> {
+    return async ({ sessionId, host }) => {
+        // The host travels with the request because a *fresh* session has no id
+        // yet, so nothing else identifies which host the bootstrap belongs to.
+        await deps.resumeAndStart({ sessionId, host });
 
         const manager = deps.getManager();
         if (!manager) {

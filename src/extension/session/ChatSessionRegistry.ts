@@ -30,7 +30,7 @@ export interface ChatSessionRegistryDeps {
     /** Window-scoped diff enrichment (filesystem reads), passed to every host. */
     enrichDiff?: (diffData: any) => any;
     /** Brings a CLI session into being; the host decides whether to call it. */
-    startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<any>;
+    startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<any>;
 }
 
 export class ChatSessionRegistry {
@@ -54,7 +54,7 @@ export class ChatSessionRegistry {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly enrichDiff?: (diffData: any) => any;
-    private readonly startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<any>;
+    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<any>;
 
     constructor(deps: ChatSessionRegistryDeps) {
         this.workspace = deps.workspace;

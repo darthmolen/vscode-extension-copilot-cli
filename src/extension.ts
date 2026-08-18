@@ -4,7 +4,7 @@ import * as os from 'os';
 import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager';
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
-import { getBackendState, getWorkspaceRuntimeState, BackendState } from './backendState';
+import { getWorkspaceRuntimeState } from './backendState';
 import { createVSCodeHostBridge } from './extension/hostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
 import { forkCurrentSession } from './extension/commands/forkSession';
@@ -22,6 +22,7 @@ import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { createChatSessionServices } from './extension/session/chatSessionServices';
 import { planSessionStart } from './extension/session/sessionStartPlan';
 import { createStartManager } from './extension/session/startManager';
+import { recordSessionStart, loadTranscriptInto } from './extension/session/sessionBootstrap';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
@@ -31,7 +32,6 @@ let resolvedCli: ResolvedCli | null = null;
 let cliBundleReady: Promise<void> | null = null;
 let logger: Logger;
 let statusBarItem: vscode.StatusBarItem;
-let backendState: BackendState;
 let lastKnownTextEditor: vscode.TextEditor | undefined;
 let chatProvider: ChatViewProvider;
 /** Every chat session live in this window. One entry today; the sidebar's. */
@@ -124,7 +124,6 @@ function buildChatSessionServicesFactory() {
 
 export function activate(context: vscode.ExtensionContext) {
 	logger = Logger.getInstance();
-	backendState = getBackendState();
 
 	// Create chat provider and register as sidebar webview
 	chatProvider = new ChatViewProvider(context.extensionUri);
@@ -153,11 +152,12 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	});
 	context.subscriptions.push({ dispose: () => sessionRegistry.disposeAll() });
-	// Shares the facade's `SessionState` on purpose: `ChatViewProvider` still records
-	// messages through `getBackendState()`, so a host with its own state would read
-	// an empty transcript while the surface wrote to another. The sharing ends when
-	// the last facade call site does.
-	sidebarHost = sessionRegistry.create(null, backendState.session);
+	// No longer shares the facade's `SessionState`. It had to while
+	// `ChatViewProvider` recorded messages through `getBackendState()` — a host with
+	// its own state would have read an empty transcript while the surface wrote to
+	// another. Those call sites are gone, so the sidebar's conversation is now just
+	// one host's, the same as any tab's.
+	sidebarHost = sessionRegistry.create(null);
 	sidebarHost.attachSurface(chatProvider);
 	chatProvider.setSessionHost(sidebarHost);
 
@@ -455,8 +455,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
  */
 async function resumeAndStartSession(
 	context: vscode.ExtensionContext,
-	request: { sessionId?: string | null } = {}
+	request: { sessionId?: string | null; host?: ChatSessionHost } = {}
 ): Promise<void> {
+	// Whose session this is. Defaulting to the sidebar keeps the command palette
+	// and activation paths working; a host asking for itself supplies its own.
+	const target = request.host ?? sidebarHost;
 	const plan = planSessionStart(request, sessionManager);
 	if (plan.reuseRunning) {
 		return;
@@ -475,13 +478,13 @@ async function resumeAndStartSession(
 	}
 
 	if (sessionIdToResume) {
-		await loadSessionHistory(sessionIdToResume);
+		await loadSessionHistory(sessionIdToResume, target);
 	}
 
 	updateActiveFile(vscode.window.activeTextEditor);
 	updateSessionsList();
 
-	await startCLISession(context, resumeLastSession, sessionIdToResume);
+	await startCLISession(context, resumeLastSession, sessionIdToResume, target);
 }
 
 // ── Command Handlers ──────────────────────────────────────────────────────────
@@ -677,7 +680,7 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 	return sessionId;
 }
 
-async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string): Promise<void> {
+async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string, target: ChatSessionHost = sidebarHost): Promise<void> {
 	const plan = planSessionStart({ sessionId: specificSessionId }, sessionManager);
 	if (plan.reuseRunning) {
 		logger.warn('CLI session already running');
@@ -716,7 +719,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 			// The host owns session state, so it supplies the sticky-agent accessor
 			// rather than the bridge reaching into the backendState singleton.
 			createVSCodeHostBridge(context, {
-				getActiveAgent: () => getBackendState().getActiveAgent()
+				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
 		wireManagerEvents(context, sessionManager);
@@ -724,7 +727,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Starting CLI process...');
 		await sessionManager.start();
 
-		onSessionStarted(sessionManager);
+		onSessionStarted(sessionManager, target);
 	} catch (error) {
 		await handleStartupError(error, context, resumeLastSession, specificSessionId);
 		throw error;
@@ -807,9 +810,10 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 		// The manager no longer writes MCP state into backendState directly; it
 		// emits, and the host records it. Keeps the store host-side so the
 		// manager can run in its own process.
+		const workspaceState = getWorkspaceRuntimeState();
 		for (const server of update.servers) {
-			getBackendState().setMcpServerTools(server.name, server.tools);
-			getBackendState().setMcpServerStatus(server.name, server.status);
+			workspaceState.setMcpServerTools(server.name, server.tools);
+			workspaceState.setMcpServerStatus(server.name, server.status);
 		}
 	})));
 
@@ -818,49 +822,49 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	})));
 }
 
-/** Post-start setup: update state, UI, and session dropdown. */
-function onSessionStarted(manager: SDKSessionManager): void {
-	const sessionId = manager.getSessionId();
-	backendState.setSessionId(sessionId);
-	backendState.setSessionActive(true);
+/**
+ * Post-start setup: update state, UI, and session dropdown.
+ *
+ * Everything conversation-shaped goes to `target` and everything it renders goes
+ * to `target`'s surface. It used to go to the `BackendState` singleton and the
+ * module-level `chatProvider`, so starting any session marked the sidebar's
+ * conversation active, adopted the new id onto `sidebarHost`, and greeted the
+ * sidebar — whichever surface had actually asked for the session.
+ */
+function onSessionStarted(manager: SDKSessionManager, target: ChatSessionHost = sidebarHost): void {
+	// manager.getWorkspacePath() returns the SDK session-state dir, not the
+	// VS Code workspace.  Use the real workspace folder for image resolution.
+	recordSessionStart(target, {
+		sessionId: manager.getSessionId(),
+		workspacePath: manager.getWorkspacePath() || null,
+		model: getCLIConfig().model || null
+	});
 
-	// The host was built before the CLI had an id. Adopting it here indexes the
-	// host by session, and keeps whatever was typed while the session started.
-	if (sessionId) {
-		sidebarHost.adoptSessionId(sessionId);
-	}
+	const surface = target.getSurface();
 
 	statusBarItem.text = "$(debug-start) CLI Running";
 	statusBarItem.tooltip = "Copilot CLI is active";
-	chatProvider.setSessionActive(true);
+	surface?.setSessionActive(true);
 
-	// manager.getWorkspacePath() returns the SDK session-state dir, not the
-	// VS Code workspace.  Use the real workspace folder for image resolution.
-	const sdkWorkspacePath = manager.getWorkspacePath();
-	backendState.setWorkspacePath(sdkWorkspacePath || null);
 	const vsWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	chatProvider.setWorkspacePath(vsWorkspacePath);
+	surface?.setWorkspacePath(vsWorkspacePath);
 
-	chatProvider.setValidateAttachmentsCallback(async (filePaths: string[]) => {
+	surface?.setValidateAttachmentsCallback(async (filePaths: string[]) => {
 		if (!sessionManager) {
 			return { valid: false, error: 'Session not active' };
 		}
 		return await sessionManager.validateAttachments(filePaths);
 	});
 
-	// Set configured default model in backend state so webview shows it
-	const configModel = getCLIConfig().model;
-	backendState.setCurrentModel(configModel || null);
-
 	logger.info('CLI process started successfully');
-	chatProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
+	surface?.addAssistantMessage('Copilot CLI session started! How can I help you?');
 	updateSessionsList();
 	logger.show();
 
 	// Fetch available models from SDK and send to webview (fire-and-forget)
 	sessionManager?.getAvailableModels().then(models => {
 		if (models.length > 0) {
-			chatProvider.sendAvailableModels(models);
+			surface?.sendAvailableModels(models);
 		}
 	}).catch(err => {
 		logger.warn(`[Models] Failed to fetch available models: ${err}`);
@@ -1045,11 +1049,11 @@ function updateSessionsList() {
  * call, while the webview's own re-init path read a separate in-memory summary that
  * rendered each tool as "Tool execution" — one session, two histories.
  */
-async function loadSessionHistory(sessionId: string): Promise<void> {
+async function loadSessionHistory(sessionId: string, target: ChatSessionHost = sidebarHost): Promise<void> {
 	const eventsPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId, 'events.jsonl');
 	const messages = await buildSessionTranscript(eventsPath);
 
-	backendState.setMessages(messages);
+	loadTranscriptInto(target, messages);
 	const toolCount = messages.filter(m => m.kind === 'tool').length;
 	logger.info(`Loaded ${messages.length} messages (${toolCount} tool calls) from session history`);
 }
@@ -1069,7 +1073,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	if (!editor) {
 		if (vscode.window.visibleTextEditors.length === 0) {
 			// All files are closed, clear active file
-			backendState.setActiveFilePath(null);
+			getWorkspaceRuntimeState().setActiveFilePath(null);
 			chatProvider.updateActiveFile(null);
 			lastKnownTextEditor = undefined;
 		}
@@ -1079,7 +1083,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 	
 	const includeActiveFile = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true);
 	if (!includeActiveFile) {
-		backendState.setActiveFilePath(null);
+		getWorkspaceRuntimeState().setActiveFilePath(null);
 		chatProvider.updateActiveFile(null);
 		return;
 	}
@@ -1095,7 +1099,7 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 		}
 	}
 	
-	backendState.setActiveFilePath(relativePath);
+	getWorkspaceRuntimeState().setActiveFilePath(relativePath);
 	chatProvider.updateActiveFile(relativePath);
 }
 

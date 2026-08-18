@@ -22,31 +22,14 @@ describe('Model Default on Session Start', function () {
 		);
 	});
 
-	// ================================================================
-	// onSessionStarted — sets default model in backendState
-	// ================================================================
-
-	describe('onSessionStarted sets default model', function () {
-		it('calls setCurrentModel with configured model', function () {
-			// onSessionStarted should read getCLIConfig().model and store it
-			assert.ok(
-				extensionSource.includes('setCurrentModel'),
-				'onSessionStarted should call backendState.setCurrentModel'
-			);
-
-			// Verify it reads from getCLIConfig within onSessionStarted
-			// Find the onSessionStarted function body
-			const fnStart = extensionSource.indexOf('function onSessionStarted');
-			assert.ok(fnStart !== -1, 'onSessionStarted function should exist');
-
-			// Find the next function definition to bound the search
-			const fnBody = extensionSource.substring(fnStart, fnStart + 1500);
-			assert.ok(
-				fnBody.includes('getCLIConfig') && fnBody.includes('setCurrentModel'),
-				'onSessionStarted should read getCLIConfig and call setCurrentModel'
-			);
-		});
-	});
+	// The 'onSessionStarted sets default model' source-scan that lived here was
+	// deleted in v3.13.0 C1. It asserted that `extension.ts` *contained the text*
+	// `setCurrentModel`, which stopped being true when the write moved onto the
+	// host that started the session — a legitimate refactor, and the same match
+	// would have passed against a comment. The behaviour it claimed to guard is
+	// now asserted by running it: `recordSessionStart()` sets the model on the
+	// starting host and on no other. See
+	// tests/unit/extension/session-bootstrap-targets-host.test.js.
 
 	// The handleSwitchSession source-scan that lived here was deleted in v3.13.0
 	// Task 6: it asserted that the function's *text* contained 'currentModel',

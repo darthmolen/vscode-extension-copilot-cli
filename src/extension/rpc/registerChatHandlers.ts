@@ -18,7 +18,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
 import { ExtensionRpcRouter } from './ExtensionRpcRouter';
-import { getBackendState } from '../../backendState';
 import { Logger } from '../../logger';
 import { CustomAgentsService } from '../services/CustomAgentsService';
 import { InfoSlashHandlers } from '../services/slashCommands/InfoSlashHandlers';
@@ -26,6 +25,7 @@ import { CodeReviewSlashHandlers } from '../services/slashCommands/CodeReviewSla
 import { NotSupportedSlashHandlers } from '../services/slashCommands/NotSupportedSlashHandlers';
 import { MCPConfigurationService } from '../services/mcpConfigurationService';
 import { CLIPassthroughService } from '../services/CLIPassthroughService';
+import type { ChatSessionHost } from '../session/ChatSessionHost';
 import { CliCapabilityService } from '../services/cliCapabilityService';
 import type { McpServerActionPayload } from '../../shared/messages';
 
@@ -66,6 +66,12 @@ export interface ChatHandlerContext {
     readonly notSupportedHandlers?: NotSupportedSlashHandlers;
     readonly mcpConfigService?: MCPConfigurationService;
     readonly cliPassthroughService?: CLIPassthroughService;
+    /**
+     * The session this surface is showing. A getter, not a value: the host is
+     * attached after construction and replaced when the surface changes session,
+     * and handlers run long after registration.
+     */
+    readonly sessionHost?: ChatSessionHost;
     cliCapability: CliCapabilityService | null;
 
     /** Send the surface's full state to its webview. The only init path. */
@@ -258,10 +264,9 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 		ctx.reg(ctx.rpcRouter.onOpenInCLI(async (payload) => {
 			ctx.logger.info(`Open in CLI requested: ${payload.command}`);
 			
-			// Get current session ID and workspace path
-			const backendState = getBackendState();
-			const sessionId = backendState.getSessionId();
-			const workspacePath = backendState.getWorkspacePath() || ctx.currentWorkspacePath || null;
+			// This surface's session, not the window's most recent one.
+			const sessionId = ctx.sessionHost?.sessionId ?? null;
+			const workspacePath = ctx.sessionHost?.workspace.getWorkspacePath() || ctx.currentWorkspacePath || null;
 
 			if (!sessionId) {
 				ctx.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');
@@ -320,11 +325,13 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 		}));
 
 		ctx.reg(ctx.rpcRouter.onSelectAgent(async (payload) => {
-			const state = getBackendState();
+			// The sticky agent belongs to a conversation, so it is recorded on the
+			// host — two surfaces can hold two different agents at once.
+			const state = ctx.sessionHost?.state;
 			const agentName = payload.name.trim();
 			ctx.logger.info(`[selectAgent] ${agentName || '(clear)'}`);
 			if (!agentName) {
-				state.setActiveAgent(null);
+				state?.setActiveAgent(null);
 				ctx.rpcRouter!.sendActiveAgentChanged(null);
 				ctx._onDidSelectAgent.fire(null);
 				return;
@@ -335,7 +342,7 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 				ctx.rpcRouter!.setStatus(`Unknown agent: ${agentName}. Available: ${all.map(a => a.name).join(', ')}`);
 				return;
 			}
-			state.setActiveAgent(agentName);
+			state?.setActiveAgent(agentName);
 			ctx.rpcRouter!.sendActiveAgentChanged(agent);
 			ctx._onDidSelectAgent.fire(agentName);
 		}));

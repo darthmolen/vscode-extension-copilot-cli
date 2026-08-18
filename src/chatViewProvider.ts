@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
 import { Logger } from './logger';
-import { getBackendState } from './backendState';
 import { ExtensionRpcRouter } from './extension/rpc';
 import { registerChatHandlers, ChatHandlerContext } from './extension/rpc/registerChatHandlers';
 import { buildChatHtml } from './extension/webview/chatHtml';
@@ -127,7 +126,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	 * had to be made twice.
 	 */
 	public sendInit(): void {
-		const fullState = getBackendState().getFullState();
+		if (!this.sessionHost) {
+			this.logger.warn('[Init] No session host attached — nothing to render');
+			return;
+		}
+		const fullState = this.sessionHost.getFullState();
 		this.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);
 		this.rpcRouter?.sendInit({
 			sessionId: fullState.sessionId,
@@ -215,8 +218,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 				}
 			}
 
-			const knownTools = getBackendState().getMcpServerTools();
-			const knownStatuses = getBackendState().getMcpServerStatuses();
+			// Window state, not session state — every surface sees the same servers.
+			const knownTools = this.sessionHost!.workspace.getMcpServerTools();
+			const knownStatuses = this.sessionHost!.workspace.getMcpServerStatuses();
 			const capabilityFlags = {
 				supportsMcpStatusEvents: () => this.cliCapability?.supportsMcpStatusEvents() ?? false,
 			};
@@ -392,6 +396,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 			get notSupportedHandlers() { return self.sessionHost?.services.notSupportedHandlers; },
 			get mcpConfigService() { return self.sessionHost?.services.mcpConfigService; },
 			get cliPassthroughService() { return self.sessionHost?.services.cliPassthroughService; },
+			get sessionHost() { return self.sessionHost; },
 			get cliCapability() { return self.cliCapability; },
 			sendInit: () => self.sendInit(),
 			buildAndSendMcpStatus: () => self.buildAndSendMcpStatus(),
@@ -420,8 +425,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public addUserMessage(text: string, attachments?: Array<{displayName: string; webviewUri?: string}>, storeInBackend: boolean = true) {
 		if (storeInBackend) {
-			const backendState = getBackendState();
-			backendState.addMessage({
+			this.sessionHost?.state.addMessage({
 				kind: 'user',
 				role: 'user',
 				content: text,
@@ -433,8 +437,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public addAssistantMessage(text: string, messageId?: string, storeInBackend: boolean = true) {
 		if (storeInBackend) {
-			const backendState = getBackendState();
-			backendState.addMessage({
+			this.sessionHost?.state.addMessage({
 				kind: 'assistant',
 				role: 'assistant',
 				content: text,
@@ -449,8 +452,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 
 	public addReasoningMessage(text: string, storeInBackend: boolean = true, reasoningId?: string) {
 		if (storeInBackend) {
-			const backendState = getBackendState();
-			backendState.addMessage({
+			this.sessionHost?.state.addMessage({
 				kind: 'reasoning',
 				role: 'reasoning',
 				content: text,
@@ -677,8 +679,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disp
 	}
 
 	private _resolveAssistantImagePaths(text: string): string {
-		const backendState = getBackendState();
-		const sessionId = backendState.getSessionId();
+		// This surface's session, so a panel resolves images out of its own
+		// `~/.copilot/session-state/<id>` rather than the sidebar's.
+		const sessionId = this.sessionHost?.sessionId ?? null;
 		if (!sessionId || !this._view?.webview) {
 			this.logger?.debug(`[ImageResolve] Skipped: sessionId=${!!sessionId} webview=${!!this._view?.webview}`);
 			return text;

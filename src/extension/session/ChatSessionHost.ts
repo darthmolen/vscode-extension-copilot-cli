@@ -16,7 +16,7 @@
  * mocha process; see `chatHtml.ts` for the same constraint and the reason.
  */
 
-import { SessionState, WorkspaceRuntimeState } from '../../backendState';
+import { SessionState, WorkspaceRuntimeState, FullState, composeFullState } from '../../backendState';
 import { LoggerLike } from '../../logger';
 import type { InfoSlashHandlers } from '../services/slashCommands/InfoSlashHandlers';
 import type { CodeReviewSlashHandlers } from '../services/slashCommands/CodeReviewSlashHandlers';
@@ -52,6 +52,12 @@ export interface ChatSurface {
     sendModelSwitched(model: string, success: boolean): void;
     postMessage(message: any): void;
     notifyDiffAvailable(diff: any): void;
+    /** The VS Code workspace folder this surface resolves relative images against. */
+    setWorkspacePath(workspacePath: string | undefined): void;
+    sendAvailableModels(models: Array<{ id: string; name: string; multiplier?: number; outputPrice?: number }>): void;
+    setValidateAttachmentsCallback(callback: (filePaths: string[]) => Promise<{ valid: boolean; error?: string }>): void;
+    /** Render this surface's whole state from cold. */
+    sendInit(): void;
 }
 
 /**
@@ -157,7 +163,7 @@ export interface ChatSessionHostDeps {
      * Injected because building one needs the extension host. The host decides
      * *whether* to call it; this only does it.
      */
-    startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<SessionManagerLike>;
+    startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
     /** Window-scoped, memoised colour allocator shared with the sub-agent panels. */
     assignSubagentColor?: (agentId: string) => string;
     /**
@@ -187,7 +193,7 @@ export class ChatSessionHost {
     private readonly createServices?: ChatSessionServicesFactory;
     private readonly assignSubagentColor?: (agentId: string) => string;
     private readonly enrichDiff?: (diffData: any) => any;
-    private readonly startManager?: (options: { sessionId: string | null; resume: boolean }) => Promise<SessionManagerLike>;
+    private readonly startManager?: (options: { sessionId: string | null; resume: boolean; host: ChatSessionHost }) => Promise<SessionManagerLike>;
     /** In flight, so two surfaces attaching at once cannot start two sessions. */
     private starting?: Promise<void>;
     private live = false;
@@ -266,6 +272,30 @@ export class ChatSessionHost {
         this.surface = surface;
     }
 
+    /**
+     * Everything the surface showing this host needs to render itself from cold.
+     *
+     * The surface used to build this from `getBackendState()`, which is the window
+     * singleton — correct only while the sidebar was the only surface. A panel
+     * reading that would render the sidebar's conversation.
+     */
+    public getFullState(): FullState {
+        return composeFullState(this.state, this.workspace);
+    }
+
+    /**
+     * What is rendering this host, if anything.
+     *
+     * Deliberately unlike `.manager`, which is a true `#private`: the manager moves
+     * across a process boundary in v4.0 and call sites written against it would not
+     * survive, whereas surfaces are ours and stay extension-side. Session bootstrap
+     * at the composition root needs to reach *this* host's surface — telling the
+     * sidebar a panel's session just started is the bug this exists to prevent.
+     */
+    public getSurface(): ChatSurface | undefined {
+        return this.surface;
+    }
+
     /** Whether a CLI session is running for this host right now. */
     public get isLive(): boolean {
         return this.live;
@@ -301,7 +331,7 @@ export class ChatSessionHost {
         }
 
         const resume = this.currentSessionId !== null;
-        this.starting = this.startManager({ sessionId: this.currentSessionId, resume })
+        this.starting = this.startManager({ sessionId: this.currentSessionId, resume, host: this })
             .then((manager) => {
                 this.attachManager(manager);
                 this.live = true;
