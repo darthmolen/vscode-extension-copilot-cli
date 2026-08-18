@@ -109,26 +109,44 @@ export const SessionService = {
     /**
      * Returns the most recent session ID, optionally filtered by workspace folder.
      * Falls back to global most recent if no folder-specific sessions exist.
+     *
+     * `alreadyOpen` is the set of sessions this window already has a surface for.
+     * They are not candidates: they are already resumed. Without this, restoring a
+     * chat tab on window reload and then asking for "the last session" returns the
+     * tab's own session — it was, after all, the last one written to — and two
+     * hosts claim it on an ordinary reload.
+     *
+     * The global fallback still means *"this folder has no sessions"*. It is not
+     * reached when the folder's sessions merely happen to be open, because
+     * borrowing another workspace's conversation is worse than starting a new one.
      */
-    getMostRecentSession(sessionStateDir: string, workspaceFolder: string, filterByFolder: boolean): string | null {
+    getMostRecentSession(
+        sessionStateDir: string,
+        workspaceFolder: string,
+        filterByFolder: boolean,
+        alreadyOpen: string[] = []
+    ): string | null {
         const allSessions = SessionService.getAllSessions(sessionStateDir);
         if (allSessions.length === 0) {
             return null;
         }
 
+        const open = new Set(alreadyOpen);
         const sorted = allSessions.sort((a, b) => b.mtime - a.mtime);
+        const mostRecentAvailable = (sessions: SessionInfo[]): string | null =>
+            sessions.find(session => !open.has(session.id))?.id ?? null;
 
         if (!filterByFolder) {
-            return sorted[0].id;
+            return mostRecentAvailable(sorted);
         }
 
         const folderSessions = SessionService.filterSessionsByFolder(sorted, workspaceFolder);
         if (folderSessions.length > 0) {
-            return folderSessions[0].id;
+            return mostRecentAvailable(folderSessions);
         }
 
         // Fallback to global most recent
-        return sorted[0].id;
+        return mostRecentAvailable(sorted);
     },
 
     /**

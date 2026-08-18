@@ -192,6 +192,71 @@ describe('ChatPanelService', () => {
         });
     });
 
+    describe('restoring a tab after a window reload', () => {
+        /** A panel VS Code hands back, not one we created. */
+        function restoredPanel() {
+            const panel = makePanel();
+            panels.push(panel);
+            return panel;
+        }
+
+        it('reopens the session the tab was showing', async () => {
+            const panel = restoredPanel();
+
+            await service.restore(panel, { sessionId: 'was-showing-this' });
+
+            expect(panel.disposed).to.equal(false);
+            expect(surfaces[0].host.sessionId).to.equal('was-showing-this');
+            expect(surfaces[0].attached.webview).to.equal(panel.webview);
+        });
+
+        it('replays that session\'s transcript, rather than a persisted copy', async () => {
+            await service.restore(restoredPanel(), { sessionId: 'was-showing-this' });
+
+            expect(revealedExisting[0].slice(0, 2)).to.deep.equal(['load', 'was-showing-this']);
+        });
+
+        it('starts the session it restored', async () => {
+            await service.restore(restoredPanel(), { sessionId: 'was-showing-this' });
+
+            expect(surfaces[0].host.started).to.equal(1);
+        });
+
+        it('closes a restored tab whose session is already on screen', async () => {
+            // Reachable for the first time by the serializer: a window can restore a
+            // tab for a session the sidebar has meanwhile resumed. A host writes to
+            // one surface, so the second would render nothing and look broken.
+            const existing = makeHost('double-booked');
+            const alreadyShowing = makeSurface();
+            existing.attachSurface(alreadyShowing);
+            hostsById.set('double-booked', existing);
+            const panel = restoredPanel();
+
+            await service.restore(panel, { sessionId: 'double-booked' });
+
+            expect(panel.disposed).to.equal(true);
+            expect(alreadyShowing.shown).to.equal(1);
+            expect(surfaces).to.have.lengthOf(0, 'no second surface for one session');
+        });
+
+        it('closes a tab whose serialized state has no session id', async () => {
+            const panel = restoredPanel();
+
+            await service.restore(panel, {});
+
+            expect(panel.disposed).to.equal(true);
+        });
+
+        it('survives serialized state from another version entirely', async () => {
+            // The state is JSON written by a possibly older build — untrusted input.
+            for (const state of [undefined, null, 'a string', 42, { sessionId: 42 }, { sessionId: '' }]) {
+                const panel = restoredPanel();
+                await service.restore(panel, state);
+                expect(panel.disposed).to.equal(true, `state ${JSON.stringify(state)} should close the tab`);
+            }
+        });
+    });
+
     describe('closing a tab', () => {
         it('disposes the surface with the panel', async () => {
             await service.openNew();

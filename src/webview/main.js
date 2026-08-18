@@ -2,6 +2,7 @@
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import EventBus and components
 import { EventBus } from './app/state/EventBus.js';
+import { rememberSessionId } from './app/state/surfaceSessionState.js';
 import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
 
 import { InputArea } from './app/components/InputArea/InputArea.js';
@@ -635,6 +636,11 @@ export function handleInitMessage(payload) {
 		sessionToolbar.setPlanFileExists(null);
 	}
 	
+	// A chat tab is restored by session id, and only the webview can write the
+	// state channel VS Code reads back. Recorded here because init is the one
+	// message that always carries this surface's session.
+	rememberSessionId(rpc.vscode, payload.sessionId);
+
 	setSessionActive(payload.sessionActive);
 
 	// Set current model if provided

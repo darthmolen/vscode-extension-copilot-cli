@@ -101,13 +101,52 @@ export class ChatPanelService {
         await this.openPanelFor(host, 'Copilot Chat', sessionId);
     }
 
+    /**
+     * Adopt a panel VS Code restored on window reload.
+     *
+     * The serialized state carries the session id and nothing else. The transcript
+     * is rebuilt from the event log by the same projection every other path uses —
+     * persisting one here would reintroduce the second, lossy copy P2 deleted.
+     *
+     * A restored panel for a session something else already shows is closed rather
+     * than mirrored, for the same reason `openSession` reveals instead of opening:
+     * the host can only write to one surface, so the second would render nothing
+     * and look broken.
+     */
+    public async restore(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
+        const sessionId = readRestoredSessionId(state);
+        if (!sessionId) {
+            this.deps.logger.warn('[ChatPanel] restored a tab with no session id — closing it');
+            panel.dispose();
+            return;
+        }
+
+        const alreadyShowing = this.deps.registry.get(sessionId)?.getSurface();
+        if (alreadyShowing) {
+            this.deps.logger.info(
+                `[ChatPanel] session ${sessionId} is already on screen — closing the restored duplicate`
+            );
+            panel.dispose();
+            alreadyShowing.show();
+            return;
+        }
+
+        const host = await this.deps.registry.getOrCreate(sessionId);
+        this.deps.logger.info(`[ChatPanel] restoring tab for ${sessionId}`);
+        await this.adopt(panel, host, sessionId);
+    }
+
     private async openPanelFor(host: ChatSessionHost, title: string, replay?: string): Promise<void> {
         const panel = this.deps.createPanel(CHAT_PANEL_VIEW_TYPE, title, {
             enableScripts: true,
             retainContextWhenHidden: true,
             localResourceRoots: this.deps.resourceRoots()
         });
+        await this.adopt(panel, host, replay);
+    }
 
+    /** Bind a panel — freshly created or restored by VS Code — to a host. */
+    private async adopt(panel: vscode.WebviewPanel, host: ChatSessionHost, replay?: string): Promise<void> {
         const surface = this.deps.createSurface();
         surface.setSessionHost(host);
         host.attachSurface(surface);
@@ -129,5 +168,23 @@ export class ChatPanelService {
             await this.deps.loadTranscript(replay, host);
         }
         await host.ensureStarted();
+        // Nothing records the session id here. `ensureStarted` is what assigns one,
+        // and the surface's own `sendInit` — which runs after it — carries the id to
+        // the webview, which is the only side that can write the state channel VS
+        // Code reads back. See `surfaceSessionState.js`.
     }
+}
+
+/**
+ * The session id out of whatever VS Code handed back.
+ *
+ * Serialized state is JSON written by a possibly older version of this extension,
+ * so it is untrusted input rather than a type we own.
+ */
+function readRestoredSessionId(state: unknown): string | null {
+    if (!state || typeof state !== 'object') {
+        return null;
+    }
+    const sessionId = (state as { sessionId?: unknown }).sessionId;
+    return typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : null;
 }

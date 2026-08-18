@@ -204,6 +204,14 @@ export function activate(context: vscode.ExtensionContext) {
 		registerHandlers: (surface) => registerSurfaceHandlers(context, surface as WebviewChatSurface),
 		loadTranscript: (sessionId, host) => loadSessionHistory(sessionId, host)
 	});
+
+	// Registered in activate(), never inside a command handler: VS Code restores
+	// panels *during* activation, before any command could have run.
+	context.subscriptions.push(
+		vscode.window.registerWebviewPanelSerializer(CHAT_PANEL_VIEW_TYPE, {
+			deserializeWebviewPanel: (panel, state) => chatPanels.restore(panel, state)
+		})
+	);
 	context.subscriptions.push(vscode.commands.registerCommand('copilot-cli-extension.openSubagentPanel', (agentId: string) => {
 		subagentPanels.open(agentId);
 	}));
@@ -738,7 +746,16 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 	const filterByFolder = vscode.workspace.getConfiguration('copilotCLI').get<boolean>('filterSessionsByFolder', true);
 	const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
 
-	const sessionId = SessionService.getMostRecentSession(sessionStateDir, workspaceFolder, filterByFolder);
+	// Sessions this window already has a surface for are not candidates — they are
+	// already resumed. Without this, restoring a chat tab on reload and then asking
+	// for "the last session" hands the sidebar the tab's own session, because it was
+	// the last one written to.
+	const sessionId = SessionService.getMostRecentSession(
+		sessionStateDir,
+		workspaceFolder,
+		filterByFolder,
+		sessionRegistry.liveSessionIds()
+	);
 	if (sessionId) {
 		logger.info(`Determined session to resume: ${sessionId}`);
 	} else {
