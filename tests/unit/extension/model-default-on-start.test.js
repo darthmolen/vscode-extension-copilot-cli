@@ -48,25 +48,13 @@ describe('Model Default on Session Start', function () {
 		});
 	});
 
-	// ================================================================
-	// handleSwitchSession — includes currentModel in init message
-	// ================================================================
-
-	describe('handleSwitchSession includes currentModel in init', function () {
-		it('sends currentModel in the session-switch init message', function () {
-			// Find handleSwitchSession function
-			const fnStart = extensionSource.indexOf('async function handleSwitchSession');
-			assert.ok(fnStart !== -1, 'handleSwitchSession function should exist');
-
-			const fnBody = extensionSource.substring(fnStart, fnStart + 1500);
-
-			// The init postMessage should include currentModel
-			assert.ok(
-				fnBody.includes('currentModel'),
-				'handleSwitchSession init message should include currentModel'
-			);
-		});
-	});
+	// The handleSwitchSession source-scan that lived here was deleted in v3.13.0
+	// Task 6: it asserted that the function's *text* contained 'currentModel',
+	// which was true only because the function hand-built its own init payload.
+	// There is now one init builder — ChatViewProvider.sendInit() — used by the
+	// ready flow, the post-load re-send and session switch alike, so the property
+	// it was guarding is structural rather than something three call sites must
+	// each remember.
 
 	// ================================================================
 	// availableModels RPC plumbing

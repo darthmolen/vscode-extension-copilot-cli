@@ -516,18 +516,10 @@ async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: 
 	await startCLISession(context, true, sessionId);
 	await loadSessionHistory(sessionId);
 
-	const fullState = backendState.getFullState();
-	chatProvider.postMessage({
-		type: 'init',
-		sessionId: fullState.sessionId,
-		sessionActive: fullState.sessionActive,
-		messages: fullState.messages,
-		planModeStatus: fullState.planModeStatus,
-		workspacePath: fullState.workspacePath,
-		activeFilePath: fullState.activeFilePath,
-		currentModel: fullState.currentModel,
-		showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
-	});
+	// The same logged init path the webview's own ready flow uses. This was a
+	// third hand-built copy of the payload, posted raw — so a switch replayed the
+	// transcript invisibly, and the init shape had three places to be kept in step.
+	chatProvider.sendInit();
 	updateSessionsList();
 }
 
