@@ -1860,15 +1860,35 @@ export class SDKSessionManager implements vscode.Disposable {
         // MutableDisposable will handle cleanup automatically
         this._sessionSub.value = undefined;
         
-        if (this.session) {
+        // Plan mode is a TWO-session design: `this.session` is the plan session
+        // while in plan mode (enablePlanMode ends with setActiveSession(planSession)),
+        // and the work session is parked on `this.workSession`. Disconnecting only
+        // `this.session` therefore stranded the work session — it was assigned in six
+        // places and released in none. Every teardown path reaches here
+        // (handleSwitchSession, handleNewSession, handleStopChat, deactivate), so the
+        // leak was one plan-mode session switch away at all times.
+        //
+        // Deduplicated by identity because in work mode these references are the same
+        // object, and disconnecting twice makes the SDK throw on the second call.
+        const live = [this.session, this.workSession, this.planSession]
+            .filter((s): s is NonNullable<typeof s> => !!s);
+        const seen = new Set<unknown>();
+        for (const session of live) {
+            if (seen.has(session)) {
+                continue;
+            }
+            seen.add(session);
             try {
-                await this.session.disconnect();
+                await session.disconnect();
             } catch (error) {
+                // Keep going: one bad connection must not strand the others.
                 this.logger.error('Error destroying session', error instanceof Error ? error : undefined);
             }
-            this.session = null;
-            this._sessionAgent = null;
         }
+        this.session = null;
+        this.workSession = null;
+        this.planSession = null;
+        this._sessionAgent = null;
 
         // Only tear down a client we own. A shared provider outlives any one
         // manager — stopping it here would kill every other session's CLI.
