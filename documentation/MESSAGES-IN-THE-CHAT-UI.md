@@ -75,9 +75,9 @@ Components never talk to the RPC layer directly. `main.js` is the only file that
 
 ## 3. Message Types
 
-All message types are defined in `src/shared/messages.ts` (433 lines). Every message extends `BaseMessage` which carries a `type` string and optional `timestamp`.
+All message types are defined in `src/shared/messages.ts` (848 lines). Every message extends `BaseMessage` which carries a `type` string and optional `timestamp`.
 
-### Webview to Extension (11 types)
+### Webview to Extension (33 types)
 
 These are actions the user initiates.
 
@@ -90,14 +90,36 @@ These are actions the user initiates.
 | `newSession` | `NewSessionPayload` | Create a new CLI session |
 | `viewPlan` | `ViewPlanPayload` | Open the plan file in the VS Code editor |
 | `viewDiff` | `ViewDiffPayload` | Open a diff view for a tool execution |
+| `subagentPopout` | `SubagentPopoutPayload` | Open a sub-agent transcript in a dedicated editor tab |
 | `togglePlanMode` | `TogglePlanModePayload` | Enable or disable plan mode |
 | `acceptPlan` | `AcceptPlanPayload` | Accept the proposed plan |
 | `rejectPlan` | `RejectPlanPayload` | Reject the proposed plan |
 | `pickFiles` | `PickFilesPayload` | Open the native file picker for attachments |
+| `pasteImage` | `PasteImagePayload` | Send pasted image data to the extension for attachment creation |
+| `showPlanContent` | `ShowPlanContentPayload` | Request the current `plan.md` contents for `/review` |
+| `openDiffView` | `OpenDiffViewPayload` | Open a side-by-side diff for `/diff` |
+| `showMcpConfig` | `ShowMcpConfigPayload` | Request MCP configuration/status data for `/mcp` |
+| `showUsageMetrics` | `ShowUsageMetricsPayload` | Request usage/quota data for `/usage` |
+| `showHelp` | `ShowHelpPayload` | Request help content for `/help` |
+| `showVersionInfo` | `ShowVersionInfoPayload` | Request extension/CLI version details for `/version` |
+| `showNotSupported` | `ShowNotSupportedPayload` | Surface a not-supported slash command result |
+| `openInCLI` | `OpenInCLIPayload` | Hand off a passthrough slash command to the terminal CLI |
+| `openFile` | `OpenFilePayload` | Open a file in the VS Code editor |
+| `saveMermaidImage` | `SaveMermaidImagePayload` | Save a rendered Mermaid diagram to disk |
+| `switchModel` | `SwitchModelPayload` | Switch the active model mid-session |
+| `renameSession` | `RenameSessionPayload` | Rename the current session |
+| `forkSession` | `ForkSessionPayload` | Fork the current session |
+| `compact` | `CompactPayload` | Trigger session compaction |
+| `getCustomAgents` | `GetCustomAgentsPayload` | Request the saved custom-agent list |
+| `saveCustomAgent` | `SaveCustomAgentPayload` | Save or update a custom agent definition |
+| `deleteCustomAgent` | `DeleteCustomAgentPayload` | Delete a custom agent definition |
+| `mcpServerAction` | `McpServerActionPayload` | Add, edit, remove, or enable/disable a user MCP server |
+| `selectAgent` | `SelectAgentPayload` | Set or clear the active custom agent |
+| `agentsPanelClosed` | `AgentsPanelClosedPayload` | Notify the extension that the custom-agents panel closed after edits |
 
 Union type: `WebviewMessage`
 
-### Extension to Webview (20 types)
+### Extension to Webview (33 types)
 
 These are state updates pushed from the extension.
 
@@ -107,8 +129,13 @@ These are state updates pushed from the extension.
 | `userMessage` | `UserMessagePayload` | Echo a user message into the chat |
 | `assistantMessage` | `AssistantMessagePayload` | Add an assistant response to the chat |
 | `reasoningMessage` | `ReasoningMessagePayload` | Add a reasoning/thinking message (hidden by default) |
+| `messageDelta` | `MessageDeltaPayload` | Incremental assistant-message delta for progressive rendering |
+| `reasoningDelta` | `ReasoningDeltaPayload` | Incremental reasoning delta for progressive rendering |
 | `toolStart` | `ToolStartPayload` | A tool execution has started |
 | `toolUpdate` | `ToolUpdatePayload` | A tool execution has progressed or completed |
+| `subagentStart` | `SubagentStartPayload` | A background sub-agent started |
+| `subagentComplete` | `SubagentCompletePayload` | A background sub-agent finished or failed |
+| `subagentMessage` | `SubagentMessagePayload` | A background sub-agent emitted a comment/reasoning update |
 | `streamChunk` | `StreamChunkPayload` | Incremental chunk of a streaming response |
 | `streamEnd` | `StreamEndPayload` | Streaming response finished |
 | `clearMessages` | `ClearMessagesPayload` | Remove all messages from the chat |
@@ -123,6 +150,14 @@ These are state updates pushed from the extension.
 | `attachmentValidation` | `AttachmentValidationPayload` | Validation result for a file attachment |
 | `status` | `StatusPayload` | General status events (plan mode transitions, thinking, ready) |
 | `usage_info` | `UsageInfoPayload` | Token usage and quota metrics |
+| `modelSwitched` | `ModelSwitchedPayload` | Model-switch result (success/failure) |
+| `currentModel` | `CurrentModelPayload` | Current active model |
+| `availableModels` | `AvailableModelsPayload` | Available models and pricing metadata |
+| `taskComplete` | `TaskCompletePayload` | Summary that a background task finished |
+| `customAgentsChanged` | `CustomAgentsChangedPayload` | Updated custom-agent definitions |
+| `activeAgentChanged` | `ActiveAgentChangedPayload` | Active custom-agent badge/state changed |
+| `mcpStatus` | `McpStatusPayload` | MCP server status list for the `/mcp` panel |
+| `mcpServerActionResult` | `McpServerActionResultPayload` | Result of an MCP add/edit/remove/enable action |
 
 Union type: `ExtensionMessage`
 
@@ -130,9 +165,9 @@ Union type: `ExtensionMessage`
 
 `isWebviewMessage()` and `isExtensionMessage()` validate message objects against the known type lists. Used at the boundary when raw messages arrive.
 
-## 4. The 18 Handlers
+## 4. Core UI Handlers
 
-Each handler in `main.js` receives a typed payload from `WebviewRpcClient` and translates it into one or more `EventBus` events or direct component calls.
+The core named handlers in `main.js` receive typed payloads from `WebviewRpcClient` and translate them into one or more `EventBus` events or direct component calls.
 
 | # | Handler Function | RPC Registration | What It Does |
 |---|-----------------|------------------|--------------|
@@ -154,19 +189,22 @@ Each handler in `main.js` receives a typed payload from `WebviewRpcClient` and t
 | 16 | `handleStatusMessage` | `rpc.onStatus()` | Dispatches plan mode transitions, thinking/ready states, plan_ready events |
 | 17 | `handleFilesSelectedMessage` | `rpc.onFilesSelected()` | Delegates to `inputArea.addAttachments()` |
 | 18 | `handleInitMessage` | `rpc.onInit()` | Clears display, loops through `payload.messages` emitting `message:add` for each, sets workspace path and session status |
+| 19 | `handleModelSwitchedMessage` | `rpc.onModelSwitched()` | Updates the selected model after a successful switch |
+| 20 | `handleCurrentModelMessage` | `rpc.onCurrentModel()` | Syncs the current model indicator |
+| 21 | `handleAvailableModelsMessage` | `rpc.onAvailableModels()` | Populates the model selector with available choices |
 
 ### Handler registration
 
-All 18 handlers are wired at the bottom of `main.js` in a flat list:
+These handlers are wired near the bottom of `main.js` alongside small inline registrations for subagent, MCP, delta-stream, task-complete, and custom-agent updates:
 
 ```javascript
 rpc.onThinking(handleThinkingMessage);
 rpc.onSessionStatus(handleSessionStatusMessage);
-// ... 16 more ...
+// ... remaining registrations ...
 rpc.onInit(handleInitMessage);
 ```
 
-No switch statement. Each message type maps to exactly one handler function.
+No switch statement. Each message type maps to a dedicated registration — either a named handler or a small inline callback.
 
 ## 5. Three Flow Scenarios
 
@@ -236,7 +274,7 @@ The previous architecture sent individual `userMessage`/`assistantMessage` paylo
 
 ### Component list
 
-Components are instantiated in `main.js` and each owns a section of the DOM:
+Components are instantiated in `main.js` (or by parent components) and each owns a section of the DOM. The current webview has 13 components:
 
 | Component | Mount Point | Responsibility |
 |-----------|-------------|----------------|
@@ -245,6 +283,14 @@ Components are instantiated in `main.js` and each owns a section of the DOM:
 | `InputArea` | `#input-mount` | Text input, send/stop button, file attachments, focus file display, plan mode controls, usage metrics. |
 | `SessionToolbar` | `#session-toolbar-mount` | Session dropdown, new session button, plan mode toggle, view plan button. |
 | `AcceptanceControls` | `#acceptance-mount` | Accept/reject buttons for plan review. |
+| `CustomAgentsPanel` | `#custom-agents-mount` | Manage saved custom agents in a collapsible panel between the toolbar and transcript. |
+| `SubagentDock` | `#subagent-dock-mount` | Persistent ledger of running/completed sub-agents, with detail pane and pop-out actions. |
+| `ActiveFileDisplay` | Child of `InputArea` at `#active-file-mount` | Shows the currently focused editor file above the input. |
+| `MCPStatusPanel` | Child of `InputArea` at `#mcp-status-mount` | Displays `/mcp` server status and handles add/edit/remove/enable actions. |
+| `ModelSelector` | Child of `InputArea` at `#model-selector-mount` | Displays the current model and lets the user switch models. |
+| `PlanModeControls` | Child of `InputArea` at `#plan-controls-mount` | Shows plan-mode entry/exit and accept/reject controls near the composer. |
+| `SlashCommandPanel` | Child of `InputArea` at `#slash-command-mount` | Shows slash-command discovery/help as the user types commands. |
+| `StatusBar` | Child of `InputArea` at `#metrics-mount` | Shows token/quota metrics and the reasoning toggle state. |
 
 ### Communication pattern
 
@@ -313,15 +359,15 @@ ToolExecution groups consecutive tool executions into collapsible tool groups. W
 
 | File | Lines | Role |
 |------|-------|------|
-| `src/backendState.ts` | 146 | Single source of truth for session state |
-| `src/extension.ts` | 744 | Event handlers, CLI lifecycle, BackendState updates |
-| `src/extension/rpc/ExtensionRpcRouter.ts` | 520 | Type-safe extension-to-webview messaging (18 send methods, 11 receive handlers) |
-| `src/shared/messages.ts` | 433 | All message type definitions, payload interfaces, type guards |
-| `src/webview/main.js` | 526 | Bootstrap, 18 message handlers, EventBus wiring, component initialization |
-| `src/webview/app/rpc/WebviewRpcClient.js` | 478 | Type-safe webview-to-extension messaging (11 send methods, 20 receive handlers) |
-| `src/webview/app/state/EventBus.js` | 69 | Pub/sub for component communication |
-| `src/webview/app/components/MessageDisplay/MessageDisplay.js` | 292 | Chat message rendering, auto-scroll, empty state |
-| `src/webview/app/components/ToolExecution/ToolExecution.js` | 344 | Tool execution cards, grouping, inline diffs |
+| `src/backendState.ts` | 310 | Single source of truth for session state |
+| `src/extension.ts` | 1089 | Event handlers, CLI lifecycle, BackendState updates |
+| `src/extension/rpc/ExtensionRpcRouter.ts` | 834 | Type-safe extension-to-webview messaging (18 send methods, 11 receive handlers) |
+| `src/shared/messages.ts` | 848 | All message type definitions, payload interfaces, type guards |
+| `src/webview/main.js` | 765 | Bootstrap, RPC registrations, EventBus wiring, component initialization |
+| `src/webview/app/rpc/WebviewRpcClient.js` | 791 | Type-safe webview-to-extension messaging |
+| `src/webview/app/state/EventBus.js` | 68 | Pub/sub for component communication |
+| `src/webview/app/components/MessageDisplay/MessageDisplay.js` | 773 | Chat message rendering, auto-scroll, empty state |
+| `src/webview/app/components/ToolExecution/ToolExecution.js` | 438 | Tool execution cards, grouping, inline diffs |
 
 ## Supersedes
 

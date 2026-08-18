@@ -97,6 +97,8 @@ src/
 
 **See it now?** It's a **monorepo with server + client**!
 
+Current webview component set (13 total): `AcceptanceControls`, `ActiveFileDisplay`, `CustomAgentsPanel`, `InputArea`, `MCPStatusPanel`, `MessageDisplay`, `ModelSelector`, `PlanModeControls`, `SessionToolbar`, `SlashCommandPanel`, `StatusBar`, `SubagentDock`, and `ToolExecution`.
+
 ## The RPC Layer: It's Just an API
 
 ### Traditional Web App
@@ -227,7 +229,7 @@ Use **API patterns**:
 ## The "Aha!" Moments
 
 ### Moment 1: File Size Red Flag
-> "2500+ lines in one file? That's never good for anything."
+> "2591 lines in one file? That's never good for anything."
 
 **Correct!** Just like you wouldn't put your entire Express app in one file, don't put your entire extension in one file.
 
@@ -249,13 +251,13 @@ Use **API patterns**:
 
 ### Before (Monolithic Mess)
 ```
-extension.ts (800 lines)
+extension.ts (1089 lines)
 ├── Everything mixed together
 ├── Untyped messages
 ├── Giant switch statement
 └── No separation of concerns
 
-webview/main.js (2500 lines)
+webview/main.js (765 lines)
 ├── UI code + business logic + network code
 ├── 200-line switch statement
 └── Zero type safety
@@ -264,24 +266,24 @@ webview/main.js (2500 lines)
 ### After (Client-Server Architecture)
 ```
 Server (extension/)
-├── API Layer: ExtensionRpcRouter (450 lines)
+├── API Layer: ExtensionRpcRouter (834 lines)
 │   └── Type-safe endpoints for each message
-├── Business Logic: SDKSessionManager (600 lines)
+├── Business Logic: SDKSessionManager (2591 lines)
 │   └── Session lifecycle, SDK integration
-└── Entry Point: extension.ts (150 lines)
+└── Entry Point: extension.ts (1089 lines)
     └── Startup, command registration
 
 Client (webview/)
-├── API Client: WebviewRpcClient (390 lines)
+├── API Client: WebviewRpcClient (791 lines)
 │   └── Type-safe RPC calls
-├── UI Logic: main.js (900 lines)
-│   └── 18 small handlers instead of 1 giant switch
+├── UI Logic: main.js (765 lines)
+│   └── Dedicated handler/callback registrations instead of 1 giant switch
 └── Styles: styles.css (500 lines)
 
 Shared (shared/)
-├── messages.ts (400 lines)
-│   └── Full TypeScript types for all 31 message types
-└── models.ts (200 lines)
+├── messages.ts (848 lines)
+│   └── Full TypeScript types for 33 webview + 33 extension message types
+└── models.ts (145 lines)
     └── Domain models (Session, Message, ToolState)
 ```
 

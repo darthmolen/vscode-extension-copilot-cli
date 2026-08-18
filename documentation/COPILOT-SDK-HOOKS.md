@@ -1,7 +1,9 @@
 # Copilot SDK Hooks Reference
 
-**SDK Version**: 0.1.20+ (hooks introduced in [v0.1.20](https://github.com/github/copilot-sdk/releases/tag/v0.1.20), Jan 30 2026)
-**Our Version**: 0.1.22
+> **Note**: This document was originally written for SDK 0.1.20+. The extension now uses SDK ^1.0.5. The hooks API described here was verified against the current SDK version. Core hook behavior (pre-tool, post-tool) is unchanged.
+
+**SDK Version**: ^1.0.5
+**Our Version**: ^1.0.5
 **Source**: [github.com/github/copilot-sdk](https://github.com/github/copilot-sdk) | [Hooks Docs](https://github.com/github/copilot-sdk/tree/main/docs/hooks)
 
 ## What Are Hooks?
@@ -278,13 +280,19 @@ onErrorOccurred: async (input) => {
 
 5. **Hook registration is per-session.** Hooks are set via `SessionConfig` and stored on the session instance. To change hooks, create a new session.
 
-## Our Planned Usage
+## Our Current Usage
 
-### v3.0.1: `onPreToolUse` for File Snapshots
+### `onPreToolUse` for File Snapshots
 
-The file-diff feature has a race condition: `tool.execution_start` fires after the SDK has already started modifying files, so snapshots capture empty content.
+`src/sdkSessionManager.ts` passes `hooks: this.getSessionHooks()` whenever it creates or resumes sessions. That hook config currently implements **only** `onPreToolUse`.
 
-Fix: Use `onPreToolUse` to capture snapshots before tool execution, then correlate with `toolCallId` when `tool.execution_start` fires.
+Current behavior:
+
+- Logs each `onPreToolUse` invocation
+- For `edit` and `create`, captures a file snapshot before the tool runs
+- Returns `{ permissionDecision: 'allow' }`
+
+This is how the file-diff feature avoids the race where `tool.execution_start` arrives after a file has already changed.
 
 See [planning/bug-file-diff.md](../planning/bug-file-diff.md) for full analysis.
 

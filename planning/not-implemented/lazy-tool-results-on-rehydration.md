@@ -1,6 +1,6 @@
 # Backlog: Fetch tool results on demand when a transcript rehydrates
 
-Deferred out of the v3.13.0 P2 work (`planning/in-progress/v3.13.0-p2-tool-replay.md`) on
+Deferred out of the v3.13.0 P2 work (`planning/completed/v3.13.0-p2-tool-replay.md`) on
 2026-08-17. P2 ships **truncation** instead, which fixes the bug; this is the richer version of the
 same idea and is worth doing only if someone actually misses the full output.
 
@@ -70,5 +70,5 @@ P2 forecloses it.
 
 ## Related
 
-- `planning/in-progress/v3.13.0-p2-tool-replay.md` — §5.2/§5.4, where truncation lands
+- `planning/completed/v3.13.0-p2-tool-replay.md` — §5.2/§5.4, where truncation lands
 - `planning/spikes/tool-replay-reader/FINDINGS.md` — the event-log shapes this depends on
