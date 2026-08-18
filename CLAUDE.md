@@ -131,6 +131,31 @@ This extension's identity is "thoughtful" — we prioritize presenting meaningfu
 - **Show decision-relevant data.** Multiplier badges tell users the cost implication of switching models. Don't hide information that affects their choices.
 - **Don't become the Swiss Army knife.** Every feature we add should have a clear reason to exist and present its information thoughtfully. We are not a generic wrapper — we are a focused, opinionated tool.
 - **Useful > Fast.** When choosing between shipping quickly and shipping something genuinely helpful, always choose helpful. A half-baked feature with missing context damages trust.
+- **Intentional actions are treated intentionally.** A setting is a standing default; a gesture is a stated intent. The gesture wins, and it gets **recorded** — otherwise the default silently reasserts itself at the next resume, reload or session switch.
+
+### Applying "intentional actions are treated intentionally"
+
+Run this at any call site where a user-initiated action reads a `getConfiguration(...)` value or a
+"most recent" heuristic:
+
+1. **Is this a default or an intent?** A default answers *"what usually happens"*; a gesture answers
+   *"what should happen now."* Clicking a button on a specific file, choosing a model from the
+   dropdown, or picking a session are all intents.
+2. **Does it survive the next boundary?** If the answer dies on resume/reload/restart, it was
+   honoured but not recorded, and the setting will quietly win next time. Persist it beside the thing
+   it belongs to — session choices next to the session, not in global config.
+3. **Scope it to what was actually expressed.** An intent binds only the thing the gesture was about.
+   "New Tab on `foo.ts`" means *this file, this tab*; it does **not** mean "start including active
+   files everywhere." A gesture is never a licence to overwrite the user's settings.
+
+Known instances, kept here because each was found separately and only afterwards recognised as the
+same bug:
+
+| Gesture | Default that overrides it | Status |
+| --- | --- | --- |
+| Switch model mid-session | `copilotCLI.model` reasserts on resume | `planning/backlog/session-model-persistence.md` |
+| *New Tab* on a specific file | `copilotCLI.includeActiveFile` | decided in v3.13.0: the click seeds that file regardless |
+| Switch to a specific session | `getMostRecentSession` picks by mtime, so a deliberate switch with no message sent is forgotten | unfiled |
 
 ## Critical: Webview Build System
 
