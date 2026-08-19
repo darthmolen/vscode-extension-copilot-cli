@@ -192,7 +192,17 @@ export function resolveCliPath(
     );
 }
 
-let approveAll: any;
+/**
+ * The default permission decision: approve this call, and only this call.
+ *
+ * Seeded here rather than left undefined until `loadSDK()` fills it in, because
+ * `client.ts` sets the wire flag `requestPermission: !!config.onPermissionRequest`.
+ * A config built before the SDK finished loading would therefore tell the CLI that
+ * nobody will answer, and every permission request would hang pending forever.
+ * `loadSDK()` still swaps in the SDK's own `approveAll`, so we stay on their
+ * implementation once it is available.
+ */
+let approveAll: any = () => ({ kind: 'approve-once' });
 
 async function loadSDK() {
     if (!CopilotClient) {
@@ -403,6 +413,12 @@ export class SDKSessionManager implements vscode.Disposable {
     // Services
     private modelCapabilitiesService: ModelCapabilitiesService;
     private currentModelId: string | null = null;
+
+    /**
+     * Who answers permission requests. Unset means "this manager does", via
+     * `approveAll`. See {@link setPermissionHandler}.
+     */
+    private permissionHandler: ((request: any, invocation: any) => any) | undefined;
     private planModeToolsService: PlanModeToolsService | null = null;
     private _messageEnhancementService: MessageEnhancerLike | null = null;
     private fileSnapshotService: FileSnapshotService;
@@ -561,7 +577,7 @@ export class SDKSessionManager implements vscode.Disposable {
         // Inject SDK 0.1.26 required fields into resume options
         resumeOptions = {
             ...resumeOptions,
-            onPermissionRequest: approveAll,
+            onPermissionRequest: this.permissionHandler ?? approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
             skillDirectories: this.resolveSkillDirectories(),
@@ -1276,7 +1292,7 @@ export class SDKSessionManager implements vscode.Disposable {
      * Uses onPreToolUse to capture file snapshots BEFORE tool execution,
      * fixing the race condition where snapshots were captured too late.
      */
-    private getSessionHooks(): { onPreToolUse: (input: any, invocation: any) => { permissionDecision: string } } {
+    private getSessionHooks(): { onPreToolUse: (input: any, invocation: any) => { permissionDecision?: string } } {
         return {
             onPreToolUse: (input: any, _invocation: any) => {
                 this.logger.info(`[Hook] onPreToolUse fired: tool=${input.toolName}`);
@@ -1286,9 +1302,35 @@ export class SDKSessionManager implements vscode.Disposable {
                         this.fileSnapshotService.captureByPath(input.toolName, filePath);
                     }
                 }
-                return { permissionDecision: 'allow' };
+                // The hook's reason for existing is the snapshot above, not the verdict
+                // below. When somebody else is answering permissions, saying `allow`
+                // here answers on their behalf: a spike against the real CLI
+                // (planning/spikes/acp-agent/spike-permission-hook.mjs) showed it then
+                // emits no permission.requested event at all, so the handler is never
+                // called. Withholding the decision — rather than changing it to 'ask',
+                // which downgrades the request to the payload-free `hook` variant —
+                // leaves the native shell/write request intact for them to answer.
+                return this.permissionHandler ? {} : { permissionDecision: 'allow' };
             }
         };
+    }
+
+    /**
+     * Answer permission requests with `handler` instead of approving them here.
+     *
+     * Exists for the ACP agent, which forwards them to its host over
+     * `session/request_permission`. Left unset — the VS Code extension's path — the
+     * manager keeps approving, because the extension has already gated the session
+     * behind its own settings and would otherwise start prompting users who have
+     * never been prompted.
+     *
+     * Must be called BEFORE `start()`: the handler is passed in the session config,
+     * so a handler installed afterwards would apply to the next session and not this
+     * one.
+     */
+    public setPermissionHandler(handler: (request: any, invocation: any) => any): void {
+        this.permissionHandler = handler;
+        this.logger.info('[Permissions] request handler installed; deferring decisions to it');
     }
 
     private getCustomTools(): any[] {
@@ -2415,7 +2457,7 @@ export class SDKSessionManager implements vscode.Disposable {
         // and once via session.on() — producing duplicate streaming content.
         config = {
             ...config,
-            onPermissionRequest: approveAll,
+            onPermissionRequest: this.permissionHandler ?? approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
             skillDirectories: this.resolveSkillDirectories(),
