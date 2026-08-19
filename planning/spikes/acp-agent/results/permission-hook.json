@@ -1,0 +1,157 @@
+{
+  "startedAt": "2026-08-19T23:00:48.020Z",
+  "cliPath": "/home/smolen/dev/vscode-copilot-cli-extension-lane-a/node_modules/@github/copilot-linux-x64/copilot",
+  "prompt": "Run this exact shell command and nothing else: echo hook-spike-proof-of-life. Do not read any files. Do not explore the repository. Call no other tool.",
+  "cases": [
+    {
+      "name": "B. control — no hooks",
+      "handlerFired": true,
+      "handlerCallCount": 1,
+      "permissionKinds": [
+        "shell"
+      ],
+      "permissionRequests": [
+        {
+          "kind": "shell",
+          "toolCallId": "toolu_017Nxuxj56NDuHuhqeYMnxBY",
+          "fullCommandText": "echo hook-spike-proof-of-life",
+          "intention": "Echo proof of life string",
+          "commands": [
+            {
+              "identifier": "echo hook-spike-proof-of-life",
+              "readOnly": false
+            }
+          ],
+          "possiblePaths": [],
+          "possibleUrls": [],
+          "hasWriteFileRedirection": false,
+          "canOfferSessionApproval": false
+        }
+      ],
+      "rawPermissionEvents": [
+        {
+          "resolvedByHook": false,
+          "kind": "shell"
+        }
+      ],
+      "toolEvents": [
+        "bash"
+      ]
+    },
+    {
+      "name": "A. onPreToolUse → 'allow' (what we ship today)",
+      "handlerFired": false,
+      "handlerCallCount": 0,
+      "permissionKinds": [],
+      "permissionRequests": [],
+      "rawPermissionEvents": [],
+      "toolEvents": [
+        "bash"
+      ]
+    },
+    {
+      "name": "C. onPreToolUse → 'ask'",
+      "handlerFired": true,
+      "handlerCallCount": 1,
+      "permissionKinds": [
+        "hook"
+      ],
+      "permissionRequests": [
+        {
+          "kind": "hook",
+          "toolCallId": "toolu_0191Nc7RcNsSC8ZRa33xPskj",
+          "toolName": "bash",
+          "toolArgs": "{\"command\":\"echo hook-spike-proof-of-life\",\"description\":\"Echo test string\"}"
+        }
+      ],
+      "rawPermissionEvents": [
+        {
+          "resolvedByHook": false,
+          "kind": "hook"
+        }
+      ],
+      "toolEvents": [
+        "bash"
+      ]
+    },
+    {
+      "name": "D. onPreToolUse → {} (no decision)",
+      "handlerFired": true,
+      "handlerCallCount": 1,
+      "permissionKinds": [
+        "shell"
+      ],
+      "permissionRequests": [
+        {
+          "kind": "shell",
+          "toolCallId": "toolu_01AfYXjVc2PgnfpRhMhGAYkY",
+          "fullCommandText": "echo hook-spike-proof-of-life",
+          "intention": "Echo test string",
+          "commands": [
+            {
+              "identifier": "echo hook-spike-proof-of-life",
+              "readOnly": false
+            }
+          ],
+          "possiblePaths": [],
+          "possibleUrls": [],
+          "hasWriteFileRedirection": false,
+          "canOfferSessionApproval": false
+        }
+      ],
+      "rawPermissionEvents": [
+        {
+          "resolvedByHook": false,
+          "kind": "shell"
+        }
+      ],
+      "toolEvents": [
+        "bash"
+      ]
+    },
+    {
+      "name": "E. onPreToolUse → undefined (no return)",
+      "handlerFired": true,
+      "handlerCallCount": 1,
+      "permissionKinds": [
+        "shell"
+      ],
+      "permissionRequests": [
+        {
+          "kind": "shell",
+          "toolCallId": "toolu_01WzxSJ9v14hdDXEWnQgqmwy",
+          "fullCommandText": "echo hook-spike-proof-of-life",
+          "intention": "Echo test string",
+          "commands": [
+            {
+              "identifier": "echo hook-spike-proof-of-life",
+              "readOnly": false
+            }
+          ],
+          "possiblePaths": [],
+          "possibleUrls": [],
+          "hasWriteFileRedirection": false,
+          "canOfferSessionApproval": false
+        }
+      ],
+      "rawPermissionEvents": [
+        {
+          "resolvedByHook": false,
+          "kind": "shell"
+        }
+      ],
+      "toolEvents": [
+        "bash"
+      ]
+    }
+  ],
+  "controlKind": "shell",
+  "variantPreserved": {
+    "A": false,
+    "C": false,
+    "D": true,
+    "E": true
+  },
+  "verdict": "SUPPRESSED — 'allow' hides the request. Case(s) D/E restore it with the native 'shell' variant intact; use the earliest of those.",
+  "finishedAt": "2026-08-19T23:01:10.514Z"
+}
