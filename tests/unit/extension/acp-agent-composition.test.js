@@ -129,3 +129,72 @@ describe('createAcpAgent — composition root (IN-3)', () => {
         expect(backend.onEvent).to.be.a('function');
     });
 });
+
+/**
+ * The permission fallback is the one setting that changes what happens when the
+ * agent CANNOT reach its host. Everywhere else `yolo` is a CLI flag; here it decides
+ * whether an unanswerable request is denied or run.
+ */
+describe('createAcpAgent — the yolo setting reaches the permission fallback (IN-3)', () => {
+    const shellRequest = { kind: 'shell', toolCallId: 't', fullCommandText: 'ls', intention: 'i', commands: [], canOfferSessionApproval: false };
+
+    it('denies by default, when yolo was not asked for', async () => {
+        const built = [];
+        const { createSessionStarter } = withoutVscode(() => require(COMPOSITION_PATH));
+        let installed;
+        const starter = createSessionStarter({
+            logger: silentLogger,
+            globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
+            clientProvider: {},
+            createManager: args => {
+                const m = makeManagerFactory(built)(args);
+                m.setPermissionHandler = h => { installed = h; };
+                return m;
+            }
+        });
+
+        await starter({ cwd: path.join(os.tmpdir(), 'w') });
+        expect(await installed(shellRequest, {})).to.deep.equal({ kind: 'user-not-available' });
+    });
+
+    it('approves when the launch snapshot carried yolo', async () => {
+        const built = [];
+        const { createSessionStarter } = withoutVscode(() => require(COMPOSITION_PATH));
+        let installed;
+        const starter = createSessionStarter({
+            logger: silentLogger,
+            globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
+            clientProvider: {},
+            settings: { yolo: true },
+            createManager: args => {
+                const m = makeManagerFactory(built)(args);
+                m.setPermissionHandler = h => { installed = h; };
+                return m;
+            }
+        });
+
+        await starter({ cwd: path.join(os.tmpdir(), 'w') });
+        expect(await installed(shellRequest, {})).to.deep.equal({ kind: 'approve-once' });
+    });
+
+    /** A resumed session is as unattended as a new one; the two must not disagree. */
+    it('applies the same fallback on the load path', async () => {
+        const built = [];
+        const { createSessionLoader } = withoutVscode(() => require(COMPOSITION_PATH));
+        let installed;
+        const loader = createSessionLoader({
+            logger: silentLogger,
+            globalStorageDir: path.join(os.tmpdir(), 'agent-storage'),
+            clientProvider: {},
+            settings: { yolo: true },
+            createManager: args => {
+                const m = makeManagerFactory(built)(args);
+                m.setPermissionHandler = h => { installed = h; };
+                return m;
+            }
+        });
+
+        await loader({ sessionId: 's1', cwd: path.join(os.tmpdir(), 'w') });
+        expect(await installed(shellRequest, {})).to.deep.equal({ kind: 'approve-once' });
+    });
+});

@@ -15,9 +15,10 @@
  * sdkSessionManager.ts already relies on for `@github/copilot-sdk`.
  */
 
-import type { AgentApp } from '@agentclientprotocol/sdk' with { 'resolution-mode': 'import' };
+import type { AgentApp, AgentContext } from '@agentclientprotocol/sdk' with { 'resolution-mode': 'import' };
 import { LoggerLike } from '../logger';
-import { ACP_SESSION_MODES } from './SdkSessionBackend';
+import { ACP_SESSION_MODES, AcpPermissionRequester } from './SdkSessionBackend';
+import { AcpPermissionOutcome } from './permissionMapper';
 import {
     SessionUpdateNotification,
     messageDeltaUpdate,
@@ -97,6 +98,15 @@ export interface AcpSessionBackend {
     setMode(modeId: string): Promise<void>;
     /** Stop the turn in flight. Safe to call when nothing is running. */
     cancel(): Promise<void>;
+    /**
+     * Route permission requests to `requester` — the host, over
+     * `session/request_permission`.
+     *
+     * Required rather than optional: a backend that silently could not forward would
+     * fall back to its own policy on every request, and the symptom (things quietly
+     * approved, or quietly denied) says nothing about the cause.
+     */
+    setPermissionRequester(requester: AcpPermissionRequester): void;
 }
 
 export interface CopilotAcpAgentDeps {
@@ -198,6 +208,17 @@ export class CopilotAcpAgent {
      */
     private readonly sessions = new Map<string, AcpSessionBackend>();
 
+    /**
+     * The client of the current connection, or `undefined` before one opens.
+     *
+     * Connection-scoped, NOT request-scoped, and that is the point: a permission can
+     * be raised by work that outlives the turn that triggered it — a background tool,
+     * a sub-agent still finishing — and the per-request `client` inside
+     * `session/prompt` is dead by then. `onConnect` hands us one that lives as long
+     * as the client does.
+     */
+    private client: AgentContext | undefined;
+
     constructor(private readonly deps: CopilotAcpAgentDeps) {}
 
     /**
@@ -229,6 +250,41 @@ export class CopilotAcpAgent {
     }
 
     /**
+     * Point one backend's permission requests at whatever client is connected.
+     *
+     * Called from `onConnect` as well as from `session/new` and `session/load`, so a
+     * backend that outlives a reconnect is re-pointed at the client that is there now
+     * rather than at the closed one.
+     *
+     * Forwarding is unconditional. `session/request_permission` is baseline protocol
+     * surface — on ACP's `Client` interface it is one of only two non-optional
+     * members, and `ClientCapabilities` has no permission-shaped field to gate it on.
+     */
+    private forwardPermissionsTo(backend: AcpSessionBackend): void {
+        const client = this.client;
+        if (!client) {
+            // Leave the backend on its own fallback, which denies. Deciding here too
+            // would put a second answer to "what if nobody can be asked" in a second
+            // file, and the two would eventually disagree — so this returns rather
+            // than inventing an outcome. `onConnect` repairs every live session the
+            // moment a client appears.
+            this.deps.logger.warn(
+                `[ACP] no client connected; session ${backend.sessionId} will fall back rather than ask`
+            );
+            return;
+        }
+
+        const requester: AcpPermissionRequester = async request => {
+            const acp = await loadAcp();
+            return await client.request(
+                acp.methods.client.session.requestPermission,
+                request as never
+            ) as { outcome?: AcpPermissionOutcome };
+        };
+        backend.setPermissionRequester(requester);
+    }
+
+    /**
      * Registers this agent's handlers on an ACP `AgentApp` and returns it.
      *
      * The app is passed in rather than constructed here so a caller can decide the
@@ -236,7 +292,18 @@ export class CopilotAcpAgent {
      * which is how this is tested.
      */
     public register(app: AgentApp): AgentApp {
-        return app.onRequest('initialize', async ({ params }) => {
+        return app.onConnect(connection => {
+            this.client = connection.client;
+            this.deps.logger.info('[ACP] client connected; permission requests will be forwarded');
+            // Backends started before the connection opened would otherwise keep
+            // falling back forever. In practice `session/new` cannot precede a
+            // connection, but a reconnect can — and a session that survives one must
+            // start asking the new client, not the closed one.
+            for (const backend of this.sessions.values()) {
+                this.forwardPermissionsTo(backend);
+            }
+        })
+        .onRequest('initialize', async ({ params }) => {
             const acp = await loadAcp();
             this.upgradeCapabilities(params?.clientCapabilities as KnownClientCapabilities | undefined);
             return {
@@ -269,6 +336,7 @@ export class CopilotAcpAgent {
                 throw acpModule.RequestError.internalError(undefined, reason);
             }
             this.sessions.set(backend.sessionId, backend);
+            this.forwardPermissionsTo(backend);
             this.deps.logger.info(`[ACP] session/new → ${backend.sessionId}`);
 
             return {
@@ -300,6 +368,7 @@ export class CopilotAcpAgent {
             // under a different key would be unreachable by the handle the client
             // already holds.
             this.sessions.set(params.sessionId, backend);
+            this.forwardPermissionsTo(backend);
             this.deps.logger.info(`[ACP] session/load → ${params.sessionId}`);
 
             return {

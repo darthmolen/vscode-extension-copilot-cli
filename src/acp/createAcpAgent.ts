@@ -15,7 +15,7 @@
 
 import type { LoggerLike } from '../logger';
 import { CopilotAcpAgent, AcpSessionBackend } from './CopilotAcpAgent';
-import { SdkSessionBackend, AcpManagerSlice } from './SdkSessionBackend';
+import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy } from './SdkSessionBackend';
 
 /**
  * What the entry point must supply. `createManager` is injected rather than calling
@@ -48,6 +48,23 @@ export interface AcpAgentCompositionDeps {
 }
 
 /**
+ * How the agent answers a permission request it cannot put to its host.
+ *
+ * `yolo` is the only setting that changes this, and it changes only this: a host
+ * that IS reachable is still asked, and its answer still stands, including when it
+ * says no. The setting exists for the unattended case — an agent driven by a script
+ * has nobody to ask, and denying every request would make it useless.
+ *
+ * Read from the launch snapshot rather than from live configuration because an agent
+ * process has no VS Code to read from, and because a permission policy that could
+ * change mid-session would mean two identical requests getting different answers for
+ * reasons invisible in the transcript.
+ */
+function permissionPolicy(deps: AcpAgentCompositionDeps): PermissionPolicy {
+    return { fallback: deps.settings?.yolo === true ? 'approve-once' : 'deny' };
+}
+
+/**
  * Build the function that turns a `session/new` into a running backend.
  *
  * **Every manager receives the same provider instance.** That is the whole payoff
@@ -69,7 +86,7 @@ export function createSessionStarter(
             settings: { ...(deps.settings ?? {}) }
         });
 
-        return SdkSessionBackend.start(manager, deps.logger);
+        return SdkSessionBackend.start(manager, deps.logger, permissionPolicy(deps));
     };
 }
 
@@ -92,7 +109,7 @@ export function createSessionLoader(
             resumeSessionId: sessionId
         });
 
-        return SdkSessionBackend.start(manager, deps.logger);
+        return SdkSessionBackend.start(manager, deps.logger, permissionPolicy(deps));
     };
 }
 

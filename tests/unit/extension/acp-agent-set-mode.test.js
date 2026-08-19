@@ -31,6 +31,9 @@ function makeBackend(id) {
         sessionId: id,
         modeCalls: [],
         currentModeId: 'work',
+        // Records where the agent points permission requests. The contract grew a
+        // member; a fake without it would fail before reaching what these test.
+        setPermissionRequester(requester) { this.permissionRequester = requester; },
         onEvent: () => () => {},
         prompt: async () => ({ stopReason: 'end_turn' }),
         async setMode(modeId) {

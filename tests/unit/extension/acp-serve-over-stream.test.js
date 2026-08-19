@@ -40,7 +40,8 @@ function makeAgent() {
             sessionId: 'wire-session-1',
             cwd,
             onEvent: () => () => {},
-            prompt: async () => ({ stopReason: 'end_turn' })
+            prompt: async () => ({ stopReason: 'end_turn' }),
+            setPermissionRequester() {}
         })
     });
 }

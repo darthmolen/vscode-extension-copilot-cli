@@ -30,6 +30,7 @@ function makeBackend(id, script = []) {
     return {
         sessionId: id,
         currentModeId: 'work',
+        setPermissionRequester() {},
         setMode: async () => {},
         cancel: async () => {},
         onEvent(listener) {

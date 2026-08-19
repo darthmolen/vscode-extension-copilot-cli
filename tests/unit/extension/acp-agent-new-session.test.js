@@ -42,7 +42,11 @@ function makeHarness(over = {}) {
     const agent = new CopilotAcpAgent({
         logger: silentLogger,
         startSession: async params => {
-            const backend = { sessionId: `session-${started.length + 1}`, params };
+            const backend = {
+                sessionId: `session-${started.length + 1}`,
+                params,
+                setPermissionRequester(requester) { this.permissionRequester = requester; }
+            };
             started.push(backend);
             return backend;
         },

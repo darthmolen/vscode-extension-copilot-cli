@@ -52,6 +52,7 @@ function makeBackend(id, script = ['hello']) {
         setMode: async () => {},
         cancel: async () => {},
         currentModeId: 'work',
+        setPermissionRequester() {},
         listenerCount: () => listeners.size
     };
 }
