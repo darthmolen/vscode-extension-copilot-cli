@@ -55,16 +55,33 @@ BRANCH=$(git branch --show-current)
 
 ### 2. Determine the version from the LAST PUBLISHED version
 The marketplace is authoritative — do not trust local tags/package.json (they lag or lead).
-Parse the labeled `Version:` line, not the first number in the output.
+Parse the labeled `Version:` line, not the first number in the output — `vsce show` prints a version
+*table* near the top as well, and the first semver in it is the same value only by luck of ordering.
 ```bash
 PUBLISHED=$(npx vsce show darthmolen.copilot-cli-extension 2>/dev/null \
   | grep -iE '^\s*Version:' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+# STOP if empty, whatever the cause. An unparsed $PUBLISHED makes the duplicate
+# guard below pass vacuously — every comparison against "" succeeds — so the first
+# thing you would learn is a rejected publish.
+[ -n "$PUBLISHED" ] || { echo "Could not read the published version; re-run, then check 'npx vsce show' by hand"; exit 1; }
+
 CURRENT=$(node -p "require('./package.json').version")
 echo "published=$PUBLISHED  package.json=$CURRENT"
 ```
+
+> **A cold `npx vsce` can return empty** — observed once in a freshly created worktree during the
+> 3.12.1 release, where the same command succeeded on the next invocation. The parser was fine; the cold
+> first run was not. So: **re-run before concluding anything about the format**, and never proceed on an
+> empty value. That is what the guard above is for.
+
 Pick the next version relative to `$PUBLISHED` (table below). Then **make `package.json` `version`
-equal that value** (edit it if needed). Guard: if the chosen version is **≤ `$PUBLISHED`**, STOP —
-you are not ahead of the marketplace and the publish would be rejected as a duplicate.
+equal that value**. Edit it **surgically** — `sed -i '0,/"version": "X"/s//"version": "Y"/'` or an
+equivalent one-line change. Do **not** rewrite the file with `JSON.parse` + `JSON.stringify`: that
+reformats all ~440 lines and buries a one-line bump in an unreviewable diff.
+
+Guard: if the chosen version is **≤ `$PUBLISHED`**, STOP — you are not ahead of the marketplace and
+the publish would be rejected as a duplicate.
 See CLAUDE.md "Versioning" — when in doubt, bump minor.
 
 | Change kind | Bump | From 3.10.0 → |
@@ -82,6 +99,18 @@ tail), so do not skip it.
 ```bash
 npm run compile && npm test && ./test-extension.sh
 ```
+
+Run `npm test` **twice**. A single green run is not evidence — see CLAUDE.md; the suite's flake
+rotates its victim, so one clean pass proves as little as one red one.
+
+**If another worktree is in use** (see the `worktree-init` skill), `./test-extension.sh` is the step
+to think about: it runs `code --install-extension … --force`, which is **global to VS Code**, and
+whichever tree ran it last wins silently. Either coordinate before running it, or skip the install
+and say so in the PR — do not report the gate as fully green when part of it was skipped. Note that
+`npx vsce package` is **not** a substitute from a symlinked worktree: it fails with `EISDIR`
+(details in `worktree-init`). CI packages from a clean checkout, so the published artifact is
+unaffected either way.
+
 Only `main.js size constraint` is an accepted baseline failure. Any other failure must be
 **re-run in isolation** (`npx mocha <file> --timeout <n>`) and pass there before you proceed —
 do not wave a failure through as "probably flaky."
