@@ -128,6 +128,29 @@ Print this. It is the part people forget:
 Work that only needs spikes, unit tests or type-checking is unaffected. Work that needs the
 sidebar is not.
 
+## What a symlinked worktree cannot do
+
+**`npx vsce package` fails here.** Its **secret scanner** walks the tree and tries to read the
+symlinked `research` / `node_modules` as files:
+
+```text
+ERROR  Error occurred while scanning secrets (files):
+Error: EISDIR: illegal operation on a directory, read
+errno: -21, code: 'EISDIR', syscall: 'read'
+```
+
+`.vscodeignore` does not save you: it excludes `research/**` and `node_modules/**`, which are globs
+over a *directory's contents* and do not match a **symlink of that name** — the same trailing-slash
+trap as the `.gitignore` note above, in a different file. Moving the links aside does not help
+either, since `vsce` still needs `node_modules` present to resolve dependencies.
+
+**This does not affect releases.** `release.yml` packages with `actions/checkout@v4` — a clean tree
+with no symlinks — so the published VSIX is built correctly regardless.
+
+What it means in practice: **do not try to complete a release's local packaging check from a
+worktree.** Either run it from the primary checkout, or skip it and say plainly that you did. See
+the `publish-release` skill, step 3.
+
 ## Cleanup
 
 ```bash
@@ -150,3 +173,5 @@ The symlinks live inside the worktree, so they go with it; the shared originals 
   same-named branch that diverges from `origin/`.
 - **Installing a VSIX from two trees** and concluding the extension is broken, when the other
   tree's build simply overwrote yours.
+- **Trying to `vsce package` from a worktree** and reading the `EISDIR` as a repo problem. It is the
+  symlinks; CI is unaffected.
