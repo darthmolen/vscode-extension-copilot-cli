@@ -18,6 +18,16 @@
 import type { AgentApp } from '@agentclientprotocol/sdk' with { 'resolution-mode': 'import' };
 import { LoggerLike } from '../logger';
 import { ACP_SESSION_MODES } from './SdkSessionBackend';
+import {
+    SessionUpdateNotification,
+    messageDeltaUpdate,
+    reasoningDeltaUpdate,
+    toolStartUpdate,
+    toolUpdateUpdate,
+    subagentStartUpdate,
+    subagentMessageUpdate,
+    subagentCompleteUpdate
+} from './sessionUpdateMapper';
 
 // `resolution-mode` is required on both the type import above and here: TypeScript
 // will not resolve ESM types from a CommonJS file without it (TS1542).
@@ -42,11 +52,43 @@ async function loadAcp(): Promise<AcpModule> {
  * manager, so this file does not pin the manager's shape the way 75 call sites
  * would (the same reasoning behind Lane B keeping `.manager` private).
  */
+/** A tool call as the manager reports it. */
+export interface AcpToolEvent {
+    toolCallId: string;
+    toolName: string;
+    status: string;
+    arguments?: unknown;
+    result?: string;
+    error?: { message: string; code?: string };
+}
+
+/**
+ * Everything a session can emit, in one union.
+ *
+ * `kind` is ours, not the manager's field names, so the backend absorbs any emitter
+ * rename rather than propagating it into the agent and the mapper.
+ */
+export type AcpBackendEvent =
+    | { kind: 'message'; messageId: string; deltaContent: string }
+    | { kind: 'reasoning'; reasoningId: string; deltaContent: string }
+    | { kind: 'toolStart'; tool: AcpToolEvent }
+    | { kind: 'toolUpdate'; tool: AcpToolEvent }
+    | { kind: 'subagentStart'; agentId: string; agentName?: string; agentDisplayName?: string }
+    | { kind: 'subagentMessage'; agentId: string; content?: string; reasoningText?: string }
+    | { kind: 'subagentComplete'; agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string };
+
 export interface AcpSessionBackend {
     /** The Copilot session id. Also the ACP session id — see `session/new`. */
     readonly sessionId: string;
-    /** Subscribe to assistant output. Returns an unsubscribe. */
-    onOutput(listener: (text: string) => void): () => void;
+    /**
+     * Subscribe to everything the session emits. Returns an unsubscribe.
+     *
+     * ONE subscription carrying a discriminated union, not a method per emitter:
+     * sixteen `onX` methods would be sixteen subscriptions to release at turn end,
+     * and the leak this already guards against would get sixteen times easier to
+     * introduce.
+     */
+    onEvent(listener: (event: AcpBackendEvent) => void): () => void;
     /** Send a prompt; resolves when the turn ends. */
     prompt(text: string): Promise<{ stopReason: string }>;
     /** The mode the session is in right now. */
@@ -121,6 +163,26 @@ function textOf(blocks: ReadonlyArray<{ type: string; text?: string }>): string 
         .filter(b => b.type === 'text' && typeof b.text === 'string')
         .map(b => b.text as string)
         .join('');
+}
+
+/**
+ * Route one backend event to its ACP notification.
+ *
+ * Returns `undefined` for a kind we do not map. That is deliberate: the manager may
+ * grow emitters, and a prompt should not die because one carried a shape we had no
+ * mapping for yet.
+ */
+function toSessionUpdate(sessionId: string, event: AcpBackendEvent): SessionUpdateNotification | undefined {
+    switch (event.kind) {
+        case 'message': return messageDeltaUpdate(sessionId, event);
+        case 'reasoning': return reasoningDeltaUpdate(sessionId, event);
+        case 'toolStart': return toolStartUpdate(sessionId, event.tool);
+        case 'toolUpdate': return toolUpdateUpdate(sessionId, event.tool);
+        case 'subagentStart': return subagentStartUpdate(sessionId, event);
+        case 'subagentMessage': return subagentMessageUpdate(sessionId, event);
+        case 'subagentComplete': return subagentCompleteUpdate(sessionId, event);
+        default: return undefined;
+    }
 }
 
 export class CopilotAcpAgent {
@@ -303,14 +365,15 @@ export class CopilotAcpAgent {
             // can deliver notifications belongs to this request. Unsubscribing in
             // `finally` matters more than it looks — a leak here is invisible until
             // a long session multiplies every chunk by the number of turns taken.
-            const unsubscribe = backend.onOutput(text => {
-                void client.notify(acpModule.methods.client.session.update, {
-                    sessionId: backend.sessionId,
-                    update: {
-                        sessionUpdate: 'agent_message_chunk',
-                        content: { type: 'text', text }
-                    }
-                });
+            const unsubscribe = backend.onEvent(event => {
+                const notification = toSessionUpdate(backend.sessionId, event);
+                if (!notification) {
+                    // An emitter we do not map yet. Dropping it keeps the turn
+                    // running; throwing here would kill a prompt over a message we
+                    // merely had no shape for.
+                    return;
+                }
+                void client.notify(acpModule.methods.client.session.update, notification as never);
             });
 
             try {

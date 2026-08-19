@@ -12,7 +12,7 @@
  */
 
 import { LoggerLike } from '../logger';
-import { AcpSessionBackend } from './CopilotAcpAgent';
+import { AcpSessionBackend, AcpBackendEvent, AcpToolEvent } from './CopilotAcpAgent';
 import type { SDKSessionManager } from '../sdkSessionManager';
 
 /** Structural disposable, matching `BufferedEmitter`'s subscription handle. */
@@ -29,6 +29,13 @@ export interface AcpManagerSlice {
     getSessionId(): string | null;
     sendMessage(message: string): Promise<void>;
     onDidMessageDelta(listener: (e: { messageId: string; deltaContent: string }) => void): Disposable;
+    onDidReceiveReasoningDelta(listener: (e: { reasoningId: string; deltaContent: string }) => void): Disposable;
+    onDidStartTool(listener: (e: AcpToolEvent) => void): Disposable;
+    onDidUpdateTool(listener: (e: AcpToolEvent) => void): Disposable;
+    onDidCompleteTool(listener: (e: AcpToolEvent) => void): Disposable;
+    onDidStartSubagent(listener: (e: { agentId: string; agentName?: string; agentDisplayName?: string }) => void): Disposable;
+    onDidSubagentMessage(listener: (e: { agentId: string; content?: string; reasoningText?: string }) => void): Disposable;
+    onDidCompleteSubagent(listener: (e: { agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }) => void): Disposable;
     getCurrentMode(): 'work' | 'plan';
     abortMessage(): Promise<void>;
     enablePlanMode(): Promise<void>;
@@ -105,13 +112,39 @@ export class SdkSessionBackend implements AcpSessionBackend {
      * response back until the turn ended, which is exactly the latency the protocol
      * exists to avoid.
      */
-    public onOutput(listener: (text: string) => void): () => void {
-        const subscription = this.manager.onDidMessageDelta(({ deltaContent }) => {
-            if (deltaContent) {
-                listener(deltaContent);
+    public onEvent(listener: (event: AcpBackendEvent) => void): () => void {
+        const subscriptions: Disposable[] = [
+            this.manager.onDidMessageDelta(e => {
+                // Empty deltas are keepalive noise; forwarding them would emit empty
+                // chunks a host has to render as nothing.
+                if (e.deltaContent) {
+                    listener({ kind: 'message', ...e });
+                }
+            }),
+            this.manager.onDidReceiveReasoningDelta(e => {
+                if (e.deltaContent) {
+                    listener({ kind: 'reasoning', ...e });
+                }
+            }),
+            this.manager.onDidStartTool(tool => listener({ kind: 'toolStart', tool })),
+            // Both update and complete are later states of the SAME call, which is
+            // exactly what ACP's tool_call_update expresses — so both map to it
+            // rather than complete inventing a third variant.
+            this.manager.onDidUpdateTool(tool => listener({ kind: 'toolUpdate', tool })),
+            this.manager.onDidCompleteTool(tool => listener({ kind: 'toolUpdate', tool })),
+            this.manager.onDidStartSubagent(e => listener({ kind: 'subagentStart', ...e })),
+            this.manager.onDidSubagentMessage(e => listener({ kind: 'subagentMessage', ...e })),
+            this.manager.onDidCompleteSubagent(e => listener({ kind: 'subagentComplete', ...e }))
+        ];
+
+        // One returned unsubscribe for all of them: the caller subscribes per turn
+        // and releases in a `finally`, and a partial release is a leak that only
+        // shows up as duplicated chunks several turns later.
+        return () => {
+            for (const s of subscriptions) {
+                s.dispose();
             }
-        });
-        return () => subscription.dispose();
+        };
     }
 
     /**

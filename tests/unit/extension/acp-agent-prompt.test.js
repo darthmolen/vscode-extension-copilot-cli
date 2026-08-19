@@ -37,17 +37,21 @@ function makeBackend(id, script = ['hello']) {
     return {
         sessionId: id,
         prompts: [],
-        onOutput(listener) {
+        onEvent(listener) {
             listeners.add(listener);
             return () => listeners.delete(listener);
         },
         async prompt(text) {
             this.prompts.push(text);
             for (const chunk of script) {
-                for (const l of listeners) { l(chunk); }
+                // The backend emits typed events now; the agent maps them.
+                for (const l of listeners) { l({ kind: 'message', messageId: 'm1', deltaContent: chunk }); }
             }
             return { stopReason: 'end_turn' };
         },
+        setMode: async () => {},
+        cancel: async () => {},
+        currentModeId: 'work',
         listenerCount: () => listeners.size
     };
 }

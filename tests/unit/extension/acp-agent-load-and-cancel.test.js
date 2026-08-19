@@ -35,7 +35,7 @@ function makeBackend(id) {
         sessionId: id,
         cancels: 0,
         currentModeId: 'work',
-        onOutput: () => () => {},
+        onEvent: () => () => {},
         prompt: async () => ({ stopReason: 'end_turn' }),
         setMode: async () => {},
         async cancel() { this.cancels += 1; }

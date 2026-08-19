@@ -39,7 +39,7 @@ function makeAgent() {
         startSession: async ({ cwd }) => ({
             sessionId: 'wire-session-1',
             cwd,
-            onOutput: () => () => {},
+            onEvent: () => () => {},
             prompt: async () => ({ stopReason: 'end_turn' })
         })
     });

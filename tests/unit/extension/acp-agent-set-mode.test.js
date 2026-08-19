@@ -31,7 +31,7 @@ function makeBackend(id) {
         sessionId: id,
         modeCalls: [],
         currentModeId: 'work',
-        onOutput: () => () => {},
+        onEvent: () => () => {},
         prompt: async () => ({ stopReason: 'end_turn' }),
         async setMode(modeId) {
             if (modeId === 'turbo') { throw new Error(`unknown mode: ${modeId}`); }

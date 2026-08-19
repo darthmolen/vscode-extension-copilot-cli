@@ -40,6 +40,15 @@ function makeManager(over = {}) {
             listeners.add(listener);
             return { dispose: () => { listeners.delete(listener); this.disposedSubscriptions++; } };
         },
+        // The other emitters the backend subscribes. Each returns its own disposable
+        // so the "one unsubscribe releases all of them" claim is observable.
+        onDidReceiveReasoningDelta() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidStartTool() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidUpdateTool() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidCompleteTool() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidStartSubagent() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidSubagentMessage() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidCompleteSubagent() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         emitDelta(deltaContent, messageId = 'm1') {
             for (const l of [...listeners]) { l({ messageId, deltaContent }); }
         },
@@ -81,15 +90,16 @@ describe('SdkSessionBackend (IN-3 cycle 5)', () => {
         expect(String(error.message)).to.match(/session id/i);
     });
 
-    it('forwards streaming deltas to output subscribers', async () => {
+    it('forwards streaming deltas as typed message events', async () => {
         const backend = await SdkSessionBackend.start(manager);
         const seen = [];
 
-        backend.onOutput(text => seen.push(text));
+        backend.onEvent(e => seen.push(e));
         manager.emitDelta('four');
         manager.emitDelta(', obviously');
 
-        expect(seen).to.deep.equal(['four', ', obviously']);
+        expect(seen.map(e => e.kind)).to.deep.equal(['message', 'message']);
+        expect(seen.map(e => e.deltaContent)).to.deep.equal(['four', ', obviously']);
     });
 
     /**
@@ -101,14 +111,16 @@ describe('SdkSessionBackend (IN-3 cycle 5)', () => {
         const backend = await SdkSessionBackend.start(manager);
         const seen = [];
 
-        const off = backend.onOutput(text => seen.push(text));
+        const off = backend.onEvent(e => seen.push(e));
         manager.emitDelta('heard');
         off();
         manager.emitDelta('not heard');
 
-        expect(seen).to.deep.equal(['heard']);
+        expect(seen.map(e => e.deltaContent)).to.deep.equal(['heard']);
         expect(manager.liveListeners(), 'emitter subscription outlived unsubscribe').to.equal(0);
-        expect(manager.disposedSubscriptions).to.equal(1);
+        // One unsubscribe must release EVERY emitter it subscribed, not just the
+        // first — a partial release shows up as duplicated chunks turns later.
+        expect(manager.disposedSubscriptions, 'not all emitter subscriptions were released').to.equal(8);
     });
 
     it('sends a prompt through the manager and reports the turn ended', async () => {

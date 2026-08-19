@@ -36,7 +36,14 @@ function makeManagerFactory(record) {
             async start() {},
             getSessionId: () => id,
             async sendMessage() {},
-            onDidMessageDelta: () => ({ dispose() {} })
+            onDidMessageDelta: () => ({ dispose() {} }),
+            onDidReceiveReasoningDelta: () => ({ dispose() {} }),
+            onDidStartTool: () => ({ dispose() {} }),
+            onDidUpdateTool: () => ({ dispose() {} }),
+            onDidCompleteTool: () => ({ dispose() {} }),
+            onDidStartSubagent: () => ({ dispose() {} }),
+            onDidSubagentMessage: () => ({ dispose() {} }),
+            onDidCompleteSubagent: () => ({ dispose() {} })
         };
     };
 }
@@ -116,6 +123,6 @@ describe('createAcpAgent — composition root (IN-3)', () => {
 
         expect(backend.sessionId).to.equal('session-1');
         expect(backend.prompt, 'must satisfy AcpSessionBackend').to.be.a('function');
-        expect(backend.onOutput).to.be.a('function');
+        expect(backend.onEvent).to.be.a('function');
     });
 });
