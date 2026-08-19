@@ -82,6 +82,36 @@ describe('createStartManager()', function () {
         );
     });
 
+    it('uses the manager the resume path produced, not whatever the global points at now', async function () {
+        // Found live on a window reload. Two starts run concurrently — a restored
+        // tab's fresh session and the sidebar's ambient resume — and both assign to
+        // the module-level handle. Reading it back after the await gives whichever
+        // finished last, so both hosts adopted one session id and a real CLI session
+        // was orphaned. The started manager has to travel back by return value.
+        const mine = managerFor('mine');
+        const someoneElses = managerFor('someone-elses');
+        const start = createStartManager({
+            resumeAndStart: async () => mine,
+            getManager: () => someoneElses,
+            logger: noopLogger
+        });
+
+        assert.strictEqual(await start({ sessionId: null, resume: false, fresh: true }), mine);
+    });
+
+    it('falls back to the window handle when the resume path started nothing', async function () {
+        // The reuse case: nothing new was started, and the running manager is the
+        // right answer.
+        const running_ = managerFor('already-running');
+        const start = createStartManager({
+            resumeAndStart: async () => undefined,
+            getManager: () => running_,
+            logger: noopLogger
+        });
+
+        assert.strictEqual(await start({ sessionId: 'already-running', resume: true }), running_);
+    });
+
     it('refuses the manager that was ALREADY running when a new session was asked for', async function () {
         // The tab defect. `openNew` asks for a fresh session; if the resume path
         // declines to start one, `getManager()` hands back the sidebar's manager

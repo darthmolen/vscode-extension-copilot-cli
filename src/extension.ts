@@ -535,7 +535,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 async function resumeAndStartSession(
 	context: vscode.ExtensionContext,
 	request: { sessionId?: string | null; fresh?: boolean; host?: ChatSessionHost } = {}
-): Promise<void> {
+): Promise<SDKSessionManager | null> {
 	// Whose session this is. Defaulting to the sidebar keeps the command palette
 	// and activation paths working; a host asking for itself supplies its own.
 	const target = request.host ?? sidebarHost;
@@ -543,7 +543,8 @@ async function resumeAndStartSession(
 	// asks when it is not live — so the window's manager is another surface's.
 	const plan = planSessionStart({ ...request, onBehalfOfHost: Boolean(request.host) }, sessionManager);
 	if (plan.reuseRunning) {
-		return;
+		// Nothing started; the caller wants what is already running.
+		return null;
 	}
 
 	// A fresh session resumes nothing, so the flag the manager reads must say so.
@@ -568,7 +569,9 @@ async function resumeAndStartSession(
 	updateActiveFile(vscode.window.activeTextEditor);
 	updateSessionsList();
 
-	await startCLISession(context, resumeLastSession, sessionIdToResume, target);
+	// Returned rather than left in the module handle: two starts can be in flight at
+	// once on a window reload, and the handle only remembers the last one.
+	return await startCLISession(context, resumeLastSession, sessionIdToResume, target);
 }
 
 // ── Command Handlers ──────────────────────────────────────────────────────────
@@ -773,7 +776,7 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 	return sessionId;
 }
 
-async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string, target: ChatSessionHost = sidebarHost): Promise<void> {
+async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string, target: ChatSessionHost = sidebarHost): Promise<SDKSessionManager | null> {
 	// Deliberately does not decide whether to start. `resumeAndStartSession` already
 	// did, from a request carrying `fresh` and `onBehalfOfHost`; re-deciding here
 	// from `specificSessionId` alone threw both away, so *New Tab* while the sidebar
@@ -806,7 +809,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 
-		sessionManager = new SDKSessionManager(
+		// A local, not the module handle. Two starts can be in flight at once — a
+		// restored tab's fresh session and the sidebar's ambient resume — and both
+		// assign to `sessionManager`. Reading it back after the await gave whichever
+		// finished last, so `onSessionStarted` adopted another session's id onto this
+		// target: two hosts claimed one session and a real CLI session was orphaned.
+		const manager = new SDKSessionManager(
 			context,
 			config,
 			resumeLastSession,
@@ -818,12 +826,14 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
-		wireManagerEvents(context, sessionManager, target);
+		sessionManager = manager;
+		wireManagerEvents(context, manager, target);
 
 		logger.info('Starting CLI process...');
-		await sessionManager.start();
+		await manager.start();
 
-		onSessionStarted(sessionManager, target);
+		onSessionStarted(manager, target);
+		return manager;
 	} catch (error) {
 		await handleStartupError(error, context, resumeLastSession, specificSessionId);
 		throw error;

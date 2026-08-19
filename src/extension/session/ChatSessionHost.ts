@@ -353,12 +353,18 @@ export class ChatSessionHost {
      * back, the reader shows its history.
      */
     public ensureStarted(): Promise<void> {
-        if (this.live) {
-            return Promise.resolve();
-        }
-        // Concurrent callers share one attempt rather than racing two starts.
+        // In-flight first, and `live` only after. `wireManagerEvents` calls
+        // `attachManager` — which sets `live` — *before* `manager.start()` resolves,
+        // because the wiring must be in place to catch startup events. Checking
+        // `live` first therefore told a surface the session was ready while it still
+        // had no id: opening a chat tab sent `[Init] Sending 0 messages` with
+        // `sessionId: null`, never re-sent, and the tab could not restore on reload.
+        // While a start is running, the promise is the only honest answer.
         if (this.starting) {
             return this.starting;
+        }
+        if (this.live) {
+            return Promise.resolve();
         }
         if (!this.startManager) {
             return Promise.reject(new Error(

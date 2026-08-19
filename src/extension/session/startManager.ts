@@ -16,9 +16,18 @@ import { RunningSessionLike } from './sessionStartPlan';
 import type { ChatSessionHost } from './ChatSessionHost';
 
 export interface StartManagerDeps<TManager extends RunningSessionLike> {
-    /** Resume-or-start for this window. `extension.ts` binds the context. */
-    resumeAndStart(request: { sessionId?: string | null; fresh?: boolean; host?: ChatSessionHost }): Promise<void>;
-    /** The manager that resulted, or null if the start failed. */
+    /**
+     * Resume-or-start for this window. `extension.ts` binds the context.
+     *
+     * Returns the manager it started, when it started one. That return value is
+     * load-bearing: two starts can run concurrently on a window reload — a restored
+     * tab's fresh session and the sidebar's ambient resume — and both assign to the
+     * module-level handle, so reading it back afterwards gives whichever finished
+     * last. Returning it keeps each start's own manager with its own caller.
+     */
+    resumeAndStart(request: { sessionId?: string | null; fresh?: boolean; host?: ChatSessionHost }):
+        Promise<TManager | null | undefined | void>;
+    /** The window's current manager. Only consulted when nothing new was started. */
     getManager(): TManager | null;
     logger: { warn(message: string): void };
 }
@@ -33,9 +42,11 @@ export function createStartManager<TManager extends RunningSessionLike>(
 
         // The host travels with the request because a *fresh* session has no id
         // yet, so nothing else identifies which host the bootstrap belongs to.
-        await deps.resumeAndStart({ sessionId, fresh, host });
+        const started = await deps.resumeAndStart({ sessionId, fresh, host });
 
-        const manager = deps.getManager();
+        // The started manager if there is one; the window's only when the request
+        // was satisfied by something already running.
+        const manager = started ?? deps.getManager();
         if (!manager) {
             throw new Error('CLI session failed to start');
         }
@@ -55,10 +66,10 @@ export function createStartManager<TManager extends RunningSessionLike>(
         // session is worse than none: the host attaches to it and the surface shows
         // a conversation nobody asked for. An id-less manager is fine — a fresh
         // session adopts its id moments later.
-        const started = manager.getSessionId();
-        if (sessionId && started && started !== sessionId) {
+        const startedSessionId = manager.getSessionId();
+        if (sessionId && startedSessionId && startedSessionId !== sessionId) {
             throw new Error(
-                `Asked to start session ${sessionId} but got ${started}`
+                `Asked to start session ${sessionId} but got ${startedSessionId}`
             );
         }
 
