@@ -19,11 +19,12 @@ That is the whole basis of the hybrid posture. Nothing here waits on Microsoft.
 
 ## What Phase 0 already established
 
-- The manager runs with `vscode` absent and takes a `HostBridge` (IN-1) — true as long as
-  the caller injects one, but not yet enforced by the module graph: `sdkSessionManager.ts`
-  still statically falls back to `createVSCodeHostBridge`. Removing that, and splitting
-  `vscodeHostBridge.ts` out, belongs to this issue —
-  [backlog memo](../../backlog/hostbridge-split-and-fallback-seam.md).
+- The manager runs with `vscode` absent and takes a `HostBridge` (IN-1) — and since 2026-08-19 this
+  is **enforced by the module graph**, not merely true by convention. The static fallback to
+  `createVSCodeHostBridge` is gone, the bridge is a required constructor argument, and
+  `vscodeHostBridge.ts` is its own file. Done as part of this issue, since it was the second
+  `HostBridge` implementation that made it cheap —
+  [memo](../../completed/hostbridge-split-and-fallback-seam.md).
 - Its 16 `BufferedEmitter` events carry **plain JSON-serializable structs** — no
   `vscode.Uri`, no `Disposable`, no functions cross the boundary. This is the
   natural `session/update` mapping.
@@ -58,10 +59,16 @@ an ACP server. Opposite direction, different blockers.
    Sub-agent traffic keeps `agentId == toolCallId`; carry dock extras in `_meta`
    (the ACP `_meta` RFD is Completed), and ensure the transcript still reads
    correctly when `_meta` is ignored.
-4. **Permissions.** Today the manager hard-codes `onPermissionRequest: approveAll`.
-   An ACP agent should forward to `session/request_permission` instead. Note the
-   permission-interaction spike finding: `--yolo` does **not** suppress
-   `onPermissionRequest`, so a handler is always required.
+4. **Permissions.** ~~Today the manager hard-codes `onPermissionRequest: approveAll`.~~
+   **Done 2026-08-19.** The manager takes an injected handler; an ACP agent forwards to
+   `session/request_permission`; the extension's path is unchanged. Two spike findings shaped it:
+   `--yolo` does **not** suppress `onPermissionRequest`, so a handler is always required; and our own
+   `onPreToolUse` hook, returning `{ permissionDecision: 'allow' }` at every session-creation site,
+   made the CLI emit **no permission event whatsoever** — the feature was dead on arrival until the
+   hook stopped pre-deciding. When the host cannot be reached the answer is
+   `{ kind: 'user-not-available' }`, never an approval; `yolo` flips that fallback and nothing else.
+   See [IN-3 continuance §4](../../in-progress/v4.0-in3-acp-agent.md) and
+   [FINDINGS](../../spikes/acp-agent/FINDINGS.md).
 5. **Headless host bridge** (IN-8, folds in here): a settings snapshot passed at
    startup, and `askSessionRecovery` resolving without a UI.
 
@@ -80,11 +87,26 @@ example uses them (`research/acp-sdk/src/examples/agent.ts:98`):
 needed** — an earlier revision of this ticket prescribed one before the SDK source was in the corpus.
 
 **2. `initialize` may never run — default deny, upgrade on receipt.** `buildSession().start()`
-issues `session/new` only. Handlers must work uninitialized. This is security-adjacent:
-`clientCapabilities` gates whether we forward to `session/request_permission` (item 4) or fall back
-to `approveAll`, and branching on an unset capability silently auto-approves rather than crashing —
-the same failure class as **cli#1607**. Initialise the capability record to the schema's own default
-(`fs: { readTextFile: false, writeTextFile: false }`) and let `initialize` upgrade it.
+issues `session/new` only. Handlers must work uninitialized. Initialise the capability record to the
+schema's own default (`fs: { readTextFile: false, writeTextFile: false }`) and let `initialize`
+upgrade it.
+
+> **Correction, 2026-08-19 — capabilities do NOT gate permission forwarding.** This paragraph used
+> to say `clientCapabilities` decides whether we forward to `session/request_permission` (item 4) or
+> fall back to `approveAll`. That is false, and it was repeated into two other documents before
+> anyone checked it. Verified twice against `research/acp-sdk/src/`: `ClientCapabilities`
+> (`schema/types.gen.ts:4462`) carries `fs`, `terminal`, `session`, `plan`, `auth`, `elicitation`,
+> `nes` and `positionEncodings` — nothing permission-shaped — and on the `Client` interface
+> (`acp.ts:3740`) `requestPermission` is one of only **two non-optional members**, while every
+> capability-gated method is declared `?`. `session/request_permission` is baseline protocol
+> surface, so **forwarding is unconditional**.
+>
+> The default-deny record above is still right; it gates `fs` and `terminal`, which is what it was
+> always for. The security worry is also still real — it just relocates. The failure is not
+> "we branched on an unset capability", it is **"we could not ask, so we approved"**, and the answer
+> is a deny fallback (`{ kind: 'user-not-available' }`) rather than a capability branch. Guarded by
+> two tests: a permission forwarded with no `initialize` at all, and one after an `initialize` that
+> advertises nothing.
 
 **Cancellation is an `AbortSignal`**, delivered on the handler context as `signal` — nothing to
 correlate by hand. (Ergonomics only: the wire still carries cancel as a notification.)
@@ -111,6 +133,8 @@ its own process and an ESM entry point `require()`s our compiled `out/` manager 
 - Extend `planning/spikes/acp-agent/spike-out-of-host.mjs`: the same 8 assertions
   must hold **through the ACP wire** rather than through direct method calls.
   Plan-mode step 5 is the regression guard that matters.
+  **Met 2026-08-19: `spike-through-the-wire.mjs` → 17/17** against a real CLI, including step 5 and
+  a real `shell` permission forwarded to the client and answered back down the same pipe.
 - `npm test` green; `tests/e2e/plan-mode/` unaffected.
 - An ACP client (Zed, or a scripted harness) can complete one prompt end to end.
   **Re-rated 2026-08-16:** Zed was the only way to escape testing our own reading of

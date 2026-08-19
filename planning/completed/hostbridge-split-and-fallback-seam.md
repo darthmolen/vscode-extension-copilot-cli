@@ -1,6 +1,28 @@
 # HostBridge — split the file, drop the VS Code fallback
 
-**Status:** deferred by decision, 2026-08-15.
+**Status:** **done, 2026-08-19**, on `feature/4.0-in3-acp-server` — at the Lane A gate, exactly where
+this memo said to do it.
+
+What shipped, against the four proposed steps below: `hostBridge.ts` kept the contract and
+`NoopMessageEnhancer` (1); `vscodeHostBridge.ts` took `createVSCodeHostBridge` and `HostBridgeDeps`
+(2); `src/acp/HeadlessHostBridge.ts` already existed (3); the fallback is gone, the bridge is
+required, and the `context` parameter went with it (4).
+
+Two notes for anyone reading this as precedent:
+
+- **The cost estimate held.** Thirteen construction sites needed a host, and `createFakeHost()` —
+  written in advance for exactly this — is what made it a mechanical edit. The e2e set got
+  `createVSCodeMockHost()`, built *from* `vscode-mock` rather than restating its values, so it
+  reproduces what the fallback produced and cannot drift from it.
+- **The acceptance criterion needed a test that could actually fail.** "No import path leads from
+  `sdkSessionManager.ts` to `require('vscode')`" was first written as a source-text check, which
+  would have passed the moment the identifier moved — the very failure this memo warns about. It is
+  now asserted against the module graph: load the manager with `vscode` absent and check
+  `require.cache` does not contain `vscodeHostBridge.js`. Putting the static import back turns it red.
+
+---
+
+**Original status:** deferred by decision, 2026-08-15.
 **Revisit:** at the Lane A completion gate, **before moving off v3.12.0**.
 
 ## Read this first: `HostBridge` is already an interface

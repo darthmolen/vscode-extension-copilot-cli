@@ -69,7 +69,7 @@ Once the spine lands, this is the contract. **Neither lane edits the other's fil
 | File | Owner | Note |
 | --- | --- | --- |
 | `src/sdkSessionManager.ts` | **Lane A exclusive** | After S4 the client lifecycle has left; what remains is A's region |
-| `src/extension/hostBridge.ts` | **Lane A exclusive** | B's only need (`getActiveAgent`) is relocated in S3. Split + fallback removal deferred to the Lane A gate — [memo](backlog/hostbridge-split-and-fallback-seam.md) |
+| `src/extension/hostBridge.ts`, `vscodeHostBridge.ts` | **Lane A exclusive** | B's only need (`getActiveAgent`) is relocated in S3. Split + fallback removal **done** at the Lane A gate, 2026-08-19 — [memo](completed/hostbridge-split-and-fallback-seam.md) |
 | `src/extension/services/CopilotClientProvider.ts` *(new, S4)* | A edits · **B consumes** | B constructs N managers against it and must not edit it |
 | `src/extension.ts` | **Lane B exclusive** | 75 `chatProvider.` sites across 39 methods; A touches none |
 | `src/chatViewProvider.ts` | **Lane B exclusive** | HTML + handler extraction |
