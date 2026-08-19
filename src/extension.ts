@@ -1172,7 +1172,9 @@ async function loadSessionHistory(sessionId: string, target: ChatSessionHost = s
 
 	loadTranscriptInto(target, messages);
 	const toolCount = messages.filter(m => m.kind === 'tool').length;
-	logger.info(`Loaded ${messages.length} messages (${toolCount} tool calls) from session history`);
+	logger.info(
+		`Loaded ${messages.length} messages (${toolCount} tool calls) from ${sessionId} into ${target.handle}`
+	);
 }
 
 function updateActiveFile(editor: vscode.TextEditor | undefined) {

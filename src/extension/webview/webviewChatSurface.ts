@@ -213,7 +213,13 @@ export class WebviewChatSurface implements vscode.Disposable {
 			return;
 		}
 		const fullState = this.sessionHost.getFullState();
-		this.logger.info(`[Init] Sending ${fullState.messages.length} messages to webview`);
+		// Labelled by surface: with a sidebar and N tabs, an unlabelled init line
+		// cannot be attributed, and attribution is the whole question when two
+		// surfaces start at once.
+		this.logger.info(
+			`[${this.label}] [Init] Sending ${fullState.messages.length} messages for ` +
+			`${fullState.sessionId ?? '(no session yet)'}`
+		);
 		this.rpcRouter?.sendInit({
 			sessionId: fullState.sessionId,
 			sessionActive: fullState.sessionActive,
@@ -600,7 +606,7 @@ export class WebviewChatSurface implements vscode.Disposable {
 	}
 
 	public updateSessions(sessions: Array<{id: string, label: string}>, currentSessionId: string | null) {
-		this.logger?.info(`Updating session dropdown: ${sessions.length} sessions, current=${currentSessionId}`);
+		this.logger?.info(`[${this.label}] Session dropdown: ${sessions.length} sessions, current=${currentSessionId ?? '(none yet)'}`);
 		this.rpcRouter?.updateSessions(sessions as any, currentSessionId);
 	}
 
