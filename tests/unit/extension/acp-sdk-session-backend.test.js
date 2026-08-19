@@ -33,6 +33,7 @@ function makeManager(over = {}) {
         sent: [],
         disposedSubscriptions: 0,
         sessionId: 'copilot-session-1',
+        setPermissionHandler(h) { this.permissionHandler = h; },
         async start() { this.started++; },
         getSessionId() { return this.sessionId; },
         async sendMessage(text) { this.sent.push(text); },

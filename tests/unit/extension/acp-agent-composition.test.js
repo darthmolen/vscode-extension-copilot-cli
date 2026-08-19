@@ -33,6 +33,9 @@ function makeManagerFactory(record) {
         const id = `session-${n}`;
         record.push({ clientProvider, workspaceFolder, sessionId: id });
         return {
+            // The backend installs one before start(); a fake without it would
+            // make the backend throw rather than exercise composition.
+            setPermissionHandler() {},
             async start() {},
             getSessionId: () => id,
             async sendMessage() {},

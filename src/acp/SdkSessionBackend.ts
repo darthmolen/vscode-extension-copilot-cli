@@ -14,6 +14,14 @@
 import { LoggerLike } from '../logger';
 import { AcpSessionBackend, AcpBackendEvent, AcpToolEvent } from './CopilotAcpAgent';
 import type { SDKSessionManager } from '../sdkSessionManager';
+import {
+    AcpPermissionRequest,
+    AcpPermissionOutcome,
+    CopilotPermissionRequest,
+    CopilotPermissionDecision,
+    toAcpPermissionRequest,
+    fromAcpOutcome
+} from './permissionMapper';
 
 /** Structural disposable, matching `BufferedEmitter`'s subscription handle. */
 interface Disposable {
@@ -26,6 +34,7 @@ interface Disposable {
  */
 export interface AcpManagerSlice {
     start(): Promise<void>;
+    setPermissionHandler(handler: (request: any, invocation: any) => any): void;
     getSessionId(): string | null;
     sendMessage(message: string): Promise<void>;
     onDidMessageDelta(listener: (e: { messageId: string; deltaContent: string }) => void): Disposable;
@@ -40,6 +49,50 @@ export interface AcpManagerSlice {
     abortMessage(): Promise<void>;
     enablePlanMode(): Promise<void>;
     disablePlanMode(): Promise<void>;
+}
+
+/**
+ * Asks the host to decide, over ACP `session/request_permission`.
+ *
+ * Returns the whole response rather than the outcome because that is what the wire
+ * carries — ACP nests it as `{ outcome: { outcome, optionId } }`, and unwrapping one
+ * layer here would let a mistake in the other layer pass unnoticed.
+ */
+export type AcpPermissionRequester =
+    (request: AcpPermissionRequest) => Promise<{ outcome?: AcpPermissionOutcome } | undefined>;
+
+/** What to do when the host cannot be asked at all. */
+export interface PermissionPolicy {
+    /**
+     * `deny` — the default, and the only safe one when a user might be watching.
+     * `approve-once` — the unattended escape hatch, driven by the `yolo` setting.
+     */
+    fallback?: 'deny' | 'approve-once';
+    /**
+     * How long to wait for the host. A permission prompt waits on a human, so this is
+     * generous; but it cannot be unbounded, because the SDK dispatches permissions
+     * fire-and-forget and a request nobody answers leaves the tool call pending for
+     * the life of the session.
+     */
+    timeoutMs?: number;
+}
+
+/** Ten minutes: long enough for someone to come back to their desk. */
+const DEFAULT_PERMISSION_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * The permission state a backend needs before it exists.
+ *
+ * `setPermissionHandler` has to run before `manager.start()` — the handler is passed
+ * in the session config — but the session id that every ACP request carries is only
+ * known once `start()` has returned. So the handler closes over this instead of over
+ * the backend, and the backend adopts it afterwards.
+ */
+interface PermissionState {
+    sessionId: string;
+    requester?: AcpPermissionRequester;
+    policy: Required<PermissionPolicy>;
+    seq: number;
 }
 
 /**
@@ -82,6 +135,7 @@ export class SdkSessionBackend implements AcpSessionBackend {
     private constructor(
         public readonly sessionId: string,
         private readonly manager: AcpManagerSlice,
+        private readonly permissions: PermissionState,
         private readonly logger?: LoggerLike
     ) {}
 
@@ -89,7 +143,27 @@ export class SdkSessionBackend implements AcpSessionBackend {
      * Start a manager and wrap it. Private constructor because a backend is only
      * valid once its session id exists, and that is not knowable synchronously.
      */
-    public static async start(manager: AcpManagerSlice, logger?: LoggerLike): Promise<SdkSessionBackend> {
+    public static async start(
+        manager: AcpManagerSlice,
+        logger?: LoggerLike,
+        policy: PermissionPolicy = {}
+    ): Promise<SdkSessionBackend> {
+        const permissions: PermissionState = {
+            sessionId: '',
+            policy: {
+                fallback: policy.fallback ?? 'deny',
+                timeoutMs: policy.timeoutMs ?? DEFAULT_PERMISSION_TIMEOUT_MS
+            },
+            seq: 0
+        };
+
+        // Before start(), and unconditionally. The handler is passed in the session
+        // config, so one installed later would apply to the NEXT session; and the SDK
+        // derives the wire flag `requestPermission` from whether a handler was given
+        // at all, so installing it only once a requester appears would leave sessions
+        // that told the CLI nobody will answer — where requests hang forever.
+        manager.setPermissionHandler(request => decidePermission(permissions, request, logger));
+
         await manager.start();
 
         const sessionId = manager.getSessionId();
@@ -100,8 +174,21 @@ export class SdkSessionBackend implements AcpSessionBackend {
             throw new Error('Manager started without a session id; cannot serve an ACP session');
         }
 
+        permissions.sessionId = sessionId;
         logger?.info(`[ACP] backend ready for session ${sessionId}`);
-        return new SdkSessionBackend(sessionId, manager, logger);
+        return new SdkSessionBackend(sessionId, manager, permissions, logger);
+    }
+
+    /**
+     * Forward permission requests to `requester` instead of falling back.
+     *
+     * Settable after `start()` — and separately from it — because the thing that can
+     * answer is the client CONNECTION, whose lifetime is neither the backend's nor a
+     * turn's. A backend loaded by `session/load` gets one just as a new one does.
+     */
+    public setPermissionRequester(requester: AcpPermissionRequester): void {
+        this.permissions.requester = requester;
+        this.logger?.info(`[ACP] session ${this.sessionId} will forward permission requests to the client`);
     }
 
     /**
@@ -212,4 +299,76 @@ export class SdkSessionBackend implements AcpSessionBackend {
             await this.manager.disablePlanMode();
         }
     }
+}
+
+
+/**
+ * One Copilot permission request, answered by the host — or, if it cannot be, by the
+ * fallback.
+ *
+ * Free function rather than a method because it is installed on the manager before
+ * the backend exists (see {@link PermissionState}).
+ *
+ * The distinction that runs through it: **failing to ASK is not the same as being
+ * given an answer we cannot use.** A throw, a timeout or a missing requester means we
+ * never reached the user, and that takes the fallback — `user-not-available`, which
+ * tells the model *why* there was no approval rather than implying someone said no.
+ * An answer we cannot interpret is still an answer, and rejects. Neither path
+ * approves by accident.
+ */
+async function decidePermission(
+    state: PermissionState,
+    request: CopilotPermissionRequest,
+    logger?: LoggerLike
+): Promise<CopilotPermissionDecision> {
+    const fallback = (): CopilotPermissionDecision =>
+        state.policy.fallback === 'approve-once'
+            ? { kind: 'approve-once' }
+            : { kind: 'user-not-available' };
+
+    if (!state.requester) {
+        logger?.warn(`[ACP] permission (${request.kind}) with no client to ask → ${state.policy.fallback}`);
+        return fallback();
+    }
+    if (!state.sessionId) {
+        // Only reachable if the CLI raised a permission before start() returned, which
+        // would mean a tool ran before the session existed. Sending an ACP request with
+        // an empty session id would be malformed, so fall back rather than emit it.
+        logger?.warn(`[ACP] permission (${request.kind}) before the session id was known → ${state.policy.fallback}`);
+        return fallback();
+    }
+
+    // `toolCallId` is optional on every Copilot variant and required by ACP. The
+    // substitute has to be unique per request, not a constant: a host keying its open
+    // prompts by tool call id would otherwise fold two questions into one.
+    const acpRequest = toAcpPermissionRequest(state.sessionId, request, `permission-${++state.seq}`);
+
+    let response: { outcome?: AcpPermissionOutcome } | undefined;
+    try {
+        response = await withPermissionTimeout(state.requester(acpRequest), state.policy.timeoutMs);
+    } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        logger?.warn(`[ACP] permission (${request.kind}) could not be put to the client (${reason}) → ${state.policy.fallback}`);
+        return fallback();
+    }
+
+    const decision = fromAcpOutcome(request, response?.outcome);
+    logger?.info(`[ACP] permission (${request.kind}) answered: ${decision.kind}`);
+    return decision;
+}
+
+/**
+ * Reject once `timeoutMs` has passed.
+ *
+ * The timer is cleared on settle so a resolved request does not hold the process
+ * alive for the rest of the window — an agent that has finished its work but will not
+ * exit for ten minutes reads as a hang.
+ */
+function withPermissionTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: NodeJS.Timeout;
+    const expiry = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs}ms`)), timeoutMs);
+        timer.unref?.();
+    });
+    return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
 }
