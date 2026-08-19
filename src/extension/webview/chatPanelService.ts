@@ -104,36 +104,49 @@ export class ChatPanelService {
     /**
      * Adopt a panel VS Code restored on window reload.
      *
-     * The serialized state carries the session id and nothing else. The transcript
-     * is rebuilt from the event log by the same projection every other path uses —
+     * **The tab always survives; only the session binding is conditional.** VS Code
+     * restored this tab because the *user* had it open, so closing it is a surprise
+     * they did not ask for — emptying it is not. An unusable state, or a session
+     * something else is already showing, therefore degrades to a fresh conversation
+     * in the same tab rather than to no tab.
+     *
+     * Serialized state carries the session id and nothing else. The transcript is
+     * rebuilt from the event log by the same projection every other path uses;
      * persisting one here would reintroduce the second, lossy copy P2 deleted.
      *
-     * A restored panel for a session something else already shows is closed rather
-     * than mirrored, for the same reason `openSession` reveals instead of opening:
-     * the host can only write to one surface, so the second would render nothing
-     * and look broken.
+     * **No freshness gate, deliberately.** Claude Code's serializer persists a
+     * `sessionUpdatedAt` beside the id and rebinds only within ten minutes, so a tab
+     * left open for a week returns empty. We do the opposite: a tab pinned to a
+     * session is a standing instruction, and age is not a reason to ignore it. The
+     * alternative is recorded rather than merely unimplemented.
      */
     public async restore(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
         const sessionId = readRestoredSessionId(state);
         if (!sessionId) {
-            this.deps.logger.warn('[ChatPanel] restored a tab with no session id — closing it');
-            panel.dispose();
+            this.deps.logger.warn('[ChatPanel] restored a tab with no session id — opening it fresh');
+            await this.openFreshIn(panel);
             return;
         }
 
-        const alreadyShowing = this.deps.registry.get(sessionId)?.getSurface();
-        if (alreadyShowing) {
+        if (this.deps.registry.get(sessionId)?.getSurface()) {
+            // One session, one live surface. Revealing the incumbent instead would
+            // steal focus during activation, which is not the user asking for it.
             this.deps.logger.info(
-                `[ChatPanel] session ${sessionId} is already on screen — closing the restored duplicate`
+                `[ChatPanel] session ${sessionId} is already on screen — opening this tab fresh`
             );
-            panel.dispose();
-            alreadyShowing.show();
+            await this.openFreshIn(panel);
             return;
         }
 
         const host = await this.deps.registry.getOrCreate(sessionId);
         this.deps.logger.info(`[ChatPanel] restoring tab for ${sessionId}`);
         await this.adopt(panel, host, sessionId);
+    }
+
+    /** Give a panel we could not bind a new conversation instead of closing it. */
+    private async openFreshIn(panel: vscode.WebviewPanel): Promise<void> {
+        const host = this.deps.registry.create(null, undefined, { whenNoSession: 'new' });
+        await this.adopt(panel, host);
     }
 
     private async openPanelFor(host: ChatSessionHost, title: string, replay?: string): Promise<void> {

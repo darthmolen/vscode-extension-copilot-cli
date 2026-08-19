@@ -82,6 +82,50 @@ describe('createStartManager()', function () {
         );
     });
 
+    it('refuses the manager that was ALREADY running when a new session was asked for', async function () {
+        // The tab defect. `openNew` asks for a fresh session; if the resume path
+        // declines to start one, `getManager()` hands back the sidebar's manager
+        // and the new host attaches to it — two hosts on one manager, both
+        // surfaces rendering every token. The session-id check below cannot see
+        // it, because a fresh request names no session to compare against.
+        const alreadyRunning = managerFor('the-sidebars-session');
+        const start = createStartManager({
+            resumeAndStart: async () => {},
+            getManager: () => alreadyRunning,
+            logger: noopLogger
+        });
+
+        await assert.rejects(
+            start({ sessionId: null, resume: false, fresh: true }),
+            /new session/i,
+            'handing back the running manager mirrors an existing conversation into the new tab'
+        );
+    });
+
+    it('accepts a genuinely new manager for a fresh request', async function () {
+        const before = managerFor('the-sidebars-session');
+        const after = managerFor('brand-new');
+        let current = before;
+        const start = createStartManager({
+            resumeAndStart: async () => { current = after; },
+            getManager: () => current,
+            logger: noopLogger
+        });
+
+        assert.strictEqual(await start({ sessionId: null, resume: false, fresh: true }), after);
+    });
+
+    it('accepts a fresh manager when nothing was running at all', async function () {
+        let current = null;
+        const start = createStartManager({
+            resumeAndStart: async () => { current = managerFor('brand-new'); },
+            getManager: () => current,
+            logger: noopLogger
+        });
+
+        assert.strictEqual((await start({ sessionId: null, resume: false, fresh: true })).getSessionId(), 'brand-new');
+    });
+
     it('refuses a manager for a DIFFERENT session than the one asked for', async function () {
         const start = createStartManager({
             resumeAndStart: async () => {},

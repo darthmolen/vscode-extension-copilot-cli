@@ -222,10 +222,11 @@ describe('ChatPanelService', () => {
             expect(surfaces[0].host.started).to.equal(1);
         });
 
-        it('closes a restored tab whose session is already on screen', async () => {
+        it('keeps the tab and starts a fresh conversation when the session is already on screen', async () => {
             // Reachable for the first time by the serializer: a window can restore a
             // tab for a session the sidebar has meanwhile resumed. A host writes to
-            // one surface, so the second would render nothing and look broken.
+            // one surface, so binding a second would render nothing — but the tab
+            // itself is there because the *user* had it open. Empty it, don't kill it.
             const existing = makeHost('double-booked');
             const alreadyShowing = makeSurface();
             existing.attachSurface(alreadyShowing);
@@ -234,17 +235,38 @@ describe('ChatPanelService', () => {
 
             await service.restore(panel, { sessionId: 'double-booked' });
 
-            expect(panel.disposed).to.equal(true);
-            expect(alreadyShowing.shown).to.equal(1);
-            expect(surfaces).to.have.lengthOf(0, 'no second surface for one session');
+            expect(panel.disposed).to.equal(false, 'VS Code restored this tab because the user had it open');
+            expect(surfaces).to.have.lengthOf(1);
+            expect(surfaces[0].host).to.not.equal(existing, 'one session, one live surface');
+            expect(registry.created[0].options.whenNoSession).to.equal('new');
         });
 
-        it('closes a tab whose serialized state has no session id', async () => {
+        it('does not yank focus to the surface already showing that session', async () => {
+            const existing = makeHost('double-booked');
+            const alreadyShowing = makeSurface();
+            existing.attachSurface(alreadyShowing);
+            hostsById.set('double-booked', existing);
+
+            await service.restore(restoredPanel(), { sessionId: 'double-booked' });
+
+            expect(alreadyShowing.shown).to.equal(0,
+                'restore runs during activation — stealing focus there is not the user asking');
+        });
+
+        it('keeps a tab whose serialized state has no session id', async () => {
             const panel = restoredPanel();
 
             await service.restore(panel, {});
 
-            expect(panel.disposed).to.equal(true);
+            expect(panel.disposed).to.equal(false);
+            expect(surfaces).to.have.lengthOf(1);
+            expect(surfaces[0].host.sessionId).to.equal(null);
+        });
+
+        it('replays nothing into a tab it could not bind', async () => {
+            await service.restore(restoredPanel(), {});
+
+            expect(revealedExisting).to.have.lengthOf(0);
         });
 
         it('survives serialized state from another version entirely', async () => {
@@ -252,8 +274,19 @@ describe('ChatPanelService', () => {
             for (const state of [undefined, null, 'a string', 42, { sessionId: 42 }, { sessionId: '' }]) {
                 const panel = restoredPanel();
                 await service.restore(panel, state);
-                expect(panel.disposed).to.equal(true, `state ${JSON.stringify(state)} should close the tab`);
+                expect(panel.disposed).to.equal(false, `state ${JSON.stringify(state)} should keep the tab`);
             }
+            expect(surfaces).to.have.lengthOf(6, 'each restored tab gets its own fresh conversation');
+        });
+
+        it('restores with no freshness gate — an old tab still gets its session back', async () => {
+            // Decided, not omitted. Claude Code's serializer persists `sessionUpdatedAt`
+            // and rebinds only within ten minutes, so a tab left open for a week comes
+            // back empty. We do the opposite: a tab pinned to a session is a standing
+            // instruction, and age is not a reason to ignore it.
+            await service.restore(restoredPanel(), { sessionId: 'untouched-for-a-month' });
+
+            expect(surfaces[0].host.sessionId).to.equal('untouched-for-a-month');
         });
     });
 

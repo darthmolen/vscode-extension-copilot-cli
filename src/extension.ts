@@ -774,18 +774,21 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 }
 
 async function startCLISession(context: vscode.ExtensionContext, resumeLastSession: boolean = true, specificSessionId?: string, target: ChatSessionHost = sidebarHost): Promise<void> {
-	const plan = planSessionStart({ sessionId: specificSessionId }, sessionManager);
-	if (plan.reuseRunning) {
-		logger.warn('CLI session already running');
-		return;
-	}
+	// Deliberately does not decide whether to start. `resumeAndStartSession` already
+	// did, from a request carrying `fresh` and `onBehalfOfHost`; re-deciding here
+	// from `specificSessionId` alone threw both away, so *New Tab* while the sidebar
+	// ran answered "already running", returned, and let the caller attach the new
+	// host to the sidebar's manager — one session rendered by two surfaces.
+	//
+	// Every other caller either guards itself (`handleStartChat`) or stops the
+	// running manager first (new session, switch session, the auth retries).
 	if (sessionManager && sessionManager.isRunning()) {
 		// A *different* session is live in this window. Its events keep routing to
 		// its own host (Task 5), so it does not go silent — but the module-level
-		// handle moves to the new manager, which is the cross-session flaw Task 8
-		// closes by giving each host its own. Say so rather than let it look normal.
+		// handle moves to the new manager, which is the cross-session flaw the
+		// manager-ownership work closes by giving each host its own.
 		logger.warn(
-			`Starting session ${specificSessionId} while ${sessionManager.getSessionId()} is still live — ` +
+			`Starting ${specificSessionId ?? 'a new session'} while ${sessionManager.getSessionId()} is still live — ` +
 			`the module-level manager handle now points at the new one`
 		);
 	}
