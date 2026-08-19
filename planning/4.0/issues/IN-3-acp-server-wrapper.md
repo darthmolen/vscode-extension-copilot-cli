@@ -54,11 +54,21 @@ an ACP server. Opposite direction, different blockers.
    *(Note `@zed-industries/agent-client-protocol` is deprecated; it was renamed.)*
 2. **Method surface.** `initialize`, `session/new`, `session/load`,
    `session/prompt`, `session/cancel`.
+   **Partial as of 2026-08-19.** All six handlers exist (plus `session/set_mode`), but `session/load`
+   ignores `replayFrom` and replays nothing, and `session/close` — which the schema says an agent
+   **must** implement to free session resources — is absent, so sessions leak. See
+   [continuance §4c](../../in-progress/v4.0-in3-acp-agent.md).
 3. **Event mapping.** The 16 emitters → `session/update` variants
    (`agent_message_chunk`, `tool_call`, `tool_call_update`, `plan_update`).
    Sub-agent traffic keeps `agentId == toolCallId`; carry dock extras in `_meta`
    (the ACP `_meta` RFD is Completed), and ensure the transcript still reads
    correctly when `_meta` is ignored.
+   **Partial as of 2026-08-19 — this item was marked done and was not.** Eight of seventeen emitters
+   are mapped. `onDidProduceDiff` is the costly omission (ACP has a first-class `diff` content type,
+   so our whole inline-diff experience is invisible over the protocol); `onDidReceiveError` and
+   `onDidUpdateUsage` also have homes. `plan_update` has a mapper function and a green unit test but
+   **no caller**, so a host is never told the plan changed. See
+   [continuance §4c](../../in-progress/v4.0-in3-acp-agent.md).
 4. **Permissions.** ~~Today the manager hard-codes `onPermissionRequest: approveAll`.~~
    **Done 2026-08-19.** The manager takes an injected handler; an ACP agent forwards to
    `session/request_permission`; the extension's path is unchanged. Two spike findings shaped it:
@@ -136,6 +146,9 @@ its own process and an ESM entry point `require()`s our compiled `out/` manager 
   **Met 2026-08-19: `spike-through-the-wire.mjs` → 17/17** against a real CLI, including step 5 and
   a real `shell` permission forwarded to the client and answered back down the same pipe.
 - `npm test` green; `tests/e2e/plan-mode/` unaffected.
+- **Not yet met:** loading a session with history, closing one, and an honestly-reported
+  `stopReason` on cancel are all outside the spike's reach — it never asks for them. Extending the
+  gate is part of closing [continuance §4c](../../in-progress/v4.0-in3-acp-agent.md) items 1–3.
 - An ACP client (Zed, or a scripted harness) can complete one prompt end to end.
   **Re-rated 2026-08-16:** Zed was the only way to escape testing our own reading of
   the spec back to us. The SDK's `ClientApp` is the authors' reading, so it now covers
