@@ -99,7 +99,6 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
         // bridge would pin every session to the process's directory.
         createManager: ({ workspaceFolder: sessionCwd, clientProvider: provider, settings: s, resumeSessionId }) =>
             new SDKSessionManager(
-                undefined,
                 {},
                 /* resumeLastSession */ false,
                 /* specificSessionId */ resumeSessionId,

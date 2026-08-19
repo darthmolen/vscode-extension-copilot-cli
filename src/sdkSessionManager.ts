@@ -9,7 +9,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { Logger, LoggerLike } from './logger';
-import { HostBridge, MessageEnhancerLike, NoopMessageEnhancer, createVSCodeHostBridge } from './extension/hostBridge';
+// Type-only for the contract; `NoopMessageEnhancer` is the one runtime import, and
+// `hostBridge.ts` holds no implementation and reaches for no host. Nothing here
+// resolves to `require('vscode')` — which is the point, and is asserted in
+// tests/unit/extension/sdk-session-manager-host-decoupling.test.js.
+import type { HostBridge, MessageEnhancerLike } from './extension/hostBridge';
+import { NoopMessageEnhancer } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
@@ -446,8 +451,14 @@ export class SDKSessionManager implements vscode.Disposable {
     /** False when the provider was injected — a consumer must not stop what it shares. */
     private readonly ownsClientProvider: boolean;
 
+    /**
+     * @param hostBridge Required. The manager used to accept a `vscode.ExtensionContext`
+     *   instead and build the VS Code bridge itself, which meant this module named the
+     *   VS Code host in a static import — the one thing that would survive renaming the
+     *   file it came from. Whoever constructs a manager knows which host it is for; the
+     *   manager does not need to.
+     */
     constructor(
-        context: vscode.ExtensionContext | undefined,
         private readonly config: CLIConfig = {},
         resumeLastSession: boolean = true,
         specificSessionId?: string,
@@ -456,14 +467,13 @@ export class SDKSessionManager implements vscode.Disposable {
         clientProvider?: CopilotClientProvider
     ) {
         this.injectedCliPath = cliPath ?? null;
-        if (!hostBridge && !context) {
-            // Without either, the VS Code bridge would be built over an undefined
-            // context and fail later inside getGlobalStorageDir() — far from the cause.
-            throw new Error(
-                'SDKSessionManager requires either a vscode.ExtensionContext or an injected HostBridge.'
-            );
+        if (!hostBridge) {
+            // Optional in the signature only so the failure is this sentence rather
+            // than a TypeError from the first `this.host.` call, which lands far from
+            // the cause. JavaScript callers get the same message TypeScript would.
+            throw new Error('SDKSessionManager requires an injected HostBridge.');
         }
-        this.host = hostBridge ?? createVSCodeHostBridge(context as vscode.ExtensionContext);
+        this.host = hostBridge;
         this.logger = this.host.logger;
         // Services constructed below reach for the Logger singleton directly, so
         // point it at the host's logger to keep them working where there is no

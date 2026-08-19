@@ -16,7 +16,7 @@ const { expect } = require('chai');
 const path = require('path');
 const Module = require('module');
 
-const BRIDGE_PATH = path.join(__dirname, '../../..', 'out', 'extension', 'hostBridge.js');
+const BRIDGE_PATH = path.join(__dirname, '../../..', 'out', 'extension', 'vscodeHostBridge.js');
 
 /** Minimal ExtensionContext stand-in — the bridge only reads globalStorageUri. */
 const fakeContext = { globalStorageUri: { fsPath: '/tmp/fake-global-storage' } };

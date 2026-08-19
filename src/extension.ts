@@ -5,7 +5,7 @@ import { SDKSessionManager, CLIConfig, DEFAULT_MODEL } from './sdkSessionManager
 import { Logger } from './logger';
 import { ChatViewProvider } from './chatViewProvider';
 import { getBackendState, BackendState } from './backendState';
-import { createVSCodeHostBridge } from './extension/hostBridge';
+import { createVSCodeHostBridge } from './extension/vscodeHostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
 import { forkCurrentSession } from './extension/commands/forkSession';
 import { SessionService } from './extension/services/SessionService';
@@ -595,7 +595,6 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.debug(JSON.stringify(config, null, 2));
 
 		sessionManager = new SDKSessionManager(
-			context,
 			config,
 			resumeLastSession,
 			specificSessionId,

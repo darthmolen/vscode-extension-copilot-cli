@@ -5,6 +5,7 @@
  */
 
 const path = require('path');
+const { createVSCodeMockHost } = require('../../helpers/fake-host');
 const fs = require('fs');
 const Module = require('module');
 
@@ -101,6 +102,15 @@ class TestLogger {
 }
 
 // Mock extension context
+/**
+ * The bridge the manager used to build for itself from a mock context, now that it
+ * requires one. Same values as before: the `vscode` mock's workspace and settings,
+ * this suite's temp dir for global storage.
+ */
+function hostFor(context) {
+    return createVSCodeMockHost({ globalStorageDir: context.globalStorageUri.fsPath });
+}
+
 function createMockContext() {
     const tempDir = path.join(__dirname, 'output', 'session-timeout-test');
     if (!fs.existsSync(tempDir)) {
@@ -148,7 +158,7 @@ async function runSessionTimeoutTests() {
         const context = createMockContext();
         
         console.log('\n📋 Test 1: Session timeout during startup recovery');
-        sessionManager = new SDKSessionManager(context, { allowAll: true }, false);
+        sessionManager = new SDKSessionManager({ allowAll: true }, false, undefined, undefined, hostFor(context));
         
         // Capture events
         sessionManager.onMessage((event) => {
@@ -178,7 +188,7 @@ async function runSessionTimeoutTests() {
         
         console.log('\n📋 Test 2: Session timeout during message send recovery (optional)');
         await sessionManager.stop();
-        sessionManager = new SDKSessionManager(context, { allowAll: true }, false);
+        sessionManager = new SDKSessionManager({ allowAll: true }, false, undefined, undefined, hostFor(context));
         capturedEvents = [];
         sessionManager.onMessage((event) => {
             capturedEvents.push(event);

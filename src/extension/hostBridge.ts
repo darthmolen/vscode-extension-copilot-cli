@@ -2,16 +2,17 @@
  * HostBridge — the boundary between the agent loop and its host.
  *
  * `SDKSessionManager` drives the Copilot SDK and is otherwise pure Node. The
- * handful of things it genuinely needs from VS Code — settings, the workspace
+ * handful of things it genuinely needs from a host — settings, the workspace
  * folder, global storage, user-facing notifications, and the message enhancer
- * that reads editor state — are gathered here so the manager can also run
- * outside the extension host (e.g. inside a separate agent process).
+ * that reads editor state — are gathered here so the manager can also run outside
+ * the extension host, in a separate agent process.
  *
- * Nothing in this file imports `vscode` at module scope; the VS Code
- * implementation requires it lazily inside the factory.
+ * **The contract only.** Implementations are named for the host they serve —
+ * `vscodeHostBridge.ts` and `src/acp/HeadlessHostBridge.ts`. This file names neither
+ * and imports from neither, which is precisely what lets `sdkSessionManager.ts`
+ * depend on it without depending on VS Code.
  */
 
-import type * as vscode from 'vscode';
 import type { LoggerLike } from '../logger';
 import type { ErrorType } from '../sessionErrorUtils';
 
@@ -73,78 +74,4 @@ export class NoopMessageEnhancer implements MessageEnhancerLike {
     public dispose(): void {
         /* nothing to dispose */
     }
-}
-
-/**
- * Host-supplied collaborators the bridge cannot source for itself.
- *
- * These exist so the bridge stays free of global state: whoever constructs it
- * already holds the session state, so they pass in the accessor rather than
- * the bridge reaching for a singleton.
- */
-export interface HostBridgeDeps {
-    /** Returns the agent the user has pinned, or null. */
-    getActiveAgent?(): string | null;
-}
-
-/**
- * The VS Code implementation. `vscode` and the editor-bound services are
- * required lazily so importing this module stays safe in a non-VS Code host.
- */
-export function createVSCodeHostBridge(
-    context: vscode.ExtensionContext,
-    deps: HostBridgeDeps = {}
-): HostBridge {
-    const vscodeApi = require('vscode');
-    const { Logger } = require('../logger');
-    const { showSessionRecoveryDialog } = require('../sessionErrorUtils');
-
-    return {
-        get logger(): LoggerLike {
-            return Logger.getInstance();
-        },
-
-        getConfig<T>(key: string, defaultValue?: T): T | undefined {
-            const config = vscodeApi.workspace.getConfiguration('copilotCLI') as {
-                get<V>(section: string, fallback?: V): V | undefined;
-            };
-            return defaultValue === undefined
-                ? config.get<T>(key)
-                : config.get<T>(key, defaultValue);
-        },
-
-        getWorkspaceFolder(): string | undefined {
-            return vscodeApi.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        },
-
-        getGlobalStorageDir(): string {
-            return context.globalStorageUri.fsPath;
-        },
-
-        showError(message: string): void {
-            vscodeApi.window.showErrorMessage(message);
-        },
-
-        showWarning(message: string): void {
-            vscodeApi.window.showWarningMessage(message);
-        },
-
-        askSessionRecovery(
-            sessionId: string,
-            errorType: ErrorType,
-            attemptCount: number,
-            lastError: Error
-        ): Promise<'retry' | 'new'> {
-            return showSessionRecoveryDialog(vscodeApi, sessionId, errorType, attemptCount, lastError);
-        },
-
-        getActiveAgent(): string | null {
-            return deps.getActiveAgent?.() ?? null;
-        },
-
-        createMessageEnhancer(): MessageEnhancerLike {
-            const { MessageEnhancementService } = require('./services/messageEnhancementService');
-            return new MessageEnhancementService();
-        }
-    };
 }

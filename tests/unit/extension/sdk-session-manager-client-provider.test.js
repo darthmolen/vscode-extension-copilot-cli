@@ -170,7 +170,7 @@ describe('SDKSessionManager — client provider construction (S4)', () => {
         const injected = newProvider();
 
         const manager = withoutVscode(() =>
-            new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost(), injected)
+            new SDKSessionManager({}, false, undefined, undefined, createFakeHost(), injected)
         );
 
         expect(manager.clientProvider).to.equal(injected);
@@ -178,7 +178,7 @@ describe('SDKSessionManager — client provider construction (S4)', () => {
 
     it('builds its own provider when none is injected', () => {
         const manager = withoutVscode(() =>
-            new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost())
+            new SDKSessionManager({}, false, undefined, undefined, createFakeHost())
         );
 
         expect(manager.clientProvider).to.be.an.instanceOf(CopilotClientProvider);

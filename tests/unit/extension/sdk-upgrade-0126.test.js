@@ -43,6 +43,7 @@ Module.prototype.require = function (id) {
 
 const assert = require('assert');
 const path = require('path');
+const { createFakeHost } = require('../../helpers/fake-host');
 
 describe('SDK 0.1.26 Upgrade', function () {
 	this.timeout(10000);
@@ -157,13 +158,12 @@ describe('SDK 0.1.26 Upgrade', function () {
 
 	describe('injected cliPath', function () {
 		it('uses an injected cliPath instead of resolveCliPath() when provided', function () {
-			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
 			const mgr = new SDKSessionManager(
-				mockContext,
 				{},
 				/* resumeLastSession */ false,
 				/* specificSessionId */ undefined,
-				/* cliPath */ '/injected/path/copilot'
+				/* cliPath */ '/injected/path/copilot',
+				createFakeHost()
 			);
 			assert.strictEqual(typeof mgr.getCliPathForTest, 'function',
 				'SDKSessionManager should expose getCliPathForTest()');
@@ -171,8 +171,7 @@ describe('SDK 0.1.26 Upgrade', function () {
 		});
 
 		it('returns null/undefined from getCliPathForTest when no path injected (falls back to resolveCliPath)', function () {
-			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
-			const mgr = new SDKSessionManager(mockContext, {}, false);
+			const mgr = new SDKSessionManager({}, false, undefined, undefined, createFakeHost());
 			const result = mgr.getCliPathForTest();
 			assert.ok(result === null || result === undefined,
 				`expected null/undefined, got: ${result}`);
