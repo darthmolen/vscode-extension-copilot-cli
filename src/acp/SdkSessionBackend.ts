@@ -30,6 +30,7 @@ export interface AcpManagerSlice {
     sendMessage(message: string): Promise<void>;
     onDidMessageDelta(listener: (e: { messageId: string; deltaContent: string }) => void): Disposable;
     getCurrentMode(): 'work' | 'plan';
+    abortMessage(): Promise<void>;
     enablePlanMode(): Promise<void>;
     disablePlanMode(): Promise<void>;
 }
@@ -127,6 +128,23 @@ export class SdkSessionBackend implements AcpSessionBackend {
     public async prompt(text: string): Promise<{ stopReason: string }> {
         await this.manager.sendMessage(text);
         return { stopReason: 'end_turn' };
+    }
+
+    /**
+     * Stop the turn in flight.
+     *
+     * ACP delivers cancel as a **notification**, so there is no reply and nothing to
+     * await on the client's side — and verified against the SDK, a cancel does NOT
+     * abort the prompt handler's `signal` on its own. Acting on it here is the only
+     * thing that makes cancel real.
+     *
+     * Cancelling when nothing is running is normal, not an error: the client cannot
+     * know the turn already ended, so a race is the expected case rather than a
+     * fault.
+     */
+    public async cancel(): Promise<void> {
+        this.logger?.info(`[ACP] cancel requested for session ${this.sessionId}`);
+        await this.manager.abortMessage();
     }
 
     /**

@@ -51,10 +51,12 @@ describe('CopilotAcpAgent — initialize (IN-3 cycle 1)', () => {
     });
 
     /**
-     * Advertising a capability we have not built is a lie the client acts on.
-     * The skeleton implements neither session/load nor image prompts, so it must
-     * say so — this test is what stops `loadSession: true` being set optimistically
-     * ahead of the code.
+     * Advertising a capability we have not built is a lie the client acts on: it
+     * surfaces as a confusing failure rather than a clean refusal.
+     *
+     * The specific expectations move as things get built — `loadSession` was false
+     * until `session/load` landed — but the rule does not. Anything still `false`
+     * here is false because the code behind it does not exist yet.
      */
     it('advertises only capabilities it actually implements', async () => {
         const conn = connect(agent);
@@ -65,7 +67,14 @@ describe('CopilotAcpAgent — initialize (IN-3 cycle 1)', () => {
         });
 
         expect(res.agentCapabilities, 'must advertise capabilities explicitly').to.be.an('object');
-        expect(res.agentCapabilities.loadSession, 'session/load is not implemented yet').to.equal(false);
+        expect(res.agentCapabilities.loadSession, 'session/load IS implemented').to.equal(true);
+
+        // Not built: prompts are flattened to text (see textOf), so claiming any of
+        // these would invite content we would silently drop.
+        const p = res.agentCapabilities.promptCapabilities;
+        expect(p.image, 'image prompts are not handled').to.equal(false);
+        expect(p.audio, 'audio prompts are not handled').to.equal(false);
+        expect(p.embeddedContext, 'embedded context is not handled').to.equal(false);
     });
 
     it('identifies itself so a host can tell whose agent this is', async () => {

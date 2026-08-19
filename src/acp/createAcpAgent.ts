@@ -34,7 +34,13 @@ export interface AcpAgentCompositionDeps {
      */
     clientProvider: unknown;
     /** Builds a manager bound to the given workspace and provider. */
-    createManager(args: { workspaceFolder: string; clientProvider: unknown; settings: Record<string, unknown> }): AcpManagerSlice;
+    createManager(args: {
+        workspaceFolder: string;
+        clientProvider: unknown;
+        settings: Record<string, unknown>;
+        /** When present, the manager attaches to this existing session instead of minting one. */
+        resumeSessionId?: string;
+    }): AcpManagerSlice;
     /** Snapshot of `copilotCLI.*` settings taken at launch. */
     settings?: Readonly<Record<string, unknown>>;
     agentName?: string;
@@ -67,12 +73,36 @@ export function createSessionStarter(
     };
 }
 
+/**
+ * Build the function that resumes an existing session for `session/load`.
+ *
+ * Deliberately the same construction path as {@link createSessionStarter}, differing
+ * only by `resumeSessionId`. A separate path would drift — the shared provider, the
+ * per-session bridge and the cwd rule all have to stay identical, and the only thing
+ * a resume changes is which session the manager attaches to.
+ */
+export function createSessionLoader(
+    deps: AcpAgentCompositionDeps
+): (params: { sessionId: string; cwd: string }) => Promise<AcpSessionBackend> {
+    return async ({ sessionId, cwd }) => {
+        const manager = deps.createManager({
+            workspaceFolder: cwd || deps.workspaceFolder || process.cwd(),
+            clientProvider: deps.clientProvider,
+            settings: { ...(deps.settings ?? {}) },
+            resumeSessionId: sessionId
+        });
+
+        return SdkSessionBackend.start(manager, deps.logger);
+    };
+}
+
 /** Assemble the agent. See {@link createSessionStarter} for the part that matters. */
 export function createAcpAgent(deps: AcpAgentCompositionDeps): CopilotAcpAgent {
     return new CopilotAcpAgent({
         logger: deps.logger,
         agentName: deps.agentName,
         agentVersion: deps.agentVersion,
-        startSession: createSessionStarter(deps)
+        startSession: createSessionStarter(deps),
+        loadSession: createSessionLoader(deps)
     });
 }

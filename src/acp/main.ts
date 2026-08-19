@@ -97,12 +97,12 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
         // Each session gets its own bridge, because each carries its own cwd — the
         // manager reads the workspace from its host at construction, so a shared
         // bridge would pin every session to the process's directory.
-        createManager: ({ workspaceFolder: sessionCwd, clientProvider: provider, settings: s }) =>
+        createManager: ({ workspaceFolder: sessionCwd, clientProvider: provider, settings: s, resumeSessionId }) =>
             new SDKSessionManager(
                 undefined,
                 {},
                 /* resumeLastSession */ false,
-                /* specificSessionId */ undefined,
+                /* specificSessionId */ resumeSessionId,
                 injectedCliPath,
                 createHeadlessHostBridge({
                     logger, globalStorageDir, workspaceFolder: sessionCwd, settings: s

@@ -53,6 +53,8 @@ export interface AcpSessionBackend {
     readonly currentModeId: string;
     /** Enter `modeId`, or reject if it is not one this backend has. */
     setMode(modeId: string): Promise<void>;
+    /** Stop the turn in flight. Safe to call when nothing is running. */
+    cancel(): Promise<void>;
 }
 
 export interface CopilotAcpAgentDeps {
@@ -65,6 +67,11 @@ export interface CopilotAcpAgentDeps {
      * the protocol surface is testable without spawning a CLI.
      */
     startSession(params: { cwd: string }): Promise<AcpSessionBackend>;
+    /**
+     * Resume an EXISTING session by id. Distinct from `startSession`: it must not
+     * mint a new id, because the client already holds the one it is asking for.
+     */
+    loadSession(params: { sessionId: string; cwd: string }): Promise<AcpSessionBackend>;
 }
 
 /**
@@ -73,7 +80,7 @@ export interface CopilotAcpAgentDeps {
  * `true` is a lie that surfaces as a confusing failure rather than a clean refusal.
  */
 const ADVERTISED_CAPABILITIES = {
-    loadSession: false,
+    loadSession: true,
     promptCapabilities: { image: false, audio: false, embeddedContext: false }
 } as const;
 
@@ -212,6 +219,51 @@ export class CopilotAcpAgent {
                     availableModes: ACP_SESSION_MODES.map(m => ({ ...m }))
                 }
             };
+        })
+        .onRequest('session/load', async ({ params }) => {
+            const acpModule = await loadAcp();
+            let backend: AcpSessionBackend;
+            try {
+                backend = await this.deps.loadSession({
+                    sessionId: params.sessionId,
+                    cwd: params.cwd
+                });
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                this.deps.logger.error(`[ACP] session/load ${params.sessionId} failed: ${reason}`);
+                throw acpModule.RequestError.internalError(undefined, reason);
+            }
+
+            // Keyed by the id the CLIENT asked for. A resumed session that landed
+            // under a different key would be unreachable by the handle the client
+            // already holds.
+            this.sessions.set(params.sessionId, backend);
+            this.deps.logger.info(`[ACP] session/load → ${params.sessionId}`);
+
+            return {
+                modes: {
+                    currentModeId: backend.currentModeId,
+                    availableModes: ACP_SESSION_MODES.map(m => ({ ...m }))
+                }
+            };
+        })
+        .onNotification('session/cancel', async ({ params }) => {
+            const backend = this.sessions.get(params.sessionId);
+            if (!backend) {
+                // A notification has no reply, so throwing here would surface as an
+                // unhandled rejection inside the agent rather than an error the
+                // client could act on. Cancelling something already gone is also a
+                // normal race, not a fault.
+                this.deps.logger.warn(`[ACP] session/cancel for unknown session: ${params.sessionId}`);
+                return;
+            }
+
+            try {
+                await backend.cancel();
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                this.deps.logger.error(`[ACP] session/cancel ${params.sessionId} failed: ${reason}`);
+            }
         })
         .onRequest('session/set_mode', async ({ params }) => {
             const acpModule = await loadAcp();
