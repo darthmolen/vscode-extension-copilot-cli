@@ -64,6 +64,7 @@ const child = spawn(process.execPath, [
 
 const pending = new Map();
 const updates = [];
+const permissionsAsked = [];
 let nextId = 1;
 let stdoutBuffer = '';
 let stderrText = '';
@@ -91,6 +92,20 @@ child.stdout.on('data', chunk => {
             msg.error ? reject(new Error(msg.error.message ?? 'rpc error')) : resolve(msg.result);
         } else if (msg.method === 'session/update') {
             updates.push(msg.params);
+        } else if (msg.method === 'session/request_permission' && msg.id !== undefined) {
+            // An inbound REQUEST, not a notification. Before permission forwarding
+            // existed this fell through and was dropped — which, with deny-on-failure,
+            // means the agent waits, times out and denies, and the plan-mode assertion
+            // below fails for a reason that has nothing to do with plan mode.
+            permissionsAsked.push(msg.params);
+            const allowOnce = (msg.params?.options ?? []).find(o => o.kind === 'allow_once');
+            child.stdin.write(JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                // Double-nested on purpose: RequestPermissionResponse.outcome is itself
+                // a RequestPermissionOutcome with its own discriminator.
+                result: { outcome: { outcome: 'selected', optionId: allowOnce?.optionId } }
+            }) + '\n');
         }
     }
 });
@@ -139,6 +154,26 @@ try {
     step('P4. every chunk carried its session id',
         chunks.every(c => c.sessionId === session.sessionId));
 
+    // ── 15. A permission request crosses the wire and is answered ──
+    // The agent is launched without --yolo, so a shell command is gated. This is the
+    // only assertion that exercises the agent as a CLIENT of its host rather than as
+    // a server: the request travels the other way down the same pipe.
+    const permissionMarker = `ACP-PERM-${Date.now()}`;
+    await request('session/prompt', {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text:
+            `Run this exact shell command and nothing else: echo ${permissionMarker}` }]
+    }, PROMPT_TIMEOUT_MS);
+
+    const shellAsk = permissionsAsked.find(p => p?.toolCall?.kind === 'execute');
+    step('15a. a permission request crossed the wire', permissionsAsked.length > 0,
+        `${permissionsAsked.length} request(s): ${permissionsAsked.map(p => p?.toolCall?.kind).join(', ')}`);
+    step('15b. it arrived shaped for a host to render',
+        !!shellAsk?.toolCall?.title && (shellAsk.options ?? []).some(o => o.kind === 'allow_once'),
+        shellAsk ? `${JSON.stringify(shellAsk.toolCall.title)} with ${shellAsk.options.length} option(s)` : 'no execute request seen');
+    step('15c. the session id on it is the one we hold',
+        shellAsk?.sessionId === session.sessionId, shellAsk?.sessionId ?? '(none)');
+
     // ── 3/4a/4b/5. Plan mode, through the wire ────────────────
     const modes = session?.modes;
     step('3a. session/new advertised its modes',
@@ -183,7 +218,7 @@ try {
 
 const passed = results.filter(r => r.ok).length;
 console.log(`\n${passed}/${results.length} passed`);
-console.log('\nCovers all eight of the ticket assertions plus a real streamed prompt.');
+console.log('\nCovers all eight of the ticket assertions, a real streamed prompt, and a\npermission request answered back down the same pipe.');
 if (stderrText && exitCode) {
     console.log('\n--- agent stderr ---\n' + stderrText.split('\n').slice(-25).join('\n'));
 }
