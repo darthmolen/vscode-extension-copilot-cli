@@ -25,7 +25,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,6 +174,41 @@ try {
     step('15c. the session id on it is the one we hold',
         shellAsk?.sessionId === session.sessionId, shellAsk?.sessionId ?? '(none)');
 
+    // ── 16. A file edit crosses the wire as ACP diff content ──
+    // Must run in WORK mode: plan mode forbids writes, so this cannot move below.
+    const scratch = join(REPO_ROOT, `.acp-wire-scratch-${Date.now()}.txt`);
+    const beforeDiff = updates.length;
+    await request('session/prompt', {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text:
+            `Create a file at exactly ${scratch} containing the single line: hello from the wire. ` +
+            `Use your file-creation tool. Do nothing else.` }]
+    }, PROMPT_TIMEOUT_MS);
+
+    const diffUpdates = updates.slice(beforeDiff)
+        .filter(u => u?.update?.content?.some?.(c => c?.type === 'diff'));
+    const diff = diffUpdates[0]?.update?.content?.find(c => c.type === 'diff');
+    step('16a. a file edit arrived as ACP diff content', !!diff,
+        diff ? `${diffUpdates.length} diff update(s)` : 'no diff content in any update');
+    step('16b. the diff carries the path and the new text, not a local reference',
+        !!diff?.path && typeof diff?.newText === 'string' && diff.newText.includes('hello from the wire'),
+        diff ? `${diff.path} (${diff.newText?.length ?? 0} bytes)` : 'n/a');
+    step('16c. it updates the tool call rather than announcing a new one',
+        diffUpdates[0]?.update?.sessionUpdate === 'tool_call_update',
+        diffUpdates[0]?.update?.sessionUpdate ?? 'n/a');
+    try { if (existsSync(scratch)) { rmSync(scratch); } } catch { /* best effort */ }
+
+    // ── Provoke a todo list, so assertion 18 has something to see ──
+    // `session.todos_changed` only fires if the model reaches for its todo tool, so
+    // ask for something that needs one. Still informational below: a model declining
+    // to make a list is a model decision, not a mapping bug.
+    await request('session/prompt', {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text:
+            'Use your todo list tool to record exactly three steps for tidying a repository: ' +
+            '"survey", "remove dead files", "verify build". Only create the list; do not do the work.' }]
+    }, PROMPT_TIMEOUT_MS);
+
     // ── 3/4a/4b/5. Plan mode, through the wire ────────────────
     const modes = session?.modes;
     step('3a. session/new advertised its modes',
@@ -203,6 +238,59 @@ try {
     step('5. plan-mode closure wrote plan.md with our marker',
         planAfter.includes(marker), planAfter.split('\n')[0]?.slice(0, 60) ?? '(empty)');
 
+    // ── 17. session/load replays what was said ───────────────
+    const beforeReplay = updates.length;
+    await request('session/load', { sessionId: session.sessionId, cwd: REPO_ROOT, mcpServers: [] }, 60_000);
+    const replayed = updates.slice(beforeReplay);
+    const userTurns = replayed.filter(u => u?.update?.sessionUpdate === 'user_message_chunk');
+    const agentTurns = replayed.filter(u => u?.update?.sessionUpdate === 'agent_message_chunk');
+    step('17a. session/load replayed the conversation', replayed.length > 0,
+        `${replayed.length} update(s)`);
+    step('17b. it replayed both sides, attributed to whoever said it',
+        userTurns.length > 0 && agentTurns.length > 0,
+        `${userTurns.length} user, ${agentTurns.length} agent`);
+    step('17c. the replay contains a prompt we actually sent',
+        userTurns.some(u => (u.update.content?.text ?? '').includes('PONG')),
+        userTurns[0]?.update?.content?.text?.slice(0, 40) ?? '(none)');
+
+    // ── 18. A plan, if the agent made one ────────────────────
+    // Informational rather than pass/fail: whether the model reaches for its todo
+    // tool at all is a model decision, and asserting on it would make this run flaky
+    // for a reason that says nothing about our mapping.
+    // Conditional on purpose. Whether the model reaches for its todo tool is a model
+    // decision, so ASSERTING that a plan appeared would make this gate fail for a
+    // reason that says nothing about our mapping. But when one does appear, its shape
+    // is entirely ours — and that is worth checking rather than printing.
+    const planUpdates = updates.filter(u => u?.update?.sessionUpdate === 'plan');
+    if (planUpdates.length) {
+        const entries = planUpdates.at(-1).update.entries ?? [];
+        const legalStatus = ['pending', 'in_progress', 'completed'];
+        const legalPriority = ['high', 'medium', 'low'];
+        step('18. the plan arrived as ACP plan entries, every field legal',
+            entries.length > 0
+            && entries.every(e => typeof e.content === 'string' && e.content.length > 0)
+            && entries.every(e => legalStatus.includes(e.status))
+            && entries.every(e => legalPriority.includes(e.priority)),
+            JSON.stringify(entries.slice(0, 2)));
+    } else {
+        console.log('ℹ️  18. no plan update this run — the model made no todo list, so nothing to check');
+    }
+
+    // ── 19. session/close releases the session ───────────────
+    const closeResult = await request('session/close', { sessionId: session.sessionId }, 60_000);
+    step('19a. session/close was accepted', closeResult !== undefined, JSON.stringify(closeResult));
+
+    let closedIsUnreachable = false;
+    try {
+        await request('session/prompt', {
+            sessionId: session.sessionId, prompt: [{ type: 'text', text: 'still there?' }]
+        }, 30_000);
+    } catch {
+        closedIsUnreachable = true;
+    }
+    step('19b. a closed session is no longer addressable', closedIsUnreachable,
+        closedIsUnreachable ? 'prompt rejected, as it should be' : 'the closed session still answered');
+
     // ── stdout hygiene: a stray log is a client-side parse error ──
     step('P5. stdout carried only framed protocol',
         protocolViolation === null, protocolViolation ?? 'clean');
@@ -218,7 +306,7 @@ try {
 
 const passed = results.filter(r => r.ok).length;
 console.log(`\n${passed}/${results.length} passed`);
-console.log('\nCovers all eight of the ticket assertions, a real streamed prompt, and a\npermission request answered back down the same pipe.');
+console.log('\nCovers the eight ticket assertions, a streamed prompt, a permission answered back\ndown the same pipe, a file diff as ACP diff content, session/load replay and\nsession/close.');
 if (stderrText && exitCode) {
     console.log('\n--- agent stderr ---\n' + stderrText.split('\n').slice(-25).join('\n'));
 }
