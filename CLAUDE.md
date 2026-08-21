@@ -168,7 +168,16 @@ Without this, the webview silently fails (blank sidebar, no 'ready' message, no 
 
 ## Component Hierarchy (Do Not Violate)
 
-MessageDisplay is a parent component that internally creates ToolExecution children. Never instantiate ToolExecution directly from main.js. The hierarchy:
+MessageDisplay is a parent component that internally creates ToolExecution children. Never instantiate ToolExecution directly from main.js.
+
+**The guard is `tests/unit/components/MessageDisplay-tool-ownership.test.js`**, which mounts the
+components and asserts the tool chip lands inside MessageDisplay's container. It replaced
+`main-full-integration.test.js`, whose eleven tests grepped `main.js` for `new MessageDisplay(` and
+for the *absence* of `getElementById('messages')` — string matches that would have passed against a
+comment, from a migration that finished long ago. Every component it named has behavioural coverage
+under `tests/unit/components/`.
+
+The hierarchy:
 
 ```
 main.js → SessionToolbar, MessageDisplay, AcceptanceControls, InputArea
