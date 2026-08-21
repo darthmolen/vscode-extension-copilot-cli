@@ -28,6 +28,7 @@ import {
     subagentStartUpdate,
     subagentMessageUpdate,
     subagentCompleteUpdate,
+    planUpdate,
     replayTurnUpdate,
     ReplayTurn
 } from './sessionUpdateMapper';
@@ -78,7 +79,12 @@ export type AcpBackendEvent =
     | { kind: 'toolUpdate'; tool: AcpToolEvent }
     | { kind: 'subagentStart'; agentId: string; agentName?: string; agentDisplayName?: string }
     | { kind: 'subagentMessage'; agentId: string; content?: string; reasoningText?: string }
-    | { kind: 'subagentComplete'; agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string };
+    | { kind: 'subagentComplete'; agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }
+    | {
+        kind: 'plan';
+        todos: Array<{ id?: string; title?: string; description?: string; status?: string }>;
+        dependencies?: Array<{ todoId: string; dependsOn: string }>;
+      };
 
 export interface AcpSessionBackend {
     /** The Copilot session id. Also the ACP session id — see `session/new`. */
@@ -207,6 +213,7 @@ function toSessionUpdate(sessionId: string, event: AcpBackendEvent): SessionUpda
         case 'subagentStart': return subagentStartUpdate(sessionId, event);
         case 'subagentMessage': return subagentMessageUpdate(sessionId, event);
         case 'subagentComplete': return subagentCompleteUpdate(sessionId, event);
+        case 'plan': return planUpdate(sessionId, event);
         default: return undefined;
     }
 }

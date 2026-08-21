@@ -291,6 +291,27 @@ export interface TaskCompleteData {
     summary?: string;
 }
 
+/**
+ * One row of the CLI's todo table.
+ *
+ * Every field is optional because the SDK says so: "the SQL schema is best-effort and
+ * the agent may not have populated every column." Anything reading this has to cope
+ * with a row that is entirely blank.
+ */
+export interface TodoRow {
+    id?: string;
+    title?: string;
+    description?: string;
+    status?: string;
+}
+
+/** The agent's plan, as fetched after a `session.todos_changed` signal. */
+export interface TodosData {
+    todos: TodoRow[];
+    /** `todoId` depends on `dependsOn`. Empty when the agent declared no ordering. */
+    dependencies: Array<{ todoId: string; dependsOn: string }>;
+}
+
 export interface SubagentStartData {
     agentId: string;          // envelope agentId (== spawning task's toolCallId)
     agentName?: string;
@@ -387,6 +408,16 @@ export class SDKSessionManager implements vscode.Disposable {
 
     private readonly _onDidTaskComplete = this._reg(new BufferedEmitter<TaskCompleteData>());
     readonly onDidTaskComplete = this._onDidTaskComplete.event;
+
+    /**
+     * The agent's todo list changed — its plan, in the CLI's vocabulary.
+     *
+     * Carries the fetched state rather than the bare signal the CLI sends, so every
+     * consumer does not repeat the same RPC and get a different answer depending on
+     * when it ran.
+     */
+    private readonly _onDidUpdateTodos = this._reg(new BufferedEmitter<TodosData>());
+    readonly onDidUpdateTodos = this._onDidUpdateTodos.event;
 
     private readonly _onDidStartSubagent = this._reg(new BufferedEmitter<SubagentStartData>());
     readonly onDidStartSubagent = this._onDidStartSubagent.event;
@@ -1132,6 +1163,14 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
                 break;
 
+            case 'session.todos_changed':
+                // Signal-only by design: the SDK documents this event as carrying no
+                // payload and tells clients to read the current state themselves.
+                // Fire-and-forget so a SQL read never blocks the event pump that every
+                // other emitter shares.
+                void this.readTodos();
+                break;
+
             case 'session.task_complete':
                 this.logger.info(`[SDK Event] session.task_complete summary=${event.data?.summary}: ${JSON.stringify(event.data)}`);
                 this._onDidTaskComplete.fire({ summary: event.data?.summary });
@@ -1341,6 +1380,33 @@ export class SDKSessionManager implements vscode.Disposable {
     public setPermissionHandler(handler: (request: any, invocation: any) => any): void {
         this.permissionHandler = handler;
         this.logger.info('[Permissions] request handler installed; deferring decisions to it');
+    }
+
+    /**
+     * Fetch the todo table and publish it.
+     *
+     * The read is best-effort in the SDK's own words — every column on a row is
+     * optional, and the table may not exist at all — so a failure is logged and
+     * dropped rather than propagated. Losing one plan update is a cosmetic problem;
+     * an unhandled rejection out of the event pump is not.
+     *
+     * An empty list still fires: the agent clearing its plan is a real state a host
+     * needs to render, and silence would leave the last plan on screen forever.
+     */
+    private async readTodos(): Promise<void> {
+        const plan = this.session?.rpc?.plan;
+        if (!plan?.readSqlTodosWithDependencies) {
+            return;
+        }
+        try {
+            const result = await plan.readSqlTodosWithDependencies();
+            this._onDidUpdateTodos.fire({
+                todos: result?.rows ?? [],
+                dependencies: result?.dependencies ?? []
+            });
+        } catch (error) {
+            this.logger.warn(`[Todos] could not read the todo table: ${(error as Error).message}`);
+        }
     }
 
     private getCustomTools(): any[] {

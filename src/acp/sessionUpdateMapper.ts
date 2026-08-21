@@ -185,10 +185,66 @@ export function replayTurnUpdate(sessionId: string, turn: ReplayTurn): SessionUp
 
 // ── Plan ───────────────────────────────────────────────────────
 
+/** ACP's closed status set. The CLI's column is free text and has to be funnelled into it. */
+type AcpPlanStatus = 'pending' | 'in_progress' | 'completed';
+
+/**
+ * One row of the CLI's todo table → one ACP plan entry.
+ *
+ * `pending` is the safe unknown: it says "not finished", which is true of anything we
+ * cannot classify. Guessing `completed` would tick a box nobody ticked.
+ */
+function planStatus(raw: string | undefined): AcpPlanStatus {
+    // A SQL column has no schema to enforce one spelling, so normalise before
+    // comparing rather than listing every casing and separator we have seen.
+    const normalised = (raw ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    if (normalised === 'completed' || normalised === 'complete' || normalised === 'done') {
+        return 'completed';
+    }
+    if (normalised === 'in_progress' || normalised === 'inprogress' || normalised === 'active'
+        || normalised === 'running' || normalised === 'started') {
+        return 'in_progress';
+    }
+    return 'pending';
+}
+
+/**
+ * ACP requires a priority; the CLI's todo table has no such column.
+ *
+ * The same value for every entry, deliberately. Deriving a spread — from wording, from
+ * position — would make the plan look ranked by something the source never expressed,
+ * and a reader would believe it.
+ */
+const UNRANKED_PRIORITY = 'medium';
+
 /** Plan-mode progress. ACP models a plan as entries a host can render as a checklist. */
 export function planUpdate(
     sessionId: string,
-    e: { entries: Array<{ content: string; status: string; priority: string }> }
+    e: {
+        todos: Array<{ id?: string; title?: string; description?: string; status?: string }>;
+        dependencies?: Array<{ todoId: string; dependsOn: string }>;
+    }
 ): SessionUpdateNotification {
-    return { sessionId, update: { sessionUpdate: 'plan', entries: e.entries } };
+    const dependencies = e.dependencies ?? [];
+
+    const entries = e.todos.map(todo => {
+        const entry: Record<string, unknown> = {
+            // A blank row still renders. Dropping it would silently shorten the plan,
+            // which reads as progress that did not happen.
+            content: todo.title || todo.description || '(untitled step)',
+            status: planStatus(todo.status),
+            priority: UNRANKED_PRIORITY
+        };
+
+        // ACP has no field for ordering between entries, and the fetch is literally
+        // `readSqlTodosWithDependencies` — asking for the edges and then discarding
+        // them would throw away the only record of which step waits on which.
+        const dependsOn = dependencies.filter(d => d.todoId === todo.id).map(d => d.dependsOn);
+        if (dependsOn.length) {
+            entry._meta = { [`${META_NS}.dependsOn`]: dependsOn };
+        }
+        return entry;
+    });
+
+    return { sessionId, update: { sessionUpdate: 'plan', entries } };
 }

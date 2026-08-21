@@ -153,11 +153,9 @@ describe('sessionUpdateMapper — sub-agent traffic (IN-3)', () => {
     });
 });
 
-describe('sessionUpdateMapper — plan (IN-3)', () => {
-    it('maps plan-mode status to a plan update', () => {
-        const n = M.planUpdate(SID, { entries: [{ content: 'step one', status: 'pending', priority: 'medium' }] });
-
-        expect(['plan', 'plan_update']).to.include(n.update.sessionUpdate);
-        expect(n.update.entries).to.have.lengthOf(1);
-    });
-});
+// The `planUpdate` test that lived here handed the mapper entries already in ACP's
+// shape, so it asserted little more than that a pass-through passed through — and it
+// stayed green for the whole time nothing called the function. `planUpdate` now takes
+// the CLI's todo rows, which is where the real translation is, and is covered in
+// tests/unit/extension/acp-plan-update.test.js together with the caller that was
+// missing. Shape and wiring in one file, deliberately.

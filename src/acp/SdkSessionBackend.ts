@@ -46,6 +46,10 @@ export interface AcpManagerSlice {
     onDidStartSubagent(listener: (e: { agentId: string; agentName?: string; agentDisplayName?: string }) => void): Disposable;
     onDidSubagentMessage(listener: (e: { agentId: string; content?: string; reasoningText?: string }) => void): Disposable;
     onDidCompleteSubagent(listener: (e: { agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }) => void): Disposable;
+    onDidUpdateTodos(listener: (e: {
+        todos: Array<{ id?: string; title?: string; description?: string; status?: string }>;
+        dependencies: Array<{ todoId: string; dependsOn: string }>;
+    }) => void): Disposable;
     getCurrentMode(): 'work' | 'plan';
     abortMessage(): Promise<void>;
     stop(): Promise<void>;
@@ -256,7 +260,11 @@ export class SdkSessionBackend implements AcpSessionBackend {
             this.manager.onDidCompleteTool(tool => listener({ kind: 'toolUpdate', tool })),
             this.manager.onDidStartSubagent(e => listener({ kind: 'subagentStart', ...e })),
             this.manager.onDidSubagentMessage(e => listener({ kind: 'subagentMessage', ...e })),
-            this.manager.onDidCompleteSubagent(e => listener({ kind: 'subagentComplete', ...e }))
+            this.manager.onDidCompleteSubagent(e => listener({ kind: 'subagentComplete', ...e })),
+            // The agent's plan. The manager has already turned the CLI's bare
+            // `todos_changed` signal into fetched state, so there is nothing to read
+            // here — only to forward.
+            this.manager.onDidUpdateTodos(e => listener({ kind: 'plan', ...e }))
         ];
 
         // One returned unsubscribe for all of them: the caller subscribes per turn

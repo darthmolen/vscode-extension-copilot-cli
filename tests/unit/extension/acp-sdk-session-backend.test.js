@@ -50,6 +50,14 @@ function makeManager(over = {}) {
         onDidStartSubagent() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         onDidSubagentMessage() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         onDidCompleteSubagent() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidUpdateTodos(listener) {
+            this.todoListeners.add(listener);
+            return { dispose: () => { this.todoListeners.delete(listener); this.disposedSubscriptions++; } };
+        },
+        todoListeners: new Set(),
+        emitTodos(todos, dependencies = []) {
+            for (const l of [...this.todoListeners]) { l({ todos, dependencies }); }
+        },
         emitDelta(deltaContent, messageId = 'm1') {
             for (const l of [...listeners]) { l({ messageId, deltaContent }); }
         },
@@ -57,6 +65,30 @@ function makeManager(over = {}) {
         ...over
     };
 }
+
+/**
+ * The link between the manager's plan emitter and the backend event the agent maps.
+ *
+ * Worth its own test because it is the shape of the bug this whole area came from:
+ * `planUpdate` was correct, and the agent would have forwarded a plan event happily —
+ * nothing ever produced one. A test that drives the agent with a hand-written backend
+ * proves the far end and leaves this link uncovered.
+ */
+describe('SdkSessionBackend — the plan emitter (IN-3 §4c.5)', () => {
+    it('forwards a manager plan change as a typed plan event', async () => {
+        const manager = makeManager();
+        const backend = await SdkSessionBackend.start(manager);
+        const events = [];
+        backend.onEvent(e => events.push(e));
+
+        manager.emitTodos([{ id: 't1', title: 'one', status: 'pending' }], [{ todoId: 't1', dependsOn: 't0' }]);
+
+        expect(events).to.have.lengthOf(1);
+        expect(events[0].kind).to.equal('plan');
+        expect(events[0].todos.map(t => t.title)).to.deep.equal(['one']);
+        expect(events[0].dependencies).to.deep.equal([{ todoId: 't1', dependsOn: 't0' }]);
+    });
+});
 
 describe('SdkSessionBackend (IN-3 cycle 5)', () => {
     let manager;
@@ -121,7 +153,7 @@ describe('SdkSessionBackend (IN-3 cycle 5)', () => {
         expect(manager.liveListeners(), 'emitter subscription outlived unsubscribe').to.equal(0);
         // One unsubscribe must release EVERY emitter it subscribed, not just the
         // first — a partial release shows up as duplicated chunks turns later.
-        expect(manager.disposedSubscriptions, 'not all emitter subscriptions were released').to.equal(8);
+        expect(manager.disposedSubscriptions, 'not all emitter subscriptions were released').to.equal(9);
     });
 
     it('sends a prompt through the manager and reports the turn ended', async () => {
