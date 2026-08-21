@@ -15,10 +15,11 @@
 
 import type { LoggerLike } from '../logger';
 import { CopilotAcpAgent, AcpSessionBackend } from './CopilotAcpAgent';
-import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy, HistoryReader } from './SdkSessionBackend';
+import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy, HistoryReader, FileTextReader } from './SdkSessionBackend';
 import { SessionService } from '../extension/services/SessionService';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 
 /**
  * What the entry point must supply. `createManager` is injected rather than calling
@@ -73,6 +74,24 @@ export function createHistoryReader(sessionStateDir: string): HistoryReader {
     };
 }
 
+/**
+ * A file's text, or `null` when there is no readable file there.
+ *
+ * The `null` matters as much as the text. A diff distinguishes three states that a
+ * throw would flatten into one: a file with content, an EMPTY file — a real state a
+ * host has to render — and no file at all, which for the "before" side is how ACP
+ * spells a newly created file.
+ */
+export const readFileTextOrNull: FileTextReader = absolutePath => {
+    try {
+        return fs.readFileSync(absolutePath, 'utf-8');
+    } catch {
+        // Missing, a directory, unreadable: from a diff's point of view these are the
+        // same answer — there is no previous text to show.
+        return null;
+    }
+};
+
 /** The CLI's own session store. */
 export const DEFAULT_SESSION_STATE_DIR = path.join(os.homedir(), '.copilot', 'session-state');
 
@@ -119,7 +138,8 @@ export function createSessionStarter(
             manager,
             deps.logger,
             permissionPolicy(deps),
-            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR)
+            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR),
+            readFileTextOrNull
         );
     };
 }
@@ -147,7 +167,8 @@ export function createSessionLoader(
             manager,
             deps.logger,
             permissionPolicy(deps),
-            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR)
+            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR),
+            readFileTextOrNull
         );
     };
 }

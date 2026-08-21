@@ -46,6 +46,9 @@ export interface AcpManagerSlice {
     onDidStartSubagent(listener: (e: { agentId: string; agentName?: string; agentDisplayName?: string }) => void): Disposable;
     onDidSubagentMessage(listener: (e: { agentId: string; content?: string; reasoningText?: string }) => void): Disposable;
     onDidCompleteSubagent(listener: (e: { agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }) => void): Disposable;
+    onDidProduceDiff(listener: (e: {
+        toolCallId: string; beforeUri: string; afterUri: string; title?: string;
+    }) => void): Disposable;
     onDidUpdateTodos(listener: (e: {
         todos: Array<{ id?: string; title?: string; description?: string; status?: string }>;
         dependencies: Array<{ todoId: string; dependsOn: string }>;
@@ -76,6 +79,15 @@ export type AcpPermissionRequester =
  * which is the layer that already knows where things are.
  */
 export type HistoryReader = (sessionId: string) => Promise<ReplayTurn[]>;
+
+/**
+ * Reads a file's text, or `null` when it is not there.
+ *
+ * Injected for the same reason as {@link HistoryReader} — it keeps this file free of
+ * the filesystem — but it is also the seam that makes "the snapshot is missing" and
+ * "the file is missing" separately testable, and they mean opposite things.
+ */
+export type FileTextReader = (absolutePath: string) => string | null;
 
 /** What to do when the host cannot be asked at all. */
 export interface PermissionPolicy {
@@ -164,6 +176,7 @@ export class SdkSessionBackend implements AcpSessionBackend {
         private readonly manager: AcpManagerSlice,
         private readonly permissions: PermissionState,
         private readonly readHistory: HistoryReader,
+        private readonly readFileText: FileTextReader,
         private readonly logger?: LoggerLike
     ) {}
 
@@ -175,7 +188,8 @@ export class SdkSessionBackend implements AcpSessionBackend {
         manager: AcpManagerSlice,
         logger?: LoggerLike,
         policy: PermissionPolicy = {},
-        readHistory: HistoryReader = async () => []
+        readHistory: HistoryReader = async () => [],
+        readFileText: FileTextReader = () => null
     ): Promise<SdkSessionBackend> {
         const permissions: PermissionState = {
             sessionId: '',
@@ -205,7 +219,35 @@ export class SdkSessionBackend implements AcpSessionBackend {
 
         permissions.sessionId = sessionId;
         logger?.info(`[ACP] backend ready for session ${sessionId}`);
-        return new SdkSessionBackend(sessionId, manager, permissions, readHistory, logger);
+        return new SdkSessionBackend(sessionId, manager, permissions, readHistory, readFileText, logger);
+    }
+
+    /**
+     * Read both sides of a diff, or decide there is nothing worth sending.
+     *
+     * Read synchronously, inside the emitter callback, so a diff cannot overtake the
+     * tool update it belongs to. These are files the CLI wrote moments ago, so the
+     * cost is a warm-cache read; buying strict ordering with that is the better trade.
+     *
+     * The two missing-file cases mean opposite things and are handled as such. No
+     * snapshot means the file did not exist before — a create — which ACP spells
+     * `oldText: null`. No *current* file means we have nothing truthful to show, so
+     * nothing is sent: staying quiet costs a host a diff, and guessing costs it the
+     * truth about what is on disk.
+     */
+    private readDiff(e: { toolCallId: string; beforeUri: string; afterUri: string }): AcpBackendEvent | undefined {
+        const newText = this.readFileText(e.afterUri);
+        if (newText === null) {
+            this.logger?.warn(`[ACP] diff for ${e.toolCallId}: cannot read ${e.afterUri}; not forwarding`);
+            return undefined;
+        }
+        return {
+            kind: 'diff',
+            toolCallId: e.toolCallId,
+            path: e.afterUri,
+            oldText: this.readFileText(e.beforeUri),
+            newText
+        };
     }
 
     /**
@@ -264,7 +306,16 @@ export class SdkSessionBackend implements AcpSessionBackend {
             // The agent's plan. The manager has already turned the CLI's bare
             // `todos_changed` signal into fetched state, so there is nothing to read
             // here — only to forward.
-            this.manager.onDidUpdateTodos(e => listener({ kind: 'plan', ...e }))
+            this.manager.onDidUpdateTodos(e => listener({ kind: 'plan', ...e })),
+            // Our diff event carries a pair of PATHS, because VS Code's diff editor
+            // takes URIs. A host at the far end of a pipe has no access to our
+            // filesystem, so the text has to travel instead of a reference to it.
+            this.manager.onDidProduceDiff(e => {
+                const diff = this.readDiff(e);
+                if (diff) {
+                    listener(diff);
+                }
+            })
         ];
 
         // One returned unsubscribe for all of them: the caller subscribes per turn

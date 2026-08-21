@@ -160,6 +160,41 @@ export function subagentCompleteUpdate(
         subagentMeta(e.agentId, 'complete', { [`${META_NS}.status`]: e.status }));
 }
 
+// ── Diffs ──────────────────────────────────────────────────────
+
+/** A file edit, with both sides already read. */
+export interface DiffEvent {
+    toolCallId: string;
+    path: string;
+    /** `null` for a file that did not exist before — ACP's documented "None for new files". */
+    oldText: string | null;
+    newText: string;
+}
+
+/**
+ * A file edit as ACP diff content.
+ *
+ * An *update*, not a new `tool_call`: the edit already announced itself when the tool
+ * started, and a second `tool_call` carrying the same id would either duplicate the
+ * entry in a host's list or overwrite what it has already drawn. `tool_call_update`
+ * is the protocol's own answer to "more is now known about this call".
+ */
+export function diffUpdate(sessionId: string, e: DiffEvent): SessionUpdateNotification {
+    return {
+        sessionId,
+        update: {
+            sessionUpdate: 'tool_call_update',
+            toolCallId: e.toolCallId,
+            content: [{
+                type: 'diff',
+                path: e.path,
+                oldText: e.oldText,
+                newText: e.newText
+            }]
+        }
+    };
+}
+
 // ── Replay ─────────────────────────────────────────────────────
 
 /** One stored turn, as `session/load` replays it. */
