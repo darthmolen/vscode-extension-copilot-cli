@@ -23,4 +23,19 @@ When switching sessions or restarting the extension, the model selector resets t
 
 ## Priority
 
-Low — quality-of-life improvement. The current behavior (reset to default) is functional.
+~~Low — quality-of-life improvement.~~ **Scheduled 2026-08-21 into v3.13.0 P3 step 2**
+(`planning/in-progress/v3.13.0-p3-host-owned-managers.md` §4.6). Not because it grew urgent, but
+because P3 step 2 rewrites `handleSwitchSession` and the session-start path anyway — the two touch
+points named above — so doing it separately means opening the same functions twice.
+
+Two things settled there that this file left open:
+
+- **Storage is `session-model.txt`, beside `session-name.txt`** — not `model.json`, not a
+  `workspace.yaml` field. Plain text, one value, matching the precedent in that directory, and no
+  read-modify-write to race.
+- **The read must happen before the manager is constructed**, not just before the state is set.
+  Otherwise the CLI starts on the config model while the UI shows the persisted one.
+
+It is also row one of CLAUDE.md's *"intentional actions are treated intentionally"* table: switching
+model mid-session is a gesture, `copilotCLI.model` is a standing default, and today the default wins
+back on the next resume.

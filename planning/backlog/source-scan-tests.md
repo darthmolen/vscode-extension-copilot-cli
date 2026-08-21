@@ -55,6 +55,12 @@ The second cost is quieter and worse: **they inflate the count.** A suite of 205
 coverage while some fraction of it cannot fail for a real reason. Of the defects found during
 v3.13.0, the ones that mattered came from reading code or from a live run — not from this suite.
 
+## Scheduled
+
+**Decided 2026-08-21: the top three files are cleared *before* v3.13.0 P3 starts.** P3 step 3 deletes
+34 lines mentioning `sessionManager`; clearing first means a red run during P3 means something. The
+long tail stays opportunistic.
+
 ## Proposed approach
 
 Not a big-bang sweep. Three rules applied as each file is touched, plus one deliberate pass:
