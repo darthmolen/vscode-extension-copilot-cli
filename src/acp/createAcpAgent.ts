@@ -15,7 +15,10 @@
 
 import type { LoggerLike } from '../logger';
 import { CopilotAcpAgent, AcpSessionBackend } from './CopilotAcpAgent';
-import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy } from './SdkSessionBackend';
+import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy, HistoryReader } from './SdkSessionBackend';
+import { SessionService } from '../extension/services/SessionService';
+import * as path from 'path';
+import * as os from 'os';
 
 /**
  * What the entry point must supply. `createManager` is injected rather than calling
@@ -43,9 +46,35 @@ export interface AcpAgentCompositionDeps {
     }): AcpManagerSlice;
     /** Snapshot of `copilotCLI.*` settings taken at launch. */
     settings?: Readonly<Record<string, unknown>>;
+    /** Where session transcripts live. Defaults to the CLI's own store. */
+    sessionStateDir?: string;
     agentName?: string;
     agentVersion?: string;
 }
+
+/**
+ * Where a session's stored conversation lives, and how to turn it into turns.
+ *
+ * Reuses `SessionService.loadSessionHistory` rather than parsing `events.jsonl` here.
+ * A second parser would be a second opinion about which events count as "what was
+ * said", and the two would diverge the first time the CLI added an event type — with
+ * the ACP transcript and the sidebar transcript disagreeing about the same session.
+ * `SessionService` imports only `fs`, `path`, `readline` and `crypto`, so it is safe
+ * in a process with no `vscode`.
+ *
+ * `sessionStateDir` is a parameter rather than a constant so this is testable against
+ * a real file without writing into the user's `~/.copilot`.
+ */
+export function createHistoryReader(sessionStateDir: string): HistoryReader {
+    return async sessionId => {
+        const eventsPath = path.join(sessionStateDir, sessionId, 'events.jsonl');
+        const messages = await SessionService.loadSessionHistory(eventsPath);
+        return messages.map(m => ({ role: m.role, content: m.content }));
+    };
+}
+
+/** The CLI's own session store. */
+export const DEFAULT_SESSION_STATE_DIR = path.join(os.homedir(), '.copilot', 'session-state');
 
 /**
  * How the agent answers a permission request it cannot put to its host.
@@ -86,7 +115,12 @@ export function createSessionStarter(
             settings: { ...(deps.settings ?? {}) }
         });
 
-        return SdkSessionBackend.start(manager, deps.logger, permissionPolicy(deps));
+        return SdkSessionBackend.start(
+            manager,
+            deps.logger,
+            permissionPolicy(deps),
+            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR)
+        );
     };
 }
 
@@ -109,7 +143,12 @@ export function createSessionLoader(
             resumeSessionId: sessionId
         });
 
-        return SdkSessionBackend.start(manager, deps.logger, permissionPolicy(deps));
+        return SdkSessionBackend.start(
+            manager,
+            deps.logger,
+            permissionPolicy(deps),
+            createHistoryReader(deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR)
+        );
     };
 }
 

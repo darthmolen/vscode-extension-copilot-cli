@@ -35,6 +35,10 @@ function makeBackend(id) {
         sessionId: id,
         cancels: 0,
         currentModeId: 'work',
+        // The contract grew `history()` and `close()`; a fake without them leans on
+        // the agent's error handling instead of exercising what these test.
+        history: async () => [],
+        close: async () => {},
         // Records where the agent points permission requests. The contract grew a
         // member; a fake without it would fail before reaching what these test.
         setPermissionRequester(requester) { this.permissionRequester = requester; },
@@ -128,6 +132,29 @@ describe('CopilotAcpAgent — session/cancel (IN-3)', () => {
      * The whole point. Without a registered notification handler the SDK drops the
      * cancel silently — verified — and the turn runs to completion.
      */
+    /**
+     * The half that used to be missing. Cancelling aborted the work and then reported
+     * `end_turn`, so a host displayed "done" for a turn the user had just stopped —
+     * contradicting, in the transcript, the thing they did a second earlier.
+     */
+    it('answers the cancelled prompt with stopReason cancelled', async () => {
+        let finishTurn;
+        const backend = makeBackend('cancel-me');
+        backend.prompt = () => new Promise(resolve => {
+            finishTurn = () => resolve({ stopReason: backend.cancels > 0 ? 'cancelled' : 'end_turn' });
+        });
+        const h = harness({ startSession: async () => backend });
+        const { sessionId } = await newSession(h.conn);
+
+        const turn = h.conn.agent.request(acp.methods.agent.session.prompt, {
+            sessionId, prompt: [{ type: 'text', text: 'take your time' }]
+        });
+        await cancel(h.conn, sessionId);
+        finishTurn();
+
+        expect((await turn).stopReason).to.equal('cancelled');
+    });
+
     it('cancels the addressed session', async () => {
         const { sessionId } = await newSession(h.conn);
 

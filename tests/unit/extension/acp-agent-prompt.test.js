@@ -52,6 +52,10 @@ function makeBackend(id, script = ['hello']) {
         setMode: async () => {},
         cancel: async () => {},
         currentModeId: 'work',
+        // The contract grew `history()` and `close()`; a fake without them leans on
+        // the agent's error handling instead of exercising what these test.
+        history: async () => [],
+        close: async () => {},
         setPermissionRequester() {},
         listenerCount: () => listeners.size
     };

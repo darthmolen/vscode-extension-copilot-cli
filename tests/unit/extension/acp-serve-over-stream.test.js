@@ -41,7 +41,9 @@ function makeAgent() {
             cwd,
             onEvent: () => () => {},
             prompt: async () => ({ stopReason: 'end_turn' }),
-            setPermissionRequester() {}
+            setPermissionRequester() {},
+            history: async () => [],
+            close: async () => {}
         })
     });
 }

@@ -14,6 +14,7 @@
 import { LoggerLike } from '../logger';
 import { AcpSessionBackend, AcpBackendEvent, AcpToolEvent } from './CopilotAcpAgent';
 import type { SDKSessionManager } from '../sdkSessionManager';
+import { ReplayTurn } from './sessionUpdateMapper';
 import {
     AcpPermissionRequest,
     AcpPermissionOutcome,
@@ -47,6 +48,8 @@ export interface AcpManagerSlice {
     onDidCompleteSubagent(listener: (e: { agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }) => void): Disposable;
     getCurrentMode(): 'work' | 'plan';
     abortMessage(): Promise<void>;
+    stop(): Promise<void>;
+    dispose(): void;
     enablePlanMode(): Promise<void>;
     disablePlanMode(): Promise<void>;
 }
@@ -60,6 +63,15 @@ export interface AcpManagerSlice {
  */
 export type AcpPermissionRequester =
     (request: AcpPermissionRequest) => Promise<{ outcome?: AcpPermissionOutcome } | undefined>;
+
+/**
+ * Reads a session's stored conversation, oldest first.
+ *
+ * Injected so this file stays free of both the filesystem and the assumption that
+ * sessions live under `~/.copilot`. The default is supplied by the composition root,
+ * which is the layer that already knows where things are.
+ */
+export type HistoryReader = (sessionId: string) => Promise<ReplayTurn[]>;
 
 /** What to do when the host cannot be asked at all. */
 export interface PermissionPolicy {
@@ -132,10 +144,22 @@ type AssertAssignable<T extends U, U> = T;
 type _RealManagerFitsSlice = AssertAssignable<SDKSessionManager, AcpManagerSlice>;
 
 export class SdkSessionBackend implements AcpSessionBackend {
+    /**
+     * Set by `cancel()`, cleared when a turn starts.
+     *
+     * A flag rather than a rejected promise because `sendMessage()` resolves when the
+     * SDK goes idle, and aborting is precisely what makes it go idle — so a cancelled
+     * turn resolves *successfully* and nothing about the call distinguishes it from
+     * one that finished. Whether we were asked to stop is knowledge only this object
+     * has.
+     */
+    private cancelledInFlight = false;
+
     private constructor(
         public readonly sessionId: string,
         private readonly manager: AcpManagerSlice,
         private readonly permissions: PermissionState,
+        private readonly readHistory: HistoryReader,
         private readonly logger?: LoggerLike
     ) {}
 
@@ -146,7 +170,8 @@ export class SdkSessionBackend implements AcpSessionBackend {
     public static async start(
         manager: AcpManagerSlice,
         logger?: LoggerLike,
-        policy: PermissionPolicy = {}
+        policy: PermissionPolicy = {},
+        readHistory: HistoryReader = async () => []
     ): Promise<SdkSessionBackend> {
         const permissions: PermissionState = {
             sessionId: '',
@@ -176,7 +201,17 @@ export class SdkSessionBackend implements AcpSessionBackend {
 
         permissions.sessionId = sessionId;
         logger?.info(`[ACP] backend ready for session ${sessionId}`);
-        return new SdkSessionBackend(sessionId, manager, permissions, logger);
+        return new SdkSessionBackend(sessionId, manager, permissions, readHistory, logger);
+    }
+
+    /**
+     * The conversation so far, for `session/load` to replay.
+     *
+     * Read on demand rather than cached at start: a backend can outlive several loads,
+     * and a snapshot taken once would go stale the moment a turn was taken.
+     */
+    public history(): Promise<ReplayTurn[]> {
+        return this.readHistory(this.sessionId);
     }
 
     /**
@@ -240,14 +275,21 @@ export class SdkSessionBackend implements AcpSessionBackend {
      * No separate turn-end signal is needed: `sendMessage()` awaits
      * `session.sendAndWait`, which blocks until `session.idle`.
      *
-     * `stopReason` is unconditionally `end_turn` for now. `cancelled` arrives with
-     * `session/cancel` and `max_tokens`/`refusal` need a signal the manager does not
-     * yet surface — both are follow-on work, and claiming them here without the
-     * evidence would be a lie the client acts on.
+     * `stopReason` is `cancelled` when `session/cancel` reached us during the turn,
+     * `end_turn` otherwise. `max_tokens`, `max_turn_requests` and `refusal` are real
+     * ACP stop reasons the manager surfaces no signal for, so they are not claimed —
+     * returning one we cannot detect would be a lie the client acts on.
      */
     public async prompt(text: string): Promise<{ stopReason: string }> {
+        // Cleared per turn, not per session: a cancel belongs to the turn that was
+        // running, and a later prompt is a new intention entitled to its own outcome.
+        // This also absorbs a cancel that arrived with nothing in flight, which is a
+        // normal race rather than a fault.
+        this.cancelledInFlight = false;
+
         await this.manager.sendMessage(text);
-        return { stopReason: 'end_turn' };
+
+        return { stopReason: this.cancelledInFlight ? 'cancelled' : 'end_turn' };
     }
 
     /**
@@ -264,7 +306,25 @@ export class SdkSessionBackend implements AcpSessionBackend {
      */
     public async cancel(): Promise<void> {
         this.logger?.info(`[ACP] cancel requested for session ${this.sessionId}`);
+        this.cancelledInFlight = true;
         await this.manager.abortMessage();
+    }
+
+    /**
+     * End the session and release what it holds.
+     *
+     * `stop()` closes the SDK session (and, in plan mode, both of them); `dispose()`
+     * releases the manager's own services and subscriptions. Both are needed: stopping
+     * without disposing leaves the services alive, and an agent process serving many
+     * sessions accumulates them for its whole life.
+     *
+     * Cancellation is the agent's job, not this one's — `session/close` cancels first
+     * so that ordering is visible where the protocol requires it.
+     */
+    public async close(): Promise<void> {
+        this.logger?.info(`[ACP] releasing session ${this.sessionId}`);
+        await this.manager.stop();
+        this.manager.dispose();
     }
 
     /**

@@ -27,7 +27,9 @@ import {
     toolUpdateUpdate,
     subagentStartUpdate,
     subagentMessageUpdate,
-    subagentCompleteUpdate
+    subagentCompleteUpdate,
+    replayTurnUpdate,
+    ReplayTurn
 } from './sessionUpdateMapper';
 
 // `resolution-mode` is required on both the type import above and here: TypeScript
@@ -98,6 +100,20 @@ export interface AcpSessionBackend {
     setMode(modeId: string): Promise<void>;
     /** Stop the turn in flight. Safe to call when nothing is running. */
     cancel(): Promise<void>;
+    /**
+     * Cancel anything running and release everything this session holds.
+     *
+     * Separate from `cancel()`: cancel stops a turn and leaves the session usable,
+     * this ends the session. After it, the backend is not to be used again.
+     */
+    close(): Promise<void>;
+    /**
+     * The conversation so far, oldest first, for `session/load` to replay.
+     *
+     * On the backend rather than the agent because only the backend knows where a
+     * session's history lives; the agent only knows it has to send it.
+     */
+    history(): Promise<ReplayTurn[]>;
     /**
      * Route permission requests to `requester` — the host, over
      * `session/request_permission`.
@@ -250,6 +266,41 @@ export class CopilotAcpAgent {
     }
 
     /**
+     * Send the stored conversation to the client as `session/update` notifications.
+     *
+     * This is what distinguishes `session/load` from `session/resume` — the latter
+     * exists precisely to resume *without* replaying. Ordinary update notifications,
+     * sent during the request; the protocol has no separate replay channel.
+     *
+     * A failure to read history does not fail the load. The transcript is worth less
+     * than the session: denying someone a working session because a log file on disk
+     * was unreadable trades something valuable for something cosmetic.
+     */
+    private async replayHistory(
+        sessionId: string,
+        backend: AcpSessionBackend,
+        client: { notify(method: string, params: unknown): Promise<void> }
+    ): Promise<void> {
+        const acpModule = await loadAcp();
+        let turns: ReplayTurn[];
+        try {
+            turns = await backend.history();
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            this.deps.logger.warn(`[ACP] session/load ${sessionId}: history unavailable (${reason})`);
+            return;
+        }
+
+        for (const turn of turns) {
+            await client.notify(
+                acpModule.methods.client.session.update,
+                replayTurnUpdate(sessionId, turn) as never
+            );
+        }
+        this.deps.logger.info(`[ACP] session/load ${sessionId}: replayed ${turns.length} turn(s)`);
+    }
+
+    /**
      * Point one backend's permission requests at whatever client is connected.
      *
      * Called from `onConnect` as well as from `session/new` and `session/load`, so a
@@ -350,7 +401,7 @@ export class CopilotAcpAgent {
                 }
             };
         })
-        .onRequest('session/load', async ({ params }) => {
+        .onRequest('session/load', async ({ params, client }) => {
             const acpModule = await loadAcp();
             let backend: AcpSessionBackend;
             try {
@@ -369,6 +420,11 @@ export class CopilotAcpAgent {
             // already holds.
             this.sessions.set(params.sessionId, backend);
             this.forwardPermissionsTo(backend);
+
+            // Before the response, not after. A host is entitled to read the response
+            // as "the session is ready", so updates arriving later would append to a
+            // transcript the user is already looking at.
+            await this.replayHistory(params.sessionId, backend, client);
             this.deps.logger.info(`[ACP] session/load → ${params.sessionId}`);
 
             return {
@@ -377,6 +433,36 @@ export class CopilotAcpAgent {
                     availableModes: ACP_SESSION_MODES.map(m => ({ ...m }))
                 }
             };
+        })
+        .onRequest('session/close', async ({ params }) => {
+            const backend = this.sessions.get(params.sessionId);
+            if (!backend) {
+                // A client cannot know we released it first, so closing something
+                // already gone is a race rather than a fault. Erroring here would turn
+                // ordinary shutdown into noise a host has to explain to someone.
+                this.deps.logger.info(`[ACP] session/close for a session already gone: ${params.sessionId}`);
+                return {};
+            }
+
+            // Dropped from the map first, and unconditionally. A backend whose
+            // teardown throws has still stopped being usable, and keeping it
+            // addressable because of that would reintroduce the very leak this
+            // method exists to prevent.
+            this.sessions.delete(params.sessionId);
+
+            try {
+                // "Treat it as if session/cancel was called" — and before releasing.
+                // Freeing a manager with a turn in flight pulls the CLI session out
+                // from under work that is still running.
+                await backend.cancel();
+                await backend.close();
+                this.deps.logger.info(`[ACP] session/close → ${params.sessionId}`);
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : String(error);
+                this.deps.logger.warn(`[ACP] session/close ${params.sessionId} did not shut down cleanly: ${reason}`);
+            }
+
+            return {};
         })
         .onNotification('session/cancel', async ({ params }) => {
             const backend = this.sessions.get(params.sessionId);
@@ -447,7 +533,7 @@ export class CopilotAcpAgent {
 
             try {
                 const { stopReason } = await backend.prompt(textOf(params.prompt));
-                return { stopReason } as { stopReason: 'end_turn' };
+                return { stopReason } as { stopReason: 'end_turn' | 'cancelled' };
             } finally {
                 unsubscribe();
             }

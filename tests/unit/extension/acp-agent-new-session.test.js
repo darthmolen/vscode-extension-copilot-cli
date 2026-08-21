@@ -45,7 +45,9 @@ function makeHarness(over = {}) {
             const backend = {
                 sessionId: `session-${started.length + 1}`,
                 params,
-                setPermissionRequester(requester) { this.permissionRequester = requester; }
+                setPermissionRequester(requester) { this.permissionRequester = requester; },
+                history: async () => [],
+                close: async () => {}
             };
             started.push(backend);
             return backend;

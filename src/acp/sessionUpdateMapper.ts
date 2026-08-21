@@ -160,6 +160,29 @@ export function subagentCompleteUpdate(
         subagentMeta(e.agentId, 'complete', { [`${META_NS}.status`]: e.status }));
 }
 
+// ── Replay ─────────────────────────────────────────────────────
+
+/** One stored turn, as `session/load` replays it. */
+export interface ReplayTurn {
+    role: 'user' | 'assistant';
+    content: string;
+}
+
+/**
+ * A stored turn, attributed to whoever said it.
+ *
+ * ACP has a distinct `user_message_chunk` variant, and using it is not cosmetic:
+ * replaying a user's own words as `agent_message_chunk` would render a transcript in
+ * which the assistant appears to be talking to itself.
+ */
+export function replayTurnUpdate(sessionId: string, turn: ReplayTurn): SessionUpdateNotification {
+    return textChunk(
+        sessionId,
+        turn.role === 'user' ? 'user_message_chunk' : 'agent_message_chunk',
+        turn.content
+    );
+}
+
 // ── Plan ───────────────────────────────────────────────────────
 
 /** Plan-mode progress. ACP models a plan as entries a host can render as a checklist. */
