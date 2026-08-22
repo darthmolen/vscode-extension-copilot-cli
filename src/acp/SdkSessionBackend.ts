@@ -325,13 +325,16 @@ export class SdkSessionBackend implements AcpSessionBackend {
             // filesystem, so the text has to travel instead of a reference to it.
             this.manager.onDidUpdateUsage(e => {
                 // ACP requires both numbers and neither is derivable from the
-                // percentage the CLI sometimes sends alone. `== null` rather than a
-                // falsy check on purpose: zero used is a real reading — a fresh
-                // session — and would otherwise be dropped as if it were missing.
-                if (e.currentTokens == null || e.tokenLimit == null) {
+                // percentage the CLI sometimes sends alone. `Number.isFinite` rather
+                // than a falsy check, because zero used is a real reading of a fresh
+                // session; and rather than a null check, because these arrive from a
+                // CLI event rather than from our own arithmetic — NaN and a numeric
+                // string are broken measurements, and forwarding one would put `NaN`
+                // where a host expects a token count.
+                if (!Number.isFinite(e.currentTokens) || !Number.isFinite(e.tokenLimit)) {
                     return;
                 }
-                listener({ kind: 'usage', used: e.currentTokens, size: e.tokenLimit });
+                listener({ kind: 'usage', used: e.currentTokens as number, size: e.tokenLimit as number });
             }),
             this.manager.onDidReceiveError(message => {
                 // Only out of turn. In-turn failures already reach the client as a

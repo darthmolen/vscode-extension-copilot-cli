@@ -122,6 +122,21 @@ describe('usage — context accounting reaches the host (IN-3)', () => {
         expect(h.events.filter(e => e.kind === 'usage')).to.deep.equal([]);
     });
 
+    /**
+     * The numbers come from a CLI event, not from our own arithmetic. A non-numeric
+     * or non-finite reading is a broken measurement, and forwarding it would put
+     * `NaN` where a host expects a token count.
+     */
+    it('stays silent on a reading that is not a finite number', async () => {
+        const h = await started();
+
+        h.manager.emitUsage({ currentTokens: NaN, tokenLimit: 200_000 });
+        h.manager.emitUsage({ currentTokens: 12_000, tokenLimit: Infinity });
+        h.manager.emitUsage({ currentTokens: '12000', tokenLimit: 200_000 });
+
+        expect(h.events.filter(e => e.kind === 'usage')).to.deep.equal([]);
+    });
+
     /** Zero used is a real reading — a fresh session — not a missing one. */
     it('forwards a zero reading rather than mistaking it for absent', async () => {
         const h = await started();
