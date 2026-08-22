@@ -36,7 +36,7 @@ flowchart TD
     end
     subgraph LANEB["LANE B — chat-in-a-tab"]
         direction TB
-        B1["v3.13.0 · Slices 2b–2f"] --> B2["v3.15.0 · Slice 3"]
+        B1["v3.13.0 · Slices 2b–2f"] --> B2["v3.14.0 · Slice 3"]
     end
     OUT1 -.->|answer adjusts<br/>Slice 2 investment| B1
 ```
@@ -154,44 +154,47 @@ whose Phase 0 is complete as of `a0595f5`. Corrected assignment:
 | --- | --- |
 | Slice 1 — SDK-native fork | **v3.12.0** |
 | Slices 2b–2f — chat surface decoupling + tab | **v3.13.0** |
-| **ACP agent (Lane A, IN-3 / IN-8)** | **v3.14.0** — *gated on packaging, see below* |
-| Slice 3 — per-message fork | **v3.15.0** |
+| Slice 3 — per-message fork | **v3.14.0** |
 | AHP client half (IN-4, IN-6, IN-9) | **v4.0.0** |
+| **ACP agent (Lane A, IN-3 / IN-8)** | **no version — merges to `main` unreleased** |
 
 Per CLAUDE.md, a new editor-tab chat surface is a new capability with no breaking change — minor, not
-major. The same reading makes the ACP agent a minor: a new capability, nobody's sidebar behaves
-differently.
+major.
 
-**Revised 2026-08-22, answering cross-talk thread 02.** Lane A asked whether an ACP release ships
-before or after Slice 3, and the honest answer is that the question is the wrong shape: **a version
-number follows ship order, it does not reserve a place in a queue.** Publishing 3.15.0 and then
-3.14.0 would leave every user who took the first one unable to receive the second. So the two swap
-rather than interleave.
+### The ACP agent gets a merge, not a version — decided 2026-08-22
 
-The swap is decided on readiness, and the readiness is not close:
+**This row was briefly v3.14.0 and is now back where it started, and the reversal is worth recording
+because the argument that moved it was retracted by the lane that made it.**
 
-- **The ACP agent is done and externally validated** — 36/36 through Lane A's own wire harness, then
-  a real Zed session covering permissions, diffs, a native plan checklist, mode switching,
-  `session/list` and `session/load`. Zed's reading of the ACP spec is entirely independent of ours,
-  which is the strongest evidence any slice in this plan has had.
-- **Slice 3 is not.** Its plan (`planning/needs-review/completed/2026-08-16-v3-14-0-fork-from-this-message.md`)
-  carries an **unapplied review**: C1 found its index-alignment guarantee false — reasoning bubbles,
-  `agentId` suppression and whitespace-only content all diverge from the transcript filter — and its
-  stamping site misses every streamed assistant bubble. It needs revising before it is started, not
-  before it is finished.
+Lane A proposed shipping the ACP agent as its own release so that Zed users could install us. They
+then measured, found the premise false, and said so: **`copilot --acp` is already in the ACP Registry**
+as `@github/copilot@1.0.80 --acp`, auto-bumping hourly off npm while we bundle 1.0.68 by hand.
+Probed side by side with the same battery, upstream advertises `authMethods` (registry CI requires
+them; we advertise none), `image` and `embeddedContext` prompt capabilities, MCP capabilities and
+three session modes. We are ahead on `session/fork`, `session/close` and `usage_update`. A registry
+entry today would be a **near-duplicate that lags on version and advertises less**. Evidence:
+`planning/spikes/acp-comparison/FINDINGS.md` on `feature/4.0-in3-acp-server` (named as text — read it
+with `git show`, do not link across branches).
 
-**And the two halves of v4.0 have different risk owners**, which is the argument that actually
-carries. The ACP agent pays off through any ACP host and we control all of it. The AHP client pays
-off only through an AHP host, which is Microsoft's to grant — OUT-1 has been unanswered on AHP #282
-since 2026-08-15. Coupling them means the half we control waits on the half we do not, indefinitely.
+**So there is nothing to release, and a version number is a promise to users.** CLAUDE.md's own rule
+is that a minor means a new capability; *"the extension is portable and the v4.0 boundary is proven"*
+is not a capability anyone has. Numbering it would spend a version on an artefact no user can reach.
 
-**The gate is real and the row is conditional on it.** A VSIX today ships nothing a Zed user can
-point at: `out/**` is in `.vscodeignore`, esbuild never builds `src/acp/main.ts`, and `package.json`
-has no `bin`. Bundling into the VSIX does not fix it — VS Code installs to `publisher.name-<version>/`,
-so any config a user writes breaks on *our* next release, silently, as "agent exited". The answer is
-a separate npm package with a `bin`, which is a second publishing pipeline and a second artifact to
-version. **If that decision does not land, v3.14.0 stays Slice 3 and this table reverts** — the swap
-costs one row either way, which is why it is safe to make now.
+**But the work should merge, and soon, and those are different questions.** Lane A is 46+ commits and
+75 files ahead of `main` with a four-file overlap against this branch. That divergence is a real cost
+and it grows weekly; merging pays it down. The ACP agent is inert in a VSIX — `out/**` is
+`.vscodeignore`d, esbuild never builds `src/acp/main.ts`, there is no `bin` — so it rides along in
+v3.14.0's package at **zero bytes** and changes nothing a user sees.
+
+What merges with it is not inert at all: **two defects a second consumer found that the sidebar could
+not.** `ModelCapabilitiesService` was never initialised whenever the client provider was injected —
+which is the single reason §4.7 did not ship in v3.13.0 — and `session/list` was offering plan halves
+as conversations. That was always the better argument for this work than distribution.
+
+**The row becomes a version when it has a door**, and only then: the separate npm package with a
+`bin`, or IN-4 unblocking. Bundling into the VSIX is not that door and would be worse than waiting —
+VS Code installs to `publisher.name-<version>/`, so any config a user writes breaks on *our* next
+release, silently, as "agent exited".
 
 ---
 
