@@ -16,6 +16,7 @@ import { Logger, LoggerLike } from './logger';
 import type { HostBridge, MessageEnhancerLike } from './extension/hostBridge';
 import { NoopMessageEnhancer } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
+import { SignalEmitter } from './utilities/signalEmitter';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
 import { PlanModeToolsService, PLAN_MODE_AVAILABLE_TOOLS } from './extension/services/planModeToolsService';
@@ -418,6 +419,24 @@ export class SDKSessionManager implements vscode.Disposable {
      */
     private readonly _onDidUpdateTodos = this._reg(new BufferedEmitter<TodosData>());
     readonly onDidUpdateTodos = this._onDidUpdateTodos.event;
+
+    /**
+     * The session is quiet — no turn running, **and no background agents or attached
+     * shell commands in flight**. That last part is why this exists separately from
+     * turn status: `assistant.turn_end` says the assistant stopped, not that the
+     * session did.
+     *
+     * A `SignalEmitter`, not a `BufferedEmitter`, and that is load-bearing. Idle is a
+     * transition: `ephemeral: true`, never written to the event log, fired at the end
+     * of every turn. A consumer arms a countdown on it, so replaying buffered idles to
+     * a late subscriber would wind down a session that is busy right now.
+     *
+     * Added for P3's orphaned-host wind-down (Lane B, cross-talk 03), which otherwise
+     * settles for turn status and can therefore wind down while a sub-agent is still
+     * running.
+     */
+    private readonly _onDidBecomeIdle = this._reg(new SignalEmitter<void>());
+    readonly onDidBecomeIdle = this._onDidBecomeIdle.event;
 
     private readonly _onDidStartSubagent = this._reg(new BufferedEmitter<SubagentStartData>());
     readonly onDidStartSubagent = this._onDidStartSubagent.event;
@@ -994,8 +1013,18 @@ export class SDKSessionManager implements vscode.Disposable {
 
             case 'session.start':
             case 'session.resume':
+                this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
             case 'session.idle':
                 this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                // `session.idle` carries an optional `agentId`. A sub-agent going quiet
+                // is not the session going quiet, and forwarding it would fire a
+                // wind-down while the parent is still working — the precise failure the
+                // consumer is moving off turn status to escape.
+                if (!event.agentId) {
+                    this._onDidBecomeIdle.fire();
+                }
                 break;
             
             case 'assistant.turn_start':
