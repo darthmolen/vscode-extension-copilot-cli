@@ -51,7 +51,8 @@ half. The narrative — what the codebase gained and why — is
   so the next render brought the previous transcript back under the new session's id.
 - **A closed tab winds its session down** instead of leaving a CLI session running for the life of the
   window — at the next idle if it is working, immediately if it is not, and cancelled outright if you
-  come back to it.
+  come back to it. Where the runtime can report true idleness — no turn, no background agents, no
+  attached shells — that is what it waits for; otherwise it waits for the turn to end.
 - **Every session is disposed on shutdown.** Only the last-started one was, so each session switch and
   each tab leaked a CLI process and roughly ten event handlers.
 - **The View Plan button, the model list, attachment validation and the two MCP lists** all ask the
