@@ -103,7 +103,12 @@ export const readFileTextOrNull: FileTextReader = absolutePath => {
 export function createSessionLister(sessionStateDir: string) {
     return async (params: { cwd?: string }) => {
         // PROVISIONAL — replace with `sessionPairing.roleOf()` when Lane B's P4 lands.
-        // See planning/cross-talk/A-to-B-01-p4-work-plan-pairing.md.
+        // Written up on the `cross-talk` branch, which is checked out at
+        // ../vscode-copilot-cli-extension-cross-talk:
+        //     planning/cross-talk/A-to-B-01-p4-work-plan-pairing.md
+        // Named rather than linked: that file is not on this branch, and a relative
+        // path resolving in one checkout and 404ing in another is worse than a path
+        // you can paste.
         //
         // Plan mode is a TWO-session design: entering it creates a second SDK session
         // at `<id>-plan`. That session is an internal half rather than a conversation
