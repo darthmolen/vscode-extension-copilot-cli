@@ -29,6 +29,8 @@ import { planSessionSwitch } from './extension/session/sessionSwitchPlan';
 import { resolveCommandSurface } from './extension/webview/commandSurface';
 import { chooseStartupModel } from './extension/session/sessionModel';
 import { chooseSessionToResume } from './extension/session/sessionToResume';
+import { resolvePairings } from './extension/session/sessionPairing';
+import { orderSessionsByPairing } from './extension/session/sessionDropdown';
 import { createStartManager } from './extension/session/startManager';
 import { recordSessionStart, loadTranscriptInto } from './extension/session/sessionBootstrap';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
@@ -1477,11 +1479,21 @@ function updateSessionsList() {
 			return;
 		}
 
-		const sortedSessions = sessions.sort((a, b) => b.mtime - a.mtime);
-		const sessionList = sortedSessions.map((session) => ({
-			id: session.id,
-			label: SessionService.formatSessionLabel(session.id, path.join(sessionStateDir, session.id))
-		}));
+		// P4 — a plan half sits next to the conversation it belongs to, and says so.
+		//
+		// Sorted by mtime alone, the two land wherever their timestamps put them:
+		// 38% of this workspace's rows were half a conversation presented as a whole
+		// one. One resolver, one directory pass, and the only place that still knows
+		// what `-plan` means.
+		const pairing = resolvePairings(sessionStateDir, sessions.map(session => session.id));
+		const sessionList = orderSessionsByPairing(
+			sessions.map((session) => ({
+				id: session.id,
+				mtime: session.mtime,
+				label: SessionService.formatSessionLabel(session.id, path.join(sessionStateDir, session.id))
+			})),
+			pairing
+		);
 
 		// Written, not pushed. Every surface subscribes and pairs this list with its
 		// own host's session id, so a tab's dropdown highlights the tab's session.
