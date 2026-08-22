@@ -94,6 +94,13 @@ export class ChatSessionRegistry {
             startManager: this.startManager,
             onAdoptSessionId: (adopted, previousSessionId) => {
                 this.reindex(adopted, previousSessionId);
+            },
+            // A host cannot dispose itself: it is held here in two collections, and
+            // one of them is keyed by an id it may not have. So the wind-down
+            // signals out and the removal happens here.
+            onReleased: (released) => {
+                this.logger.info(`[ChatSessionRegistry] releasing ${released.handle}`);
+                this.disposeHost(released);
             }
         });
 

@@ -62,6 +62,11 @@ function makeHost(sessionId, over = {}) {
         attachSurface(surface) { this.surface = surface; },
         getSurface() { return this.surface; },
         detachSurface(surface) { if (!surface || this.surface === surface) { this.surface = undefined; } },
+        // Mirrors the real one closely enough to catch the ordering bug: called
+        // while a surface is still attached, it must do nothing. A fake that
+        // recorded the call unconditionally would pass a broken close path.
+        released: 0,
+        releaseWhenIdle() { if (!this.surface) { this.released++; } },
         ensureStarted() { this.started++; return Promise.resolve(); },
         ...over
     };
@@ -297,6 +302,29 @@ describe('ChatPanelService', () => {
             panels[0].dispose();
 
             expect(surfaces[0].disposed).to.equal(true);
+        });
+
+        it('winds the session down — a tab per day is a live CLI session per day', async () => {
+            // Left out, closing a chat tab disposed the *surface* and left the host
+            // and its manager alive for the life of the window (§4.4).
+            await service.openSession('closing-me');
+
+            panels[0].dispose();
+
+            expect(hostsById.get('closing-me').released).to.equal(1);
+        });
+
+        it('detaches before winding down, or the wind-down sees a live surface and does nothing', async () => {
+            // Ordering, not decoration: `releaseWhenIdle` is a no-op while a surface
+            // is attached, precisely so the sidebar's hide-and-re-resolve cannot
+            // trigger it.
+            await service.openSession('closing-me');
+            const host = hostsById.get('closing-me');
+
+            panels[0].dispose();
+
+            expect(host.getSurface()).to.equal(undefined);
+            expect(host.released).to.equal(1);
         });
 
         it('lets a session be reopened after its tab is closed', async () => {

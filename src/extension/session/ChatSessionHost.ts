@@ -221,6 +221,14 @@ export interface ChatSessionHostDeps {
      * id stays correct no matter who called `adoptSessionId`.
      */
     onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
+    /**
+     * This host has finished and wants to be taken out of service.
+     *
+     * A host cannot dispose itself cleanly — the registry holds it in two
+     * collections — so the wind-down signals out and the registry does the
+     * removal. Same shape and same reason as `onAdoptSessionId`.
+     */
+    onReleased?: (host: ChatSessionHost) => void;
 }
 
 export class ChatSessionHost {
@@ -244,6 +252,16 @@ export class ChatSessionHost {
     private starting?: Promise<void>;
     private live = false;
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
+    private readonly onReleased?: (host: ChatSessionHost) => void;
+    /**
+     * Whether this session is working right now.
+     *
+     * Tracked from the turn status the host already routes rather than asked of the
+     * manager, so nothing new crosses into `sdkSessionManager.ts`.
+     */
+    private inTurn = false;
+    /** A wind-down is armed and waiting for this session to finish its turn. */
+    private releasePending = false;
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
     private readonly managerSubscriptions: Unsubscribe[] = [];
@@ -271,6 +289,7 @@ export class ChatSessionHost {
         this.startManager = deps.startManager;
         this.whenNoSession = deps.whenNoSession ?? 'window-default';
         this.onAdoptSessionId = deps.onAdoptSessionId;
+        this.onReleased = deps.onReleased;
 
         this.state = deps.state ?? new SessionState();
         this.state.setSessionId(deps.sessionId);
@@ -319,6 +338,12 @@ export class ChatSessionHost {
      */
     public attachSurface(surface: ChatSurface): void {
         this.surface = surface;
+        // Somebody came back for this conversation. Whatever countdown was running
+        // is off — that is the whole reconnect story for a reselected session.
+        if (this.releasePending) {
+            this.logger.info(`[ChatSessionHost ${this.handle}] wind-down cancelled — a surface reattached`);
+            this.releasePending = false;
+        }
     }
 
     /**
@@ -423,6 +448,47 @@ export class ChatSessionHost {
     /** The session ended — the host stays, and can be started again. */
     public markStopped(): void {
         this.live = false;
+    }
+
+    /**
+     * Nothing is rendering this host any more; end it once its work is finished.
+     *
+     * Called by whoever knows the surface is gone for good — `ChatPanelService`
+     * when a tab closes. The sidebar never calls it: VS Code tears its view down
+     * whenever the container is hidden and re-resolves it later into the same
+     * surface, which `closingEndsSurface` already distinguishes.
+     *
+     * Two things this gets right that a naive version would not:
+     *
+     *  - **Idle is a transition, not a state.** If this session is not working when
+     *    the surface goes, there may never be another transition to wait for — so
+     *    that case ends now rather than living forever.
+     *  - **Any reattach cancels it.** Reselecting a closed tab's session from the
+     *    dropdown finds this host through the registry and attaches to it; the
+     *    countdown must not fire afterwards.
+     *
+     * A hung turn never finishes, so its host never winds down. That is exactly
+     * today's behaviour for every host, so it is not a regression — and a
+     * wall-clock deadline that kills a long legitimate task is worse than a session
+     * that outlives its tab.
+     */
+    public releaseWhenIdle(): void {
+        if (this.surface) {
+            return;
+        }
+        if (!this.inTurn) {
+            this.logger.info(`[ChatSessionHost ${this.handle}] no surface and nothing running — winding down`);
+            this.release();
+            return;
+        }
+        this.logger.info(`[ChatSessionHost ${this.handle}] no surface, work in flight — winding down at the next idle`);
+        this.releasePending = true;
+    }
+
+    /** Take this host out of service. The registry does the removal; see `onReleased`. */
+    private release(): void {
+        this.releasePending = false;
+        this.onReleased?.(this);
     }
 
     /**
@@ -532,18 +598,23 @@ export class ChatSessionHost {
     private applyStatus(statusData: { status: string; model?: string; newSessionId?: string }): void {
         switch (statusData.status) {
             case 'thinking':
+                this.inTurn = true;
                 this.surface?.setThinking(true);
                 break;
             case 'ready':
+                this.inTurn = false;
                 this.surface?.setThinking(false);
+                this.releaseIfPending();
                 break;
             case 'exited':
             case 'stopped':
+                this.inTurn = false;
                 // No longer live, so a later `ensureStarted()` may bring it back
                 // rather than assuming a session is still running.
                 this.markStopped();
                 this.state.setSessionActive(false);
                 this.surface?.setSessionActive(false);
+                this.releaseIfPending();
                 break;
             case 'aborted':
                 this.surface?.addAssistantMessage('_Generation stopped by user._');
@@ -578,6 +649,14 @@ export class ChatSessionHost {
             default:
                 // `session_renamed` and anything new: window-scoped or nothing to show.
                 break;
+        }
+    }
+
+    /** The armed wind-down, now that this session has stopped working. */
+    private releaseIfPending(): void {
+        if (this.releasePending && !this.surface) {
+            this.logger.info(`[ChatSessionHost ${this.handle}] idle and unwatched — winding down`);
+            this.release();
         }
     }
 

@@ -174,6 +174,12 @@ export class ChatPanelService {
             handlers.dispose();
             surface.dispose();
             host.detachSurface(surface);
+            // Explicit, rather than implied by `detachSurface`. Detaching is also
+            // what the *sidebar* does whenever VS Code hides its container and
+            // means to re-resolve it; only a closed tab is gone for good, which is
+            // what `closingEndsSurface` records. Left out, every tab opened over a
+            // day is a live CLI session with no UI (§4.4).
+            host.releaseWhenIdle();
             this.deps.logger.info(`[ChatPanel] tab closed for ${host.sessionId ?? '(no session yet)'}`);
         });
 

@@ -762,7 +762,10 @@ async function handleSwitchSession(
 			// Its tab was closed and the host is still alive. Attaching is the whole
 			// reconnect — starting anything here is what produced the second manager.
 			logger.info(`[Switch Session] reattaching to live host ${plan.host.handle} for ${sessionId}`);
-			await releaseCurrentHost(surface);
+			releaseCurrentHost(surface);
+			// Attaching cancels the wind-down this host was on, which is the whole
+			// reconnect: a closed tab's session, picked from the dropdown, comes
+			// back rather than being started a second time.
 			plan.host.attachSurface(surface);
 			surface.setSessionHost(plan.host);
 			surface.resetPlanMode();
@@ -798,12 +801,16 @@ async function handleSwitchSession(
  * working, and a user who switched away did not ask for it to be killed. What
  * happens to a host with no surface is §4.4's wind-down.
  */
-async function releaseCurrentHost(surface: WebviewChatSurface): Promise<void> {
+function releaseCurrentHost(surface: WebviewChatSurface): void {
 	const outgoing = surface.getSessionHost();
 	if (!outgoing) {
 		return;
 	}
 	outgoing.detachSurface(surface);
+	// Not stopped — the conversation it was showing may still be working, and a
+	// user who switched away did not ask for it to be killed. It winds down at its
+	// next idle, and comes straight back if they switch to it again (§4.4).
+	outgoing.releaseWhenIdle();
 }
 
 async function handleForkSession(
