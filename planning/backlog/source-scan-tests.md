@@ -1,9 +1,28 @@
 # Backlog: Source-scan tests assert text, not behaviour
 
+> **A source scan reporting a fact that is not true about the code — measured, 2026-08-22.**
+>
+> `tests/unit/extension/sdk-switch-model.test.js` matches
+> `/export interface StatusData \{([\s\S]*?)\}/` and then asserts the captured body contains
+> `'model?: string'`. `[\s\S]*?` is non-greedy, so it stops at the **first** `}` after the opening
+> brace. Today there is none until the interface ends, so it captures 825 characters and passes.
+>
+> Lane A then added a field with a JSDoc comment containing `${...}`. The first `}` is now inside that
+> comment, the capture truncates to 405 characters, and the test fails claiming `StatusData` has no
+> `model` field — on an interface that plainly has one, after a **correct** change.
+>
+> This is the best argument in this file. The usual case against source scans is that they cannot
+> fail for a real reason. This one is worse: it fails for a fake reason and names a defect that does
+> not exist, sending the next reader to look for a field that is right there. Lane A replaced it with
+> behavioural tests on `feature/4.0-in3-acp-server`; when that merges, this file leaves
+> `KNOWN_SOURCE_READERS` and the count goes 15 → 14.
+
 ## Problem
 
-Around twenty test files read production files with `fs.readFileSync` and assert that the *text*
-contains a string. They verify nothing a comment could not satisfy, and they break on refactors that
+**Fifteen** test files read production files with `fs.readFileSync` and assert that the *text*
+contains a string — counted from `KNOWN_SOURCE_READERS`, not estimated. (Earlier drafts said "around
+twenty"; a crude `grep` in a commit message said seventeen. Both were wrong, which is its own small
+argument for counting from the gate.) They verify nothing a comment could not satisfy, and they break on refactors that
 are correct.
 
 **Ten were deleted during v3.13.0 Task 7**, every one because a legitimate change stopped a string
