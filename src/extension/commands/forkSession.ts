@@ -24,19 +24,32 @@ export interface ForkSessionDeps {
     getSessionId(): string | null;
     /** Performs the fork and resolves to the new session id. */
     fork(sessionId: string, opts: { sessionStateDir: string }): Promise<string>;
-    /** Points the UI at a session. */
-    switchTo(sessionId: string): Promise<void>;
+    /**
+     * Shows the fork. **Not** "switches to it" — v3.13.0 Task 10 opens the copy in
+     * an editor tab and leaves the surface you were on where it was.
+     *
+     * The rename is not cosmetic: the old name described the old behaviour, and a
+     * caller reading `switchTo` would reasonably assume the sidebar had moved.
+     */
+    showFork(sessionId: string): Promise<void>;
+    /**
+     * A human label for a session, when there is one.
+     *
+     * The toast names the fork because the user is not looking at it — it opened
+     * elsewhere — so "it worked" is not enough to find it by.
+     */
+    nameOf(sessionId: string): string | null;
     notify: ForkNotifier;
     logger: LoggerLike;
     sessionStateDir: string;
 }
 
 /**
- * Fork the active session and move to the copy.
+ * Fork the active session and open the copy in a tab.
  *
  * Never throws: a failed fork is reported to the user and leaves them on the
- * parent, which is the safe outcome. Success is only reported once the switch
- * has also succeeded, so a half-completed fork is never announced as done.
+ * parent, which is the safe outcome. Success is only reported once the fork has
+ * also been *shown*, so a half-completed fork is never announced as done.
  */
 export async function forkCurrentSession(deps: ForkSessionDeps): Promise<void> {
     const sourceSessionId = deps.getSessionId();
@@ -52,8 +65,15 @@ export async function forkCurrentSession(deps: ForkSessionDeps): Promise<void> {
         });
         deps.logger.info(`[Fork Session] Created fork: ${newSessionId}`);
 
-        await deps.switchTo(newSessionId);
-        deps.notify.info('Session forked — you are now on the fork.');
+        await deps.showFork(newSessionId);
+        // Named, and honest about where it went. The old message — "you are now on
+        // the fork" — was true when forking switched the sidebar underneath you.
+        // It is now false, and a toast that misdescribes where you are is worse
+        // than none: the parent is still in front of you.
+        const name = deps.nameOf(newSessionId);
+        deps.notify.info(
+            name ? `Forked to "${name}" — opened in a tab.` : 'Session forked — opened in a tab.'
+        );
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         deps.logger.error(

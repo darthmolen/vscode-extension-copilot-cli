@@ -923,7 +923,18 @@ async function handleForkSession(
 			if (!host) { throw new Error('Session manager is not available'); }
 			return host.fork(opts);
 		},
-		switchTo: (sessionId) => handleSwitchSession(context, sessionId, surface),
+		// Task 10: the fork opens in a tab and this surface stays on the parent.
+		// `openSession` already carries the collision rule, so a fork that somehow
+		// already had a surface would be revealed rather than opened twice.
+		showFork: (sessionId) => chatPanels.openSession(sessionId),
+		nameOf: (sessionId) => {
+			try {
+				return SessionService.formatSessionLabel(sessionId, sessionStatePath(sessionId));
+			} catch {
+				// A fork a second old may have nothing on disk to read.
+				return null;
+			}
+		},
 		notify: {
 			info: (m) => { vscode.window.showInformationMessage(m); },
 			warn: (m) => { vscode.window.showWarningMessage(m); },
