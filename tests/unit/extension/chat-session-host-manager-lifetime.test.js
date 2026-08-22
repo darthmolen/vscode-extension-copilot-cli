@@ -26,17 +26,29 @@ const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
 function makeFakeManager(name = 'm') {
     const calls = [];
-    const noop = () => ({ dispose() {} });
+    /** Live listeners per event, so a test can count them and fire them. */
+    const listeners = new Map();
+    const subscribe = (event) => (handler) => {
+        const set = listeners.get(event) ?? new Set();
+        set.add(handler);
+        listeners.set(event, set);
+        return { dispose: () => set.delete(handler) };
+    };
     return new Proxy({
         name,
         calls,
         disposed: false,
+        subscriberCount: (event) => listeners.get(event)?.size ?? 0,
+        emit: (event, payload) => [...(listeners.get(event) ?? [])].forEach(fn => fn(payload)),
         stop: async () => { calls.push('stop'); },
         dispose() { this.disposed = true; calls.push('dispose'); }
     }, {
-        get: (target, prop) => prop in target
-            ? target[prop]
-            : (typeof prop === 'string' && prop.startsWith('onDid') ? noop : (typeof prop === 'string' ? async () => {} : undefined))
+        get: (target, prop) => {
+            if (prop in target) { return target[prop]; }
+            if (prop === 'onDidBecomeIdle') { return undefined; }
+            if (typeof prop === 'string' && prop.startsWith('onDid')) { return subscribe(prop); }
+            return typeof prop === 'string' ? async () => {} : undefined;
+        }
     });
 }
 
@@ -139,6 +151,94 @@ describe('ChatSessionHost — manager lifetime', () => {
         registry.disposeHost(host);
 
         expect(disposed).to.equal(1);
+    });
+
+    /**
+     * The regression this file exists to prevent, found live (2026-08-22).
+     *
+     * **Two places attach the manager, and on one path they overlap.**
+     * `wireManagerEvents` calls `attachManager` and *then* registers ~9
+     * window-scoped handlers against the host. `ChatSessionHost.ensureStarted()`
+     * then calls `attachManager` again with the very same manager, because
+     * `startManager`'s contract is "hand back the manager and the host attaches it".
+     *
+     * The second call tore down and rebuilt the routing — harmless for the host's
+     * own subscriptions, which it re-adds — and **released every window-scoped
+     * subscription**, which it does not.
+     *
+     * Proven across two UAT logs. A session started through `handleNewSession`
+     * (direct `startCLISession`, no `ensureStarted`) logged its window handlers on
+     * every tool call; a session started through a tab's `ensureStarted` logged
+     * **zero of 71**, and `[CLI Status]` went silent after startup while 50 turns
+     * ran. That is the sub-agent dock, the status bar, the MCP state, `plan_ready`
+     * and the dropdown refresh, all dead for the life of the session.
+     *
+     * So re-attaching the *same* manager is a no-op. Anything else makes correctness
+     * depend on the order two independent callers happen to run in.
+     */
+    describe('attaching the same manager twice', () => {
+        it('keeps the window subscriptions the composition root registered', () => {
+            const host = registry.create('session-a');
+            const manager = makeFakeManager();
+            host.attachManager(manager);
+            let disposed = 0;
+            host.ownManagerSubscription({ dispose: () => { disposed++; } });
+
+            host.attachManager(manager);
+
+            expect(disposed, 'the second attach released the window handlers').to.equal(0);
+        });
+
+        it('does not tear down and rebuild its own routing either', () => {
+            const host = registry.create('session-a');
+            const manager = makeFakeManager();
+            host.attachManager(manager);
+            const firstRound = manager.subscriberCount('onDidStartTool');
+
+            host.attachManager(manager);
+
+            expect(manager.subscriberCount('onDidStartTool')).to.equal(firstRound,
+                're-attaching resubscribed, so a single tool event would render twice');
+        });
+
+        it('still routes after the second attach', () => {
+            const host = registry.create('session-a');
+            const manager = makeFakeManager();
+            const seen = [];
+            host.attachSurface(new Proxy({}, {
+                get: (_t, prop) => (arg) => { if (prop === 'notifyToolStart') { seen.push(arg); } }
+            }));
+            host.attachManager(manager);
+            host.attachManager(manager);
+
+            manager.emit('onDidStartTool', { toolName: 'bash' });
+
+            expect(seen).to.have.lengthOf(1, 'exactly one chip per tool, and at least one');
+        });
+
+        it('does not dispose the manager it is being handed again', () => {
+            const host = registry.create('session-a');
+            const manager = makeFakeManager();
+            host.attachManager(manager);
+
+            host.attachManager(manager);
+
+            expect(manager.disposed).to.equal(false);
+        });
+
+        it('a genuinely different manager still replaces the old one', () => {
+            const host = registry.create('session-a');
+            const first = makeFakeManager('first');
+            const second = makeFakeManager('second');
+            host.attachManager(first);
+            let disposed = 0;
+            host.ownManagerSubscription({ dispose: () => { disposed++; } });
+
+            host.attachManager(second);
+
+            expect(first.disposed).to.equal(true);
+            expect(disposed, 'the old manager\'s window handlers must not outlive it').to.equal(1);
+        });
     });
 
     it('drops the previous manager\'s window subscriptions when a new one is attached', () => {

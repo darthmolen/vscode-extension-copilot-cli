@@ -523,20 +523,40 @@ export class ChatSessionHost {
      */
     public attachManager(manager: SessionManagerLike): void {
         this.live = true;
+
+        // Handed the manager it already has: nothing to do, and doing something is
+        // the bug. **Two callers attach, and on one path they overlap** —
+        // `wireManagerEvents` attaches and *then* registers the window-scoped
+        // handlers against this host, after which `ensureStarted()` attaches the
+        // same manager again, because `startManager`'s contract is "hand back the
+        // manager and let the host attach it".
+        //
+        // The second call used to tear down and rebuild. Harmless for the routing
+        // below, which it re-adds — and fatal for `windowSubscriptions`, which it
+        // released and nobody re-registered. Measured live: a session started
+        // through a tab's `ensureStarted` logged **zero of 71** window-scoped tool
+        // events and went silent on `[CLI Status]` while 50 turns ran, taking the
+        // sub-agent dock, the status bar, the MCP state and the dropdown refresh
+        // with it. A session started through `handleNewSession` — direct
+        // `startCLISession`, no `ensureStarted` — logged every one.
+        //
+        // Idempotence rather than deleting one of the two calls: both are
+        // legitimate on their own paths, and correctness should not depend on the
+        // order two independent callers happen to run in.
+        if (this.#manager === manager) {
+            return;
+        }
+
         // A host outlives its managers — every restart and session switch builds a
         // new one. Replace the wiring rather than adding to it, or each restart
         // doubles every message on screen.
-        //
-        // The one being replaced is *disposed*, not merely detached. With the
-        // module-level handle gone this host is a manager's sole owner, so letting
-        // it fall out of scope leaks a live CLI session per restart. `detachManager`
-        // keeps its own meaning — drop the routing, keep the session — because a
-        // session switch still needs it.
-        if (this.#manager && this.#manager !== manager) {
-            this.disposeManager();
-        } else {
-            this.detachManager();
-        }
+        // Only a *different* manager reaches here, so replacing always means the old
+        // one is finished. Disposed, not merely detached: with the module-level
+        // handle gone this host is a manager's sole owner, so letting one fall out
+        // of scope leaks a live CLI session per restart. `detachManager` keeps its
+        // own meaning — drop the routing, keep the session — because a session
+        // switch still needs it.
+        this.disposeManager();
         this.releaseWindowSubscriptions();
         this.#manager = manager;
         // A new manager has said nothing yet. Inheriting the last one's quiet would
@@ -578,6 +598,15 @@ export class ChatSessionHost {
         }));
 
         this.subscribe(manager.onDidStartTool((toolState) => {
+            // Attribution, at the one point where a tool chip can go missing without
+            // anything failing: the host routed it, but to nothing. With N surfaces
+            // "did it render" and "was there something to render into" are different
+            // questions, and only this line can tell them apart — the webview logs
+            // its own arrival separately, so the two together bracket the boundary.
+            this.logger.debug(
+                `[ChatSessionHost ${this.handle}] tool ${toolState?.toolName} → ` +
+                `${this.surface ? 'surface' : 'NO SURFACE ATTACHED'}`
+            );
             this.surface?.notifyToolStart(toolState);
         }));
 
