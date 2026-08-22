@@ -5,9 +5,13 @@ same prompts. Raw profiles in `results/`.
 
 ## Verdict
 
-**As a generic ACP agent, we are behind upstream on most axes and ahead on two.** The
-differentiator I argued for — "plan mode that works over ACP" — **is false.** Upstream has a
+**As a generic ACP agent, we are behind upstream on most axes and ahead on a few.** The
+differentiator first argued for — "plan mode that works over ACP" — **is false.** Upstream has a
 Plan mode and emitted a `plan` update in the same run we did.
+
+A second measurement (below) narrows this: upstream's Plan mode is **one session**, ours is two, and
+context isolation is a real difference. It is a smaller claim than the original and a larger one than
+this table alone supports.
 
 ## Side by side
 
@@ -58,6 +62,51 @@ Two deliberate divergences, both defensible and both ours:
    `allow_always` anyway. Ours grants less than the user could be tricked into granting.
 
 Neither is a feature anyone shops for. Both are the kind of thing that matters once.
+
+## Follow-up: is their Plan mode a second session? (measured separately)
+
+Prompted by the right question — advertising a Plan mode and *running a second session* are
+different claims, and the table above only measured the first. `spike-plan-mode-shape.mjs` measures
+the second, on disk rather than through the protocol.
+
+```
+dirsCreatedByEnteringPlanMode : []
+dirsCreatedByPlanPrompt       : []
+sessionId                     : unchanged throughout
+planMdInSessionDir            : true
+```
+
+**Upstream's Plan mode is one session.** No second directory is created entering it or prompting in
+it, the session id never changes, and `plan.md` is written into that same session's folder. The CLI
+does not juggle sessions.
+
+### The claim this spike nearly made, and did not
+
+The plan-mode turn called **`apply_patch`** — a write tool, in a mode called Plan, after a prompt
+saying *"do not change any files."* That reads as a restriction failure.
+
+It is not. `git status` on the repo afterwards: **untouched.** `apply_patch` is how it wrote
+`plan.md`, which is exactly what our own `update_work_plan` tool does. **No claim is made here that
+upstream's plan mode is unsafe**, because the evidence does not support one.
+
+Recorded because the first version of this document made a confident claim from a tool name and it
+would have been wrong — the same failure mode as reading a type declaration and stopping there.
+
+### The difference that is real, with the bill it comes with
+
+| | upstream | ours |
+| --- | --- | --- |
+| sessions | **one** | **two** — `<id>` and `<id>-plan` |
+| planning context | shares the work transcript | a separate conversation |
+| plan artifact | `plan.md` in the session dir | `plan.md` in the **work** session's dir |
+| accept / reject | not observed | accept injects a kickoff message; reject rolls back |
+| tool restriction | not measured; writing `plan.md` is permitted | 13-entry whitelist, six custom tools |
+
+The user-facing property that is genuinely ours: **planning exploration does not pollute the work
+session's context.** Ours can survey a repository across dozens of turns and hand over only the plan.
+
+**And the cost is ours too.** Two sessions is what produces the 197 `-plan` halves that broke
+`session/list` this morning, and what P4 exists to clean up. A design with a bill, not a free win.
 
 ## What this means for the registry
 
