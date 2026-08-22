@@ -27,15 +27,13 @@ Module.prototype.require = function (id) {
 const { describe, it, before, beforeEach } = require('mocha');
 const assert = require('assert');
 const path = require('path');
-const fs = require('fs');
 
 describe('SDKSessionManager — plan_mode_enabled carries the plan session id', function () {
     this.timeout(10000);
 
-    let SDKSessionManager, source;
+    let SDKSessionManager;
     before(function () {
         SDKSessionManager = require(path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js')).SDKSessionManager;
-        source = fs.readFileSync(path.join(__dirname, '../../..', 'src', 'sdkSessionManager.ts'), 'utf8');
     });
 
     let fired;
@@ -74,16 +72,22 @@ describe('SDKSessionManager — plan_mode_enabled carries the plan session id', 
         assert.ok(fired[0].planSessionId, 'announced plan mode with no plan session id');
     });
 
-    /**
-     * A behavioural test cannot reach `enablePlanMode` without a live CLI, so this pins
-     * the one thing that would silently break the contract: the emit going back inline
-     * without the id. It asserts the ABSENCE of the old payload-free call, which is the
-     * shape that regressed, not the presence of a string.
-     */
-    it('has no payload-free plan_mode_enabled emit left in the source', function () {
-        assert.ok(
-            !/fire\(\{\s*status:\s*'plan_mode_enabled'\s*\}\)/.test(source),
-            'a plan_mode_enabled event is being fired without the plan session id'
-        );
-    });
+    // A third test lived here and read `src/sdkSessionManager.ts`, asserting no
+    // payload-free `plan_mode_enabled` emit remained. It is gone rather than added to
+    // `KNOWN_SOURCE_READERS`, because that list is debt and not a set of exemptions —
+    // and because Lane B's gate had just been proved right by a source scan that
+    // reported a field missing from an interface which plainly had it.
+    //
+    // What it guarded is real but narrow: someone bypassing `announcePlanModeEnabled`
+    // with an inline fire, after which Lane B's record-writer silently stops writing.
+    // `enablePlanMode` creates a live SDK session, so no behavioural test can reach it
+    // from here. The residual risk is the ordinary one that any extracted method
+    // carries — that a caller stops calling it — and we do not buy that guarantee with
+    // source scans anywhere else.
+    //
+    // If it ever needs a real guard, the answer is the type system rather than a
+    // regex: making `StatusData` a discriminated union would let `plan_mode_enabled`
+    // *require* `planSessionId`, and a payload-free emit would not compile. That is a
+    // larger change to a type Lane B reads through a local widening, so it is recorded
+    // rather than done.
 });
