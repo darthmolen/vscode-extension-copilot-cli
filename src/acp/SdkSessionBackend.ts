@@ -46,6 +46,10 @@ export interface AcpManagerSlice {
     onDidStartSubagent(listener: (e: { agentId: string; agentName?: string; agentDisplayName?: string }) => void): Disposable;
     onDidSubagentMessage(listener: (e: { agentId: string; content?: string; reasoningText?: string }) => void): Disposable;
     onDidCompleteSubagent(listener: (e: { agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }) => void): Disposable;
+    onDidUpdateUsage(listener: (e: {
+        remainingPercentage?: number; currentTokens?: number; tokenLimit?: number; messagesLength?: number;
+    }) => void): Disposable;
+    onDidReceiveError(listener: (message: string) => void): Disposable;
     onDidProduceDiff(listener: (e: {
         toolCallId: string; beforeUri: string; afterUri: string; title?: string;
     }) => void): Disposable;
@@ -170,6 +174,15 @@ export class SdkSessionBackend implements AcpSessionBackend {
      * has.
      */
     private cancelledInFlight = false;
+
+    /**
+     * True between the start and the end of a turn.
+     *
+     * Used to suppress duplicate error reporting: `sendMessage()` fires the error
+     * emitter *and rethrows*, so an in-turn fault already reaches the client as a
+     * rejected `session/prompt` carrying the same message.
+     */
+    private turnInFlight = false;
 
     private constructor(
         public readonly sessionId: string,
@@ -310,6 +323,25 @@ export class SdkSessionBackend implements AcpSessionBackend {
             // Our diff event carries a pair of PATHS, because VS Code's diff editor
             // takes URIs. A host at the far end of a pipe has no access to our
             // filesystem, so the text has to travel instead of a reference to it.
+            this.manager.onDidUpdateUsage(e => {
+                // ACP requires both numbers and neither is derivable from the
+                // percentage the CLI sometimes sends alone. `== null` rather than a
+                // falsy check on purpose: zero used is a real reading — a fresh
+                // session — and would otherwise be dropped as if it were missing.
+                if (e.currentTokens == null || e.tokenLimit == null) {
+                    return;
+                }
+                listener({ kind: 'usage', used: e.currentTokens, size: e.tokenLimit });
+            }),
+            this.manager.onDidReceiveError(message => {
+                // Only out of turn. In-turn failures already reach the client as a
+                // rejected session/prompt carrying this same text, and reporting one
+                // fault twice is worse than the protocol having no error variant.
+                if (this.turnInFlight || !message) {
+                    return;
+                }
+                listener({ kind: 'error', message });
+            }),
             this.manager.onDidProduceDiff(e => {
                 const diff = this.readDiff(e);
                 if (diff) {
@@ -346,7 +378,14 @@ export class SdkSessionBackend implements AcpSessionBackend {
         // normal race rather than a fault.
         this.cancelledInFlight = false;
 
-        await this.manager.sendMessage(text);
+        this.turnInFlight = true;
+        try {
+            await this.manager.sendMessage(text);
+        } finally {
+            // In a `finally` because a failed turn is exactly when the suppression
+            // must lift — the next error is a new one and has no rejection to ride.
+            this.turnInFlight = false;
+        }
 
         return { stopReason: this.cancelledInFlight ? 'cancelled' : 'end_turn' };
     }

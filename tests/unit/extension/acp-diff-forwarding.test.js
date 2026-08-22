@@ -95,6 +95,8 @@ describe('SdkSessionBackend — reading the two sides of a diff (IN-3 §4c.4)', 
             onDidSubagentMessage: () => noSub,
             onDidCompleteSubagent: () => noSub,
             onDidUpdateTodos: () => noSub,
+            onDidUpdateUsage: () => noSub,
+            onDidReceiveError: () => noSub,
             onDidProduceDiff(listener) {
                 diffListeners.add(listener);
                 return { dispose: () => diffListeners.delete(listener) };

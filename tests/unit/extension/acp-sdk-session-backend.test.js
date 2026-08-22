@@ -51,6 +51,8 @@ function makeManager(over = {}) {
         onDidSubagentMessage() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         onDidCompleteSubagent() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         onDidProduceDiff() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidUpdateUsage() { return { dispose: () => { this.disposedSubscriptions++; } }; },
+        onDidReceiveError() { return { dispose: () => { this.disposedSubscriptions++; } }; },
         onDidUpdateTodos(listener) {
             this.todoListeners.add(listener);
             return { dispose: () => { this.todoListeners.delete(listener); this.disposedSubscriptions++; } };
@@ -154,7 +156,7 @@ describe('SdkSessionBackend (IN-3 cycle 5)', () => {
         expect(manager.liveListeners(), 'emitter subscription outlived unsubscribe').to.equal(0);
         // One unsubscribe must release EVERY emitter it subscribed, not just the
         // first — a partial release shows up as duplicated chunks turns later.
-        expect(manager.disposedSubscriptions, 'not all emitter subscriptions were released').to.equal(10);
+        expect(manager.disposedSubscriptions, 'not all emitter subscriptions were released').to.equal(12);
     });
 
     it('sends a prompt through the manager and reports the turn ended', async () => {

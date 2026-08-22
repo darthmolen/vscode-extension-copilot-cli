@@ -36,6 +36,7 @@
 const META_NS = 'copilotCliChat';
 const META_AGENT_ID = `${META_NS}.agentId`;
 const META_KIND = `${META_NS}.subagentEvent`;
+const META_ERROR = `${META_NS}.error`;
 
 /** A `session/update` notification, ready to hand to `client.notify`. */
 export interface SessionUpdateNotification {
@@ -158,6 +159,39 @@ export function subagentCompleteUpdate(
         : `${label} finished.`;
     return textChunk(sessionId, 'agent_message_chunk', text,
         subagentMeta(e.agentId, 'complete', { [`${META_NS}.status`]: e.status }));
+}
+
+// ── Usage and errors ───────────────────────────────────────────
+
+/**
+ * Context accounting.
+ *
+ * ACP requires both numbers, so the caller decides whether it has them; this only
+ * shapes what it was given. See `SdkSessionBackend` for why a percentage alone is
+ * not enough to construct either.
+ */
+export function usageUpdate(
+    sessionId: string,
+    e: { used: number; size: number }
+): SessionUpdateNotification {
+    return { sessionId, update: { sessionUpdate: 'usage_update', used: e.used, size: e.size } };
+}
+
+/**
+ * A session error.
+ *
+ * ACP has **no error variant** — every `session/update` case was checked, and
+ * `session_info_update` carries a title and a timestamp. So an error either rides the
+ * transcript or does not reach the host at all, and silence is the worse of the two.
+ *
+ * Tagged rather than disguised as model output, exactly as sub-agent traffic is: a
+ * generic host renders it inline and loses nothing, and a client that knows the tag
+ * can draw it as an error instead. Namespaced for the same reason — `_meta` is a
+ * shared extension point and ACP tells implementations not to assume anything about
+ * keys they did not write.
+ */
+export function errorUpdate(sessionId: string, e: { message: string }): SessionUpdateNotification {
+    return textChunk(sessionId, 'agent_message_chunk', e.message, { [META_ERROR]: true });
 }
 
 // ── Diffs ──────────────────────────────────────────────────────

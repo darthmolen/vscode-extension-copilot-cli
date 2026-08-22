@@ -30,6 +30,8 @@ import {
     subagentCompleteUpdate,
     planUpdate,
     diffUpdate,
+    usageUpdate,
+    errorUpdate,
     replayTurnUpdate,
     ReplayTurn
 } from './sessionUpdateMapper';
@@ -82,6 +84,8 @@ export type AcpBackendEvent =
     | { kind: 'subagentMessage'; agentId: string; content?: string; reasoningText?: string }
     | { kind: 'subagentComplete'; agentId: string; status: 'complete' | 'failed'; agentDisplayName?: string; error?: string }
     | { kind: 'diff'; toolCallId: string; path: string; oldText: string | null; newText: string }
+    | { kind: 'usage'; used: number; size: number }
+    | { kind: 'error'; message: string }
     | {
         kind: 'plan';
         todos: Array<{ id?: string; title?: string; description?: string; status?: string }>;
@@ -217,6 +221,8 @@ function toSessionUpdate(sessionId: string, event: AcpBackendEvent): SessionUpda
         case 'subagentComplete': return subagentCompleteUpdate(sessionId, event);
         case 'plan': return planUpdate(sessionId, event);
         case 'diff': return diffUpdate(sessionId, event);
+        case 'usage': return usageUpdate(sessionId, event);
+        case 'error': return errorUpdate(sessionId, event);
         default: return undefined;
     }
 }
