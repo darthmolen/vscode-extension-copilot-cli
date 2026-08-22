@@ -171,23 +171,35 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 			vscode.commands.executeCommand('copilot-cli-extension.viewDiff', payload);
 		}));
 
-		ctx.reg(ctx.rpcRouter.onTogglePlanMode((payload) => {
+		// Straight to this surface's host, not through `executeCommand`.
+		//
+		// The signal arrives here with its identity intact — one router per surface,
+		// closed over one host — and the command indirection threw that away on the
+		// next line, landing on the module-level `sessionManager`: "whichever session
+		// started last". Typing `/plan` in a tab toggled the sidebar. The fix is to
+		// stop discarding what we already have, not to add a resolver that
+		// reconstructs it (P3 §4.2).
+		ctx.reg(ctx.rpcRouter.onTogglePlanMode(async (payload) => {
 			ctx.logger.info(`Plan mode toggle requested: ${payload.enabled}`);
-			vscode.commands.executeCommand('copilot-cli-extension.togglePlanMode', payload.enabled);
+			if (payload.enabled) {
+				await ctx.sessionHost?.enablePlanMode();
+			} else {
+				await ctx.sessionHost?.disablePlanMode();
+			}
 		}));
 
 		ctx.reg(ctx.rpcRouter.onSubagentPopout((payload) => {
 			vscode.commands.executeCommand('copilot-cli-extension.openSubagentPanel', payload.agentId);
 		}));
 
-		ctx.reg(ctx.rpcRouter.onAcceptPlan(() => {
+		ctx.reg(ctx.rpcRouter.onAcceptPlan(async () => {
 			ctx.logger.info('Accept plan requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.acceptPlan');
+			await ctx.sessionHost?.acceptPlan();
 		}));
 
-		ctx.reg(ctx.rpcRouter.onRejectPlan(() => {
+		ctx.reg(ctx.rpcRouter.onRejectPlan(async () => {
 			ctx.logger.info('Reject plan requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.rejectPlan');
+			await ctx.sessionHost?.rejectPlan();
 		}));
 
 		// The slash-command services are *not* built here. They belong to the

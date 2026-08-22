@@ -103,6 +103,24 @@ export interface SessionManagerLike {
     selectAgent(agentName: string): Promise<void>;
     deselectAgent(): Promise<void>;
     reloadAgents(): Promise<void>;
+
+    // Plan mode, teardown and the read-only queries. These reached the module-level
+    // `sessionManager` until P3 — the handle that answers "whichever session started
+    // last" once a second surface exists.
+    enablePlanMode(): Promise<void>;
+    disablePlanMode(): Promise<void>;
+    acceptPlan(): Promise<void>;
+    rejectPlan(): Promise<void>;
+    stop(): Promise<void>;
+    // `any` rather than the SDK's `ModelInfo[]` / `McpServer[]` on purpose, matching
+    // `compactSession(): Promise<any>` above. This module imports neither `vscode`
+    // nor the SDK so it stays requirable from plain mocha and portable to v4.0;
+    // importing SDK types for these signatures would spend that for decoration.
+    getPlanFilePath(): string | undefined;
+    getAvailableModels(): Promise<any[]>;
+    validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }>;
+    listMcpServers(): Promise<any[]>;
+    listConfiguredMcpServers(): Promise<Record<string, any>>;
 }
 
 export interface PromptOptions {
@@ -591,6 +609,88 @@ export class ChatSessionHost {
      */
     public async rename(name: string): Promise<void> {
         await this.#manager?.sendMessage(`/rename ${name}`);
+    }
+
+    // ── Plan mode ────────────────────────────────────────────────────────────
+
+    public async enablePlanMode(): Promise<void> {
+        if (!this.requireLive('enter plan mode')) { return; }
+        await this.#manager!.enablePlanMode();
+    }
+
+    public async disablePlanMode(): Promise<void> {
+        if (!this.requireLive('leave plan mode')) { return; }
+        await this.#manager!.disablePlanMode();
+    }
+
+    public async acceptPlan(): Promise<void> {
+        if (!this.requireLive('accept the plan')) { return; }
+        await this.#manager!.acceptPlan();
+    }
+
+    public async rejectPlan(): Promise<void> {
+        if (!this.requireLive('reject the plan')) { return; }
+        await this.#manager!.rejectPlan();
+    }
+
+    /**
+     * End this session's CLI process. The host stays and can start again — this is
+     * not `dispose()`, which ends the host itself.
+     */
+    public async stop(): Promise<void> {
+        if (!this.requireLive('stop the session')) { return; }
+        const manager = this.#manager!;
+        this.markStopped();
+        await manager.stop();
+    }
+
+    // ── Queries ──────────────────────────────────────────────────────────────
+    //
+    // Silent when there is no session, unlike the commands above: a query is
+    // something the extension asked, not something the user did, and answering an
+    // unasked question with a chat message is noise.
+
+    /** Where this session's `plan.md` lives, or `null` if there is no session. */
+    public planFilePath(): string | null {
+        return this.#manager?.getPlanFilePath() ?? null;
+    }
+
+    public async availableModels(): Promise<any[]> {
+        return (await this.#manager?.getAvailableModels()) ?? [];
+    }
+
+    public async validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }> {
+        if (!this.#manager) {
+            return { valid: false, error: 'Session not active' };
+        }
+        return this.#manager.validateAttachments(filePaths);
+    }
+
+    public async listMcpServers(): Promise<any[]> {
+        return (await this.#manager?.listMcpServers()) ?? [];
+    }
+
+    public async listConfiguredMcpServers(): Promise<Record<string, any>> {
+        return (await this.#manager?.listConfiguredMcpServers()) ?? {};
+    }
+
+    /**
+     * Guard for a user gesture that needs a running session.
+     *
+     * Says so on *this host's* surface rather than returning quietly. Every one of
+     * these verbs used to be a `sessionManager` call in `extension.ts` guarded by
+     * `if (!sessionManager || !sessionManager.isRunning())` and a window-wide toast;
+     * a toast cannot say which of two open chats it is about, and a silent return
+     * says nothing at all — which is how the wrong-session plan bug survived a whole
+     * cycle (§8).
+     */
+    private requireLive(gesture: string): boolean {
+        if (this.#manager) {
+            return true;
+        }
+        this.logger.warn(`[ChatSessionHost ${this.handle}] cannot ${gesture} — no active session`);
+        this.surface?.addAssistantMessage(`⚠ No active session — cannot ${gesture}.`);
+        return false;
     }
 
     /** Stop routing whatever manager is currently attached. */

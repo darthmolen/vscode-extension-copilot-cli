@@ -126,4 +126,83 @@ describe('registerChatHandlers', () => {
         expect(first.registered.get('onSwitchModel'))
             .to.not.equal(second.registered.get('onSwitchModel'));
     });
+
+    /**
+     * Defect C, as a test (v3.13.0 P3 step 1).
+     *
+     * Plan mode arrived here with its surface fully known — one router per surface,
+     * closed over one `sessionHost` — and then `executeCommand('…togglePlanMode')`
+     * threw that identity away on the very next line, so the command handler read
+     * the module-level `sessionManager` and drove whichever session started last.
+     * Typing `/plan` in a tab toggled the sidebar.
+     *
+     * A resolver would be machinery to reconstruct what we chose to discard. The
+     * fix is to stop discarding it, and these assert that: the signal must reach
+     * *this* context's host and no other.
+     */
+    describe('plan-mode signals reach the surface\'s own session', () => {
+        function hostSpy() {
+            const calls = [];
+            return {
+                calls,
+                enablePlanMode: async () => { calls.push('enablePlanMode'); },
+                disablePlanMode: async () => { calls.push('disablePlanMode'); },
+                acceptPlan: async () => { calls.push('acceptPlan'); },
+                rejectPlan: async () => { calls.push('rejectPlan'); }
+            };
+        }
+
+        function wire(host) {
+            const router = recordingRouter();
+            const ctx = makeContext(router);
+            ctx.sessionHost = host;
+            registerChatHandlers(ctx);
+            return router;
+        }
+
+        it('togglePlanMode enables and disables this host, never another', async () => {
+            const a = hostSpy();
+            const b = hostSpy();
+            const routerA = wire(a);
+            wire(b);
+
+            await routerA.registered.get('onTogglePlanMode')({ enabled: true });
+            await routerA.registered.get('onTogglePlanMode')({ enabled: false });
+
+            expect(a.calls).to.deep.equal(['enablePlanMode', 'disablePlanMode']);
+            expect(b.calls, 'the other surface\'s session was toggled').to.have.lengthOf(0);
+        });
+
+        it('acceptPlan reaches this host, never another', async () => {
+            const a = hostSpy();
+            const b = hostSpy();
+            const routerA = wire(a);
+            wire(b);
+
+            await routerA.registered.get('onAcceptPlan')();
+
+            expect(a.calls).to.deep.equal(['acceptPlan']);
+            expect(b.calls).to.have.lengthOf(0);
+        });
+
+        it('rejectPlan reaches this host, never another', async () => {
+            const a = hostSpy();
+            const b = hostSpy();
+            const routerA = wire(a);
+            wire(b);
+
+            await routerA.registered.get('onRejectPlan')();
+
+            expect(a.calls).to.deep.equal(['rejectPlan']);
+            expect(b.calls).to.have.lengthOf(0);
+        });
+
+        it('a surface with no host at all does not throw', async () => {
+            const router = recordingRouter();
+            registerChatHandlers(makeContext(router));
+            await router.registered.get('onTogglePlanMode')({ enabled: true });
+            await router.registered.get('onAcceptPlan')();
+            await router.registered.get('onRejectPlan')();
+        });
+    });
 });
