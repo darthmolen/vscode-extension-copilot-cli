@@ -1186,7 +1186,32 @@ function wireManagerEvents(manager: SDKSessionManager, owner: ChatSessionHost): 
 				logger.info(`Session expired, new session created: ${statusData.newSessionId}`);
 				vscode.window.showInformationMessage(`Session expired. New session started: ${statusData.newSessionId}`);
 				break;
-			case 'plan_mode_enabled':
+			case 'plan_mode_enabled': {
+				// P4's record, written once at plan-session creation.
+				//
+				// `planSessionId` comes off the event; it is deliberately *not*
+				// derived here from the `-plan` suffix. Deriving it would make this
+				// a second place that knows the convention, inside the change whose
+				// whole purpose is to reduce the count from two to one — and that
+				// count is the cost of ever adopting the CLI's native plan mode.
+				//
+				// Absent on a manager that predates the field, in which case nothing
+				// is written and `resolvePairings` falls back to the suffix, exactly
+				// as it does for every plan session already on disk.
+				//
+				// Read through a local widening rather than declared: `StatusData`
+				// lives in `sdkSessionManager.ts`, which is Lane A's file, and the
+				// field exists on their branch. The cast is what lets this ship now
+				// and start working on their merge without either lane editing the
+				// other's file; it becomes redundant, and harmless, at that point.
+				const planSessionId = (statusData as { planSessionId?: string }).planSessionId;
+				if (planSessionId && owner.sessionId) {
+					SessionService.writeSessionPairing(sessionStatePath(planSessionId), owner.sessionId);
+					logger.info(`[Plan Mode] paired ${planSessionId} → ${owner.sessionId}`);
+				}
+				updateSessionsList();
+				break;
+			}
 			case 'plan_mode_disabled':
 				updateSessionsList();
 				break;

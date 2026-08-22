@@ -178,6 +178,31 @@ export const SessionService = {
         } catch { /* never throw */ }
     },
 
+    /**
+     * Records that this session is the plan half of another one.
+     *
+     * Written **on the plan session**, pointing at its work session: child→parent,
+     * one writer, written once. A second plan pass later is a new child record,
+     * never an edit to the parent — which is what makes it safe with no locking.
+     *
+     * The `-plan` suffix is *not* how the caller learns the plan session's id.
+     * `plan_mode_enabled` carries `planSessionId`, so writing this record does not
+     * make `extension.ts` a second place that knows the convention — see
+     * `sessionPairing.ts`, which is meant to be the only one.
+     *
+     * Never throws: plan mode has already succeeded by the time this runs, and
+     * failing to write the note down must not surface as a failed plan mode.
+     */
+    writeSessionPairing(planSessionPath: string, workSessionId: string): void {
+        try {
+            fs.writeFileSync(
+                path.join(planSessionPath, 'session-pairing.json'),
+                JSON.stringify({ workSessionId }, null, 2),
+                'utf-8'
+            );
+        } catch { /* never throw */ }
+    },
+
     /** The model this session last recorded, or `null` if it never did. */
     readSessionModel(sessionPath: string): string | null {
         try {

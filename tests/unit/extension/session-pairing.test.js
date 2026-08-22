@@ -35,6 +35,70 @@ const { resolvePairings } = require(
     path.join(__dirname, '../../..', 'out', 'extension', 'session', 'sessionPairing.js')
 );
 
+const { SessionService } = require(
+    path.join(__dirname, '../../..', 'out', 'extension', 'services', 'SessionService.js')
+);
+
+/**
+ * The writer half. It reads `planSessionId` off `plan_mode_enabled`, which Lane A
+ * publishes — so `extension.ts` never derives the id from the `-plan` suffix, and
+ * P4 does not add a third knower of the convention inside the change whose whole
+ * purpose is to reduce the count.
+ */
+describe('session-pairing.json', () => {
+    let dir;
+
+    beforeEach(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pairing-write-'));
+    });
+
+    afterEach(() => {
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('is written on the plan session, pointing at its work session', () => {
+        // Child→parent, one writer, written once. A second plan later is a new
+        // child record, never an edit to the parent.
+        const planDir = path.join(dir, 'work-plan');
+        fs.mkdirSync(planDir, { recursive: true });
+
+        SessionService.writeSessionPairing(planDir, 'work');
+
+        const record = JSON.parse(fs.readFileSync(path.join(planDir, 'session-pairing.json'), 'utf-8'));
+        expect(record.workSessionId).to.equal('work');
+    });
+
+    it('is what resolvePairings then reads', () => {
+        // The two halves have to agree on the field name. Asserting the shape in
+        // both places independently is how they drift; this compares values.
+        const planDir = path.join(dir, 'anything-at-all');
+        fs.mkdirSync(planDir, { recursive: true });
+        fs.mkdirSync(path.join(dir, 'the-parent'), { recursive: true });
+
+        SessionService.writeSessionPairing(planDir, 'the-parent');
+        const index = resolvePairings(dir, ['the-parent', 'anything-at-all']);
+
+        expect(index.roleOf('anything-at-all')).to.equal('plan');
+        expect(index.workIdFor('anything-at-all')).to.equal('the-parent');
+    });
+
+    it('never throws when the directory does not exist yet', () => {
+        // Plan mode has already succeeded by the time this runs. Failing to write
+        // the note down must not surface as a failed plan mode.
+        SessionService.writeSessionPairing(path.join(dir, 'no-such-session'), 'work');
+    });
+
+    it('does not disturb a session name written beside it', () => {
+        const planDir = path.join(dir, 'work-plan');
+        fs.mkdirSync(planDir, { recursive: true });
+        SessionService.writeSessionName(planDir, 'A plan');
+
+        SessionService.writeSessionPairing(planDir, 'work');
+
+        expect(fs.readFileSync(path.join(planDir, 'session-name.txt'), 'utf-8')).to.equal('A plan');
+    });
+});
+
 describe('resolvePairings', () => {
     let dir;
 
