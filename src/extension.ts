@@ -28,6 +28,7 @@ import { planSessionStart } from './extension/session/sessionStartPlan';
 import { planSessionSwitch } from './extension/session/sessionSwitchPlan';
 import { resolveCommandSurface } from './extension/webview/commandSurface';
 import { chooseStartupModel } from './extension/session/sessionModel';
+import { chooseSessionToResume } from './extension/session/sessionToResume';
 import { createStartManager } from './extension/session/startManager';
 import { recordSessionStart, loadTranscriptInto } from './extension/session/sessionBootstrap';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
@@ -835,6 +836,7 @@ async function handleSwitchSession(
 			// Its tab was closed and the host is still alive. Attaching is the whole
 			// reconnect — starting anything here is what produced the second manager.
 			logger.info(`[Switch Session] reattaching to live host ${plan.host.handle} for ${sessionId}`);
+			noteSidebarChoice(context, surface, sessionId);
 			releaseCurrentHost(surface);
 			// Attaching cancels the wind-down this host was on, which is the whole
 			// reconnect: a closed tab's session, picked from the dropdown, comes
@@ -848,6 +850,7 @@ async function handleSwitchSession(
 		}
 
 		case 'resume': {
+			noteSidebarChoice(context, surface, sessionId);
 			const host = requester ?? sidebarHost;
 			if (host.isLive) {
 				await host.stop();
@@ -864,6 +867,23 @@ async function handleSwitchSession(
 			updateSessionsList();
 			return;
 		}
+	}
+}
+
+/**
+ * A session change on the sidebar is the choice worth remembering.
+ *
+ * Only the sidebar: a tab's choice is already persisted by the panel serializer,
+ * and letting a tab write here would make "the sidebar's session" mean "whichever
+ * surface last switched", which is the class of bug P3 spent itself removing.
+ */
+function noteSidebarChoice(
+	context: vscode.ExtensionContext,
+	surface: WebviewChatSurface,
+	sessionId: string | null
+): void {
+	if (surface === sidebarSurface) {
+		recordSidebarSession(context, sessionId);
 	}
 }
 
@@ -961,6 +981,32 @@ async function handleViewDiff(message: any): Promise<void> {
 
 
 
+/**
+ * Where the sidebar's own session choice is written down.
+ *
+ * `workspaceState`, not global config: it is a fact about this window's chat, not a
+ * setting the user manages. Tabs need no equivalent — the panel serializer already
+ * persists each panel's session id, which is why this defect was only ever visible
+ * in the sidebar.
+ */
+const SIDEBAR_SESSION_KEY = 'copilotCLI.sidebarSessionId';
+
+/**
+ * Remember which session the sidebar is on.
+ *
+ * CLAUDE.md's *"intentional actions are treated intentionally"*: switching to a
+ * session is a gesture, and a gesture that is honoured but not recorded loses to
+ * the standing heuristic at the next reload — which is exactly what
+ * `getMostRecentSession` was doing.
+ */
+function recordSidebarSession(context: vscode.ExtensionContext, sessionId: string | null): void {
+	if (!sessionId) {
+		return;
+	}
+	void context.workspaceState.update(SIDEBAR_SESSION_KEY, sessionId);
+	logger.debug(`[Session] recorded the sidebar's session: ${sessionId}`);
+}
+
 async function determineSessionToResume(context: vscode.ExtensionContext): Promise<string | null> {
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -976,14 +1022,30 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 	// already resumed. Without this, restoring a chat tab on reload and then asking
 	// for "the last session" hands the sidebar the tab's own session, because it was
 	// the last one written to.
-	const sessionId = SessionService.getMostRecentSession(
+	const liveSessionIds = sessionRegistry.liveSessionIds();
+	const mostRecent = SessionService.getMostRecentSession(
 		sessionStateDir,
 		workspaceFolder,
 		filterByFolder,
-		sessionRegistry.liveSessionIds()
+		liveSessionIds
 	);
+
+	// The recorded choice first, the mtime heuristic second. Without this, switching
+	// to an older session and reading it without sending anything left no trace —
+	// reload and you were back on the newer one.
+	const sessionId = chooseSessionToResume({
+		recorded: context.workspaceState.get<string>(SIDEBAR_SESSION_KEY) ?? null,
+		mostRecent,
+		isAvailable: (id) =>
+			!liveSessionIds.includes(id) &&
+			require('fs').existsSync(path.join(sessionStateDir, id))
+	});
+
 	if (sessionId) {
-		logger.info(`Determined session to resume: ${sessionId}`);
+		logger.info(
+			`Determined session to resume: ${sessionId}` +
+			(sessionId === mostRecent ? '' : ' (the recorded choice, not the most recent)')
+		);
 	} else {
 		logger.info('No session to resume');
 	}
@@ -1057,6 +1119,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		await manager.start();
 
 		onSessionStarted(manager, target, config.model);
+		// A new session started in the sidebar is a choice too — otherwise the
+		// mtime heuristic could hand the sidebar something else on the next reload,
+		// and the conversation you just started would be the one that lost.
+		if (target === sidebarHost) {
+			recordSidebarSession(context, manager.getSessionId());
+		}
 		return manager;
 	} catch (error) {
 		await handleStartupError(error, context, resumeLastSession, specificSessionId);
