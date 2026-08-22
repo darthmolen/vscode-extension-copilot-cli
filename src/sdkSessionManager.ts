@@ -265,6 +265,15 @@ export interface StatusData {
     resetMetrics?: boolean;  // For reset_metrics
     postCompactionTokens?: number;  // For reset_metrics after compaction
     summary?: string | null;  // For plan_ready
+    /**
+     * The plan session's id. For `plan_mode_enabled`.
+     *
+     * Published because it is derived here as `${workSessionId}-plan` and a consumer
+     * that needs it would otherwise have to re-derive it from the suffix — becoming a
+     * second place that knows what `-plan` means. The cost of ever adopting the CLI's
+     * native plan mode is however many places know that; this keeps the number at one.
+     */
+    planSessionId?: string;
     model?: string;  // For model_switched / model_switch_failed
     name?: string;  // For session_renamed
 }
@@ -1442,6 +1451,28 @@ export class SDKSessionManager implements vscode.Disposable {
         }
     }
 
+    /**
+     * Announce that plan mode is on, naming the session that now holds it.
+     *
+     * A method rather than an inline `fire` so the payload is testable without a live
+     * CLI — `enablePlanMode` creates a real SDK session, and the only part a consumer
+     * depends on is this shape.
+     *
+     * The id matters more than it looks. P4 writes a pairing record **into the plan
+     * session's directory**, so a consumer without this value would have to rebuild the
+     * id from the `-plan` suffix, becoming a second place that knows the convention —
+     * inside the change whose purpose is to reduce that count to one.
+     */
+    private announcePlanModeEnabled(planSessionId: string | undefined): void {
+        this._onDidChangeStatus.fire({
+            status: 'plan_mode_enabled',
+            // Falling back to the derivation keeps the event well-formed if a future
+            // caller loses the id, rather than publishing an announcement a consumer
+            // cannot act on. It is the one place the suffix may still be spelled.
+            planSessionId: planSessionId ?? `${this.workSessionId}-plan`
+        });
+    }
+
     private getCustomTools(): any[] {
         // Plan mode: return tools from PlanModeToolsService
         if (this.currentMode === 'plan') {
@@ -2261,7 +2292,7 @@ export class SDKSessionManager implements vscode.Disposable {
             
             // Notify UI
             this.logger.info(`[Plan Mode]   Emitting plan_mode_enabled status event`);
-            this._onDidChangeStatus.fire({ status: 'plan_mode_enabled' });
+            this.announcePlanModeEnabled(planSessionId);
             this.logger.info(`[Plan Mode]   ✅ Status event emitted`);
             
             // Send visual message to chat
