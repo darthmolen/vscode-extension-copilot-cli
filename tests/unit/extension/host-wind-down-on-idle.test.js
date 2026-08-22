@@ -13,11 +13,13 @@
  * away, and if the host is not working when the surface goes there may be no
  * further transition at all, so that case winds down at once.
  *
- * The busy signal is the turn status the host already routes (`thinking` /
- * `ready`, from `assistant.turn_start` / `assistant.turn_end`). The SDK's stricter
- * `session.idle` — which also waits on background agents and attached shells —
- * lives in `sdkSessionManager.ts`, which is Lane A's file; see
- * `cross-talk:planning/cross-talk/B-to-A-02-session-idle-for-wind-down.md`.
+ * **Two busy signals, and the stricter one wins where it exists.** Lane A shipped
+ * `onDidBecomeIdle` on a non-replaying `SignalEmitter` — `session.idle` filtered to
+ * session-level events, so a *sub-agent* going quiet cannot fire it while the
+ * parent is still working. Where a manager offers it, that is what the countdown
+ * waits for. Where it does not, the host falls back to the turn status it already
+ * routes (`thinking` / `ready`), which is blind to background agents and attached
+ * shells. See `cross-talk:planning/cross-talk/B-to-A-03-session-idle-for-wind-down.md`.
  */
 
 const { describe, it, beforeEach } = require('mocha');
@@ -33,7 +35,16 @@ const { WorkspaceRuntimeState } = require(
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
-/** A manager whose status stream the test drives by hand. */
+/**
+ * A manager whose status stream the test drives by hand, and which **does not**
+ * offer `onDidBecomeIdle`.
+ *
+ * The exclusion is load-bearing and was found the hard way: the `onDid*` catch-all
+ * below happily invented an `onDidBecomeIdle`, so the host believed every fake
+ * reported true idleness and the turn-status fallback stopped being exercised at
+ * all. A fake that answers a question it was never taught is the same defect as a
+ * fake that lies — it just fails on the branch nobody looked at.
+ */
 function makeFakeManager() {
     let statusHandler = () => {};
     const noop = () => ({ dispose() {} });
@@ -43,15 +54,39 @@ function makeFakeManager() {
         onDidChangeStatus: (handler) => { statusHandler = handler; return { dispose() {} }; },
         emitStatus: (status) => statusHandler({ status })
     }, {
-        get: (target, prop) => prop in target
-            ? target[prop]
-            : (typeof prop === 'string' && prop.startsWith('onDid') ? noop : (typeof prop === 'string' ? async () => {} : undefined))
+        get: (target, prop) => {
+            if (prop in target) { return target[prop]; }
+            // The whole point of this fake: it cannot report true idleness.
+            if (prop === 'onDidBecomeIdle') { return undefined; }
+            if (typeof prop === 'string' && prop.startsWith('onDid')) { return noop; }
+            return typeof prop === 'string' ? async () => {} : undefined;
+        }
     });
     return manager;
 }
 
 function makeFakeSurface() {
     return new Proxy({}, { get: () => () => {} });
+}
+
+/** A manager that also offers Lane A's stricter idle signal. */
+function makeIdleAwareManager() {
+    let idleHandler = null;
+    const base = makeFakeManager();
+    // Wrapped rather than assigned: the base is a Proxy that denies this key on
+    // purpose, so a plain assignment would be swallowed.
+    return new Proxy(base, {
+        get: (target, prop) => {
+            if (prop === 'onDidBecomeIdle') {
+                return (handler) => { idleHandler = handler; return { dispose() {} }; };
+            }
+            if (prop === 'emitIdle') {
+                return () => idleHandler && idleHandler();
+            }
+            return target[prop];
+        },
+        set: (target, prop, value) => { target[prop] = value; return true; }
+    });
 }
 
 describe('an orphaned host winds down', () => {
@@ -165,6 +200,103 @@ describe('an orphaned host winds down', () => {
         expect(orphan.manager.disposed).to.equal(true);
         expect(watched.manager.disposed).to.equal(false);
         expect(registry.get('session-b')).to.equal(watched.host);
+    });
+
+    describe('with a manager that reports true idleness', () => {
+        function idleAware(sessionId) {
+            const host = registry.create(sessionId);
+            const manager = makeIdleAwareManager();
+            const surface = makeFakeSurface();
+            host.attachSurface(surface);
+            host.attachManager(manager);
+            return { host, manager, surface };
+        }
+
+        it('waits for the idle signal, not for the turn to end', () => {
+            // The gap turn status cannot see: the assistant's turn ended, but a
+            // background agent or an attached shell is still running. Winding down
+            // there kills work the user only stopped watching.
+            const { host, manager, surface } = idleAware('session-a');
+            manager.emitStatus('thinking');
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            manager.emitStatus('ready');
+
+            expect(manager.disposed, 'wound down on turn-end while the session was still busy')
+                .to.equal(false);
+
+            manager.emitIdle();
+
+            expect(manager.disposed).to.equal(true);
+        });
+
+        it('winds down at once when the session was already idle', () => {
+            const { host, manager, surface } = idleAware('session-a');
+            manager.emitStatus('thinking');
+            manager.emitIdle();
+
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            expect(manager.disposed).to.equal(true);
+        });
+
+        it('treats a session that has never worked as idle', () => {
+            // Nothing has been asked of it, so there is no turn to wait for and no
+            // idle signal will ever arrive.
+            const { host, manager, surface } = idleAware('session-a');
+
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            expect(manager.disposed).to.equal(true);
+        });
+
+        it('a reattach before the signal cancels the countdown', () => {
+            const { host, manager, surface } = idleAware('session-a');
+            manager.emitStatus('thinking');
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            host.attachSurface(makeFakeSurface());
+            manager.emitIdle();
+
+            expect(manager.disposed).to.equal(false);
+        });
+
+        it('an exit still ends it, signal or no signal', () => {
+            const { host, manager, surface } = idleAware('session-a');
+            manager.emitStatus('thinking');
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            manager.emitStatus('exited');
+
+            expect(manager.disposed).to.equal(true);
+        });
+
+        it('does not carry idleness across a manager swap', () => {
+            // A new manager has said nothing yet. Inheriting the last one's quiet
+            // would arm a countdown against a session that may be working.
+            const host = registry.create('session-a');
+            const first = makeIdleAwareManager();
+            const surface = makeFakeSurface();
+            host.attachSurface(surface);
+            host.attachManager(first);
+            first.emitStatus('thinking');
+            first.emitIdle();
+
+            const second = makeIdleAwareManager();
+            host.attachManager(second);
+            second.emitStatus('thinking');
+            host.detachSurface(surface);
+            host.releaseWhenIdle();
+
+            expect(second.disposed, 'a fresh manager inherited the old one\'s state').to.equal(false);
+            second.emitIdle();
+            expect(second.disposed).to.equal(true);
+        });
     });
 
     it('a host with no session id still winds down — it is not reachable by id', () => {

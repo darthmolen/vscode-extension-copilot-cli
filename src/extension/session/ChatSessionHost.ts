@@ -130,6 +130,20 @@ export interface SessionManagerLike {
     listMcpServers(): Promise<any[]>;
     listConfiguredMcpServers(): Promise<Record<string, any>>;
     forkSession(sourceSessionId: string, opts?: { sessionStateDir?: string }): Promise<string>;
+    /**
+     * The session is quiet — no turn, no background agents, no attached shells.
+     *
+     * **Optional, and the host degrades honestly without it.** A manager that
+     * cannot say this leaves the wind-down reading turn status instead, which is
+     * blind to work that outlives the assistant's turn.
+     *
+     * A *signal*, not a state: it fires on every idle, is never replayed to a late
+     * subscriber, and must be armed and re-armed rather than latched. Lane A's
+     * emitter enforces that — a replayed signal is a lie about the present — and
+     * filters out sub-agent idles, which would otherwise fire while the parent is
+     * still working.
+     */
+    onDidBecomeIdle?(handler: () => void): Unsubscribe;
     /** End it. The host owns this — see `ChatSessionHost.dispose`. */
     dispose(): void;
 }
@@ -254,12 +268,19 @@ export class ChatSessionHost {
     private readonly onAdoptSessionId?: (host: ChatSessionHost, previousSessionId: string | null) => void;
     private readonly onReleased?: (host: ChatSessionHost) => void;
     /**
-     * Whether this session is working right now.
+     * Whether this session has nothing in flight.
      *
-     * Tracked from the turn status the host already routes rather than asked of the
-     * manager, so nothing new crosses into `sdkSessionManager.ts`.
+     * Two sources, and the stricter one wins. A manager offering `onDidBecomeIdle`
+     * reports true quiet — turn, background agents and attached shells. One that
+     * does not leaves this tracking `thinking` / `ready`, which says only that the
+     * assistant's turn ended.
+     *
+     * Starts `true`: a session nothing has been asked of has no turn to wait for,
+     * and no idle will ever arrive for it.
      */
-    private inTurn = false;
+    private quiet = true;
+    /** Whether this host's manager reports true idleness, or only turn boundaries. */
+    private hasIdleSignal = false;
     /** A wind-down is armed and waiting for this session to finish its turn. */
     private releasePending = false;
     private builtServices?: ChatSessionServices;
@@ -462,7 +483,8 @@ export class ChatSessionHost {
      *
      *  - **Idle is a transition, not a state.** If this session is not working when
      *    the surface goes, there may never be another transition to wait for — so
-     *    that case ends now rather than living forever.
+     *    that case ends now rather than living forever. This is why the host tracks
+     *    quiet itself rather than waiting on a signal that may never come.
      *  - **Any reattach cancels it.** Reselecting a closed tab's session from the
      *    dropdown finds this host through the registry and attaches to it; the
      *    countdown must not fire afterwards.
@@ -476,7 +498,7 @@ export class ChatSessionHost {
         if (this.surface) {
             return;
         }
-        if (!this.inTurn) {
+        if (this.quiet) {
             this.logger.info(`[ChatSessionHost ${this.handle}] no surface and nothing running — winding down`);
             this.release();
             return;
@@ -517,6 +539,16 @@ export class ChatSessionHost {
         }
         this.releaseWindowSubscriptions();
         this.#manager = manager;
+        // A new manager has said nothing yet. Inheriting the last one's quiet would
+        // arm a countdown against a session that may be working.
+        this.quiet = true;
+        this.hasIdleSignal = typeof manager.onDidBecomeIdle === 'function';
+        if (manager.onDidBecomeIdle) {
+            this.subscribe(manager.onDidBecomeIdle(() => {
+                this.quiet = true;
+                this.releaseIfPending();
+            }));
+        }
 
         this.subscribe(manager.onDidReceiveOutput(({ content, messageId }) => {
             this.surface?.addAssistantMessage(content, messageId);
@@ -598,17 +630,24 @@ export class ChatSessionHost {
     private applyStatus(statusData: { status: string; model?: string; newSessionId?: string }): void {
         switch (statusData.status) {
             case 'thinking':
-                this.inTurn = true;
+                this.quiet = false;
                 this.surface?.setThinking(true);
                 break;
             case 'ready':
-                this.inTurn = false;
+                // Turn-end only means the *assistant* stopped. Where the manager can
+                // report true idleness, wait for it — a background agent or an
+                // attached shell outliving the turn is exactly the work a wind-down
+                // must not interrupt.
+                if (!this.hasIdleSignal) {
+                    this.quiet = true;
+                }
                 this.surface?.setThinking(false);
                 this.releaseIfPending();
                 break;
             case 'exited':
             case 'stopped':
-                this.inTurn = false;
+                // An ending is an ending; no idle is coming for a dead session.
+                this.quiet = true;
                 // No longer live, so a later `ensureStarted()` may bring it back
                 // rather than assuming a session is still running.
                 this.markStopped();
@@ -654,7 +693,7 @@ export class ChatSessionHost {
 
     /** The armed wind-down, now that this session has stopped working. */
     private releaseIfPending(): void {
-        if (this.releasePending && !this.surface) {
+        if (this.releasePending && this.quiet && !this.surface) {
             this.logger.info(`[ChatSessionHost ${this.handle}] idle and unwatched — winding down`);
             this.release();
         }
