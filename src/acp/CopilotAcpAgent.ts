@@ -152,6 +152,19 @@ export interface CopilotAcpAgentDeps {
      * mint a new id, because the client already holds the one it is asking for.
      */
     loadSession(params: { sessionId: string; cwd: string }): Promise<AcpSessionBackend>;
+    /**
+     * The stored sessions, newest first, optionally narrowed to one directory.
+     *
+     * Returns plain records rather than backends: listing must not start anything, or
+     * asking what exists would spawn a CLI process per session.
+     */
+    listSessions(params: { cwd?: string }): Promise<Array<{
+        sessionId: string; cwd: string; title?: string; updatedAt?: string;
+    }>>;
+    /** Copy an existing session and start a backend on the copy. */
+    forkSession(params: { sessionId: string; cwd: string }): Promise<AcpSessionBackend>;
+    /** Remove a session from the store. Destructive and not undoable. */
+    deleteSession(sessionId: string): Promise<void>;
 }
 
 /**
@@ -161,7 +174,23 @@ export interface CopilotAcpAgentDeps {
  */
 const ADVERTISED_CAPABILITIES = {
     loadSession: true,
-    promptCapabilities: { image: false, audio: false, embeddedContext: false }
+    promptCapabilities: { image: false, audio: false, embeddedContext: false },
+    // `{}` is how ACP spells "supported"; omitted or null mean not advertised.
+    //
+    // `close` is here because it was MISSING while the handler existed — a capability
+    // implemented and not advertised is unreachable for exactly the clients that check
+    // first, and it fails silently rather than loudly. The forward version of this
+    // hazard is noted above; this is its inverse.
+    //
+    // `resume` is deliberately absent. It resumes WITHOUT replaying, which is a
+    // different method from the `session/load` we serve, and advertising it would have
+    // a host call something nobody implemented.
+    sessionCapabilities: {
+        list: {},
+        fork: {},
+        delete: {},
+        close: {}
+    }
 } as const;
 
 /**
@@ -279,6 +308,42 @@ export class CopilotAcpAgent {
             return;
         }
         this.caps = advertised;
+    }
+
+    /**
+     * Cancel anything running on `sessionId`, release it, and stop addressing it.
+     *
+     * Shared by `session/close` and `session/delete` because both need exactly this
+     * and getting the order wrong is the same mistake in either: freeing a manager
+     * with a turn in flight pulls the CLI session out from under running work.
+     *
+     * Never throws. A backend whose teardown fails has still stopped being usable, and
+     * a delete must not be blocked by an untidy shutdown of the thing it is deleting.
+     */
+    private async releaseSession(sessionId: string): Promise<void> {
+        const backend = this.sessions.get(sessionId);
+        if (!backend) {
+            // A client cannot know we released it first, so this is a race rather than
+            // a fault. Erroring would turn ordinary shutdown into noise a host has to
+            // explain to someone.
+            this.deps.logger.info(`[ACP] nothing live to release for ${sessionId}`);
+            return;
+        }
+
+        // Dropped from the map first, and unconditionally. Keeping a backend
+        // addressable because its teardown threw would reintroduce the very leak this
+        // exists to prevent.
+        this.sessions.delete(sessionId);
+
+        try {
+            // "Treat it as if session/cancel was called" — and before releasing.
+            await backend.cancel();
+            await backend.close();
+            this.deps.logger.info(`[ACP] released session ${sessionId}`);
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            this.deps.logger.warn(`[ACP] session ${sessionId} did not shut down cleanly: ${reason}`);
+        }
     }
 
     /**
@@ -450,34 +515,65 @@ export class CopilotAcpAgent {
                 }
             };
         })
-        .onRequest('session/close', async ({ params }) => {
-            const backend = this.sessions.get(params.sessionId);
-            if (!backend) {
-                // A client cannot know we released it first, so closing something
-                // already gone is a race rather than a fault. Erroring here would turn
-                // ordinary shutdown into noise a host has to explain to someone.
-                this.deps.logger.info(`[ACP] session/close for a session already gone: ${params.sessionId}`);
-                return {};
-            }
-
-            // Dropped from the map first, and unconditionally. A backend whose
-            // teardown throws has still stopped being usable, and keeping it
-            // addressable because of that would reintroduce the very leak this
-            // method exists to prevent.
-            this.sessions.delete(params.sessionId);
-
+        .onRequest('session/list', async ({ params }) => {
+            // No backend is started here, deliberately: answering "what sessions exist"
+            // by spinning up a CLI process for each one would make a read of the store
+            // more expensive than opening a session.
+            const sessions = await this.deps.listSessions({ cwd: params?.cwd ?? undefined });
+            this.deps.logger.info(`[ACP] session/list → ${sessions.length} session(s)`);
+            return { sessions };
+        })
+        .onRequest('session/fork', async ({ params }) => {
+            const acpModule = await loadAcp();
+            let backend: AcpSessionBackend;
             try {
-                // "Treat it as if session/cancel was called" — and before releasing.
-                // Freeing a manager with a turn in flight pulls the CLI session out
-                // from under work that is still running.
-                await backend.cancel();
-                await backend.close();
-                this.deps.logger.info(`[ACP] session/close → ${params.sessionId}`);
+                backend = await this.deps.forkSession({ sessionId: params.sessionId, cwd: params.cwd });
             } catch (error) {
                 const reason = error instanceof Error ? error.message : String(error);
-                this.deps.logger.warn(`[ACP] session/close ${params.sessionId} did not shut down cleanly: ${reason}`);
+                this.deps.logger.error(`[ACP] session/fork ${params.sessionId} failed: ${reason}`);
+                throw acpModule.RequestError.internalError(undefined, reason);
             }
 
+            // Registered under the FORK's id, not the source's. The client is being
+            // handed a new handle and must be able to use it immediately — the same
+            // guarantee `session/new` makes.
+            this.sessions.set(backend.sessionId, backend);
+            this.forwardPermissionsTo(backend);
+            this.deps.logger.info(`[ACP] session/fork ${params.sessionId} → ${backend.sessionId}`);
+
+            return {
+                sessionId: backend.sessionId,
+                modes: {
+                    currentModeId: backend.currentModeId,
+                    availableModes: ACP_SESSION_MODES.map(m => ({ ...m }))
+                }
+            };
+        })
+        .onRequest('session/delete', async ({ params }) => {
+            const acpModule = await loadAcp();
+
+            // Shut it down first if it is running. Deleting the store underneath a
+            // live session would leave a manager driving a conversation whose history
+            // no longer exists.
+            await this.releaseSession(params.sessionId);
+
+            try {
+                await this.deps.deleteSession(params.sessionId);
+            } catch (error) {
+                // Loud, unlike `session/close`. Close is idempotent because a client
+                // cannot know we released first; delete is destructive, and reporting
+                // success for a deletion that did not happen leaves a host showing a
+                // session the user believes is gone.
+                const reason = error instanceof Error ? error.message : String(error);
+                this.deps.logger.error(`[ACP] session/delete ${params.sessionId} failed: ${reason}`);
+                throw acpModule.RequestError.internalError(undefined, reason);
+            }
+
+            this.deps.logger.info(`[ACP] session/delete → ${params.sessionId}`);
+            return {};
+        })
+        .onRequest('session/close', async ({ params }) => {
+            await this.releaseSession(params.sessionId);
             return {};
         })
         .onNotification('session/cancel', async ({ params }) => {

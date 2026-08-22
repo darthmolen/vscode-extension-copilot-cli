@@ -77,6 +77,15 @@ const loadSession = (conn, sessionId) => conn.agent.request(acp.methods.agent.se
     { sessionId, cwd: REPO_ROOT, mcpServers: [] });
 const cancel = (conn, sessionId) => conn.agent.notify(acp.methods.agent.session.cancel, { sessionId });
 
+/** Poll until `condition` holds, so a test waits on an effect rather than on a guess. */
+async function until(condition, message, timeoutMs = 2000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!condition()) {
+        if (Date.now() > deadline) { throw new Error(`timed out: ${message}`); }
+        await new Promise(r => setTimeout(r, 5));
+    }
+}
+
 describe('CopilotAcpAgent — session/load (IN-3)', () => {
     let h;
     beforeEach(() => { h = harness(); });
@@ -149,7 +158,13 @@ describe('CopilotAcpAgent — session/cancel (IN-3)', () => {
         const turn = h.conn.agent.request(acp.methods.agent.session.prompt, {
             sessionId, prompt: [{ type: 'text', text: 'take your time' }]
         });
-        await cancel(h.conn, sessionId);
+        cancel(h.conn, sessionId);
+
+        // Waiting on the notify() promise proves nothing: a notification has no reply,
+        // so it resolves once the message is SENT, not once the agent has handled it.
+        // Wait for the effect instead — this test passed by luck until an unrelated
+        // change shifted the timing.
+        await until(() => backend.cancels > 0, 'the cancel never reached the backend');
         finishTurn();
 
         expect((await turn).stopReason).to.equal('cancelled');

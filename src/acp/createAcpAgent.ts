@@ -92,6 +92,64 @@ export const readFileTextOrNull: FileTextReader = absolutePath => {
     }
 };
 
+/**
+ * The stored sessions, newest first, optionally narrowed to one directory.
+ *
+ * Newest first because a host renders this as a picker and the session someone wants
+ * is almost always the one they were last in. `SessionService.getAllSessions` reports
+ * mtime; ACP wants an ISO timestamp, so the ordering is done here where the number
+ * still exists rather than pushed onto a client that only gets the string.
+ */
+export function createSessionLister(sessionStateDir: string) {
+    return async (params: { cwd?: string }) => {
+        const all = SessionService.getAllSessions(sessionStateDir);
+        const scoped = params.cwd
+            ? SessionService.filterSessionsByFolder(all, params.cwd)
+            : all;
+
+        return scoped
+            .slice()
+            .sort((a, b) => b.mtime - a.mtime)
+            .map(session => ({
+                sessionId: session.id,
+                // `cwd` is required by ACP and our store may not know it — a session
+                // whose events.jsonl lacks a start event. The session still exists and
+                // is still loadable, so it is reported with an empty cwd rather than
+                // hidden, which would make it undeletable through the protocol too.
+                cwd: session.cwd ?? '',
+                title: SessionService.formatSessionLabel(session.id, path.join(sessionStateDir, session.id)),
+                updatedAt: new Date(session.mtime).toISOString()
+            }));
+    };
+}
+
+/**
+ * Remove a session from the store. Destructive and not undoable.
+ *
+ * The id arrives over a wire from a host we do not control, so it is untrusted input
+ * and `path.join(dir, id)` is not a containment check — `..` segments resolve happily
+ * outside the store. The resolved path is therefore verified to be a direct child of
+ * the store before anything is removed. Without that, one malformed id is an `rm -rf`
+ * on something that was never ours.
+ */
+export function createSessionDeleter(sessionStateDir: string) {
+    const root = path.resolve(sessionStateDir);
+
+    return async (sessionId: string) => {
+        const target = path.resolve(root, sessionId);
+
+        if (!sessionId || path.dirname(target) !== root || path.basename(target) !== sessionId) {
+            throw new Error(`refusing to delete "${sessionId}": not a session in this store`);
+        }
+        if (!fs.existsSync(target)) {
+            // Already gone is the state the caller asked for. Erroring would make a
+            // repeated delete — or a race with another surface — look like a fault.
+            return;
+        }
+        fs.rmSync(target, { recursive: true, force: true });
+    };
+}
+
 /** The CLI's own session store. */
 export const DEFAULT_SESSION_STATE_DIR = path.join(os.homedir(), '.copilot', 'session-state');
 
@@ -173,13 +231,34 @@ export function createSessionLoader(
     };
 }
 
+/**
+ * Copy a session and start a backend on the copy.
+ *
+ * Two steps that must stay in this order: `SessionService.forkSession` duplicates the
+ * directory and rewrites the `session.start` event so the CLI accepts the new id, and
+ * only then can a manager resume it. Starting first would attach to the source and
+ * every subsequent turn would be written into the session being forked from.
+ */
+export function createSessionForker(deps: AcpAgentCompositionDeps, sessionStateDir: string) {
+    return async ({ sessionId, cwd }: { sessionId: string; cwd: string }) => {
+        const forkedId = SessionService.forkSession(sessionId, sessionStateDir);
+        deps.logger.info(`[ACP] forked ${sessionId} → ${forkedId}`);
+        return createSessionLoader(deps)({ sessionId: forkedId, cwd });
+    };
+}
+
 /** Assemble the agent. See {@link createSessionStarter} for the part that matters. */
 export function createAcpAgent(deps: AcpAgentCompositionDeps): CopilotAcpAgent {
+    const sessionStateDir = deps.sessionStateDir ?? DEFAULT_SESSION_STATE_DIR;
+
     return new CopilotAcpAgent({
         logger: deps.logger,
         agentName: deps.agentName,
         agentVersion: deps.agentVersion,
         startSession: createSessionStarter(deps),
-        loadSession: createSessionLoader(deps)
+        loadSession: createSessionLoader(deps),
+        listSessions: createSessionLister(sessionStateDir),
+        forkSession: createSessionForker(deps, sessionStateDir),
+        deleteSession: createSessionDeleter(sessionStateDir)
     });
 }

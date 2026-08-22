@@ -118,3 +118,116 @@ describe('createAcpAgent — reading the two sides of a diff (IN-3 §4c.4)', () 
         expect(read()(dir)).to.equal(null);
     });
 });
+
+/**
+ * The session store, for `session/list` and `session/delete` (IN-3 §4c.6).
+ *
+ * `session/delete` removes a directory tree the user cannot get back, and the only
+ * thing standing between a session id and `rm -rf` is what this file asserts. The id
+ * arrives over a wire from a host we do not control, so it is untrusted input.
+ */
+describe('createAcpAgent — the session store (IN-3 §4c.6)', () => {
+    let stateDir;
+
+    const event = (type, data, timestamp = '2026-08-21T00:00:00.000Z') =>
+        JSON.stringify({ type, data, timestamp, id: 'e1', parentId: null });
+
+    const makeSession = (id, cwd) => {
+        fs.mkdirSync(path.join(stateDir, id), { recursive: true });
+        fs.writeFileSync(path.join(stateDir, id, 'events.jsonl'),
+            event('session.start', { context: { cwd } }) + '\n' +
+            event('user.message', { content: 'hello' }) + '\n');
+    };
+
+    const store = () => withoutVscode(() => require(COMPOSITION_PATH));
+
+    beforeEach(() => {
+        stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-store-'));
+        makeSession('alpha', '/w/one');
+        makeSession('beta', '/w/two');
+    });
+
+    afterEach(() => fs.rmSync(stateDir, { recursive: true, force: true }));
+
+    describe('listing', () => {
+        it('reports every stored session with its directory', async () => {
+            const sessions = await store().createSessionLister(stateDir)({});
+
+            expect(sessions.map(s => s.sessionId).sort()).to.deep.equal(['alpha', 'beta']);
+            expect(sessions.find(s => s.sessionId === 'alpha').cwd).to.equal('/w/one');
+        });
+
+        /**
+         * A host renders this as a picker, and the session someone wants is almost
+         * always the one they were last in. The ordering was documented in a comment
+         * and asserted nowhere until a mutation reversed it and nothing went red.
+         */
+        it('reports newest first', async () => {
+            const older = path.join(stateDir, 'alpha');
+            const newer = path.join(stateDir, 'beta');
+            fs.utimesSync(older, new Date('2026-01-01'), new Date('2026-01-01'));
+            fs.utimesSync(newer, new Date('2026-08-01'), new Date('2026-08-01'));
+
+            const sessions = await store().createSessionLister(stateDir)({});
+
+            expect(sessions.map(s => s.sessionId)).to.deep.equal(['beta', 'alpha']);
+        });
+
+        it('narrows to one directory when asked', async () => {
+            const sessions = await store().createSessionLister(stateDir)({ cwd: '/w/two' });
+
+            expect(sessions.map(s => s.sessionId)).to.deep.equal(['beta']);
+        });
+
+        it('reports an empty store rather than failing', async () => {
+            const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-empty-'));
+            expect(await store().createSessionLister(empty)({})).to.deep.equal([]);
+            fs.rmSync(empty, { recursive: true, force: true });
+        });
+    });
+
+    describe('deleting', () => {
+        it('removes the session directory', async () => {
+            await store().createSessionDeleter(stateDir)('alpha');
+
+            expect(fs.existsSync(path.join(stateDir, 'alpha'))).to.equal(false);
+            expect(fs.existsSync(path.join(stateDir, 'beta')), 'took the wrong one too').to.equal(true);
+        });
+
+        /**
+         * The guard that matters. A session id is untrusted input arriving over a wire,
+         * and `path.join(stateDir, '../../..')` resolves outside the store. Without
+         * this, one malformed or malicious id deletes something that was never ours.
+         */
+        it('refuses an id that escapes the session store', async () => {
+            const del = store().createSessionDeleter(stateDir);
+            const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-bystander-'));
+            fs.writeFileSync(path.join(outside, 'precious.txt'), 'do not delete me');
+
+            for (const id of ['../..', `../${path.basename(outside)}`, '/etc', 'alpha/../../..']) {
+                let refused = false;
+                try { await del(id); } catch { refused = true; }
+                expect(refused, `accepted an escaping id: ${id}`).to.equal(true);
+            }
+
+            expect(fs.existsSync(path.join(outside, 'precious.txt')), 'deleted outside the store')
+                .to.equal(true);
+            expect(fs.existsSync(path.join(stateDir, 'alpha')), 'deleted a real session by accident')
+                .to.equal(true);
+            fs.rmSync(outside, { recursive: true, force: true });
+        });
+
+        it('refuses an empty id rather than treating it as the store itself', async () => {
+            let refused = false;
+            try { await store().createSessionDeleter(stateDir)(''); } catch { refused = true; }
+
+            expect(refused).to.equal(true);
+            expect(fs.existsSync(stateDir), 'deleted the whole store').to.equal(true);
+        });
+
+        /** Deleting one that is already gone is the state the caller wanted. */
+        it('accepts deleting a session that is not there', async () => {
+            await store().createSessionDeleter(stateDir)('never-existed');
+        });
+    });
+});
