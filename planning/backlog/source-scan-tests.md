@@ -92,9 +92,44 @@ Both new suites use `tests/helpers/with-vscode-mock.js`, which restores
 `Module.prototype.require`, rather than the module-scope patch that never restores. That is one fewer
 contributor to the cross-file pollution tracked separately.
 
-**Next up in this backlog:** `unit/extension/model-default-on-start.test.js` (12),
-`integration/sidebar/sidebar-view-migration.test.js` (12) — both already partly gutted during Task 7
-— and `unit/extension/sdk-upgrade-0126.test.js` (11).
+### Done 2026-08-22 — the gate, and six more files
+
+**The gate exists**: `tests/unit/meta/no-new-source-scans.test.js`. A ratchet, not a sweep. It walks
+`tests/**`, flags any file that reads a path under `src/`, and fails **two ways** — a file not on the
+known list is the pile regrowing; a file on the list that no longer offends must be taken off. The
+second direction is the point: the list cannot go stale, and the only way through is down.
+
+It found four offenders a hand-written grep had missed, and one instructive false positive — it
+flagged `file-snapshot-hooks.test.js`, which reads only temp files and mentions `src/` **in a
+comment**. The gate was committing the exact defect it exists to catch, so it strips comments before
+matching. Recorded because it is the whole thesis in miniature: a string match that cannot tell code
+from prose is not a test.
+
+Cleared in the same pass, taking the list from 20 files to **15**:
+
+| File | Disposition |
+| --- | --- |
+| `model-default-on-start.test.js` | deleted — `sendAvailableModels` is covered behaviourally in `model-multiplier-pipeline`, the rest by the three `model-selector*` suites |
+| `model-multiplier-pipeline.test.js` | one type scan removed; the behavioural router test it already had stays |
+| `ensure-session-name-wired.test.js` | deleted — asserted *code ordering* by index arithmetic between two log-string landmarks; edit a log message and it breaks |
+| `start-new-session-planning.test.js` | scan block removed, pure-function tests kept |
+| `model-switch-rpc.test.js` | two scan blocks removed, five behavioural router tests kept |
+| `sidebar-view-migration.test.js` | six `src/*.ts` scans removed; `package.json` and CSS assertions kept |
+
+**The worst one found was not a text match.** Both tests in `start-new-session-planning`'s resume-safety
+block were shaped `if (fnMatch) { assert.ok(...) }` — so when the regex failed to find the function at
+all, **the test passed silently**. Rename either handler and the guard evaporates without a word. The
+property they gestured at — resuming must not silently enter plan mode — is real, is now asserted
+nowhere, and needs a live session rather than a regex; it belongs in the live-verification list.
+
+**Two categories are legitimate and stay**, which is what the allowlist is for: `package.json`
+assertions (the manifest *is* the contract with VS Code, and there is no runnable alternative short of
+launching it) and CSS breakpoints (JSDOM does not apply stylesheets, and a silently dropped media
+query is a real regression). Both are annotated in the gate with the reason.
+
+**Next up:** `sdk-upgrade-0126.test.js` (11), `streaming-rpc-flow.test.js` (7),
+`plan-mode-duplicate-tools.test.js` (7), `suppress-broken-sentence-bubble.test.js` (6), and the
+remainder of the fifteen.
 
 ## Proposed approach
 

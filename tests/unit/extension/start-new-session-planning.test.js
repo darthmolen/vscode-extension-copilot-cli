@@ -34,39 +34,18 @@ describe('shouldAutoEnablePlanMode()', function () {
 });
 
 /**
- * Resume-safety documentation tests.
+ * The "Resume paths never auto-enable plan mode" scans that lived here were deleted
+ * 2026-08-22. They read `src/extension.ts`, regex-matched two function bodies out of
+ * it, and asserted the text did not contain `enablePlanMode`.
  *
- * Verifies by code inspection that enablePlanMode() is never called from
- * resume code paths (handleOpenChat, handleSwitchSession, activate).
- * This is a structural test — if resume paths ever gain an enablePlanMode
- * call, these tests will fail, preventing accidental regression.
+ * They had a worse flaw than string matching. Both were shaped
+ * `if (fnMatch) { assert.ok(...) }` — so when the regex failed to find the function
+ * at all, the test **passed silently**. Rename or reshape either handler and the
+ * guard evaporates without a word, which is the opposite of what a regression test
+ * is for.
+ *
+ * The property they gestured at — resuming a session must not silently put it into
+ * plan mode — is real. It is not asserted anywhere now, and asserting it needs a
+ * live session rather than a regex, so it belongs in the live-verification list
+ * rather than in a test that cannot fail.
  */
-describe('Resume paths never auto-enable plan mode', function () {
-    let extensionSource;
-
-    before(function () {
-        extensionSource = fs.readFileSync(
-            path.join(__dirname, '../../../src/extension.ts'), 'utf-8'
-        );
-    });
-
-    it('handleSwitchSession does not call enablePlanMode', function () {
-        const fnMatch = extensionSource.match(
-            /async function handleSwitchSession[\s\S]*?^}/m
-        );
-        if (fnMatch) {
-            assert.ok(!fnMatch[0].includes('enablePlanMode'),
-                'handleSwitchSession must not call enablePlanMode');
-        }
-    });
-
-    it('handleOpenChat does not call enablePlanMode', function () {
-        const fnMatch = extensionSource.match(
-            /async function handleOpenChat[\s\S]*?^}/m
-        );
-        if (fnMatch) {
-            assert.ok(!fnMatch[0].includes('enablePlanMode'),
-                'handleOpenChat must not call enablePlanMode');
-        }
-    });
-});

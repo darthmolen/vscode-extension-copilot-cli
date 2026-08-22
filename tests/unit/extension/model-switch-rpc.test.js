@@ -119,104 +119,18 @@ describe('Model Switch RPC Contract', function () {
 	// WebviewRpcClient — source inspection
 	// ================================================================
 
-	describe('WebviewRpcClient model switch methods', function () {
-		let rpcClientSource;
-
-		before(function () {
-			rpcClientSource = fs.readFileSync(
-				path.join(__dirname, '..', '..', '..', 'src', 'webview', 'app', 'rpc', 'WebviewRpcClient.js'),
-				'utf-8'
-			);
-		});
-
-		it('has switchModel() send method', function () {
-			assert.ok(
-				/switchModel\s*\(/.test(rpcClientSource),
-				'WebviewRpcClient should have switchModel() method'
-			);
-			assert.ok(
-				rpcClientSource.includes("type: 'switchModel'"),
-				'switchModel() should send message with type switchModel'
-			);
-		});
-
-		it('has onModelSwitched() receive handler', function () {
-			assert.ok(
-				/onModelSwitched\s*\(/.test(rpcClientSource),
-				'WebviewRpcClient should have onModelSwitched() method'
-			);
-			assert.ok(
-				rpcClientSource.includes("'modelSwitched'"),
-				'onModelSwitched should register for modelSwitched type'
-			);
-		});
-
-		it('has onCurrentModel() receive handler', function () {
-			assert.ok(
-				/onCurrentModel\s*\(/.test(rpcClientSource),
-				'WebviewRpcClient should have onCurrentModel() method'
-			);
-			assert.ok(
-				rpcClientSource.includes("'currentModel'"),
-				'onCurrentModel should register for currentModel type'
-			);
-		});
-	});
-
-	// The three extension.ts source-scans that lived here were deleted in v3.13.0
-	// Task 5. They asserted that extension.ts's *text* contained 'model_switched',
-	// 'model_switch_failed' and 'sendModelSwitched' — matches a comment would have
-	// satisfied. The status handling moved to ChatSessionHost.applyStatus, where
-	// chat-session-host-routing.test.js covers it by running it: a switch records
-	// the model on the session's own state and tells that session's surface, and a
-	// failed switch tells the surface without recording anything.
-
-	// The source-scan that lived here was deleted in v3.13.0 Task 7. It asserted
-	// that `src/chatViewProvider.ts` contained a string; the chat surface moved to
-	// `src/extension/webview/webviewChatSurface.ts` so one class could serve the
-	// sidebar and an editor tab, and the assertion stopped matching. The same match
-	// would have passed against a comment, so it was never testing the behaviour.
-
-	// ================================================================
-	// Shared types — already verified to exist
-	// ================================================================
-
-	describe('shared/messages.ts model switch types', function () {
-		let messagesSource;
-
-		before(function () {
-			messagesSource = fs.readFileSync(
-				path.join(__dirname, '..', '..', '..', 'src', 'shared', 'messages.ts'),
-				'utf-8'
-			);
-		});
-
-		it('defines SwitchModelPayload', function () {
-			assert.ok(
-				messagesSource.includes('SwitchModelPayload'),
-				'Should define SwitchModelPayload'
-			);
-		});
-
-		it('defines ModelSwitchedPayload', function () {
-			assert.ok(
-				messagesSource.includes('ModelSwitchedPayload'),
-				'Should define ModelSwitchedPayload'
-			);
-		});
-
-		it('defines CurrentModelPayload', function () {
-			assert.ok(
-				messagesSource.includes('CurrentModelPayload'),
-				'Should define CurrentModelPayload'
-			);
-		});
-
-		it('InitPayload includes currentModel', function () {
-			assert.ok(
-				messagesSource.includes('currentModel'),
-				'InitPayload should include currentModel field'
-			);
-		});
-	});
+	// Two scan blocks were deleted here on 2026-08-22.
+	//
+	// 'WebviewRpcClient model switch methods' read the client's *source* to check it
+	// contained `switchModel()`, `onModelSwitched()` and `onCurrentModel()`. The
+	// client is plain JS and importable: `webview-rpc-client.test.js` instantiates
+	// the real thing and drives its sends and receives, which is the same claim made
+	// by running it.
+	//
+	// 'shared/messages.ts model switch types' asserted four interfaces exist by
+	// matching the file's text. `tsc --noEmit` is a gate on every build and makes
+	// that claim properly; a string match would also have passed against a comment.
+	//
+	// What stays above is behavioural: the router's sends and receives, driven
+	// through a fake webview.
 });

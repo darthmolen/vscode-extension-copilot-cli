@@ -29,45 +29,14 @@ describe('Sidebar View Migration', () => {
 	// sidebar slot does not end its surface — the last of which no string could
 	// have expressed.
 
-	describe('ChatViewProvider export', () => {
-		it('should export ChatViewProvider, not ChatPanelProvider', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('export class ChatViewProvider'),
-				'Should export ChatViewProvider class');
-			assert.ok(!content.includes('export class ChatPanelProvider'),
-				'Should NOT export ChatPanelProvider class');
-		});
-
-		it('should implement WebviewViewProvider interface', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('vscode.WebviewViewProvider'),
-				'Should implement vscode.WebviewViewProvider');
-			assert.ok(content.includes('resolveWebviewView'),
-				'Should have resolveWebviewView method');
-		});
-
-		it('should NOT have createOrShow method', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			// Should not define createOrShow as a method
-			assert.ok(!content.match(/^\s*(public\s+)?createOrShow\s*\(/m),
-				'Should NOT have createOrShow method');
-		});
-
-		it('should have static viewType matching package.json', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes("viewType = 'copilot-cli.chatView'"),
-				'viewType should be copilot-cli.chatView');
-		});
-
-	});
+	// The 'ChatViewProvider export' block — four scans of `src/chatViewProvider.ts`
+	// for `export class ChatViewProvider`, `vscode.WebviewViewProvider`, the absence
+	// of `createOrShow`, and the viewType literal — was deleted 2026-08-22.
+	//
+	// The provider is 38 lines now and does one thing: hand its view to a
+	// `WebviewChatSurface` as a `SidebarSlot`. Its registration contract with VS Code
+	// is asserted below, against `package.json`, which is where that contract
+	// actually lives; its behaviour is asserted by `chat-webview-slot.test.js`.
 
 	describe('Package.json sidebar contributions', () => {
 		let pkg;
@@ -123,25 +92,11 @@ describe('Sidebar View Migration', () => {
 	});
 
 	describe('Extension registration', () => {
-		it('should import ChatViewProvider (not ChatPanelProvider)', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes("import { ChatViewProvider }"),
-				'Should import ChatViewProvider');
-			assert.ok(!content.includes("import { ChatPanelProvider }"),
-				'Should NOT import ChatPanelProvider');
-		});
-
-		it('should register with registerWebviewViewProvider', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('registerWebviewViewProvider'),
-				'Should use registerWebviewViewProvider');
-			assert.ok(content.includes('retainContextWhenHidden'),
-				'Should set retainContextWhenHidden option');
-		});
+		// Two scans of `src/extension.ts` were deleted here on 2026-08-22: that it
+		// imports `ChatViewProvider`, and that it mentions `registerWebviewViewProvider`
+		// and `retainContextWhenHidden`. An import that is missing is a compile error,
+		// which `npm run check-types` gates; the registration itself is exercised every
+		// time the extension loads, and is in the live-verification list.
 
 		// The `chatProvider.show()` scan that lived here was deleted in v3.13.0
 		// Task 7. The variable is `sidebarSurface` now — the provider is only the
