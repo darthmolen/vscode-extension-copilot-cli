@@ -178,8 +178,10 @@ eventBus.on('rejectPlan', () => {
 
 eventBus.on('exitPlanMode', () => {
 	console.log('[Plan Mode] Exit plan mode (silent)');
-	// Silent exit - just toggle plan mode off, no message sent
-	rpc.togglePlanMode();
+	// Silent exit - just toggle plan mode off, no message sent.
+	// Said explicitly rather than relying on `undefined` being falsy; the RPC client
+	// coerces either way, but the call should read as what it means.
+	rpc.togglePlanMode(false);
 });
 
 // Listen for new slash command events

@@ -121,13 +121,21 @@ class WebviewRpcClient {
 	}
 	
 	/**
-	 * Toggle plan mode on/off
-	 * @param {boolean} enabled - Enable or disable plan mode
+	 * Enter or leave plan mode.
+	 *
+	 * Coerced, because `TogglePlanModePayload.enabled` is declared `boolean` and the
+	 * exit path calls this with no argument — so the wire carried `undefined`
+	 * against a type that says it cannot. It worked, because the extension side
+	 * branches on truthiness, and the only trace was a UAT log line reading
+	 * `Plan mode toggle requested: undefined`. Correct by coincidence rather than by
+	 * contract is the shape v3.13.0 spent itself removing.
+	 *
+	 * @param {boolean} [enabled] - Enter plan mode; omitted or false means leave it.
 	 */
 	togglePlanMode(enabled) {
 		this._send({
 			type: 'togglePlanMode',
-			enabled
+			enabled: Boolean(enabled)
 		});
 	}
 	

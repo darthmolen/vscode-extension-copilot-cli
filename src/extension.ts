@@ -491,7 +491,7 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 	// conversation it came from, and carrying the transcript would spend exactly the
 	// context the user was trying to protect.
 	subscriptions.push(surface.onDidRequestAskInNewTab(async (prompt: string) => {
-		await askInNewTab(prompt);
+		await openNewTab(prompt);
 	}));
 
 	subscriptions.push(surface.onDidRequestCompact(async () => {
@@ -604,26 +604,48 @@ function commandSurfaceOrExplain(): WebviewChatSurface | undefined {
 }
 
 /**
- * Open a new session in a tab and ask it one question.
+ * *New Tab* — and the one place that decides what a new tab's session is like.
  *
- * Literally *New Tab* + `prompt`, deliberately: three entry points, one mechanism
- * each, and this one is defined in terms of another rather than reimplementing it.
+ * Both entry points come through here, which is the point. When only the command
+ * called `chatPanels.openNew()`, a new tab quietly skipped
+ * `copilotCLI.startNewSessionInPlanning` while the sidebar's *New Session*
+ * honoured it — one setting, two paths, kept in step by nobody. Found live.
+ *
+ * `prompt` is `/btw`: the same tab plus one send, defined in terms of this rather
+ * than reimplementing it, so the two can never drift on anything decided here.
  */
-async function askInNewTab(prompt: string): Promise<void> {
-	const question = prompt.trim();
-	await chatPanels.openNew(activeFileToSeed());
+async function openNewTab(prompt?: string): Promise<void> {
+	const host = await chatPanels.openNew(activeFileToSeed());
+
+	// A New Tab *is* a new session, so the standing default for new sessions
+	// applies. The gesture said "new conversation here" and said nothing about plan
+	// mode, so the setting is not being overridden — it is being honoured.
+	const config = vscode.workspace.getConfiguration('copilotCLI');
+	if (shouldAutoEnablePlanMode(config.get<boolean>('startNewSessionInPlanning'))) {
+		logger.info('[New Tab] startNewSessionInPlanning=true, enabling plan mode');
+		try {
+			// Awaited before the prompt below: the plan session has to exist before
+			// anything is sent, or `/btw`'s question races the mode switch and lands
+			// on whichever session won.
+			await host.enablePlanMode();
+		} catch (err: any) {
+			logger.error(`[New Tab] Failed to auto-enable plan mode: ${err.message}`);
+		}
+	}
+
+	const question = prompt?.trim();
 	if (!question) {
-		// `/btw` with nothing after it is just New Tab, and that already happened.
+		// New Tab, or `/btw` with nothing after it — which is the same thing.
 		return;
 	}
-	const surface = chatPanels.mostRecentSurface() as WebviewChatSurface | undefined;
-	const host = surface?.getSessionHost();
-	if (!host) {
-		logger.warn('[btw] the new tab produced no host — the question was not sent');
+
+	const surface = host.getSurface() as WebviewChatSurface | undefined;
+	if (!surface) {
+		logger.warn('[btw] the new tab produced no surface — the question was not sent');
 		return;
 	}
-	surface?.addUserMessage(question);
-	surface?.setThinking(true);
+	surface.addUserMessage(question);
+	surface.setThinking(true);
 	await host.prompt(question);
 }
 
@@ -631,11 +653,9 @@ async function askInNewTab(prompt: string): Promise<void> {
 function registerCommands(context: vscode.ExtensionContext): void {
 	const commands = [
 		vscode.commands.registerCommand('copilot-cli-extension.openChat', () => handleOpenChat(context)),
-		// Seeded with the file the click was made on. The setting says whether a
-		// chat *usually* carries the active file; the click says which file *this*
-		// tab is about. The gesture wins for this tab and rewrites no setting —
-		// CLAUDE.md, "intentional actions are treated intentionally".
-		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => chatPanels.openNew(activeFileToSeed())),
+		// Through `openNewTab`, not straight to the panel service: a new tab is a new
+		// session, and what a new session is like is decided in one place.
+		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => openNewTab()),
 		vscode.commands.registerCommand('copilot-cli-extension.startChat', () => handleStartChat(context)),
 		vscode.commands.registerCommand('copilot-cli-extension.newSession', async () => {
 			const surface = commandSurfaceOrExplain();

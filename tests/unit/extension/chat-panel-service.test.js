@@ -295,6 +295,37 @@ describe('ChatPanelService', () => {
         });
     });
 
+    /**
+     * v3.13.0 — *New Tab* is a **new session**, so a window that starts new sessions
+     * in plan mode should start this one that way too.
+     *
+     * The composition root is what reads `copilotCLI.startNewSessionInPlanning`;
+     * this service stays `vscode`-free. All it owes the caller is a handle on what
+     * it just built — which was missing, so New Tab and `/btw` silently skipped a
+     * setting the sidebar's New Session honoured.
+     */
+    describe('what openNew hands back', () => {
+        it('returns the host it created, so the caller can configure the session', async () => {
+            const host = await service.openNew();
+
+            expect(host).to.equal(surfaces[0].host);
+        });
+
+        it('returns a host with no session of its own yet', async () => {
+            const host = await service.openNew();
+
+            expect(registry.created[0].options).to.deep.equal({ whenNoSession: 'new' });
+            expect(host.started, 'the tab must still have started its session').to.equal(1);
+        });
+
+        it('returns a distinct host per tab', async () => {
+            const first = await service.openNew();
+            const second = await service.openNew();
+
+            expect(first).to.not.equal(second);
+        });
+    });
+
     describe('closing a tab', () => {
         it('disposes the surface with the panel', async () => {
             await service.openNew();

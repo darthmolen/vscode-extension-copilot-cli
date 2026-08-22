@@ -71,23 +71,9 @@ export interface ChatPanelServiceDeps {
 
 export class ChatPanelService {
     private readonly deps: ChatPanelServiceDeps;
-    /**
-     * The surface of the panel this service opened last.
-     *
-     * `/btw` is defined as *New Tab plus one send*, and the second half needs a
-     * handle on what the first half produced. Returning it from `openNew` would be
-     * cleaner, but `restore` and `openSession` share the same adoption path and
-     * would all have to grow a return value nobody else reads.
-     */
-    private lastOpened?: PanelChatSurface;
 
     constructor(deps: ChatPanelServiceDeps) {
         this.deps = deps;
-    }
-
-    /** The surface of the most recently opened panel, while it is still alive. */
-    public mostRecentSurface(): PanelChatSurface | undefined {
-        return this.lastOpened;
     }
 
     /**
@@ -97,10 +83,17 @@ export class ChatPanelService {
      * button while looking at `foo.ts`. It is pinned to this tab rather than
      * written anywhere: the click means *this file, this tab*, and is never a
      * licence to rewrite `copilotCLI.includeActiveFile` (CLAUDE.md).
+     *
+     * **Returns the host**, because a new tab is a new session and the composition
+     * root has window-scoped decisions to apply to one — `startNewSessionInPlanning`
+     * today, and `/btw`'s single send. Only this entry point returns it: `restore`
+     * and `openSession` adopt sessions that already exist and have nothing to
+     * configure.
      */
-    public async openNew(seedFile?: string | null): Promise<void> {
+    public async openNew(seedFile?: string | null): Promise<ChatSessionHost> {
         const host = this.deps.registry.create(null, undefined, { whenNoSession: 'new' });
         await this.openPanelFor(host, 'Copilot Chat', undefined, seedFile ?? null);
+        return host;
     }
 
     /**
@@ -194,7 +187,6 @@ export class ChatPanelService {
         seedFile: string | null = null
     ): Promise<void> {
         const surface = this.deps.createSurface();
-        this.lastOpened = surface;
         surface.setSessionHost(host);
         if (seedFile) {
             surface.pinActiveFile(seedFile);
@@ -209,9 +201,6 @@ export class ChatPanelService {
             // session unreachable — `registry.get()` would still report a live
             // surface, so reopening the tab would silently reveal nothing.
             handlers.dispose();
-            if (this.lastOpened === surface) {
-                this.lastOpened = undefined;
-            }
             surface.dispose();
             host.detachSurface(surface);
             // Explicit, rather than implied by `detachSurface`. Detaching is also
