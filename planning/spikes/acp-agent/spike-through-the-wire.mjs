@@ -276,6 +276,47 @@ try {
         console.log('ℹ️  18. no plan update this run — the model made no todo list, so nothing to check');
     }
 
+    // ── 20/21/22. The session store: list, fork, delete ──────
+    const listed = await request('session/list', {}, 60_000);
+    step('20a. session/list reported the store', Array.isArray(listed?.sessions),
+        `${listed?.sessions?.length ?? 0} session(s)`);
+    step('20b. our own session is in it',
+        (listed?.sessions ?? []).some(x => x.sessionId === session.sessionId),
+        (listed?.sessions ?? []).slice(0, 2).map(x => `${x.sessionId.slice(0, 8)}…`).join(', '));
+    step('20d. no plan halves are offered as conversations',
+        !(listed?.sessions ?? []).some(x => x.sessionId.endsWith('-plan')),
+        `${(listed?.sessions ?? []).filter(x => x.sessionId.endsWith('-plan')).length} plan session(s) leaked`);
+    step('20c. each entry carries the fields a host groups by',
+        (listed?.sessions ?? []).every(x => typeof x.sessionId === 'string' && typeof x.cwd === 'string'),
+        JSON.stringify((listed?.sessions ?? [])[0] ?? {}).slice(0, 120));
+
+    const forked = await request('session/fork',
+        { sessionId: session.sessionId, cwd: REPO_ROOT, mcpServers: [] }, 60_000);
+    step('21a. session/fork returned a NEW session id',
+        !!forked?.sessionId && forked.sessionId !== session.sessionId, forked?.sessionId);
+    step('21b. the fork is addressable immediately', !!forked?.modes?.currentModeId,
+        `mode=${forked?.modes?.currentModeId}`);
+
+    const forkOnDisk = join(homedir(), '.copilot', 'session-state', forked?.sessionId ?? 'none');
+    step('21c. the fork exists in the store as its own session', existsSync(forkOnDisk), forkOnDisk);
+
+    await request('session/delete', { sessionId: forked.sessionId }, 60_000);
+    step('22a. session/delete removed it from disk', !existsSync(forkOnDisk), forkOnDisk);
+
+    const afterDelete = await request('session/list', {}, 60_000);
+    step('22b. and from the list a host would render',
+        !(afterDelete?.sessions ?? []).some(x => x.sessionId === forked.sessionId),
+        `${afterDelete?.sessions?.length ?? 0} session(s) remain`);
+
+    let escapeRefused = false;
+    try {
+        await request('session/delete', { sessionId: '../../..' }, 30_000);
+    } catch {
+        escapeRefused = true;
+    }
+    step('22c. an id that escapes the session store is refused', escapeRefused,
+        escapeRefused ? 'rejected, as it must be' : 'ACCEPTED — this deletes outside the store');
+
     // ── 19. session/close releases the session ───────────────
     const closeResult = await request('session/close', { sessionId: session.sessionId }, 60_000);
     step('19a. session/close was accepted', closeResult !== undefined, JSON.stringify(closeResult));
@@ -306,7 +347,7 @@ try {
 
 const passed = results.filter(r => r.ok).length;
 console.log(`\n${passed}/${results.length} passed`);
-console.log('\nCovers the eight ticket assertions, a streamed prompt, a permission answered back\ndown the same pipe, a file diff as ACP diff content, session/load replay and\nsession/close.');
+console.log('\nCovers the eight ticket assertions, a streamed prompt, a permission answered back\ndown the same pipe, a diff and a plan as ACP content, session/load replay, and the\nsession store: list, fork, delete (including a refused traversal) and close.');
 if (stderrText && exitCode) {
     console.log('\n--- agent stderr ---\n' + stderrText.split('\n').slice(-25).join('\n'));
 }

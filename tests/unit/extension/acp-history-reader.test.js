@@ -179,6 +179,33 @@ describe('createAcpAgent — the session store (IN-3 §4c.6)', () => {
             expect(sessions.map(s => s.sessionId)).to.deep.equal(['beta']);
         });
 
+        /**
+         * Plan mode is a TWO-session design: entering it creates a second SDK session
+         * at `<id>-plan`, which `sdkSessionManager.ts` itself identifies by that
+         * suffix. It is an internal half, not a conversation anyone started — listing
+         * it invites a user to open something that only makes sense attached to its
+         * work session.
+         *
+         * Found on a live run, not here: the fixtures had no plan sessions, while the
+         * real store was 197 of them in 909.
+         */
+        it('hides the plan half of a dual-session conversation', async () => {
+            makeSession('alpha-plan', '/w/one');
+
+            const sessions = await store().createSessionLister(stateDir)({});
+
+            expect(sessions.map(s => s.sessionId).sort()).to.deep.equal(['alpha', 'beta']);
+        });
+
+        /** A session legitimately named ...-plan-something is not a plan half. */
+        it('only hides the suffix, not any session mentioning plan', async () => {
+            makeSession('alpha-plan-b', '/w/one');
+
+            const sessions = await store().createSessionLister(stateDir)({});
+
+            expect(sessions.map(s => s.sessionId)).to.include('alpha-plan-b');
+        });
+
         it('reports an empty store rather than failing', async () => {
             const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'acp-empty-'));
             expect(await store().createSessionLister(empty)({})).to.deep.equal([]);

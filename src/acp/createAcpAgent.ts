@@ -102,7 +102,14 @@ export const readFileTextOrNull: FileTextReader = absolutePath => {
  */
 export function createSessionLister(sessionStateDir: string) {
     return async (params: { cwd?: string }) => {
-        const all = SessionService.getAllSessions(sessionStateDir);
+        // Plan mode is a TWO-session design: entering it creates a second SDK session
+        // at `<id>-plan`, which `sdkSessionManager.ts` identifies by exactly this
+        // suffix. That session is an internal half rather than a conversation anyone
+        // started, and listing it invites a user to open something that only makes
+        // sense attached to its work session. In a real store this was 197 entries of
+        // 909 — the fixtures had none, so only a live run showed it.
+        const all = SessionService.getAllSessions(sessionStateDir)
+            .filter(session => !session.id.endsWith('-plan'));
         const scoped = params.cwd
             ? SessionService.filterSessionsByFolder(all, params.cwd)
             : all;
