@@ -34,7 +34,6 @@ import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
 import { MCPConfigurationService } from './extension/services/mcpConfigurationService';
 import { CLIPassthroughService } from './extension/services/CLIPassthroughService';
 
-let sessionManager: SDKSessionManager | null = null;
 let resolvedCli: ResolvedCli | null = null;
 let cliBundleReady: Promise<void> | null = null;
 let logger: Logger;
@@ -162,15 +161,11 @@ export function activate(context: vscode.ExtensionContext) {
 		assignSubagentColor,
 		enrichDiff: enrichDiffWithInlineLines,
 		// The host decides *whether* a session needs starting; this only does it.
-		// Guarding on the module-level `sessionManager` cannot survive a second
-		// surface — it answers "is any session running in this window", not "is
-		// mine".
 		// The host's `{ sessionId, resume }` is threaded through rather than dropped.
 		// Discarding it is what made "open or restore the surface for session X"
 		// resume whatever `determineSessionToResume` picked by mtime.
 		startManager: createStartManager({
 			resumeAndStart: (request) => resumeAndStartSession(context, request),
-			getManager: () => sessionManager,
 			logger
 		})
 	});
@@ -295,11 +290,16 @@ function applySharedProviders(context: vscode.ExtensionContext, surface: Webview
 	if (resolvedCapability) {
 		surface.setCliCapability(resolvedCapability);
 	}
+	// Asked of *this* surface's session. The MCP server list is a property of the
+	// window in the sense that every session sees the same config — but the RPC that
+	// answers it belongs to a live CLI session, and reading the module handle asked
+	// whichever one started last.
 	surface.setMcpListProvider(async () => {
-		if (!sessionManager || !sessionManager.hasActiveSession()) {
+		const host = surface.getSessionHost();
+		if (!host?.isLive) {
 			throw new Error('No active session for mcp.list');
 		}
-		return sessionManager.listMcpServers();
+		return host.listMcpServers();
 	});
 	surface.setImportedServersProvider(() => {
 		const cfg = vscode.workspace.getConfiguration('copilotCLI');
@@ -310,10 +310,8 @@ function applySharedProviders(context: vscode.ExtensionContext, surface: Webview
 		return getImportedServers(workspaceFolder, context.globalStorageUri.fsPath);
 	});
 	surface.setMcpConfigListProvider(async () => {
-		if (!sessionManager || !sessionManager.hasActiveSession()) {
-			return {};
-		}
-		return sessionManager.listConfiguredMcpServers();
+		const host = surface.getSessionHost();
+		return host?.isLive ? host.listConfiguredMcpServers() : {};
 	});
 }
 
@@ -322,9 +320,15 @@ function sessionStatePath(sessionId: string): string {
 	return path.join(os.homedir(), '.copilot', 'session-state', sessionId);
 }
 
-/** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
-async function viewPlanFile(): Promise<void> {
-	const planPath = sessionManager?.getPlanFilePath();
+/**
+ * Opens plan.md in the editor. Shared by the toolbar button and `plan_ready`.
+ *
+ * Takes the session whose plan it is. Reading the module handle opened whichever
+ * session started last — so with a tab open, the sidebar's *View Plan* button
+ * showed the tab's plan.
+ */
+async function viewPlanFile(host: ChatSessionHost | undefined): Promise<void> {
+	const planPath = host?.planFilePath();
 	if (!planPath) {
 		vscode.window.showWarningMessage('No active session - cannot view plan.md');
 		return;
@@ -387,7 +391,7 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 	}));
 
 	subscriptions.push(surface.onDidRequestViewPlan(async () => {
-		await viewPlanFile();
+		await viewPlanFile(surface.getSessionHost());
 	}));
 
 	subscriptions.push(surface.onDidBecomeReady(async () => {
@@ -629,9 +633,13 @@ async function resumeAndStartSession(
 	// Whose session this is. Defaulting to the sidebar keeps the command palette
 	// and activation paths working; a host asking for itself supplies its own.
 	const target = request.host ?? sidebarHost;
-	// `request.host` present means a host is speaking for itself, and a host only
-	// asks when it is not live — so the window's manager is another surface's.
-	const plan = planSessionStart({ ...request, onBehalfOfHost: Boolean(request.host) }, sessionManager);
+	// What is running is now *this host's* session, not the window's. The old
+	// argument was the module-level handle, which answers "is anything running
+	// here" — the question §2 shows nothing actually wanted.
+	const plan = planSessionStart(
+		{ ...request, onBehalfOfHost: Boolean(request.host) },
+		{ isRunning: () => target.isLive, getSessionId: () => target.sessionId }
+	);
 	if (plan.reuseRunning) {
 		// Nothing started; the caller wants what is already running.
 		return null;
@@ -673,7 +681,7 @@ async function handleOpenChat(context: vscode.ExtensionContext): Promise<void> {
 
 async function handleStartChat(context: vscode.ExtensionContext): Promise<void> {
 	sidebarSurface.show();
-	if (sessionManager && sessionManager.isRunning()) {
+	if (sidebarHost.isLive) {
 		vscode.window.showInformationMessage('Copilot CLI session is already running');
 		return;
 	}
@@ -912,16 +920,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 	//
 	// Every other caller either guards itself (`handleStartChat`) or stops the
 	// running manager first (new session, switch session, the auth retries).
-	if (sessionManager && sessionManager.isRunning()) {
-		// A *different* session is live in this window. Its events keep routing to
-		// its own host (Task 5), so it does not go silent — but the module-level
-		// handle moves to the new manager, which is the cross-session flaw the
-		// manager-ownership work closes by giving each host its own.
-		logger.warn(
-			`Starting ${specificSessionId ?? 'a new session'} while ${sessionManager.getSessionId()} is still live — ` +
-			`the module-level manager handle now points at the new one`
-		);
-	}
+	// The warning that used to be here — "a different session is live and the
+	// module-level handle now points at the new one" — described a hazard that no
+	// longer exists. Two live sessions in one window is the *design*; what made it
+	// dangerous was the single handle, and there isn't one.
 
 	try {
 		// Wait for the CLI bundle bootstrap so we never spawn the SDK against
@@ -951,11 +953,12 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 
-		// A local, not the module handle. Two starts can be in flight at once — a
-		// restored tab's fresh session and the sidebar's ambient resume — and both
-		// assign to `sessionManager`. Reading it back after the await gave whichever
-		// finished last, so `onSessionStarted` adopted another session's id onto this
-		// target: two hosts claimed one session and a real CLI session was orphaned.
+		// A local, and now the only handle there is. Two starts can be in flight at
+		// once — a restored tab's fresh session and the sidebar's ambient resume —
+		// and both used to assign to a module-level `sessionManager`. Reading it back
+		// after the await gave whichever finished last, so `onSessionStarted` adopted
+		// another session's id onto this target: two hosts claimed one session and a
+		// real CLI session was orphaned.
 		const manager = new SDKSessionManager(
 			context,
 			config,
@@ -968,7 +971,6 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
-		sessionManager = manager;
 		wireManagerEvents(context, manager, target);
 
 		logger.info('Starting CLI process...');
@@ -1019,7 +1021,7 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				updateSessionsList();
 				break;
 			case 'plan_ready':
-				viewPlanFile();
+				viewPlanFile(owner);
 				break;
 			case 'session_renamed':
 				logger.info(`[Rename Session] Renamed to: "${statusData.name}"`);
@@ -1125,12 +1127,10 @@ function onSessionStarted(
 	const vsWorkspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	surface?.setWorkspacePath(vsWorkspacePath);
 
-	surface?.setValidateAttachmentsCallback(async (filePaths: string[]) => {
-		if (!sessionManager) {
-			return { valid: false, error: 'Session not active' };
-		}
-		return await sessionManager.validateAttachments(filePaths);
-	});
+	// This host's session validates this host's attachments. Reading the module
+	// handle meant a tab's file picker was checked against the sidebar's session,
+	// whose working directory may differ.
+	surface?.setValidateAttachmentsCallback((filePaths: string[]) => target.validateAttachments(filePaths));
 
 	logger.info('CLI process started successfully');
 	surface?.addAssistantMessage('Copilot CLI session started! How can I help you?');
@@ -1138,7 +1138,7 @@ function onSessionStarted(
 	logger.show();
 
 	// Fetch available models from SDK and send to webview (fire-and-forget)
-	sessionManager?.getAvailableModels().then(models => {
+	target.availableModels().then(models => {
 		if (models.length > 0) {
 			surface?.sendAvailableModels(models);
 		}
@@ -1386,11 +1386,11 @@ function updateActiveFile(editor: vscode.TextEditor | undefined) {
 
 export function deactivate() {
 	logger.info('Deactivating Copilot CLI Extension...');
-	if (sessionManager) {
-		logger.info('Disposing CLI manager...');
-		sessionManager.dispose();
-	}
-	// Reaches pending hosts too — a session that never started still owns
+	// Through the registry, which reaches *every* manager. This used to dispose one
+	// module-level handle — the last-started session — so every other host's CLI
+	// leaked. Already true on a session switch; one worse per tab.
+	//
+	// Reaches pending hosts too: a session that never started still owns
 	// subscriptions, and is unreachable by id.
 	sessionRegistry?.disposeAll();
 	logger.info('Extension deactivated');

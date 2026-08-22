@@ -21,14 +21,12 @@ export interface StartManagerDeps<TManager extends RunningSessionLike> {
      *
      * Returns the manager it started, when it started one. That return value is
      * load-bearing: two starts can run concurrently on a window reload — a restored
-     * tab's fresh session and the sidebar's ambient resume — and both assign to the
-     * module-level handle, so reading it back afterwards gives whichever finished
-     * last. Returning it keeps each start's own manager with its own caller.
+     * tab's fresh session and the sidebar's ambient resume — and reading a shared
+     * handle back afterwards gave whichever finished last. Returning it keeps each
+     * start's own manager with its own caller.
      */
     resumeAndStart(request: { sessionId?: string | null; fresh?: boolean; host?: ChatSessionHost }):
         Promise<TManager | null | undefined | void>;
-    /** The window's current manager. Only consulted when nothing new was started. */
-    getManager(): TManager | null;
     logger: { warn(message: string): void };
 }
 
@@ -36,31 +34,21 @@ export function createStartManager<TManager extends RunningSessionLike>(
     deps: StartManagerDeps<TManager>
 ): (options: { sessionId: string | null; resume: boolean; fresh?: boolean; host?: ChatSessionHost }) => Promise<TManager> {
     return async ({ sessionId, fresh, host }) => {
-        // Captured before, so a request for a *new* session can tell whether one
-        // was actually started or whether it is being handed the incumbent.
-        const alreadyRunning = deps.getManager();
-
         // The host travels with the request because a *fresh* session has no id
         // yet, so nothing else identifies which host the bootstrap belongs to.
         const started = await deps.resumeAndStart({ sessionId, fresh, host });
 
-        // The started manager if there is one; the window's only when the request
-        // was satisfied by something already running.
-        const manager = started ?? deps.getManager();
-        if (!manager) {
+        // Only the manager this call produced. There used to be a `getManager()`
+        // fallback to the window's handle for the case where the start path
+        // declined to start anything — and that fallback is how *New Tab* attached
+        // a second host to the sidebar's running manager, two surfaces rendering
+        // one conversation. P3 gave every host its own manager, so there is no
+        // window handle left to fall back to, and "nothing was started" is now what
+        // it always meant: a failure, said out loud.
+        if (!started) {
             throw new Error('CLI session failed to start');
         }
-
-        // The tab defect, caught at runtime. `openNew` asks for a new session; if
-        // the start path declines — because it re-asked "is anything running" and
-        // answered yes — this hands back the incumbent, the new host attaches to
-        // it, and both surfaces render one conversation. The session-id check
-        // below cannot see it: a fresh request names nothing to compare against.
-        if (fresh && manager === alreadyRunning) {
-            throw new Error(
-                'Asked to start a new session but got the one already running'
-            );
-        }
+        const manager = started;
 
         // The guard that would have caught C2 at runtime. A manager for some other
         // session is worse than none: the host attaches to it and the surface shows
