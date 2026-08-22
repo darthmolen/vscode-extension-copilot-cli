@@ -73,14 +73,31 @@ To save a new log: open the Output Channel (`Ctrl+Shift+U` → "Copilot CLI"), c
 
 This is a VS Code sidebar extension that wraps `@github/copilot-sdk` (backend-only, no UI) to provide a chat interface for GitHub Copilot CLI.
 
+> **v3.13.0 restructured this layer substantially.** The narrative — what the extension gained and
+> why — is [`documentation/3.13-README.md`](documentation/3.13-README.md). Read it before making
+> structural changes here.
+
 ### Extension Host (TypeScript, `src/`)
 
-- **extension.ts** — Orchestrator. Registers commands, creates ChatViewProvider, wires SDK events to webview.
-- **sdkSessionManager.ts** — SDK session lifecycle. Creates/resumes CopilotClient sessions, streams messages, emits 10 granular events (onDidReceiveOutput, onDidStartTool, onDidProduceDiff, etc.).
-- **chatViewProvider.ts** — Implements `WebviewViewProvider`. Manages ExtensionRpcRouter, slash command handlers, builds webview HTML. CSP config is at line ~494.
-- **backendState.ts** — Singleton state store. Persists session data across webview recreations (sidebar hide/show).
-- **src/extension/rpc/ExtensionRpcRouter.ts** — Type-safe RPC (18 send + 11 receive methods). Extension side of the message bridge.
-- **src/extension/services/** — 7 extracted services: SessionService, InlineDiffService, FileSnapshotService, MCPConfigurationService, ModelCapabilitiesService, PlanModeToolsService, MessageEnhancementService.
+- **extension.ts** — Composition root. Registers commands, builds the registry, the sidebar surface and the panel service, wires SDK events to the owning host.
+- **sdkSessionManager.ts** — SDK session lifecycle. Creates/resumes CopilotClient sessions, streams messages, emits 15 granular events (onDidReceiveOutput, onDidStartTool, onDidProduceDiff, etc.).
+- **chatViewProvider.ts** — The sidebar's registration with VS Code, and nothing else (38 lines). `resolveWebviewView` hands its view to a `WebviewChatSurface` as a `SidebarSlot`.
+- **backendState.ts** — `SessionState` (one per conversation) and `WorkspaceRuntimeState` (one per window, observable). The `BackendState` facade over both is legacy and has no callers left in `extension.ts`.
+
+**The session layer** — free of `vscode` and SDK imports, so it is requirable from plain mocha and portable to v4.0. Hold that:
+
+- **src/extension/session/ChatSessionHost.ts** — one conversation, owned end to end. Its manager is a true `#private` field; the public surface follows ACP's verbs.
+- **src/extension/session/ChatSessionRegistry.ts** — which sessions are live in this window. `get()` probes without creating; `getOrCreate()` may bring one into being.
+- **sessionStartPlan / startManager / sessionBootstrap** — what a start request means, who it is for, and where its results land.
+
+**The surface layer:**
+
+- **src/extension/webview/webviewChatSurface.ts** — one chat surface: a webview, its RPC router, and the session it shows. N instances.
+- **src/extension/webview/chatWebviewSlot.ts** — the four members by which a sidebar view and an editor panel differ. `SidebarSlot` and `PanelSlot`.
+- **src/extension/webview/chatPanelService.ts** — opens, restores and closes chat tabs.
+- **src/extension/rpc/ExtensionRpcRouter.ts** — type-safe RPC, **one router per surface**. Extension side of the message bridge.
+- **src/extension/rpc/registerChatHandlers.ts** — wires one surface's handlers. Call once per router.
+- **src/extension/services/** — extracted services: SessionService, InlineDiffService, FileSnapshotService, MCPConfigurationService, ModelCapabilitiesService, PlanModeToolsService, MessageEnhancementService, sessionTranscriptBuilder, CopilotClientProvider, and others.
 
 ### Webview (JavaScript ES modules, `src/webview/`)
 
