@@ -130,6 +130,8 @@ export interface SessionManagerLike {
     listMcpServers(): Promise<any[]>;
     listConfiguredMcpServers(): Promise<Record<string, any>>;
     forkSession(sourceSessionId: string, opts?: { sessionStateDir?: string }): Promise<string>;
+    /** End it. The host owns this — see `ChatSessionHost.dispose`. */
+    dispose(): void;
 }
 
 export interface PromptOptions {
@@ -245,6 +247,8 @@ export class ChatSessionHost {
     private builtServices?: ChatSessionServices;
     private surface?: ChatSurface;
     private readonly managerSubscriptions: Unsubscribe[] = [];
+    /** Window-scoped handlers wired for the *current* manager. See `ownManagerSubscription`. */
+    private readonly windowSubscriptions: Unsubscribe[] = [];
     /**
      * A true `#private` field, not a TypeScript `private`.
      *
@@ -434,7 +438,18 @@ export class ChatSessionHost {
         // A host outlives its managers — every restart and session switch builds a
         // new one. Replace the wiring rather than adding to it, or each restart
         // doubles every message on screen.
-        this.detachManager();
+        //
+        // The one being replaced is *disposed*, not merely detached. With the
+        // module-level handle gone this host is a manager's sole owner, so letting
+        // it fall out of scope leaks a live CLI session per restart. `detachManager`
+        // keeps its own meaning — drop the routing, keep the session — because a
+        // session switch still needs it.
+        if (this.#manager && this.#manager !== manager) {
+            this.disposeManager();
+        } else {
+            this.detachManager();
+        }
+        this.releaseWindowSubscriptions();
         this.#manager = manager;
 
         this.subscribe(manager.onDidReceiveOutput(({ content, messageId }) => {
@@ -739,13 +754,54 @@ export class ChatSessionHost {
         return false;
     }
 
-    /** Stop routing whatever manager is currently attached. */
+    /** Stop routing whatever manager is currently attached, and leave it running. */
     public detachManager(): void {
         for (const subscription of this.managerSubscriptions) {
             subscription.dispose();
         }
         this.managerSubscriptions.length = 0;
         this.#manager = undefined;
+    }
+
+    /**
+     * Hold a subscription that belongs to this host's *current* manager but is
+     * wired outside it — the window-scoped handlers in `wireManagerEvents`.
+     *
+     * Those went into `context.subscriptions`, which lives as long as the extension:
+     * roughly ten handlers per manager, so every session switch leaked a set and
+     * every tab added one. They belong to the host that owns the manager, and they
+     * go when it is replaced or when the host dies.
+     */
+    public ownManagerSubscription(subscription: Unsubscribe): void {
+        this.windowSubscriptions.push(subscription);
+    }
+
+    private releaseWindowSubscriptions(): void {
+        for (const subscription of this.windowSubscriptions) {
+            try {
+                subscription.dispose();
+            } catch (error) {
+                this.logger.error(
+                    `[ChatSessionHost ${this.handle}] failed to release a manager subscription`,
+                    error instanceof Error ? error : undefined
+                );
+            }
+        }
+        this.windowSubscriptions.length = 0;
+    }
+
+    /** Drop the routing *and* end the session underneath it. */
+    private disposeManager(): void {
+        const manager = this.#manager;
+        this.detachManager();
+        try {
+            manager?.dispose();
+        } catch (error) {
+            this.logger.error(
+                `[ChatSessionHost ${this.handle}] manager dispose failed`,
+                error instanceof Error ? error : undefined
+            );
+        }
     }
 
     /**
@@ -774,7 +830,11 @@ export class ChatSessionHost {
         // must not reach a surface this host no longer speaks for.
         this.surface = undefined;
         this.live = false;
-        this.detachManager();
+        // The manager goes with the host. `deactivate` used to dispose a single
+        // module-level handle — the last-started session — so every other host's
+        // CLI leaked.
+        this.disposeManager();
+        this.releaseWindowSubscriptions();
 
         for (const callback of this.disposeCallbacks) {
             try {

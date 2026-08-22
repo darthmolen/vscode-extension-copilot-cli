@@ -971,7 +971,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
-		wireManagerEvents(context, manager, target);
+		wireManagerEvents(manager, target);
 
 		logger.info('Starting CLI process...');
 		await manager.start();
@@ -984,8 +984,17 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 	}
 }
 
-/** Wire all 10 granular event subscriptions from the SDK manager to the UI. */
-function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager, owner: ChatSessionHost): void {
+/**
+ * Wire the window-scoped half of a manager's events. The session's half is the
+ * host's — see `ChatSessionHost.attachManager`.
+ *
+ * Every subscription here is registered **against the owning host**, not against
+ * `context.subscriptions`. These are roughly ten handlers per manager, and
+ * extension-lifetime storage meant every session switch leaked a set and every tab
+ * added one. `context` is no longer a parameter, which is the guard: there is
+ * nothing to accidentally push into.
+ */
+function wireManagerEvents(manager: SDKSessionManager, owner: ChatSessionHost): void {
 	// Message and streaming events are routed by the owning host, to *its* surface
 	// — see `ChatSessionHost.attachManager`. What stays here is window-scoped:
 	// the status bar, toasts, the session list, the sub-agent panels.
@@ -998,7 +1007,7 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 
 	// Only the window's half of a status change lives here. What the session's
 	// surface shows is the host's — see `ChatSessionHost.applyStatus`.
-	context.subscriptions.push(manager.onDidChangeStatus(safeHandler('onDidChangeStatus', (statusData) => {
+	owner.ownManagerSubscription(manager.onDidChangeStatus(safeHandler('onDidChangeStatus', (statusData) => {
 		logger.info(`[CLI Status] ${JSON.stringify(statusData)}`);
 		switch (statusData.status) {
 			case 'ready':
@@ -1049,34 +1058,34 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 	// host. What remains here is the pop-out panel service, which is window-scoped
 	// and buffers across sessions. Both callers colour an agent through the same
 	// memoised allocator, so they cannot disagree.
-	context.subscriptions.push(manager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
+	owner.ownManagerSubscription(manager.onDidStartTool(safeHandler('onDidStartTool', (toolState) => {
 		logger.info(`[Tool Start] ${toolState.toolName}`);
 		subagentPanels.onTool(toolState);
 	})));
 
-	context.subscriptions.push(manager.onDidUpdateTool(safeHandler('onDidUpdateTool', (toolState) => {
+	owner.ownManagerSubscription(manager.onDidUpdateTool(safeHandler('onDidUpdateTool', (toolState) => {
 		logger.debug(`[Tool Progress] ${toolState.toolName}: ${toolState.progress}`);
 	})));
 
-	context.subscriptions.push(manager.onDidCompleteTool(safeHandler('onDidCompleteTool', (toolState) => {
+	owner.ownManagerSubscription(manager.onDidCompleteTool(safeHandler('onDidCompleteTool', (toolState) => {
 		logger.info(`[Tool Complete] ${toolState.toolName} - ${toolState.status}`);
 	})));
 
-	context.subscriptions.push(manager.onDidStartSubagent(safeHandler('onDidStartSubagent', (subagent) => {
+	owner.ownManagerSubscription(manager.onDidStartSubagent(safeHandler('onDidStartSubagent', (subagent) => {
 		logger.info(`[Subagent Start] ${subagent.agentDisplayName ?? subagent.agentName} (${subagent.agentId})`);
 		subagentPanels.onStart({ ...subagent, color: assignSubagentColor(subagent.agentId) });
 	})));
 
-	context.subscriptions.push(manager.onDidSubagentMessage(safeHandler('onDidSubagentMessage', (subagent) => {
+	owner.ownManagerSubscription(manager.onDidSubagentMessage(safeHandler('onDidSubagentMessage', (subagent) => {
 		subagentPanels.onMessage(subagent);
 	})));
 
-	context.subscriptions.push(manager.onDidCompleteSubagent(safeHandler('onDidCompleteSubagent', (subagent) => {
+	owner.ownManagerSubscription(manager.onDidCompleteSubagent(safeHandler('onDidCompleteSubagent', (subagent) => {
 		logger.info(`[Subagent Complete] ${subagent.agentDisplayName ?? subagent.agentName} - ${subagent.status}`);
 		subagentPanels.onComplete(subagent);
 	})));
 
-	context.subscriptions.push(manager.onDidUpdateMcpServers(safeHandler('onDidUpdateMcpServers', (update) => {
+	owner.ownManagerSubscription(manager.onDidUpdateMcpServers(safeHandler('onDidUpdateMcpServers', (update) => {
 		// The manager no longer writes MCP state into backendState directly; it
 		// emits, and the host records it. Keeps the store host-side so the
 		// manager can run in its own process.
@@ -1087,7 +1096,7 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 		}
 	})));
 
-	context.subscriptions.push(manager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {
+	owner.ownManagerSubscription(manager.onDidChangeFile(safeHandler('onDidChangeFile', (fileChange) => {
 		logger.info(`[File Change] ${fileChange.path} (${fileChange.type})`);
 	})));
 }
