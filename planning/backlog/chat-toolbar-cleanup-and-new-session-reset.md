@@ -1,3 +1,9 @@
+> **CLOSED 2026-08-22 — all four items shipped in v3.13.0.** Item 1: the `view/title` `+` is
+> repurposed as *New Tab* rather than removed. Item 2: `refreshPanel` is palette-only — re-argued
+> on "a debug affordance does not belong in a toolbar" rather than actioned on its stated reason,
+> which P2 had already invalidated. Item 3: `editorFocus` gone. Item 4: `host.beginNewConversation()`
+> on the new-session path, in P3 step 2 as predicted. Kept for the reasoning; do not action.
+
 # Backlog: Chat Toolbar Cleanup + New Session Should Start Blank
 
 Three small defects in the sidebar's chrome, found while planning the chat-in-a-tab work

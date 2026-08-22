@@ -4,6 +4,97 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-08-22
+
+The largest refactor since 1.x → 2.x, and the first release where the visible feature is the smaller
+half. The narrative — what the codebase gained and why — is
+[`documentation/3.13-README.md`](documentation/3.13-README.md).
+
+### Added
+
+- **Chat in an editor tab.** A full chat surface as an editor tab: same UI, same slash commands, same
+  sub-agent dock. Two conversations run at once and stay separate — each streams only its own
+  messages, reasoning, tool chips, diffs and sub-agent traffic.
+  - A **New Tab** is a *new* conversation. It does not mirror the sidebar and does not inherit its
+    history: the gesture said new, so neither `copilotCLI.resumeLastSession` nor the
+    most-recent-by-mtime heuristic gets a vote.
+  - A tab **survives a window reload**, with its transcript replayed from the session's own event log.
+    The tab always comes back even when its session cannot — VS Code restored it because you had it
+    open, so emptying it is reasonable and closing it is not.
+  - **No freshness gate.** A tab pinned to a session is a standing instruction; come back after a week
+    and it still restores that conversation.
+- **`/btw <question>`** — a side question in a new tab. Literally New Tab plus one send, and
+  deliberately *without* history: the point of a side question is that it is not part of the
+  conversation you are in, and carrying the transcript would spend the context you were protecting.
+  Fork is the verb for carrying context.
+- **A New Tab button in the editor title bar**, seeded with the file you were looking at. The seed is
+  pinned to that tab, so it does not evaporate when you click into another file to check something.
+- **Move Chat Back to Sidebar**, for a tab you want back where it started.
+- **A session remembers the model you chose for it.** Recorded in `session-model.txt` beside
+  `session-name.txt`, and preferred over `copilotCLI.model` on resume — which makes that setting the
+  default for *new* sessions, as it was always described.
+- **The sidebar remembers which session you chose.** Switch to an older session, send nothing, reload,
+  and it comes back. Previously only mtime was consulted, so the choice was silently discarded.
+- **Plan halves are grouped and labelled in the session dropdown.** A plan session now sits directly
+  under the conversation it belongs to, marked `↳ Plan: <parent name>`. Measured before the change:
+  38% of this workspace's dropdown rows were half a conversation presented as a whole one.
+
+### Fixed
+
+- **A tab's controls drive the tab.** Plan mode, the session dropdown, New Session and Stop all
+  reached a module-level handle meaning "whichever session started last", so using them in a tab acted
+  on the sidebar. Every signal now travels with the surface that sent it.
+- **Switching to a session that is already open no longer starts a second CLI session for it.** It
+  reveals the surface showing it, or reattaches to it if its tab was closed. Two managers over one
+  session directory was the previous behaviour.
+- **A new session starts blank.** `New Session` cleared the webview but not the conversation's state,
+  so the next render brought the previous transcript back under the new session's id.
+- **A closed tab winds its session down** instead of leaving a CLI session running for the life of the
+  window — at the next idle if it is working, immediately if it is not, and cancelled outright if you
+  come back to it.
+- **Every session is disposed on shutdown.** Only the last-started one was, so each session switch and
+  each tab leaked a CLI process and roughly ten event handlers.
+- **The View Plan button, the model list, attachment validation and the two MCP lists** all ask the
+  session you are looking at rather than the window's most recent one.
+- **The Open Chat icon no longer disappears when you need it.** It was gated on `editorFocus`, so it
+  vanished whenever focus sat in the chat — which is most of the time you would reach for it.
+- **A fork opens in a tab and leaves you on the parent.** Forking used to replace the conversation you
+  forked from, which is backwards. The notification names the fork and says where it went.
+
+### Changed
+
+- **The sidebar's title bar holds one control, New Tab.** The `+` there duplicated the webview's own
+  `+` inches away; *Refresh Chat Panel* moves to the command palette.
+- **Command-palette actions never guess which chat you meant.** With two chats open and neither
+  focused, they decline and point at the controls in the chat you mean.
+
+### Internal
+
+- **`chatViewProvider.ts`: 1,011 lines → 38.** The extension's god object became the sidebar's
+  registration with VS Code and nothing else.
+- **`ChatSessionHost` owns a conversation end to end** — its id, its transcript, its manager and its
+  event wiring — and exposes it as verbs named for ACP's session methods. Its manager is a true
+  `#private` field, so no JavaScript call site can reach through it; 75 call sites were rerouted for
+  v4.0's process boundary.
+- **The module-level `sessionManager` is deleted**, not deprecated, so "reads the wrong session" stops
+  being expressible.
+- **Four attach/detach seams** — container↔surface, surface↔host, manager↔host, host↔registry — each
+  symmetrical, so any layer can be replaced while its neighbours keep running.
+- **`ChatWebviewSlot`** names the four members by which a sidebar view and an editor panel differ, so
+  one surface class serves both.
+- **One resolver knows what a `-plan` session id means.** It had quietly acquired a second reader who
+  did not know the convention existed; the count is back to one, with the suffix kept as a read-only
+  fallback for the ~197 plan halves that already exist and can never be flagged.
+- **Restored transcripts are projected from the CLI's event log**, so a replayed tool call shows its
+  real name, arguments and outcome instead of a grey "Tool execution" bubble. Session switch and
+  webview reload used to read different sources and produce different histories for one session.
+- **A test gate replaces a rule that was never enforced.** Fifty-four assertions that read production
+  files and checked for the presence of a string were deleted; a ratchet now fails the suite if the
+  pile regrows.
+- **`ChatSessionHost`, `ChatSessionRegistry`, `sessionStartPlan`, `sessionBootstrap`,
+  `sessionTranscriptBuilder`, `sessionPairing` and the four decision modules import neither `vscode`
+  nor the SDK**, so they are testable from plain mocha and portable to v4.0.
+
 ## [3.12.0] - 2026-08-15
 
 ### Fixed

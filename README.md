@@ -16,6 +16,24 @@ And you don't have to choose. Sessions created in this extension appear in the o
 
 ## ✨ Features
 
+### 🗂 Chat in a Tab (v3.13.0)
+
+Open a full chat as an **editor tab** — same UI, same slash commands, same sub-agent dock — and run
+two conversations at once. Each streams only its own output; nothing bleeds between them.
+
+- **New Tab** starts a *new* conversation, seeded with the file you were looking at. It never mirrors
+  the sidebar and never inherits its history.
+- **`/btw <question>`** asks a side question in a new tab. New Tab plus one send — deliberately
+  without history, because that is what fork is for.
+- **Fork** opens the copy in a tab and leaves you on the parent.
+- **Tabs survive a reload**, with their transcripts replayed from the session's own event log, and
+  with no freshness gate — a tab pinned to a session is a standing instruction, not a ten-minute one.
+- **Closing a tab winds its session down** once its work is finished, not while it is running, and not
+  at all if you come back to it.
+
+Your choices are recorded rather than merely honoured: the model you switched to, the session you
+picked, and the file you opened a tab on all survive the next reload instead of losing to a default.
+
 ### 📌 Activity Bar Sidebar
 
 The extension lives in the VS Code Activity Bar — same location as native Copilot Chat and Claude Code. Click the icon to show/hide, drag between left and right sidebars. Native chat experience with proper lifecycle management and zero memory leaks.
