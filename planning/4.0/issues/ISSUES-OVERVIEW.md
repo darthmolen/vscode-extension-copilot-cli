@@ -3,6 +3,11 @@
 Every ticket the AHP/ACP split needs, across all venues. One document per
 ticket in this directory; this table is the follow-up surface.
 
+> **Updated 2026-08-22.** IN-3 and IN-8 are done; IN-6 is drafted and re-sized. The register with
+> what changed underneath the split — including that `copilot --acp` is already in the ACP Registry,
+> and that the two halves have different risk owners — is
+> [`planning/completed/v4.0-in3-acp-agent.md`](../../completed/v4.0-in3-acp-agent.md).
+
 **Compiled:** 2026-08-15 · **Gap analysis:** [gap-register.md](../gap-register.md) · **Spike:** [FINDINGS.md](../../spikes/acp-agent/FINDINGS.md)
 
 > **New to ACP/AHP/Zed?** [references.md](../references.md) defines every acronym in these docs,
@@ -39,7 +44,7 @@ authoritative answer is much cheaper than arguing the wrong shape in public.
 | IN-1 | Decouple SDKSessionManager behind HostBridge | c | — | — | ✅ **Done** (`5da6697`) |
 | IN-2 | Prove plan mode survives out-of-host | c | — | — | ✅ **Done** (8/8 live) |
 | [IN-3](IN-3-acp-server-wrapper.md) | Wrap the manager as an ACP server | c | **Medium** | Yes | Ready to start |
-| [IN-4](IN-4-webview-ahp-client.md) | Webview becomes an AHP client | c | **High** | Yes (client half) | Blocked on IN-3 + a host to talk to |
+| [IN-4](IN-4-webview-ahp-client.md) | Webview becomes an AHP client | c | **High** | Yes (client half) | ⛔ **Blocked on OUT-1 only** — IN-3 is done; OUT-1 unanswered since 2026-08-15 |
 | [IN-5](IN-5-cli-resolution-collapse.md) | Collapse duplicate CLI resolution | c | **Low** | No | Deferred — deliberately |
 | IN-6 | FileSnapshot temp files across the process boundary | c | **Medium** | Yes | Not drafted — depends on IN-3 shape |
 | IN-7 | Dock handles arbitrary sub-agent nesting depth | c | **Medium** | No | Not drafted |
