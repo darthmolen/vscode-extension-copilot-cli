@@ -111,6 +111,23 @@ Not a big-bang sweep. Three rules applied as each file is touched, plus one deli
 4. **Do the top three files as one pass before P3's global deletion**, so that work is not fighting
    them; take the long tail opportunistically.
 
+## The part worth fixing: there is no gate
+
+These were **already prohibited in writing** — `CLAUDE.md` carries the rule with a worked example —
+and they kept being written anyway, by AI, in sessions with that file loaded. Every removal so far
+happened because a refactor broke them or because someone hunted them deliberately. Neither is
+enforcement, and prose has now visibly failed at it twice.
+
+The arithmetic is the problem: a source scan passes on its first run and never flakes, so it reads as
+a cheap green test, while a behavioural test costs more and can fail. Under any pressure to move, the
+cheap one wins.
+
+**Proposal: make it fail.** A single test that walks `tests/**` and fails when a test file reads a
+path under `src/` and then asserts on the result — with an explicit allowlist for the handful of
+legitimate fixture reads. Roughly thirty lines, runs in the suite everyone already runs, and turns a
+rule nobody enforces into a red run. Worth doing *with* the cleanup rather than after it, so the pile
+cannot regrow while the long tail is still being worked through.
+
 ## Value
 
 Removes a category of failure that reads as a regression and is not one. Stops the coverage number
