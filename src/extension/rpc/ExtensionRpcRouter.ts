@@ -38,6 +38,7 @@ import {
 	ReadyPayload,
 	SwitchSessionPayload,
 	NewSessionPayload,
+	AskInNewTabPayload,
 	ViewPlanPayload,
 	ViewDiffPayload,
 	SubagentPopoutPayload,
@@ -513,6 +514,11 @@ export class ExtensionRpcRouter {
 	 */
 	onNewSession(handler: MessageHandler<NewSessionPayload>): Disposable {
 		return this.registerHandler('newSession', handler);
+	}
+
+	/** Register handler for askInNewTab (`/btw <question>`) */
+	onAskInNewTab(handler: MessageHandler<AskInNewTabPayload>): Disposable {
+		return this.registerHandler('askInNewTab', handler);
 	}
 	
 	/**

@@ -65,21 +65,46 @@ describe('Sidebar View Migration', () => {
 			assert.strictEqual(chatView.type, 'webview', 'View type should be webview');
 		});
 
-		it('should have view/title menu entries for New Session and Refresh', () => {
+		/**
+		 * v3.13.0 Task 8 — one control per idea in the sidebar's title bar.
+		 *
+		 * This used to require *New Session* and *Refresh* there. Both went:
+		 *
+		 *  - `newSession` ($(add)) duplicated the webview's own `+` inches away, so
+		 *    the slot is repurposed for *New Tab* rather than a third add-button.
+		 *  - `refreshPanel`'s stated reason for existing — that it triggered the
+		 *    replay corruption — was fixed by P2, and it was re-argued rather than
+		 *    actioned as written: it survives in the palette as the debug affordance
+		 *    it always was, and gives up the toolbar slot.
+		 */
+		it('offers New Tab in the view title, and nothing that duplicates the webview', () => {
 			const viewTitle = pkg.contributes.menus['view/title'];
 			assert.ok(Array.isArray(viewTitle), 'Should have view/title menus');
 
-			const newSession = viewTitle.find(m =>
-				m.command === 'copilot-cli-extension.newSession' &&
+			const newTab = viewTitle.find(m =>
+				m.command === 'copilot-cli-extension.openChatInTab' &&
 				m.when === 'view == copilot-cli.chatView'
 			);
-			assert.ok(newSession, 'Should have New Session menu entry');
+			assert.ok(newTab, 'Should have New Tab menu entry');
 
-			const refresh = viewTitle.find(m =>
-				m.command === 'copilot-cli-extension.refreshPanel' &&
-				m.when === 'view == copilot-cli.chatView'
+			assert.ok(
+				!viewTitle.some(m => m.command === 'copilot-cli-extension.newSession'),
+				'New Session duplicates the webview\'s own + button'
 			);
-			assert.ok(refresh, 'Should have Refresh menu entry');
+			assert.ok(
+				!viewTitle.some(m => m.command === 'copilot-cli-extension.refreshPanel'),
+				'Refresh is a palette-only debug affordance'
+			);
+		});
+
+		it('shows the New Tab icon whether or not the editor has focus', () => {
+			// `when: editorFocus` hid it whenever focus sat in the chat — which is
+			// most of the time you would reach for it. It read as the icon randomly
+			// not existing.
+			const editorTitle = pkg.contributes.menus['editor/title'];
+			const entry = editorTitle.find(m => m.command === 'copilot-cli-extension.openChatInTab');
+			assert.ok(entry, 'Should offer New Tab from the editor title bar');
+			assert.notStrictEqual(entry.when, 'editorFocus', 'editorFocus hides it exactly when it is wanted');
 		});
 
 		it('should reference existing sidebar icon SVG', () => {

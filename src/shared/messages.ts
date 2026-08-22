@@ -36,6 +36,7 @@ export type WebviewMessageType =
 	| 'ready'
 	| 'switchSession'
 	| 'newSession'
+	| 'askInNewTab'
 	| 'viewPlan'
 	| 'viewDiff'
 	| 'subagentPopout'
@@ -102,6 +103,17 @@ export interface SwitchSessionPayload extends BaseMessage {
  */
 export interface NewSessionPayload extends BaseMessage {
 	type: 'newSession';
+}
+
+/**
+ * `/btw <question>` — open a new session in a tab and ask it there.
+ *
+ * New Tab plus one send, and deliberately no history: a side question is not part
+ * of the conversation it was asked from. Fork is the verb for carrying context.
+ */
+export interface AskInNewTabPayload extends BaseMessage {
+	type: 'askInNewTab';
+	prompt: string;
 }
 
 /**
@@ -310,6 +322,7 @@ export type WebviewMessage =
 	| ReadyPayload
 	| SwitchSessionPayload
 	| NewSessionPayload
+	| AskInNewTabPayload
 	| ViewPlanPayload
 	| ViewDiffPayload
 	| SubagentPopoutPayload
@@ -768,6 +781,7 @@ export function isWebviewMessage(message: any): message is WebviewMessage {
 		'ready',
 		'switchSession',
 		'newSession',
+		'askInNewTab',
 		'viewPlan',
 		'viewDiff',
 		'subagentPopout',

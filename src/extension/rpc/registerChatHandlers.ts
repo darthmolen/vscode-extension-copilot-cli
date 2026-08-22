@@ -90,6 +90,7 @@ export interface ChatHandlerContext {
     _onDidRequestRenameSession: vscode.EventEmitter<string>;
     _onDidRequestForkSession: vscode.EventEmitter<void>;
     _onDidRequestNewSession: vscode.EventEmitter<void>;
+    _onDidRequestAskInNewTab: vscode.EventEmitter<string>;
     _onDidRequestSwitchSession: vscode.EventEmitter<string>;
     _onDidRequestCompact: vscode.EventEmitter<void>;
     _onDidSelectAgent: vscode.EventEmitter<string | null>;
@@ -165,6 +166,11 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 		ctx.reg(ctx.rpcRouter.onNewSession(() => {
 			ctx.logger.info('New session requested from UI');
 			ctx._onDidRequestNewSession.fire();
+		}));
+
+		ctx.reg(ctx.rpcRouter.onAskInNewTab((payload) => {
+			ctx.logger.info(`[btw] side question requested: ${payload.prompt.substring(0, 60)}`);
+			ctx._onDidRequestAskInNewTab.fire(payload.prompt);
 		}));
 
 		ctx.reg(ctx.rpcRouter.onViewPlan(() => {

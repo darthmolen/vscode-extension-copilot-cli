@@ -112,8 +112,8 @@ describe('registerChatHandlers', () => {
         const router = recordingRouter();
         registerChatHandlers(makeContext(router));
         // Guards against a partial extraction silently dropping registrations.
-        // 33 distinct handlers at extraction time; a partial extraction shows up here.
-        expect(router.registered.size).to.equal(33);
+        // 33 at extraction time; 34 since v3.13.0 Task 8 added `askInNewTab`.
+        expect(router.registered.size).to.equal(34);
     });
 
     it('registers on the router it is given, never a shared one', () => {

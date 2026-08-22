@@ -483,6 +483,14 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 		await handleSwitchSession(context, sessionId, surface);
 	}));
 
+	// `/btw <question>` — New Tab plus one send. Not a fork: no history travels
+	// with it, because the point of a side question is that it is not part of the
+	// conversation it came from, and carrying the transcript would spend exactly the
+	// context the user was trying to protect.
+	subscriptions.push(surface.onDidRequestAskInNewTab(async (prompt: string) => {
+		await askInNewTab(prompt);
+	}));
+
 	subscriptions.push(surface.onDidRequestCompact(async () => {
 		logger.info('[Compact] Compact requested');
 		const host = surface.getSessionHost();
@@ -520,6 +528,29 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 	}));
 
 	return vscode.Disposable.from(...subscriptions);
+}
+
+/**
+ * The file a *New Tab* click should seed, or null.
+ *
+ * Honours `copilotCLI.includeActiveFile` — a user who turned active-file context
+ * off did not ask for it back — and reads the editor directly rather than the
+ * window's `activeFilePath`, which is already null when that setting is off and so
+ * cannot distinguish "no file open" from "not being shown".
+ */
+function activeFileToSeed(): string | null {
+	if (!vscode.workspace.getConfiguration('copilotCLI').get<boolean>('includeActiveFile', true)) {
+		return null;
+	}
+	const editor = vscode.window.activeTextEditor ?? lastKnownTextEditor;
+	const uri = editor?.document.uri;
+	if (!uri || (uri.scheme !== 'file' && uri.scheme !== 'untitled')) {
+		return null;
+	}
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	return workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
+		? uri.fsPath.substring(workspaceRoot.length + 1)
+		: uri.fsPath;
 }
 
 /**
@@ -569,11 +600,39 @@ function commandSurfaceOrExplain(): WebviewChatSurface | undefined {
 	return surface;
 }
 
+/**
+ * Open a new session in a tab and ask it one question.
+ *
+ * Literally *New Tab* + `prompt`, deliberately: three entry points, one mechanism
+ * each, and this one is defined in terms of another rather than reimplementing it.
+ */
+async function askInNewTab(prompt: string): Promise<void> {
+	const question = prompt.trim();
+	await chatPanels.openNew(activeFileToSeed());
+	if (!question) {
+		// `/btw` with nothing after it is just New Tab, and that already happened.
+		return;
+	}
+	const surface = chatPanels.mostRecentSurface() as WebviewChatSurface | undefined;
+	const host = surface?.getSessionHost();
+	if (!host) {
+		logger.warn('[btw] the new tab produced no host — the question was not sent');
+		return;
+	}
+	surface?.addUserMessage(question);
+	surface?.setThinking(true);
+	await host.prompt(question);
+}
+
 /** Register all VS Code commands. */
 function registerCommands(context: vscode.ExtensionContext): void {
 	const commands = [
 		vscode.commands.registerCommand('copilot-cli-extension.openChat', () => handleOpenChat(context)),
-		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => chatPanels.openNew()),
+		// Seeded with the file the click was made on. The setting says whether a
+		// chat *usually* carries the active file; the click says which file *this*
+		// tab is about. The gesture wins for this tab and rewrites no setting —
+		// CLAUDE.md, "intentional actions are treated intentionally".
+		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => chatPanels.openNew(activeFileToSeed())),
 		vscode.commands.registerCommand('copilot-cli-extension.startChat', () => handleStartChat(context)),
 		vscode.commands.registerCommand('copilot-cli-extension.newSession', async () => {
 			const surface = commandSurfaceOrExplain();
@@ -608,6 +667,20 @@ function registerCommands(context: vscode.ExtensionContext): void {
 		}),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestLight', () => createAnimationTestPanel('light')),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestDark', () => createAnimationTestPanel('dark')),
+		// A per-tab action: the sidebar has nothing to move back to. Gated in the
+		// palette by `activeWebviewPanelId == 'copilotChatPanel'`, so it is only
+		// offered where it means something.
+		vscode.commands.registerCommand('copilot-cli-extension.moveChatToSidebar', async () => {
+			const surface = commandSurface();
+			const sessionId = surface?.getSessionHost()?.sessionId;
+			if (!sessionId || surface === sidebarSurface) {
+				vscode.window.showInformationMessage('Open a Copilot CLI chat tab to move it back to the sidebar.');
+				return;
+			}
+			sidebarSurface.show();
+			await handleSwitchSession(context, sessionId, sidebarSurface);
+			surface.dispose();
+		}),
 		vscode.commands.registerCommand('copilot-cli-extension.forkSession', async () => {
 			const surface = commandSurfaceOrExplain();
 			if (surface) { await handleForkSession(context, surface); }

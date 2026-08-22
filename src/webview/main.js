@@ -126,6 +126,9 @@ eventBus.on('agents:panelClosed', ({ mutated }) => {
 	if (mutated) { rpc.agentsPanelClosed(); }
 });
 eventBus.on('selectAgent', (args) => rpc.selectAgent(args && args[0] ? args[0] : ''));
+// `/btw <question>` — New Tab plus one send. No history travels with it; fork is
+// the verb for that.
+eventBus.on('askInNewTab', (args) => rpc.askInNewTab(Array.isArray(args) ? args.join(' ') : ''));
 
 // AcceptanceControls events
 acceptanceControls.on('accept', (value) => {

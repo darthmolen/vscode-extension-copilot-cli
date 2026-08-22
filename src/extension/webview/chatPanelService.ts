@@ -43,6 +43,8 @@ export const CHAT_PANEL_VIEW_TYPE = 'copilotChatPanel';
 export interface PanelChatSurface extends ChatSurface {
     attach(slot: ChatWebviewSlot): void;
     setSessionHost(host: ChatSessionHost): void;
+    /** Show one file here regardless of what the editor moves on to. */
+    pinActiveFile(filePath: string | null): void;
 }
 
 export interface ChatPanelServiceDeps {
@@ -69,15 +71,36 @@ export interface ChatPanelServiceDeps {
 
 export class ChatPanelService {
     private readonly deps: ChatPanelServiceDeps;
+    /**
+     * The surface of the panel this service opened last.
+     *
+     * `/btw` is defined as *New Tab plus one send*, and the second half needs a
+     * handle on what the first half produced. Returning it from `openNew` would be
+     * cleaner, but `restore` and `openSession` share the same adoption path and
+     * would all have to grow a return value nobody else reads.
+     */
+    private lastOpened?: PanelChatSurface;
 
     constructor(deps: ChatPanelServiceDeps) {
         this.deps = deps;
     }
 
-    /** New Tab: a new conversation, in a new panel. */
-    public async openNew(): Promise<void> {
+    /** The surface of the most recently opened panel, while it is still alive. */
+    public mostRecentSurface(): PanelChatSurface | undefined {
+        return this.lastOpened;
+    }
+
+    /**
+     * New Tab: a new conversation, in a new panel.
+     *
+     * `seedFile` is the file the gesture was made *on* — clicking the editor-title
+     * button while looking at `foo.ts`. It is pinned to this tab rather than
+     * written anywhere: the click means *this file, this tab*, and is never a
+     * licence to rewrite `copilotCLI.includeActiveFile` (CLAUDE.md).
+     */
+    public async openNew(seedFile?: string | null): Promise<void> {
         const host = this.deps.registry.create(null, undefined, { whenNoSession: 'new' });
-        await this.openPanelFor(host, 'Copilot Chat');
+        await this.openPanelFor(host, 'Copilot Chat', undefined, seedFile ?? null);
     }
 
     /**
@@ -149,19 +172,33 @@ export class ChatPanelService {
         await this.adopt(panel, host);
     }
 
-    private async openPanelFor(host: ChatSessionHost, title: string, replay?: string): Promise<void> {
+    private async openPanelFor(
+        host: ChatSessionHost,
+        title: string,
+        replay?: string,
+        seedFile: string | null = null
+    ): Promise<void> {
         const panel = this.deps.createPanel(CHAT_PANEL_VIEW_TYPE, title, {
             enableScripts: true,
             retainContextWhenHidden: true,
             localResourceRoots: this.deps.resourceRoots()
         });
-        await this.adopt(panel, host, replay);
+        await this.adopt(panel, host, replay, seedFile);
     }
 
     /** Bind a panel — freshly created or restored by VS Code — to a host. */
-    private async adopt(panel: vscode.WebviewPanel, host: ChatSessionHost, replay?: string): Promise<void> {
+    private async adopt(
+        panel: vscode.WebviewPanel,
+        host: ChatSessionHost,
+        replay?: string,
+        seedFile: string | null = null
+    ): Promise<void> {
         const surface = this.deps.createSurface();
+        this.lastOpened = surface;
         surface.setSessionHost(host);
+        if (seedFile) {
+            surface.pinActiveFile(seedFile);
+        }
         host.attachSurface(surface);
         surface.attach(this.deps.makeSlot(panel));
 
@@ -172,6 +209,9 @@ export class ChatPanelService {
             // session unreachable — `registry.get()` would still report a live
             // surface, so reopening the tab would silently reveal nothing.
             handlers.dispose();
+            if (this.lastOpened === surface) {
+                this.lastOpened = undefined;
+            }
             surface.dispose();
             host.detachSurface(surface);
             // Explicit, rather than implied by `detachSurface`. Detaching is also

@@ -88,6 +88,17 @@ class WebviewRpcClient {
 			type: 'newSession'
 		});
 	}
+
+	/**
+	 * `/btw <question>` — a new session in a tab, pre-seeded with the question.
+	 * New Tab plus one send; no history travels with it.
+	 */
+	askInNewTab(prompt) {
+		this._send({
+			type: 'askInNewTab',
+			prompt
+		});
+	}
 	
 	/**
 	 * Open plan file in editor

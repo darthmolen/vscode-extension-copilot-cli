@@ -133,6 +133,67 @@ describe('A surface subscribes to its window\'s state', () => {
             'a closed tab writing to a dead webview is the leak this subscription risks');
     });
 
+    /**
+     * v3.13.0 Task 8 — *New Tab* on a file means **this file, this tab**.
+     *
+     * CLAUDE.md's "intentional actions are treated intentionally", third clause:
+     * an intent binds only the thing the gesture was about. Clicking *New Tab*
+     * while looking at `foo.ts` says "ask about foo.ts here"; it does not say
+     * "start including active files everywhere", and it is never a licence to
+     * rewrite `copilotCLI.includeActiveFile`.
+     *
+     * The window's active file follows the editor. A pinned one does not, or the
+     * seed evaporates the moment you click into another file to check something.
+     */
+    describe('a pinned active file', () => {
+        it('shows the file the tab was opened on', () => {
+            tab.pinActiveFile('src/foo.ts');
+
+            expect(activeFilesSeen(tabSlot)).to.deep.equal(['src/foo.ts']);
+        });
+
+        it('stops following the window — that is what pinning means', () => {
+            tab.pinActiveFile('src/foo.ts');
+            tabSlot.posted.length = 0;
+
+            workspace.setActiveFilePath('src/somewhere-else.ts');
+
+            expect(activeFilesSeen(tabSlot)).to.have.lengthOf(0,
+                'the seeded file vanished as soon as the user looked at another file');
+        });
+
+        it('leaves every other surface following the window', () => {
+            tab.pinActiveFile('src/foo.ts');
+            sidebarSlot.posted.length = 0;
+
+            workspace.setActiveFilePath('src/somewhere-else.ts');
+
+            expect(activeFilesSeen(sidebarSlot)).to.deep.equal(['src/somewhere-else.ts'],
+                'one tab\'s gesture changed what the sidebar shows');
+        });
+
+        it('is what a cold render sends, not the window\'s file', () => {
+            workspace.setActiveFilePath('src/somewhere-else.ts');
+            tab.pinActiveFile('src/foo.ts');
+            tabSlot.posted.length = 0;
+
+            tab.sendInit();
+
+            const init = tabSlot.posted.find(m => m.type === 'init');
+            expect(init.activeFilePath).to.equal('src/foo.ts');
+        });
+
+        it('unpins back to following the window', () => {
+            tab.pinActiveFile('src/foo.ts');
+            tab.pinActiveFile(null);
+            tabSlot.posted.length = 0;
+
+            workspace.setActiveFilePath('src/somewhere-else.ts');
+
+            expect(activeFilesSeen(tabSlot)).to.deep.equal(['src/somewhere-else.ts']);
+        });
+    });
+
     it('re-points its subscription when the surface changes session', () => {
         // A surface can be aimed at another conversation. Subscribing again without
         // dropping the first would double every window update it renders.

@@ -93,12 +93,28 @@ export class WebviewChatSurface implements vscode.Disposable {
 	 * the exception, and defect C is what the exception cost.
 	 */
 	private readonly _onDidRequestNewSession = this._reg(new vscode.EventEmitter<void>());
+	private readonly _onDidRequestAskInNewTab = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestSwitchSession = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidSelectAgent = this._reg(new vscode.EventEmitter<string | null>());
 	private readonly _onDidRequestReloadAgents = this._reg(new vscode.EventEmitter<void>());
 	/** This surface's handle on its window's state. Disposed with the surface. */
 	private windowStateSubscription?: { dispose(): void };
+	/**
+	 * A file this surface was opened *on*, which the window's active file does not
+	 * override.
+	 *
+	 * CLAUDE.md's "intentional actions are treated intentionally", third clause:
+	 * an intent binds only the thing the gesture was about. *New Tab* while looking
+	 * at `foo.ts` says "ask about foo.ts here". It does not say "start including
+	 * active files everywhere", and it is never a licence to rewrite
+	 * `copilotCLI.includeActiveFile`.
+	 *
+	 * It has to stop following the window, or the seed evaporates the moment the
+	 * user clicks into another file to check something — which is most of what
+	 * happens next.
+	 */
+	private pinnedActiveFile: string | null = null;
 
 	// Public events
 	readonly onDidReceiveUserMessage = this._onDidReceiveUserMessage.event;
@@ -109,6 +125,7 @@ export class WebviewChatSurface implements vscode.Disposable {
 	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
 	readonly onDidRequestForkSession = this._onDidRequestForkSession.event;
 	readonly onDidRequestNewSession = this._onDidRequestNewSession.event;
+	readonly onDidRequestAskInNewTab = this._onDidRequestAskInNewTab.event;
 	readonly onDidRequestSwitchSession = this._onDidRequestSwitchSession.event;
 	readonly onDidRequestCompact = this._onDidRequestCompact.event;
 	readonly onDidSelectAgent = this._onDidSelectAgent.event;
@@ -180,7 +197,11 @@ export class WebviewChatSurface implements vscode.Disposable {
 	private onWindowStateChanged(change: WorkspaceStateChange): void {
 		switch (change) {
 			case 'activeFile':
-				this.updateActiveFile(this.sessionHost?.workspace.getActiveFilePath() ?? null);
+				// A pinned file is this surface's answer and the window does not get
+				// a vote. Every other surface keeps following the editor.
+				if (this.pinnedActiveFile === null) {
+					this.updateActiveFile(this.sessionHost?.workspace.getActiveFilePath() ?? null);
+				}
 				break;
 			case 'sessions':
 				this.sendSessions();
@@ -244,13 +265,24 @@ export class WebviewChatSurface implements vscode.Disposable {
 			messages: fullState.messages as any,
 			planModeStatus: fullState.planModeStatus,
 			workspacePath: fullState.workspacePath,
-			activeFilePath: fullState.activeFilePath,
+			activeFilePath: this.pinnedActiveFile ?? fullState.activeFilePath,
 			currentModel: fullState.currentModel,
 			showReasoning: vscode.workspace.getConfiguration('copilotCLI').get<boolean>('showReasoning', false)
 		});
 		// The dropdown is not part of the init payload, so a freshly attached
 		// surface would otherwise show an empty session list until the next change.
 		this.sendSessions();
+	}
+
+	/**
+	 * Show this file here, whatever the editor moves on to. `null` unpins.
+	 *
+	 * See `pinnedActiveFile`. Rendered at once so *New Tab* on a file shows that
+	 * file before the user types anything.
+	 */
+	public pinActiveFile(filePath: string | null): void {
+		this.pinnedActiveFile = filePath;
+		this.updateActiveFile(filePath ?? this.sessionHost?.workspace.getActiveFilePath() ?? null);
 	}
 
 	public setMcpListProvider(provider: () => Promise<any[]>): void {
@@ -521,6 +553,7 @@ export class WebviewChatSurface implements vscode.Disposable {
 			_onDidRequestRenameSession: this._onDidRequestRenameSession,
 			_onDidRequestForkSession: this._onDidRequestForkSession,
 			_onDidRequestNewSession: this._onDidRequestNewSession,
+			_onDidRequestAskInNewTab: this._onDidRequestAskInNewTab,
 			_onDidRequestSwitchSession: this._onDidRequestSwitchSession,
 			_onDidRequestCompact: this._onDidRequestCompact,
 			_onDidSelectAgent: this._onDidSelectAgent,
