@@ -83,6 +83,17 @@ export class WebviewChatSurface implements vscode.Disposable {
 	private readonly _onDidRequestSwitchModel = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestRenameSession = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestForkSession = this._reg(new vscode.EventEmitter<void>());
+	/**
+	 * New / switch session, as this surface's own signals.
+	 *
+	 * They used to leave here as `executeCommand('…newSession')`, which lands on a
+	 * handler that reads the module-level `sessionManager` — so pressing **+** in a
+	 * tab started a new session in the *sidebar*. Every other gesture on this
+	 * surface already travels as an event carrying its own identity; these two were
+	 * the exception, and defect C is what the exception cost.
+	 */
+	private readonly _onDidRequestNewSession = this._reg(new vscode.EventEmitter<void>());
+	private readonly _onDidRequestSwitchSession = this._reg(new vscode.EventEmitter<string>());
 	private readonly _onDidRequestCompact = this._reg(new vscode.EventEmitter<void>());
 	private readonly _onDidSelectAgent = this._reg(new vscode.EventEmitter<string | null>());
 	private readonly _onDidRequestReloadAgents = this._reg(new vscode.EventEmitter<void>());
@@ -97,6 +108,8 @@ export class WebviewChatSurface implements vscode.Disposable {
 	readonly onDidRequestSwitchModel = this._onDidRequestSwitchModel.event;
 	readonly onDidRequestRenameSession = this._onDidRequestRenameSession.event;
 	readonly onDidRequestForkSession = this._onDidRequestForkSession.event;
+	readonly onDidRequestNewSession = this._onDidRequestNewSession.event;
+	readonly onDidRequestSwitchSession = this._onDidRequestSwitchSession.event;
 	readonly onDidRequestCompact = this._onDidRequestCompact.event;
 	readonly onDidSelectAgent = this._onDidSelectAgent.event;
 	readonly onDidRequestReloadAgents = this._onDidRequestReloadAgents.event;
@@ -192,6 +205,11 @@ export class WebviewChatSurface implements vscode.Disposable {
 			return;
 		}
 		this.updateSessions(host.workspace.getSessions(), host.sessionId);
+	}
+
+	/** Whether this chat currently has the user's attention. See `commandSurface.ts`. */
+	public isActive(): boolean {
+		return this.slot?.isActive === true;
 	}
 
 	public getSessionHost(): ChatSessionHost | undefined {
@@ -502,6 +520,8 @@ export class WebviewChatSurface implements vscode.Disposable {
 			_onDidRequestSwitchModel: this._onDidRequestSwitchModel,
 			_onDidRequestRenameSession: this._onDidRequestRenameSession,
 			_onDidRequestForkSession: this._onDidRequestForkSession,
+			_onDidRequestNewSession: this._onDidRequestNewSession,
+			_onDidRequestSwitchSession: this._onDidRequestSwitchSession,
 			_onDidRequestCompact: this._onDidRequestCompact,
 			_onDidSelectAgent: this._onDidSelectAgent,
 			_onDidRequestReloadAgents: this._onDidRequestReloadAgents,

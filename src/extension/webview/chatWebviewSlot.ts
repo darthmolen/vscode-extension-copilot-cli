@@ -23,6 +23,17 @@ export interface ChatWebviewSlot {
     /** The webview itself — identical in type whichever container holds it. */
     readonly webview: vscode.Webview;
     readonly isVisible: boolean;
+    /**
+     * Whether this slot currently has the user's attention.
+     *
+     * Visibility is not focus: the sidebar can be on screen while the user types in
+     * a chat tab. VS Code exposes `active` on `WebviewPanel` and has no equivalent
+     * on `WebviewView`, so the sidebar answers `false` and the composition root
+     * decides what "no tab is active" means (see `commandSurface.ts`). Answering
+     * `visible` here would make the sidebar and a focused tab both claim the user,
+     * which is the ambiguity the command-surface rule exists to refuse.
+     */
+    readonly isActive: boolean;
     /** Bring this slot to the front. `show()` on a view, `reveal()` on a panel. */
     reveal(preserveFocus?: boolean): void;
     readonly onDidChangeVisibility: vscode.Event<void>;
@@ -54,6 +65,11 @@ export class SidebarSlot implements ChatWebviewSlot {
         return this.view.visible;
     }
 
+    /** A view cannot report focus; `active` is a `WebviewPanel` property. */
+    get isActive(): boolean {
+        return false;
+    }
+
     /** A view cannot reveal itself; focusing its id is how VS Code shows one. */
     reveal(preserveFocus?: boolean): void {
         vscode.commands.executeCommand(`${this.viewType}.focus`, { preserveFocus });
@@ -80,6 +96,10 @@ export class PanelSlot implements ChatWebviewSlot {
 
     get isVisible(): boolean {
         return this.panel.visible;
+    }
+
+    get isActive(): boolean {
+        return this.panel.active;
     }
 
     reveal(preserveFocus?: boolean): void {

@@ -89,6 +89,8 @@ export interface ChatHandlerContext {
     _onDidRequestSwitchModel: vscode.EventEmitter<string>;
     _onDidRequestRenameSession: vscode.EventEmitter<string>;
     _onDidRequestForkSession: vscode.EventEmitter<void>;
+    _onDidRequestNewSession: vscode.EventEmitter<void>;
+    _onDidRequestSwitchSession: vscode.EventEmitter<string>;
     _onDidRequestCompact: vscode.EventEmitter<void>;
     _onDidSelectAgent: vscode.EventEmitter<string | null>;
     _onDidRequestReloadAgents: vscode.EventEmitter<void>;
@@ -151,14 +153,18 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 			ctx._onDidRequestAbort.fire();
 		}));
 
+		// Fired, not commanded. `executeCommand` reaches a handler that has no idea
+		// which surface asked, so the dropdown in a tab switched the sidebar's
+		// session (P3 §4.2). As an event it arrives at `registerSurfaceHandlers`
+		// closed over this surface, and the target host is right there.
 		ctx.reg(ctx.rpcRouter.onSwitchSession((payload) => {
 			ctx.logger.info(`Switch session requested: ${payload.sessionId}`);
-			vscode.commands.executeCommand('copilot-cli-extension.switchSession', payload.sessionId);
+			ctx._onDidRequestSwitchSession.fire(payload.sessionId);
 		}));
 
 		ctx.reg(ctx.rpcRouter.onNewSession(() => {
 			ctx.logger.info('New session requested from UI');
-			vscode.commands.executeCommand('copilot-cli-extension.newSession');
+			ctx._onDidRequestNewSession.fire();
 		}));
 
 		ctx.reg(ctx.rpcRouter.onViewPlan(() => {

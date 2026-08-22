@@ -44,7 +44,8 @@ function makeFakeManager() {
         getAvailableModels: async () => { calls.push(['getAvailableModels']); return [{ id: 'gpt-5' }]; },
         validateAttachments: async (p) => { calls.push(['validateAttachments', p]); return { valid: true }; },
         listMcpServers: async () => { calls.push(['listMcpServers']); return [{ name: 'a' }]; },
-        listConfiguredMcpServers: async () => { calls.push(['listConfiguredMcpServers']); return { a: {} }; }
+        listConfiguredMcpServers: async () => { calls.push(['listConfiguredMcpServers']); return { a: {} }; },
+        forkSession: async (id, opts) => { calls.push(['forkSession', id, opts]); return `${id}-fork`; }
     }, {
         get: (target, prop) => prop in target
             ? target[prop]
@@ -199,6 +200,88 @@ describe('ChatSessionHost — the verbs that were the global', () => {
             await host.availableModels();
             await host.listMcpServers();
             expect(surface.said).to.have.lengthOf(0);
+        });
+    });
+
+    /**
+     * `chat-toolbar-cleanup-and-new-session-reset.md` item 4.
+     *
+     * `handleNewSession` cleared the *webview* DOM and nothing cleared `host.state`,
+     * so the new session kept the previous transcript in memory and the next
+     * `sendInit()` — a reload, a re-attach — rendered the old conversation back
+     * under the new session's id.
+     */
+    describe('beginNewConversation', () => {
+        it('leaves no transcript for the next sendInit to render', () => {
+            const { host } = attached('session-a');
+            host.state.setMessages([{ kind: 'user', content: 'the old conversation' }]);
+
+            host.beginNewConversation();
+
+            expect(host.getFullState().messages).to.have.lengthOf(0);
+        });
+
+        it('clears the plan status too, so a new session is not born mid-plan', () => {
+            const { host } = attached('session-a');
+            host.state.setPlanModeStatus({ enabled: true });
+
+            host.beginNewConversation();
+
+            expect(host.state.getPlanModeStatus()).to.equal(null);
+        });
+
+        it('keeps the host indexed under its session until a new id is adopted', () => {
+            // `reset()` nulls the state's own session id; the host's must not drift
+            // from it, or the registry and the surface disagree about what is showing.
+            const { host } = attached('session-a');
+
+            host.beginNewConversation();
+
+            expect(host.sessionId).to.equal('session-a');
+            expect(host.getFullState().sessionId).to.equal('session-a');
+        });
+
+        it('empties this conversation and no other', () => {
+            const a = attached('session-a');
+            const b = attached('session-b');
+            a.host.state.setMessages([{ kind: 'user', content: 'a' }]);
+            b.host.state.setMessages([{ kind: 'user', content: 'b' }]);
+
+            a.host.beginNewConversation();
+
+            expect(b.host.getFullState().messages).to.have.lengthOf(1);
+        });
+    });
+
+    describe('fork', () => {
+        it('forks its own session, and never another host\'s', async () => {
+            const a = attached('session-a');
+            const b = attached('session-b');
+
+            const forkId = await a.host.fork({ sessionStateDir: '/state' });
+
+            expect(forkId).to.equal('session-a-fork');
+            expect(a.manager.calls[0]).to.deep.equal(['forkSession', 'session-a', { sessionStateDir: '/state' }]);
+            expect(b.manager.calls).to.have.lengthOf(0);
+        });
+
+        it('refuses rather than forking nothing when the session is not live', async () => {
+            const { host } = idle('session-a');
+            expect(host.fork, 'fork is not a verb on the host').to.be.a('function');
+            let thrown = null;
+            try { await host.fork({ sessionStateDir: '/state' }); } catch (e) { thrown = e; }
+            expect(thrown, 'a dead session forked silently').to.be.an('error');
+            expect(thrown).to.not.be.an.instanceOf(TypeError);
+        });
+
+        it('refuses when the host has no session id yet', async () => {
+            const host = registry.create(null);
+            host.attachManager(makeFakeManager());
+            expect(host.fork, 'fork is not a verb on the host').to.be.a('function');
+            let thrown = null;
+            try { await host.fork({ sessionStateDir: '/state' }); } catch (e) { thrown = e; }
+            expect(thrown).to.be.an('error');
+            expect(thrown).to.not.be.an.instanceOf(TypeError);
         });
     });
 

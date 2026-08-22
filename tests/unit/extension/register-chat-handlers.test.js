@@ -84,6 +84,8 @@ function makeContext(rpcRouter) {
         _onDidRequestSwitchModel: noopEmitter(),
         _onDidRequestRenameSession: noopEmitter(),
         _onDidRequestForkSession: noopEmitter(),
+        _onDidRequestNewSession: noopEmitter(),
+        _onDidRequestSwitchSession: noopEmitter(),
         _onDidRequestCompact: noopEmitter(),
         _onDidSelectAgent: noopEmitter(),
         _onDidRequestReloadAgents: noopEmitter(),
@@ -195,6 +197,22 @@ describe('registerChatHandlers', () => {
 
             expect(a.calls).to.deep.equal(['rejectPlan']);
             expect(b.calls).to.have.lengthOf(0);
+        });
+
+        it('new session and switch session leave as this surface\'s own signals', () => {
+            // Not `executeCommand`. The command handler cannot know which surface
+            // asked, which is why the dropdown in a tab switched the sidebar.
+            const fired = [];
+            const router = recordingRouter();
+            const ctx = makeContext(router);
+            ctx._onDidRequestNewSession = { fire: () => fired.push(['new']) };
+            ctx._onDidRequestSwitchSession = { fire: (id) => fired.push(['switch', id]) };
+            registerChatHandlers(ctx);
+
+            router.registered.get('onNewSession')();
+            router.registered.get('onSwitchSession')({ sessionId: 'session-a' });
+
+            expect(fired).to.deep.equal([['new'], ['switch', 'session-a']]);
         });
 
         it('a surface with no host at all does not throw', async () => {

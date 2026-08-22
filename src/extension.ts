@@ -25,6 +25,8 @@ import { ChatSessionRegistry } from './extension/session/ChatSessionRegistry';
 import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { createChatSessionServices } from './extension/session/chatSessionServices';
 import { planSessionStart } from './extension/session/sessionStartPlan';
+import { planSessionSwitch } from './extension/session/sessionSwitchPlan';
+import { resolveCommandSurface } from './extension/webview/commandSurface';
 import { createStartManager } from './extension/session/startManager';
 import { recordSessionStart, loadTranscriptInto } from './extension/session/sessionBootstrap';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
@@ -456,7 +458,19 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 	}));
 
 	subscriptions.push(surface.onDidRequestForkSession(async () => {
-		await handleForkSession(context);
+		await handleForkSession(context, surface);
+	}));
+
+	// New / switch session, on the surface that asked. Both used to travel as
+	// `executeCommand`, arriving at a handler that read the module-level
+	// `sessionManager` — so the dropdown and the **+** button in a tab drove the
+	// sidebar (defect C). The surface is right here; nothing needs resolving.
+	subscriptions.push(surface.onDidRequestNewSession(async () => {
+		await handleNewSession(context, surface);
+	}));
+
+	subscriptions.push(surface.onDidRequestSwitchSession(async (sessionId: string) => {
+		await handleSwitchSession(context, sessionId, surface);
 	}));
 
 	subscriptions.push(surface.onDidRequestCompact(async () => {
@@ -498,26 +512,96 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 	return vscode.Disposable.from(...subscriptions);
 }
 
+/**
+ * Which chat a command-palette entry acts on.
+ *
+ * The palette is the one origin with no surface attached — every other route
+ * carries its identity, because the RPC channel *is* the identity. The rule
+ * (§4.2) is never to pick a surface the user did not indicate, so: the focused
+ * chat tab if there is one, the only chat there is if there is only one,
+ * otherwise nothing and the command says so.
+ *
+ * The sidebar is promoted when no tab claims focus. VS Code exposes `active` on
+ * `WebviewPanel` and nothing equivalent on `WebviewView`, so the sidebar cannot
+ * report focus for itself; "no tab has it" is the closest true statement, and it
+ * can never hand a palette command a *tab's* session, which is the defect that
+ * mattered.
+ */
+function commandSurface(): WebviewChatSurface | undefined {
+	const candidates = sessionRegistry.hostsWithSurfaces()
+		.map(host => host.getSurface() as WebviewChatSurface)
+		.map(surface => ({ surface, isActive: surface.isActive?.() === true }));
+
+	if (!candidates.some(candidate => candidate.isActive)) {
+		const sidebarCandidate = candidates.find(candidate => candidate.surface === sidebarSurface);
+		if (sidebarCandidate) {
+			sidebarCandidate.isActive = true;
+		}
+	}
+	return resolveCommandSurface(candidates);
+}
+
+/**
+ * The surface a palette command should act on, or a message explaining why not.
+ *
+ * Undecidable means two or more chats are open and none has focus. Guessing there
+ * is precisely what P3 removes, so the command declines and points at the button
+ * in the chat the user means.
+ */
+function commandSurfaceOrExplain(): WebviewChatSurface | undefined {
+	const surface = commandSurface();
+	if (!surface) {
+		logger.warn('[Command] no chat surface indicated — declining rather than guessing');
+		vscode.window.showInformationMessage(
+			'More than one Copilot CLI chat is open. Use the controls in the chat you mean.'
+		);
+	}
+	return surface;
+}
+
 /** Register all VS Code commands. */
 function registerCommands(context: vscode.ExtensionContext): void {
 	const commands = [
 		vscode.commands.registerCommand('copilot-cli-extension.openChat', () => handleOpenChat(context)),
 		vscode.commands.registerCommand('copilot-cli-extension.openChatInTab', () => chatPanels.openNew()),
 		vscode.commands.registerCommand('copilot-cli-extension.startChat', () => handleStartChat(context)),
-		vscode.commands.registerCommand('copilot-cli-extension.newSession', () => handleNewSession(context)),
-		vscode.commands.registerCommand('copilot-cli-extension.switchSession', (sessionId: string) => handleSwitchSession(context, sessionId)),
-		vscode.commands.registerCommand('copilot-cli-extension.stopChat', () => handleStopChat()),
+		vscode.commands.registerCommand('copilot-cli-extension.newSession', async () => {
+			const surface = commandSurfaceOrExplain();
+			if (surface) { await handleNewSession(context, surface); }
+		}),
+		vscode.commands.registerCommand('copilot-cli-extension.switchSession', async (sessionId: string) => {
+			const surface = commandSurfaceOrExplain();
+			if (surface) { await handleSwitchSession(context, sessionId, surface); }
+		}),
+		vscode.commands.registerCommand('copilot-cli-extension.stopChat', async () => {
+			const surface = commandSurfaceOrExplain();
+			if (surface) { await handleStopChat(surface); }
+		}),
 		vscode.commands.registerCommand('copilot-cli-extension.refreshPanel', () => {
 			sidebarSurface.forceRecreate();
 			vscode.window.showInformationMessage('Chat panel refreshed');
 		}),
 		vscode.commands.registerCommand('copilot-cli-extension.viewDiff', (message: any) => handleViewDiff(message)),
-		vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', (enabled: boolean) => handleTogglePlanMode(enabled)),
-		vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', () => handleAcceptPlan()),
-		vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', () => handleRejectPlan()),
+		// Not contributed to the palette; kept as commands so a keybinding or another
+		// extension can reach them. Each resolves its own target rather than reading
+		// a global — the webview's own toggle goes straight to its host and never
+		// comes through here (see `registerChatHandlers`).
+		vscode.commands.registerCommand('copilot-cli-extension.togglePlanMode', async (enabled: boolean) => {
+			const host = commandSurfaceOrExplain()?.getSessionHost();
+			if (enabled) { await host?.enablePlanMode(); } else { await host?.disablePlanMode(); }
+		}),
+		vscode.commands.registerCommand('copilot-cli-extension.acceptPlan', async () => {
+			await commandSurfaceOrExplain()?.getSessionHost()?.acceptPlan();
+		}),
+		vscode.commands.registerCommand('copilot-cli-extension.rejectPlan', async () => {
+			await commandSurfaceOrExplain()?.getSessionHost()?.rejectPlan();
+		}),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestLight', () => createAnimationTestPanel('light')),
 		vscode.commands.registerCommand('copilot-cli-extension.openAnimationTestDark', () => createAnimationTestPanel('dark')),
-		vscode.commands.registerCommand('copilot-cli-extension.forkSession', () => handleForkSession(context)),
+		vscode.commands.registerCommand('copilot-cli-extension.forkSession', async () => {
+			const surface = commandSurfaceOrExplain();
+			if (surface) { await handleForkSession(context, surface); }
+		}),
 	];
 	context.subscriptions.push(...commands);
 }
@@ -591,22 +675,36 @@ async function handleStartChat(context: vscode.ExtensionContext): Promise<void> 
 	vscode.window.showInformationMessage('Copilot CLI session started!');
 }
 
-async function handleNewSession(context: vscode.ExtensionContext): Promise<void> {
-	if (sessionManager && sessionManager.isRunning()) {
-		await sessionManager.stop();
-		sessionManager = null;
+/**
+ * A new conversation on the surface that asked for one.
+ *
+ * Every line of this used to name the sidebar and stop the module-level manager,
+ * so pressing **+** in a chat tab ended the sidebar's session and started the new
+ * one there. The surface is a parameter now, and the session it stops is its own.
+ */
+async function handleNewSession(
+	context: vscode.ExtensionContext,
+	surface: WebviewChatSurface = sidebarSurface
+): Promise<void> {
+	const host = surface.getSessionHost() ?? sidebarHost;
+	if (host.isLive) {
+		await host.stop();
 	}
-	sidebarSurface.show();
-	sidebarSurface.clearMessages();
-	sidebarSurface.resetPlanMode();
-	await startCLISession(context, false);
+	surface.show();
+	surface.clearMessages();
+	surface.resetPlanMode();
+	// The DOM was cleared and this was not, so the new session inherited the old
+	// transcript in memory and the next `sendInit()` rendered it back under the new
+	// id (`chat-toolbar-cleanup-and-new-session-reset.md` item 4).
+	host.beginNewConversation();
+	await startCLISession(context, false, undefined, host);
 	updateSessionsList();
 
 	const config = vscode.workspace.getConfiguration('copilotCLI');
 	if (shouldAutoEnablePlanMode(config.get<boolean>('startNewSessionInPlanning'))) {
 		logger.info('[New Session] startNewSessionInPlanning=true, enabling plan mode');
 		try {
-			await sessionManager!.enablePlanMode();
+			await host.enablePlanMode();
 		} catch (err: any) {
 			logger.error(`[New Session] Failed to auto-enable plan mode: ${err.message}`);
 		}
@@ -615,37 +713,103 @@ async function handleNewSession(context: vscode.ExtensionContext): Promise<void>
 	vscode.window.showInformationMessage('New Copilot CLI session started!');
 }
 
-async function handleSwitchSession(context: vscode.ExtensionContext, sessionId: string): Promise<void> {
+/**
+ * Point a surface at a session — reveal, reattach or resume (P3 §4.5).
+ *
+ * This used to stop the *global* manager (since Task 7, possibly another
+ * surface's) and then build a **second** `SDKSessionManager` resuming the same id:
+ * two managers over one session directory. `ChatPanelService.openSession` already
+ * consulted the registry first; the rule now lives in one place, `planSessionSwitch`,
+ * so the dropdown and the panel service cannot drift apart.
+ */
+async function handleSwitchSession(
+	context: vscode.ExtensionContext,
+	sessionId: string,
+	surface: WebviewChatSurface = sidebarSurface
+): Promise<void> {
 	logger.info(`Switch Session: ${sessionId}`);
-	if (sessionManager && sessionManager.isRunning()) {
-		await sessionManager.stop();
-		sessionManager = null;
-	}
-	sidebarSurface.resetPlanMode();
-	await startCLISession(context, true, sessionId);
-	await loadSessionHistory(sessionId);
+	const requester = surface.getSessionHost();
+	const plan = planSessionSwitch(sessionId, requester, (id) => sessionRegistry.get(id));
 
-	// The same logged init path the webview's own ready flow uses. This was a
-	// third hand-built copy of the payload, posted raw — so a switch replayed the
-	// transcript invisibly, and the init shape had three places to be kept in step.
-	sidebarSurface.sendInit();
-	updateSessionsList();
+	switch (plan.action) {
+		case 'already-here':
+			logger.info(`[Switch Session] ${sessionId} is already on this surface`);
+			return;
+
+		case 'reveal':
+			// Never steal: taking the session would blank a live conversation out
+			// from under whoever is watching it.
+			logger.info(`[Switch Session] ${sessionId} is open on ${plan.host.handle} — revealing it`);
+			plan.host.getSurface()?.show();
+			vscode.window.showInformationMessage('That session is already open in another chat.');
+			return;
+
+		case 'reattach': {
+			// Its tab was closed and the host is still alive. Attaching is the whole
+			// reconnect — starting anything here is what produced the second manager.
+			logger.info(`[Switch Session] reattaching to live host ${plan.host.handle} for ${sessionId}`);
+			await releaseCurrentHost(surface);
+			plan.host.attachSurface(surface);
+			surface.setSessionHost(plan.host);
+			surface.resetPlanMode();
+			surface.sendInit();
+			updateSessionsList();
+			return;
+		}
+
+		case 'resume': {
+			const host = requester ?? sidebarHost;
+			if (host.isLive) {
+				await host.stop();
+			}
+			surface.resetPlanMode();
+			await startCLISession(context, true, sessionId, host);
+			await loadSessionHistory(sessionId, host);
+
+			// The same logged init path the webview's own ready flow uses. This was a
+			// third hand-built copy of the payload, posted raw — so a switch replayed
+			// the transcript invisibly, and the init shape had three places to be kept
+			// in step.
+			surface.sendInit();
+			updateSessionsList();
+			return;
+		}
+	}
 }
 
-async function handleForkSession(context: vscode.ExtensionContext): Promise<void> {
+/**
+ * The surface is leaving its current host behind.
+ *
+ * Detached rather than stopped: the conversation it was showing may still be
+ * working, and a user who switched away did not ask for it to be killed. What
+ * happens to a host with no surface is §4.4's wind-down.
+ */
+async function releaseCurrentHost(surface: WebviewChatSurface): Promise<void> {
+	const outgoing = surface.getSessionHost();
+	if (!outgoing) {
+		return;
+	}
+	outgoing.detachSurface(surface);
+}
+
+async function handleForkSession(
+	context: vscode.ExtensionContext,
+	surface: WebviewChatSurface = sidebarSurface
+): Promise<void> {
 	// Thin binder: the decision logic lives in forkCurrentSession, which takes
 	// its collaborators explicitly so it can be tested without a vscode mock.
-	const manager = sessionManager;
+	// Mechanical change only — fork's *behaviour* is Task 10's subject.
+	const host = surface.getSessionHost();
 	await forkCurrentSession({
-		getSessionId: () => manager?.getSessionId() ?? null,
-		fork: (sessionId, opts) => {
-			// getSessionId() already returned null if the manager was gone, so
+		getSessionId: () => (host?.isLive ? host.sessionId : null),
+		fork: (_sessionId, opts) => {
+			// getSessionId() already returned null if there was no live session, so
 			// this is unreachable in practice — but assert it rather than
 			// silencing the compiler with a non-null assertion.
-			if (!manager) { throw new Error('Session manager is not available'); }
-			return manager.forkSession(sessionId, opts);
+			if (!host) { throw new Error('Session manager is not available'); }
+			return host.fork(opts);
 		},
-		switchTo: (sessionId) => handleSwitchSession(context, sessionId),
+		switchTo: (sessionId) => handleSwitchSession(context, sessionId, surface),
 		notify: {
 			info: (m) => { vscode.window.showInformationMessage(m); },
 			warn: (m) => { vscode.window.showWarningMessage(m); },
@@ -656,18 +820,18 @@ async function handleForkSession(context: vscode.ExtensionContext): Promise<void
 	});
 }
 
-async function handleStopChat(): Promise<void> {
-	if (!sessionManager || !sessionManager.isRunning()) {
+async function handleStopChat(surface: WebviewChatSurface = sidebarSurface): Promise<void> {
+	const host = surface.getSessionHost();
+	if (!host?.isLive) {
 		vscode.window.showInformationMessage('No active Copilot CLI session');
 		return;
 	}
 	try {
-		await sessionManager.stop();
-		sessionManager = null;
+		await host.stop();
 		statusBarItem.text = "$(comment-discussion) Copilot CLI";
 		statusBarItem.tooltip = "Open Copilot CLI Chat";
-		sidebarSurface.setSessionActive(false);
-		sidebarSurface.addAssistantMessage('Session ended.');
+		surface.setSessionActive(false);
+		surface.addAssistantMessage('Session ended.');
 		vscode.window.showInformationMessage('Copilot CLI session stopped');
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
@@ -700,51 +864,8 @@ async function handleViewDiff(message: any): Promise<void> {
 	}
 }
 
-async function handleTogglePlanMode(enabled: boolean): Promise<void> {
-	if (!sessionManager || !sessionManager.isRunning()) {
-		vscode.window.showWarningMessage('No active Copilot CLI session');
-		return;
-	}
-	try {
-		if (enabled) {
-			await sessionManager.enablePlanMode();
-		} else {
-			await sessionManager.disablePlanMode();
-		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		logger.error(`Failed to toggle plan mode: ${errorMessage}`);
-		vscode.window.showErrorMessage(`Failed to toggle plan mode: ${errorMessage}`);
-	}
-}
 
-async function handleAcceptPlan(): Promise<void> {
-	if (!sessionManager || !sessionManager.isRunning()) {
-		vscode.window.showWarningMessage('No active Copilot CLI session');
-		return;
-	}
-	try {
-		await sessionManager.acceptPlan();
-	} catch (error) {
-		const errorMsg = error instanceof Error ? error.message : String(error);
-		logger.error(`Failed to accept plan: ${errorMsg}`);
-		vscode.window.showErrorMessage(`Failed to accept plan: ${errorMsg}`);
-	}
-}
 
-async function handleRejectPlan(): Promise<void> {
-	if (!sessionManager || !sessionManager.isRunning()) {
-		vscode.window.showWarningMessage('No active Copilot CLI session');
-		return;
-	}
-	try {
-		await sessionManager.rejectPlan();
-	} catch (error) {
-		const errorMsg = error instanceof Error ? error.message : String(error);
-		logger.error(`Failed to reject plan: ${errorMsg}`);
-		vscode.window.showErrorMessage(`Failed to reject plan: ${errorMsg}`);
-	}
-}
 
 async function determineSessionToResume(context: vscode.ExtensionContext): Promise<string | null> {
 	const workspaceFolders = vscode.workspace.workspaceFolders;

@@ -132,6 +132,18 @@ export class ChatSessionRegistry {
         return [...this.liveHosts].map(host => host.sessionId).filter((id): id is string => id !== null);
     }
 
+    /**
+     * Every host something is currently rendering.
+     *
+     * The candidate set for "which chat did the user mean" — see
+     * `commandSurface.ts`. Hosts with no surface are excluded on purpose: a closed
+     * tab's host is alive and winding down, and it is not a chat you can be
+     * looking at.
+     */
+    public hostsWithSurfaces(): ChatSessionHost[] {
+        return [...this.liveHosts].filter(host => host.getSurface() !== undefined);
+    }
+
     public dispose(sessionId: string): void {
         const host = this.hostsBySessionId.get(sessionId);
         if (!host) {

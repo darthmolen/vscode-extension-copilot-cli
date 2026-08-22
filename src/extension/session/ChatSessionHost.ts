@@ -61,6 +61,14 @@ export interface ChatSurface {
     /** Bring this surface to the front — what the collision rule does instead of
      *  opening a second one for a session that already has a surface. */
     show(preserveFocus?: boolean): void;
+    /**
+     * Whether this surface has the user's attention, when it can tell.
+     *
+     * Optional because only an editor tab can answer it — VS Code exposes `active`
+     * on `WebviewPanel` and nothing equivalent on `WebviewView`. A surface that
+     * cannot tell says nothing rather than guessing.
+     */
+    isActive?(): boolean;
     dispose(): void;
 }
 
@@ -121,6 +129,7 @@ export interface SessionManagerLike {
     validateAttachments(filePaths: string[]): Promise<{ valid: boolean; error?: string }>;
     listMcpServers(): Promise<any[]>;
     listConfiguredMcpServers(): Promise<Record<string, any>>;
+    forkSession(sourceSessionId: string, opts?: { sessionStateDir?: string }): Promise<string>;
 }
 
 export interface PromptOptions {
@@ -611,6 +620,26 @@ export class ChatSessionHost {
         await this.#manager?.sendMessage(`/rename ${name}`);
     }
 
+    /**
+     * Empty this conversation so a new session starts blank.
+     *
+     * `handleNewSession` cleared the webview's DOM and nothing cleared this, so the
+     * new session kept the previous transcript in memory and the next `sendInit()`
+     * — a reload, a re-attach — rendered the old conversation back under the new
+     * session's id.
+     *
+     * The session id is put back after the reset. `SessionState.reset()` nulls its
+     * own copy, and the host's must not drift from it: the registry indexes by the
+     * host's id while the surface renders the state's, and a disagreement between
+     * them is unreachable-session territory. The real id arrives moments later via
+     * `adoptSessionId`.
+     */
+    public beginNewConversation(): void {
+        this.state.reset();
+        this.state.setSessionId(this.currentSessionId);
+        this.logger.info(`[ChatSessionHost ${this.handle}] transcript cleared for a new conversation`);
+    }
+
     // ── Plan mode ────────────────────────────────────────────────────────────
 
     public async enablePlanMode(): Promise<void> {
@@ -642,6 +671,23 @@ export class ChatSessionHost {
         const manager = this.#manager!;
         this.markStopped();
         await manager.stop();
+    }
+
+    /**
+     * Copy this session and hand back the new id. Task 10 opens the copy in a tab.
+     *
+     * Throws rather than returning a sentinel: every other verb here can sensibly
+     * do nothing, but "fork" that silently forked nothing would report success to
+     * `forkCurrentSession`, which announces it to the user.
+     */
+    public async fork(opts: { sessionStateDir?: string } = {}): Promise<string> {
+        if (!this.#manager) {
+            throw new Error(`[ChatSessionHost ${this.handle}] cannot fork — no active session`);
+        }
+        if (!this.currentSessionId) {
+            throw new Error(`[ChatSessionHost ${this.handle}] cannot fork — this session has no id yet`);
+        }
+        return this.#manager.forkSession(this.currentSessionId, opts);
     }
 
     // ── Queries ──────────────────────────────────────────────────────────────
