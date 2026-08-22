@@ -560,8 +560,11 @@ export class SDKSessionManager implements vscode.Disposable {
                     (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
                 return yolo && !hasToolPolicy;
             },
-            createClient: options => new CopilotClient(options),
-            onClientStarted: client => this.modelCapabilitiesService.initialize(client)
+            createClient: options => new CopilotClient(options)
+            // No `onClientStarted`: `adoptClient` initialises capabilities. A hook here
+            // as well would be a second writer for the same fact, and the two only
+            // agreed while the same object happened to build the provider and own the
+            // service.
         });
     }
 
@@ -709,9 +712,10 @@ export class SDKSessionManager implements vscode.Disposable {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-            // The provider builds, starts, and wires diagnostics on the client, and
-            // initializes model capabilities via its onClientStarted hook.
-            this.client = await this.clientProvider.get();
+            // The provider builds, starts and wires diagnostics on the client.
+            // Capabilities are initialised here rather than by the provider — see
+            // `adoptClient`.
+            await this.acquireClient();
 
             this.logger.info('CopilotClient created and started, initializing session...');
 
@@ -1916,10 +1920,40 @@ export class SDKSessionManager implements vscode.Disposable {
      * Called before any createSession/resumeSession after a connection loss.
      */
     private async recreateClient(): Promise<void> {
-        // Capabilities are per-client, so drop them before the replacement's
-        // onClientStarted hook re-initializes them.
+        // Clear BEFORE adopting, not after: initialising against the outgoing client
+        // and then swapping would leave the service describing a client nobody uses.
         this.modelCapabilitiesService.clearCache();
-        this.client = await this.clientProvider.recreate();
+        await this.adoptClient(await this.clientProvider.recreate());
+    }
+
+    /** Take the provider's current client. */
+    private async acquireClient(): Promise<void> {
+        await this.adoptClient(await this.clientProvider.get());
+    }
+
+    /**
+     * Adopt `client` and initialise everything that is scoped to it.
+     *
+     * The capabilities service is initialised HERE, by the manager that owns it,
+     * rather than by the provider's `onClientStarted` hook. Two reasons, and the
+     * second is why the hook is gone rather than merely duplicated:
+     *
+     * 1. **A provider can be shared.** Spine S4 runs N managers against one provider
+     *    so N sessions share one CLI process. `onClientStarted` fires once per client;
+     *    each manager has its own capabilities service. One callback cannot initialise
+     *    all of them.
+     * 2. **A provider can be injected by someone who never wired the hook.** That was
+     *    not hypothetical: the ACP agent injected a provider without it, and the
+     *    service went uninitialised in the whole agent process — degrading model
+     *    fallback, vision support and attachment validation, silently, until a live
+     *    run in Zed logged it.
+     *
+     * Owning it here means it cannot be forgotten by a caller who does not know it
+     * needs doing.
+     */
+    private async adoptClient(client: any): Promise<void> {
+        this.client = client;
+        await this.modelCapabilitiesService.initialize(client);
     }
 
     /**
