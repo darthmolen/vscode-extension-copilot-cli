@@ -1,0 +1,94 @@
+{
+  "target": "copilot --acp (1.0.68)",
+  "methods": {
+    "initialize": "✓ answered",
+    "session/new": "✓ answered",
+    "session/set_mode": "✗ Invalid mode 'plan'. Supported values: https://agentclientpr",
+    "session/list": "✓ answered",
+    "session/load": "✗ Session 69994599-5106-4112-8d10-820a62107a65 is already load",
+    "session/fork": "✗ \"Method not found\": session/fork",
+    "session/close": "✗ \"Method not found\": session/close"
+  },
+  "advertised": {
+    "protocolVersion": 1,
+    "agentInfo": {
+      "name": "Copilot",
+      "title": "Copilot",
+      "version": "1.0.68"
+    },
+    "authMethods": [
+      {
+        "id": "copilot-login",
+        "name": "Log in with Copilot CLI",
+        "description": "Run `copilot login` in the terminal",
+        "_meta": {
+          "terminal-auth": {
+            "command": "/home/smolen/dev/vscode-copilot-cli-extension-lane-a/node_modules/@github/copilot-linux-x64/copilot",
+            "args": [
+              "login"
+            ],
+            "label": "Copilot Login"
+          }
+        }
+      }
+    ],
+    "agentCapabilities": {
+      "loadSession": true,
+      "mcpCapabilities": {
+        "http": true,
+        "sse": true
+      },
+      "promptCapabilities": {
+        "image": true,
+        "audio": false,
+        "embeddedContext": true
+      },
+      "sessionCapabilities": {
+        "list": {}
+      }
+    },
+    "modesOnNewSession": {
+      "availableModes": [
+        {
+          "id": "https://agentclientprotocol.com/protocol/session-modes#agent",
+          "name": "Agent",
+          "description": "Default agent mode for conversational interactions"
+        },
+        {
+          "id": "https://agentclientprotocol.com/protocol/session-modes#plan",
+          "name": "Plan",
+          "description": "Plan mode for creating and executing multi-step plans"
+        },
+        {
+          "id": "https://agentclientprotocol.com/protocol/session-modes#autopilot",
+          "name": "Autopilot",
+          "description": "Autonomous mode that enables allow-all and runs until task completion without user interaction (experimental)"
+        }
+      ],
+      "currentModeId": "https://agentclientprotocol.com/protocol/session-modes#agent"
+    }
+  },
+  "streamed": {
+    "available_commands_update": 1,
+    "config_option_update": 1,
+    "tool_call": 4,
+    "tool_call_update": 6,
+    "agent_message_chunk": 30,
+    "agent_thought_chunk": 1,
+    "plan": 1,
+    "_diffContent": 1
+  },
+  "permissions": 1,
+  "permissionShape": {
+    "kind": "execute",
+    "title": "Echo requested text",
+    "options": [
+      "allow_once",
+      "allow_always",
+      "reject_once"
+    ]
+  },
+  "stderrTail": [
+    ""
+  ]
+}
