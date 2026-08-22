@@ -27,6 +27,7 @@ import { createChatSessionServices } from './extension/session/chatSessionServic
 import { planSessionStart } from './extension/session/sessionStartPlan';
 import { planSessionSwitch } from './extension/session/sessionSwitchPlan';
 import { resolveCommandSurface } from './extension/webview/commandSurface';
+import { chooseStartupModel } from './extension/session/sessionModel';
 import { createStartManager } from './extension/session/startManager';
 import { recordSessionStart, loadTranscriptInto } from './extension/session/sessionBootstrap';
 import { ManagedMCPRegistry } from './extension/services/managedMCPRegistry';
@@ -316,6 +317,11 @@ function applySharedProviders(context: vscode.ExtensionContext, surface: Webview
 	});
 }
 
+/** Where the CLI keeps a session's files. One definition, several readers. */
+function sessionStatePath(sessionId: string): string {
+	return path.join(os.homedir(), '.copilot', 'session-state', sessionId);
+}
+
 /** Opens plan.md in the editor. Shared by toolbar button and plan_ready status. */
 async function viewPlanFile(): Promise<void> {
 	const planPath = sessionManager?.getPlanFilePath();
@@ -434,7 +440,7 @@ function registerSurfaceHandlers(context: vscode.ExtensionContext, surface: Webv
 		// updates even if the CLI throws "Workspace not found" (issue #1865).
 		const sessionId = surface.getSessionHost()?.sessionId;
 		if (sessionId) {
-			const sessionPath = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
+			const sessionPath = sessionStatePath(sessionId);
 			try {
 				SessionService.writeSessionName(sessionPath, sessionName);
 				logger.info(`[Rename Session] Wrote session-name.txt: "${sessionName}"`);
@@ -927,6 +933,21 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		}
 
 		const config = getCLIConfig();
+
+		// §4.6 — a session remembers the model you chose for it, and the read has to
+		// happen *here*, before the manager is built. Feeding only the host's state
+		// would start the CLI on the configured default while the UI displayed the
+		// persisted one. Consulted only for a session we are actually resuming: a new
+		// conversation has nothing recorded, which is exactly how `copilotCLI.model`
+		// keeps its scope as the default for new sessions.
+		if (specificSessionId) {
+			config.model = chooseStartupModel({
+				persisted: SessionService.readSessionModel(sessionStatePath(specificSessionId)),
+				configured: vscode.workspace.getConfiguration('copilotCLI').get<string>('model', ''),
+				fallback: DEFAULT_MODEL
+			});
+		}
+
 		logger.info('Creating CLI Process Manager with config:');
 		logger.debug(JSON.stringify(config, null, 2));
 
@@ -953,7 +974,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		logger.info('Starting CLI process...');
 		await manager.start();
 
-		onSessionStarted(manager, target);
+		onSessionStarted(manager, target, config.model);
 		return manager;
 	} catch (error) {
 		await handleStartupError(error, context, resumeLastSession, specificSessionId);
@@ -1004,6 +1025,21 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
 				logger.info(`[Rename Session] Renamed to: "${statusData.name}"`);
 				updateSessionsList();
 				break;
+			case 'model_switched': {
+				// The gesture, written down. Without this the next resume reads
+				// `copilotCLI.model` and the user's choice silently disappears —
+				// row one of CLAUDE.md's "intentional actions" table.
+				//
+				// Here rather than in `ChatSessionHost.applyStatus` because this is
+				// filesystem work: the host records on its own state and tells its own
+				// surface, and gains no `fs` dependency.
+				const switchedSessionId = owner.sessionId;
+				if (switchedSessionId && statusData.model) {
+					SessionService.writeSessionModel(sessionStatePath(switchedSessionId), statusData.model);
+					logger.info(`[Model Switch] recorded ${statusData.model} for ${switchedSessionId}`);
+				}
+				break;
+			}
 		}
 	})));
 
@@ -1063,13 +1099,21 @@ function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSession
  * conversation active, adopted the new id onto `sidebarHost`, and greeted the
  * sidebar — whichever surface had actually asked for the session.
  */
-function onSessionStarted(manager: SDKSessionManager, target: ChatSessionHost = sidebarHost): void {
+function onSessionStarted(
+	manager: SDKSessionManager,
+	target: ChatSessionHost = sidebarHost,
+	startedOnModel?: string
+): void {
 	// manager.getWorkspacePath() returns the SDK session-state dir, not the
 	// VS Code workspace.  Use the real workspace folder for image resolution.
+	//
+	// The model is passed in rather than re-read from config: `startCLISession` may
+	// have preferred this session's persisted choice over the configured default,
+	// and re-reading here would show the user the setting they did not pick.
 	recordSessionStart(target, {
 		sessionId: manager.getSessionId(),
 		workspacePath: manager.getWorkspacePath() || null,
-		model: getCLIConfig().model || null
+		model: startedOnModel ?? getCLIConfig().model ?? null
 	});
 
 	const surface = target.getSurface();

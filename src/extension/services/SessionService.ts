@@ -160,6 +160,39 @@ export const SessionService = {
     },
 
     /**
+     * Records the model this session is on, in `session-model.txt`.
+     *
+     * Beside `session-name.txt` and shaped like it: plain text, one value, single
+     * purpose, no read-modify-write to race. Never throws — the model switch has
+     * already succeeded by the time this runs, and failing to write the note down
+     * must not be reported to the user as a failed switch.
+     *
+     * Deliberately not merged into P4's `session-pairing.json`: that is written
+     * once at plan-session creation and never edited, this is rewritten on every
+     * switch, and coupling two lifetimes into one file buys only a lost-update
+     * window.
+     */
+    writeSessionModel(sessionPath: string, model: string): void {
+        try {
+            fs.writeFileSync(path.join(sessionPath, 'session-model.txt'), model, 'utf-8');
+        } catch { /* never throw */ }
+    },
+
+    /** The model this session last recorded, or `null` if it never did. */
+    readSessionModel(sessionPath: string): string | null {
+        try {
+            const modelPath = path.join(sessionPath, 'session-model.txt');
+            if (!fs.existsSync(modelPath)) {
+                return null;
+            }
+            const model = fs.readFileSync(modelPath, 'utf-8').trim();
+            return model.length > 0 ? model : null;
+        } catch {
+            return null;
+        }
+    },
+
+    /**
      * Writes a readable default name to session-name.txt only if one does not already exist.
      * Uses workspace.yaml created_at if available, otherwise current date.
      * Never throws — safe to call in any lifecycle context.
