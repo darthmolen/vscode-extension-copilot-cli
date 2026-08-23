@@ -8,7 +8,9 @@ import { WebviewChatSurface } from './extension/webview/webviewChatSurface';
 import { ChatPanelService, CHAT_PANEL_VIEW_TYPE } from './extension/webview/chatPanelService';
 import { PanelSlot, chatWebviewResourceRoots } from './extension/webview/chatWebviewSlot';
 import { getWorkspaceRuntimeState } from './backendState';
-import { createVSCodeHostBridge } from './extension/hostBridge';
+// `vscodeHostBridge`, not `hostBridge`: the contract and the VS Code implementation
+// were split so `sdkSessionManager.ts` can depend on the first without the second.
+import { createVSCodeHostBridge } from './extension/vscodeHostBridge';
 import { SUBAGENT_PALETTE } from './shared/subagentPalette';
 import { forkCurrentSession } from './extension/commands/forkSession';
 import { SessionService } from './extension/services/SessionService';
@@ -1180,8 +1182,10 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		// after the await gave whichever finished last, so `onSessionStarted` adopted
 		// another session's id onto this target: two hosts claimed one session and a
 		// real CLI session was orphaned.
+		//
+		// No `context` argument: the manager takes a required HostBridge instead, and
+		// the bridge below is the only thing that still needs the context.
 		const manager = new SDKSessionManager(
-			context,
 			config,
 			resumeLastSession,
 			specificSessionId,

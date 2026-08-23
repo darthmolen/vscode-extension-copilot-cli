@@ -9,6 +9,17 @@
  */
 
 const path = require('path');
+const { createVSCodeMockHost } = require('../../helpers/fake-host');
+
+/**
+ * The bridge the manager used to build for itself from a mock context, now that it
+ * requires one. Same values as before: the `vscode` mock's workspace and settings,
+ * this suite's temp dir for global storage.
+ */
+function hostFor(context) {
+    return createVSCodeMockHost({ globalStorageDir: context.globalStorageUri.fsPath });
+}
+
 const fs = require('fs');
 const Module = require('module');
 
@@ -156,9 +167,11 @@ async function runTest() {
         // Create session manager
         console.log('Creating SDK Session Manager with MCP enabled...');
         manager = new SDKSessionManager(
-            context,
             { yolo: true },
-            false // Don't resume
+            false, // Don't resume
+            undefined,
+            undefined,
+            hostFor(context)
         );
 
         // Listen for messages and errors

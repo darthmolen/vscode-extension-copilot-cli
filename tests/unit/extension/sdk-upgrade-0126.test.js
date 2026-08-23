@@ -43,6 +43,7 @@ Module.prototype.require = function (id) {
 
 const assert = require('assert');
 const path = require('path');
+const { createFakeHost } = require('../../helpers/fake-host');
 
 describe('SDK 0.1.26 Upgrade', function () {
 	this.timeout(10000);
@@ -78,55 +79,12 @@ describe('SDK 0.1.26 Upgrade', function () {
 		});
 	});
 
-	describe('onPermissionRequest in session configs', function () {
-		it('should inject onPermissionRequest: approveAll in createSessionWithModelFallback', function () {
-			// Verify the source code injects approveAll into the config
-			const fs = require('fs');
-			const source = fs.readFileSync(
-				path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf8'
-			);
-
-			// Find createSessionWithModelFallback method
-			const methodMatch = source.match(/createSessionWithModelFallback\(config[^)]*\)[^{]*\{([\s\S]*?)(?=private\s|public\s|^\s{4}\})/m);
-			assert.ok(methodMatch, 'createSessionWithModelFallback method should exist');
-
-			const methodBody = methodMatch[1];
-			assert.ok(methodBody.includes('onPermissionRequest'),
-				'createSessionWithModelFallback should reference onPermissionRequest');
-			assert.ok(methodBody.includes('approveAll'),
-				'createSessionWithModelFallback should use approveAll');
-		});
-
-		it('should inject onPermissionRequest: approveAll in attemptSessionResumeWithUserRecovery', function () {
-			const fs = require('fs');
-			const source = fs.readFileSync(
-				path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf8'
-			);
-
-			// Find attemptSessionResumeWithUserRecovery method
-			const methodMatch = source.match(/attemptSessionResumeWithUserRecovery\([\s\S]*?\{([\s\S]*?)(?=\/\/ Wrap the SDK)/m);
-			assert.ok(methodMatch, 'attemptSessionResumeWithUserRecovery method should exist');
-
-			const methodBody = methodMatch[1];
-			assert.ok(methodBody.includes('onPermissionRequest'),
-				'attemptSessionResumeWithUserRecovery should inject onPermissionRequest');
-			assert.ok(methodBody.includes('approveAll'),
-				'attemptSessionResumeWithUserRecovery should use approveAll');
-		});
-
-		it('should have approveAll available as module-level variable', function () {
-			const fs = require('fs');
-			const source = fs.readFileSync(
-				path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf8'
-			);
-
-			// Verify approveAll is declared and set in loadSDK
-			assert.ok(source.includes('let approveAll'),
-				'approveAll should be declared as module-level variable');
-			assert.ok(source.includes('approveAll = sdk.approveAll'),
-				'approveAll should be assigned from SDK in loadSDK()');
-		});
-	});
+	// The three tests that used to live here matched strings in sdkSessionManager.ts —
+	// `source.includes('approveAll')` and friends. They asserted nothing a comment could
+	// not have satisfied, and they stayed green through the change that made this seam
+	// injectable. Their subject is now covered behaviourally, by calling the real config
+	// builders and inspecting what they build:
+	// tests/unit/extension/sdk-session-manager-permission-handler.test.js
 
 	describe('clientName in session configs', function () {
 		it('should include clientName in createSessionWithModelFallback config', function () {
@@ -200,13 +158,12 @@ describe('SDK 0.1.26 Upgrade', function () {
 
 	describe('injected cliPath', function () {
 		it('uses an injected cliPath instead of resolveCliPath() when provided', function () {
-			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
 			const mgr = new SDKSessionManager(
-				mockContext,
 				{},
 				/* resumeLastSession */ false,
 				/* specificSessionId */ undefined,
-				/* cliPath */ '/injected/path/copilot'
+				/* cliPath */ '/injected/path/copilot',
+				createFakeHost()
 			);
 			assert.strictEqual(typeof mgr.getCliPathForTest, 'function',
 				'SDKSessionManager should expose getCliPathForTest()');
@@ -214,8 +171,7 @@ describe('SDK 0.1.26 Upgrade', function () {
 		});
 
 		it('returns null/undefined from getCliPathForTest when no path injected (falls back to resolveCliPath)', function () {
-			const mockContext = { extensionPath: '/x', subscriptions: [], globalStorageUri: { fsPath: '/x/gs' } };
-			const mgr = new SDKSessionManager(mockContext, {}, false);
+			const mgr = new SDKSessionManager({}, false, undefined, undefined, createFakeHost());
 			const result = mgr.getCliPathForTest();
 			assert.ok(result === null || result === undefined,
 				`expected null/undefined, got: ${result}`);

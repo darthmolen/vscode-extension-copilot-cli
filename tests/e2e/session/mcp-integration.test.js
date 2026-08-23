@@ -4,6 +4,7 @@
  */
 
 const path = require('path');
+const { createVSCodeMockHost } = require('../../helpers/fake-host');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const Module = require('module');
@@ -122,6 +123,15 @@ class TestLogger {
 }
 
 // Mock extension context
+/**
+ * The bridge the manager used to build for itself from a mock context, now that it
+ * requires one. Same values as before: the `vscode` mock's workspace and settings,
+ * this suite's temp dir for global storage.
+ */
+function hostFor(context) {
+    return createVSCodeMockHost({ globalStorageDir: context.globalStorageUri.fsPath });
+}
+
 function createMockContext() {
     const tempDir = path.join(__dirname, 'output', 'mcp-test-temp');
     if (!fs.existsSync(tempDir)) {
@@ -181,7 +191,7 @@ async function testMCPConfiguration() {
         };
         
         console.log('📦 Creating SDKSessionManager instance...');
-        const manager = new SDKSessionManager(context, config, false);
+        const manager = new SDKSessionManager(config, false, undefined, undefined, hostFor(context));
         console.log('✅ Instance created\n');
         
         // Track events

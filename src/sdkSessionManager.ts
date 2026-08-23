@@ -9,8 +9,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { Logger, LoggerLike } from './logger';
-import { HostBridge, MessageEnhancerLike, NoopMessageEnhancer, createVSCodeHostBridge } from './extension/hostBridge';
+// Type-only for the contract; `NoopMessageEnhancer` is the one runtime import, and
+// `hostBridge.ts` holds no implementation and reaches for no host. Nothing here
+// resolves to `require('vscode')` — which is the point, and is asserted in
+// tests/unit/extension/sdk-session-manager-host-decoupling.test.js.
+import type { HostBridge, MessageEnhancerLike } from './extension/hostBridge';
+import { NoopMessageEnhancer } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
+import { SignalEmitter } from './utilities/signalEmitter';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
 import { PlanModeToolsService, PLAN_MODE_AVAILABLE_TOOLS } from './extension/services/planModeToolsService';
@@ -192,7 +198,17 @@ export function resolveCliPath(
     );
 }
 
-let approveAll: any;
+/**
+ * The default permission decision: approve this call, and only this call.
+ *
+ * Seeded here rather than left undefined until `loadSDK()` fills it in, because
+ * `client.ts` sets the wire flag `requestPermission: !!config.onPermissionRequest`.
+ * A config built before the SDK finished loading would therefore tell the CLI that
+ * nobody will answer, and every permission request would hang pending forever.
+ * `loadSDK()` still swaps in the SDK's own `approveAll`, so we stay on their
+ * implementation once it is available.
+ */
+let approveAll: any = () => ({ kind: 'approve-once' });
 
 async function loadSDK() {
     if (!CopilotClient) {
@@ -249,6 +265,15 @@ export interface StatusData {
     resetMetrics?: boolean;  // For reset_metrics
     postCompactionTokens?: number;  // For reset_metrics after compaction
     summary?: string | null;  // For plan_ready
+    /**
+     * The plan session's id. For `plan_mode_enabled`.
+     *
+     * Published because it is derived here as `${workSessionId}-plan` and a consumer
+     * that needs it would otherwise have to re-derive it from the suffix — becoming a
+     * second place that knows what `-plan` means. The cost of ever adopting the CLI's
+     * native plan mode is however many places know that; this keeps the number at one.
+     */
+    planSessionId?: string;
     model?: string;  // For model_switched / model_switch_failed
     name?: string;  // For session_renamed
 }
@@ -274,6 +299,27 @@ export interface UsageData {
 
 export interface TaskCompleteData {
     summary?: string;
+}
+
+/**
+ * One row of the CLI's todo table.
+ *
+ * Every field is optional because the SDK says so: "the SQL schema is best-effort and
+ * the agent may not have populated every column." Anything reading this has to cope
+ * with a row that is entirely blank.
+ */
+export interface TodoRow {
+    id?: string;
+    title?: string;
+    description?: string;
+    status?: string;
+}
+
+/** The agent's plan, as fetched after a `session.todos_changed` signal. */
+export interface TodosData {
+    todos: TodoRow[];
+    /** `todoId` depends on `dependsOn`. Empty when the agent declared no ordering. */
+    dependencies: Array<{ todoId: string; dependsOn: string }>;
 }
 
 export interface SubagentStartData {
@@ -373,6 +419,34 @@ export class SDKSessionManager implements vscode.Disposable {
     private readonly _onDidTaskComplete = this._reg(new BufferedEmitter<TaskCompleteData>());
     readonly onDidTaskComplete = this._onDidTaskComplete.event;
 
+    /**
+     * The agent's todo list changed — its plan, in the CLI's vocabulary.
+     *
+     * Carries the fetched state rather than the bare signal the CLI sends, so every
+     * consumer does not repeat the same RPC and get a different answer depending on
+     * when it ran.
+     */
+    private readonly _onDidUpdateTodos = this._reg(new BufferedEmitter<TodosData>());
+    readonly onDidUpdateTodos = this._onDidUpdateTodos.event;
+
+    /**
+     * The session is quiet — no turn running, **and no background agents or attached
+     * shell commands in flight**. That last part is why this exists separately from
+     * turn status: `assistant.turn_end` says the assistant stopped, not that the
+     * session did.
+     *
+     * A `SignalEmitter`, not a `BufferedEmitter`, and that is load-bearing. Idle is a
+     * transition: `ephemeral: true`, never written to the event log, fired at the end
+     * of every turn. A consumer arms a countdown on it, so replaying buffered idles to
+     * a late subscriber would wind down a session that is busy right now.
+     *
+     * Added for P3's orphaned-host wind-down (Lane B, cross-talk 03), which otherwise
+     * settles for turn status and can therefore wind down while a sub-agent is still
+     * running.
+     */
+    private readonly _onDidBecomeIdle = this._reg(new SignalEmitter<void>());
+    readonly onDidBecomeIdle = this._onDidBecomeIdle.event;
+
     private readonly _onDidStartSubagent = this._reg(new BufferedEmitter<SubagentStartData>());
     readonly onDidStartSubagent = this._onDidStartSubagent.event;
 
@@ -403,6 +477,12 @@ export class SDKSessionManager implements vscode.Disposable {
     // Services
     private modelCapabilitiesService: ModelCapabilitiesService;
     private currentModelId: string | null = null;
+
+    /**
+     * Who answers permission requests. Unset means "this manager does", via
+     * `approveAll`. See {@link setPermissionHandler}.
+     */
+    private permissionHandler: ((request: any, invocation: any) => any) | undefined;
     private planModeToolsService: PlanModeToolsService | null = null;
     private _messageEnhancementService: MessageEnhancerLike | null = null;
     private fileSnapshotService: FileSnapshotService;
@@ -430,8 +510,14 @@ export class SDKSessionManager implements vscode.Disposable {
     /** False when the provider was injected — a consumer must not stop what it shares. */
     private readonly ownsClientProvider: boolean;
 
+    /**
+     * @param hostBridge Required. The manager used to accept a `vscode.ExtensionContext`
+     *   instead and build the VS Code bridge itself, which meant this module named the
+     *   VS Code host in a static import — the one thing that would survive renaming the
+     *   file it came from. Whoever constructs a manager knows which host it is for; the
+     *   manager does not need to.
+     */
     constructor(
-        context: vscode.ExtensionContext | undefined,
         private readonly config: CLIConfig = {},
         resumeLastSession: boolean = true,
         specificSessionId?: string,
@@ -440,14 +526,13 @@ export class SDKSessionManager implements vscode.Disposable {
         clientProvider?: CopilotClientProvider
     ) {
         this.injectedCliPath = cliPath ?? null;
-        if (!hostBridge && !context) {
-            // Without either, the VS Code bridge would be built over an undefined
-            // context and fail later inside getGlobalStorageDir() — far from the cause.
-            throw new Error(
-                'SDKSessionManager requires either a vscode.ExtensionContext or an injected HostBridge.'
-            );
+        if (!hostBridge) {
+            // Optional in the signature only so the failure is this sentence rather
+            // than a TypeError from the first `this.host.` call, which lands far from
+            // the cause. JavaScript callers get the same message TypeScript would.
+            throw new Error('SDKSessionManager requires an injected HostBridge.');
         }
-        this.host = hostBridge ?? createVSCodeHostBridge(context as vscode.ExtensionContext);
+        this.host = hostBridge;
         this.logger = this.host.logger;
         // Services constructed below reach for the Logger singleton directly, so
         // point it at the host's logger to keep them working where there is no
@@ -503,8 +588,11 @@ export class SDKSessionManager implements vscode.Disposable {
                     (this.config.allowTools?.length ?? 0) > 0 || (this.config.denyTools?.length ?? 0) > 0;
                 return yolo && !hasToolPolicy;
             },
-            createClient: options => new CopilotClient(options),
-            onClientStarted: client => this.modelCapabilitiesService.initialize(client)
+            createClient: options => new CopilotClient(options)
+            // No `onClientStarted`: `adoptClient` initialises capabilities. A hook here
+            // as well would be a second writer for the same fact, and the two only
+            // agreed while the same object happened to build the provider and own the
+            // service.
         });
     }
 
@@ -561,7 +649,7 @@ export class SDKSessionManager implements vscode.Disposable {
         // Inject SDK 0.1.26 required fields into resume options
         resumeOptions = {
             ...resumeOptions,
-            onPermissionRequest: approveAll,
+            onPermissionRequest: this.permissionHandler ?? approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
             skillDirectories: this.resolveSkillDirectories(),
@@ -652,9 +740,10 @@ export class SDKSessionManager implements vscode.Disposable {
                 await loadSDK();
                 this.sdkLoaded = true;
             }
-            // The provider builds, starts, and wires diagnostics on the client, and
-            // initializes model capabilities via its onClientStarted hook.
-            this.client = await this.clientProvider.get();
+            // The provider builds, starts and wires diagnostics on the client.
+            // Capabilities are initialised here rather than by the provider — see
+            // `adoptClient`.
+            await this.acquireClient();
 
             this.logger.info('CopilotClient created and started, initializing session...');
 
@@ -933,8 +1022,18 @@ export class SDKSessionManager implements vscode.Disposable {
 
             case 'session.start':
             case 'session.resume':
+                this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
             case 'session.idle':
                 this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                // `session.idle` carries an optional `agentId`. A sub-agent going quiet
+                // is not the session going quiet, and forwarding it would fire a
+                // wind-down while the parent is still working — the precise failure the
+                // consumer is moving off turn status to escape.
+                if (!event.agentId) {
+                    this._onDidBecomeIdle.fire();
+                }
                 break;
             
             case 'assistant.turn_start':
@@ -1104,6 +1203,14 @@ export class SDKSessionManager implements vscode.Disposable {
             case 'permission.requested':
             case 'permission.completed':
                 this.logger.info(`[SDK Event] ${event.type}: ${JSON.stringify(event.data)}`);
+                break;
+
+            case 'session.todos_changed':
+                // Signal-only by design: the SDK documents this event as carrying no
+                // payload and tells clients to read the current state themselves.
+                // Fire-and-forget so a SQL read never blocks the event pump that every
+                // other emitter shares.
+                void this.readTodos();
                 break;
 
             case 'session.task_complete':
@@ -1276,7 +1383,7 @@ export class SDKSessionManager implements vscode.Disposable {
      * Uses onPreToolUse to capture file snapshots BEFORE tool execution,
      * fixing the race condition where snapshots were captured too late.
      */
-    private getSessionHooks(): { onPreToolUse: (input: any, invocation: any) => { permissionDecision: string } } {
+    private getSessionHooks(): { onPreToolUse: (input: any, invocation: any) => { permissionDecision?: string } } {
         return {
             onPreToolUse: (input: any, _invocation: any) => {
                 this.logger.info(`[Hook] onPreToolUse fired: tool=${input.toolName}`);
@@ -1286,9 +1393,84 @@ export class SDKSessionManager implements vscode.Disposable {
                         this.fileSnapshotService.captureByPath(input.toolName, filePath);
                     }
                 }
-                return { permissionDecision: 'allow' };
+                // The hook's reason for existing is the snapshot above, not the verdict
+                // below. When somebody else is answering permissions, saying `allow`
+                // here answers on their behalf: a spike against the real CLI
+                // (planning/spikes/acp-agent/spike-permission-hook.mjs) showed it then
+                // emits no permission.requested event at all, so the handler is never
+                // called. Withholding the decision — rather than changing it to 'ask',
+                // which downgrades the request to the payload-free `hook` variant —
+                // leaves the native shell/write request intact for them to answer.
+                return this.permissionHandler ? {} : { permissionDecision: 'allow' };
             }
         };
+    }
+
+    /**
+     * Answer permission requests with `handler` instead of approving them here.
+     *
+     * Exists for the ACP agent, which forwards them to its host over
+     * `session/request_permission`. Left unset — the VS Code extension's path — the
+     * manager keeps approving, because the extension has already gated the session
+     * behind its own settings and would otherwise start prompting users who have
+     * never been prompted.
+     *
+     * Must be called BEFORE `start()`: the handler is passed in the session config,
+     * so a handler installed afterwards would apply to the next session and not this
+     * one.
+     */
+    public setPermissionHandler(handler: (request: any, invocation: any) => any): void {
+        this.permissionHandler = handler;
+        this.logger.info('[Permissions] request handler installed; deferring decisions to it');
+    }
+
+    /**
+     * Fetch the todo table and publish it.
+     *
+     * The read is best-effort in the SDK's own words — every column on a row is
+     * optional, and the table may not exist at all — so a failure is logged and
+     * dropped rather than propagated. Losing one plan update is a cosmetic problem;
+     * an unhandled rejection out of the event pump is not.
+     *
+     * An empty list still fires: the agent clearing its plan is a real state a host
+     * needs to render, and silence would leave the last plan on screen forever.
+     */
+    private async readTodos(): Promise<void> {
+        const plan = this.session?.rpc?.plan;
+        if (!plan?.readSqlTodosWithDependencies) {
+            return;
+        }
+        try {
+            const result = await plan.readSqlTodosWithDependencies();
+            this._onDidUpdateTodos.fire({
+                todos: result?.rows ?? [],
+                dependencies: result?.dependencies ?? []
+            });
+        } catch (error) {
+            this.logger.warn(`[Todos] could not read the todo table: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Announce that plan mode is on, naming the session that now holds it.
+     *
+     * A method rather than an inline `fire` so the payload is testable without a live
+     * CLI — `enablePlanMode` creates a real SDK session, and the only part a consumer
+     * depends on is this shape.
+     *
+     * The id matters more than it looks. P4 writes a pairing record **into the plan
+     * session's directory**, so a consumer without this value would have to rebuild the
+     * id from the `-plan` suffix, becoming a second place that knows the convention —
+     * inside the change whose purpose is to reduce that count to one.
+     */
+    private announcePlanModeEnabled(planSessionId: string | undefined): void {
+        this._onDidChangeStatus.fire({
+            status: 'plan_mode_enabled',
+            // Falling back to the derivation keeps the event well-formed if a future
+            // caller loses the id, rather than publishing an announcement a consumer
+            // cannot act on. It is the one place the suffix may still be spelled.
+            planSessionId: planSessionId ?? `${this.workSessionId}-plan`
+        });
     }
 
     private getCustomTools(): any[] {
@@ -1798,10 +1980,40 @@ export class SDKSessionManager implements vscode.Disposable {
      * Called before any createSession/resumeSession after a connection loss.
      */
     private async recreateClient(): Promise<void> {
-        // Capabilities are per-client, so drop them before the replacement's
-        // onClientStarted hook re-initializes them.
+        // Clear BEFORE adopting, not after: initialising against the outgoing client
+        // and then swapping would leave the service describing a client nobody uses.
         this.modelCapabilitiesService.clearCache();
-        this.client = await this.clientProvider.recreate();
+        await this.adoptClient(await this.clientProvider.recreate());
+    }
+
+    /** Take the provider's current client. */
+    private async acquireClient(): Promise<void> {
+        await this.adoptClient(await this.clientProvider.get());
+    }
+
+    /**
+     * Adopt `client` and initialise everything that is scoped to it.
+     *
+     * The capabilities service is initialised HERE, by the manager that owns it,
+     * rather than by the provider's `onClientStarted` hook. Two reasons, and the
+     * second is why the hook is gone rather than merely duplicated:
+     *
+     * 1. **A provider can be shared.** Spine S4 runs N managers against one provider
+     *    so N sessions share one CLI process. `onClientStarted` fires once per client;
+     *    each manager has its own capabilities service. One callback cannot initialise
+     *    all of them.
+     * 2. **A provider can be injected by someone who never wired the hook.** That was
+     *    not hypothetical: the ACP agent injected a provider without it, and the
+     *    service went uninitialised in the whole agent process — degrading model
+     *    fallback, vision support and attachment validation, silently, until a live
+     *    run in Zed logged it.
+     *
+     * Owning it here means it cannot be forgotten by a caller who does not know it
+     * needs doing.
+     */
+    private async adoptClient(client: any): Promise<void> {
+        this.client = client;
+        await this.modelCapabilitiesService.initialize(client);
     }
 
     /**
@@ -2080,7 +2292,7 @@ export class SDKSessionManager implements vscode.Disposable {
             
             // Notify UI
             this.logger.info(`[Plan Mode]   Emitting plan_mode_enabled status event`);
-            this._onDidChangeStatus.fire({ status: 'plan_mode_enabled' });
+            this.announcePlanModeEnabled(planSessionId);
             this.logger.info(`[Plan Mode]   ✅ Status event emitted`);
             
             // Send visual message to chat
@@ -2415,7 +2627,7 @@ export class SDKSessionManager implements vscode.Disposable {
         // and once via session.on() — producing duplicate streaming content.
         config = {
             ...config,
-            onPermissionRequest: approveAll,
+            onPermissionRequest: this.permissionHandler ?? approveAll,
             clientName: 'vscode-copilot-cli',
             streaming: this.config.streaming ?? true,
             skillDirectories: this.resolveSkillDirectories(),

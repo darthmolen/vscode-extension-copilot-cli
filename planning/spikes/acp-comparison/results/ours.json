@@ -1,0 +1,74 @@
+{
+  "target": "our ACP agent",
+  "methods": {
+    "initialize": "✓ answered",
+    "session/new": "✓ answered",
+    "session/set_mode": "✓ answered",
+    "session/list": "✓ answered",
+    "session/load": "✓ answered",
+    "session/fork": "✓ answered",
+    "session/close": "✓ answered"
+  },
+  "advertised": {
+    "protocolVersion": 1,
+    "agentInfo": {
+      "name": "Copilot CLI Chat",
+      "version": "0.0.0"
+    },
+    "authMethods": null,
+    "agentCapabilities": {
+      "loadSession": true,
+      "promptCapabilities": {
+        "image": false,
+        "audio": false,
+        "embeddedContext": false
+      },
+      "sessionCapabilities": {
+        "list": {},
+        "fork": {},
+        "delete": {},
+        "close": {}
+      }
+    },
+    "modesOnNewSession": {
+      "currentModeId": "work",
+      "availableModes": [
+        {
+          "id": "work",
+          "name": "Work",
+          "description": "Full tool access. The agent edits files, runs commands and commits."
+        },
+        {
+          "id": "plan",
+          "name": "Plan",
+          "description": "Research and planning only. Writes to plan.md; no edits, commits or installs."
+        }
+      ]
+    }
+  },
+  "streamed": {
+    "usage_update": 4,
+    "tool_call": 3,
+    "tool_call_update": 4,
+    "agent_message_chunk": 4,
+    "plan": 1,
+    "_diffContent": 1
+  },
+  "permissions": 1,
+  "permissionShape": {
+    "kind": "execute",
+    "title": "Run: echo acp-compare",
+    "options": [
+      "allow_once",
+      "reject_once"
+    ]
+  },
+  "stderrTail": [
+    "[INFO ] 2026-08-22T18:19:06.224Z Stopping SDK session manager...",
+    "[DEBUG] 2026-08-22T18:19:06.224Z [FileSnapshot] Cleaned up all snapshots",
+    "[DEBUG] 2026-08-22T18:19:06.224Z [FileSnapshot] Cleaned up all snapshots",
+    "[DEBUG] 2026-08-22T18:19:06.224Z [FileSnapshot] Removed temp directory: /tmp/copilot-cli-snapshots-Vdrnp3",
+    "[INFO ] 2026-08-22T18:19:06.224Z [ACP] released session b87ff975-03ee-4e56-b049-dad48b0e0a9f",
+    ""
+  ]
+}

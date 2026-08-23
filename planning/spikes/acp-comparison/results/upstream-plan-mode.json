@@ -1,0 +1,39 @@
+{
+  "sessionId": "b6d745b5-518e-4137-bc82-5ded57c03549",
+  "dirsCreatedByNew": [
+    "b6d745b5-518e-4137-bc82-5ded57c03549"
+  ],
+  "setMode": "accepted",
+  "dirsCreatedByEnteringPlanMode": [],
+  "dirsCreatedByPlanPrompt": [],
+  "toolsCalledInPlanMode": [
+    "Inspect repository status",
+    "Finding files matching *",
+    "Finding files matching **/{TODO,FIXME}*",
+    "apply_patch",
+    "Record cleanup plan todos"
+  ],
+  "updateVariantsInPlanMode": [
+    "config_option_update",
+    "available_commands_update",
+    "usage_update",
+    "agent_message_chunk",
+    "tool_call",
+    "tool_call_update",
+    "agent_thought_chunk",
+    "plan"
+  ],
+  "sessionIdStillSame": "b6d745b5-518e-4137-bc82-5ded57c03549",
+  "planMdInSessionDir": true,
+  "filesInSessionDir": [
+    "checkpoints",
+    "events.jsonl",
+    "files",
+    "inuse.54434.lock",
+    "plan.md",
+    "research",
+    "session.db",
+    "workspace.yaml"
+  ],
+  "anyPlanSuffixDirs": 199
+}

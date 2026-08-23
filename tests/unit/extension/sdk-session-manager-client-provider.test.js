@@ -121,16 +121,21 @@ describe('SDKSessionManager — client recreation (S4)', () => {
         return {
             order,
             replacement,
-            ctx: {
+            // Built on the REAL prototype: `recreateClient` delegates to `adoptClient`,
+            // and an object literal leaves that undefined — the method under test then
+            // fails with `not a function`, which reads like the feature being missing
+            // rather than the fake being incomplete.
+            ctx: Object.assign(Object.create(SDKSessionManager.prototype), {
                 logger: silentLogger,
                 client: { id: 'dead-client' },
                 modelCapabilitiesService: {
-                    clearCache() { order.push('clearCache'); }
+                    clearCache() { order.push('clearCache'); },
+                    async initialize() { order.push('initialize'); }
                 },
                 clientProvider: {
                     async recreate() { order.push('recreate'); return replacement; }
                 }
-            }
+            })
         };
     }
 
@@ -161,7 +166,7 @@ describe('SDKSessionManager — client recreation (S4)', () => {
 
         await SDKSessionManager.prototype.recreateClient.call(ctx);
 
-        expect(order).to.deep.equal(['clearCache', 'recreate']);
+        expect(order).to.deep.equal(['clearCache', 'recreate', 'initialize']);
     });
 });
 
@@ -170,7 +175,7 @@ describe('SDKSessionManager — client provider construction (S4)', () => {
         const injected = newProvider();
 
         const manager = withoutVscode(() =>
-            new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost(), injected)
+            new SDKSessionManager({}, false, undefined, undefined, createFakeHost(), injected)
         );
 
         expect(manager.clientProvider).to.equal(injected);
@@ -178,7 +183,7 @@ describe('SDKSessionManager — client provider construction (S4)', () => {
 
     it('builds its own provider when none is injected', () => {
         const manager = withoutVscode(() =>
-            new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost())
+            new SDKSessionManager({}, false, undefined, undefined, createFakeHost())
         );
 
         expect(manager.clientProvider).to.be.an.instanceOf(CopilotClientProvider);

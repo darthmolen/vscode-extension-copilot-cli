@@ -44,7 +44,7 @@ function methodNotFound() {
 function withManager(forkImpl, fn) {
     return withoutVscode(async () => {
         const { SDKSessionManager } = require(MANAGER_PATH);
-        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost());
+        const manager = new SDKSessionManager({}, false, undefined, undefined, createFakeHost());
         manager.client = forkImpl === undefined
             ? { rpc: { sessions: {} } }
             : { rpc: { sessions: { fork: forkImpl } } };

@@ -21,7 +21,7 @@ const MANAGER_PATH = path.join(__dirname, '../../..', 'out', 'sdkSessionManager.
 function emitSdkEvent(event) {
     return withoutVscode(() => {
         const { SDKSessionManager } = require(MANAGER_PATH);
-        const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, createFakeHost());
+        const manager = new SDKSessionManager({}, false, undefined, undefined, createFakeHost());
 
         const seen = [];
         manager.onDidUpdateMcpServers(payload => seen.push(payload));
@@ -94,7 +94,7 @@ describe('SDKSessionManager — sticky agent comes from the host, not global sta
 
         await withoutVscode(async () => {
             const { SDKSessionManager } = require(MANAGER_PATH);
-            const manager = new SDKSessionManager(undefined, {}, false, undefined, undefined, {
+            const manager = new SDKSessionManager({}, false, undefined, undefined, {
                 ...createFakeHost(),
                 getActiveAgent() {
                     asked++;

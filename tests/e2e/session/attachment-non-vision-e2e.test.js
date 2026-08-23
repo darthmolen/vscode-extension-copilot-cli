@@ -20,6 +20,7 @@ const fs = require('fs');
 const assert = require('assert');
 const Module = require('module');
 const { createVSCodeMock } = require('../../helpers/vscode-mock');
+const { createVSCodeMockHost } = require('../../helpers/fake-host');
 
 // Mock the 'vscode' module BEFORE any imports
 const originalRequire = Module.prototype.require;
@@ -63,6 +64,15 @@ class TestLogger {
 }
 
 // Mock extension context
+/**
+ * The bridge the manager used to build for itself from a mock context, now that it
+ * requires one. Same values as before: the `vscode` mock's workspace and settings,
+ * this suite's temp dir for global storage.
+ */
+function hostFor(context) {
+    return createVSCodeMockHost({ globalStorageDir: context.globalStorageUri.fsPath });
+}
+
 function createMockContext() {
     const tempDir = path.join(__dirname, 'output', 'attachment-test-temp');
     if (!fs.existsSync(tempDir)) {
@@ -121,7 +131,7 @@ async function runTest() {
             model: testModel
         };
         
-        sessionManager = new SDKSessionManager(context, config, false);
+        sessionManager = new SDKSessionManager(config, false, undefined, undefined, hostFor(context));
         
         console.log('\n📋 Step 2: Start session and verify model capabilities');
         await sessionManager.start();

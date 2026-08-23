@@ -129,24 +129,58 @@ describe('Mid-Session Model Switching', function () {
 		});
 	});
 
-	describe('StatusData types', function () {
-		it('should include model_switched and model_switch_failed in status type', function () {
-			const fs = require('fs');
-			const source = fs.readFileSync(
-				path.join(__dirname, '../../../src/sdkSessionManager.ts'), 'utf8'
-			);
+	/**
+	 * These replaced a test that read `sdkSessionManager.ts` and matched
+	 * `/export interface StatusData \{([\s\S]*?)\}/` for the strings `'model_switched'`
+	 * and `'model?: string'`.
+	 *
+	 * It asserted nothing a comment could not have satisfied, and it broke on a correct
+	 * change: the non-greedy match stops at the FIRST `}`, so adding a JSDoc block
+	 * containing `${...}` inside the interface truncated the captured body and the field
+	 * "vanished". A declared field is also not the thing that matters — what matters is
+	 * that the event actually carries the model, which is behaviour and is checked here.
+	 */
+	describe('model status events carry the model', function () {
+		function fired(run) {
+			const events = [];
+			const ctx = {
+				logger: { info() {}, warn() {}, error() {}, debug() {} },
+				config: {},
+				_onDidChangeStatus: { fire: e => events.push(e) }
+			};
+			run(ctx);
+			return events;
+		}
 
-			// Find StatusData interface
-			const statusMatch = source.match(/export interface StatusData \{([\s\S]*?)\}/m);
-			assert.ok(statusMatch, 'StatusData interface should exist');
+		it('reports a successful switch with the model switched TO', function () {
+			const events = fired(ctx => SDKSessionManager.prototype._handleSDKEvent.call(
+				ctx, { type: 'session.model_change', data: { newModel: 'claude-opus-5' } }));
 
-			const statusBody = statusMatch[1];
-			assert.ok(statusBody.includes("'model_switched'"),
-				'StatusData should include model_switched');
-			assert.ok(statusBody.includes("'model_switch_failed'"),
-				'StatusData should include model_switch_failed');
-			assert.ok(statusBody.includes('model?: string'),
-				'StatusData should have optional model field');
+			const switched = events.find(e => e.status === 'model_switched');
+			assert.ok(switched, 'no model_switched event was fired');
+			assert.strictEqual(switched.model, 'claude-opus-5');
+		});
+
+		/** And it updates the config, or the next session resumes on the old model. */
+		it('adopts the new model as the session\'s current one', function () {
+			const ctx = {
+				logger: { info() {}, warn() {}, error() {}, debug() {} },
+				config: { model: 'old-model' },
+				_onDidChangeStatus: { fire() {} }
+			};
+
+			SDKSessionManager.prototype._handleSDKEvent.call(
+				ctx, { type: 'session.model_change', data: { newModel: 'claude-opus-5' } });
+
+			assert.strictEqual(ctx.config.model, 'claude-opus-5');
+		});
+
+		/** A change event with no model is not a switch; announcing one would be a lie. */
+		it('says nothing when the event carries no model', function () {
+			const events = fired(ctx => SDKSessionManager.prototype._handleSDKEvent.call(
+				ctx, { type: 'session.model_change', data: {} }));
+
+			assert.deepStrictEqual(events.filter(e => e.status === 'model_switched'), []);
 		});
 	});
 });

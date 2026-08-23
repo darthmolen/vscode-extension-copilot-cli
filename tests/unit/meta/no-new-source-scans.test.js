@@ -48,7 +48,6 @@ const KNOWN_SOURCE_READERS = [
     'unit/components/thinking-animation.test.js',
     'unit/extension/plan-mode-duplicate-tools.test.js',
     'unit/extension/plan-mode-session-name.test.js',
-    'unit/extension/sdk-switch-model.test.js',
     'unit/extension/sdk-title-changed-strip-prefix.test.js',
     'unit/extension/sdk-upgrade-0126.test.js',
     'unit/extension/sdk-upgrade-0132.test.js',

@@ -1,0 +1,46 @@
+{
+  "parentId": "d31177b2-3f76-4a9a-a383-73ff757cf126",
+  "detachedId": "10399850-4f85-47df-9733-a019a4bcdebe",
+  "results": [
+    {
+      "name": "0. a parent session exists",
+      "ok": true,
+      "detail": "d31177b2-3f76-4a9a-a383-73ff757cf126"
+    },
+    {
+      "name": "Q3a. client exposes a raw rpc accessor",
+      "ok": true,
+      "detail": "rpc.sessions.open present"
+    },
+    {
+      "name": "Q3b. sessions.open accepted the parent pointer",
+      "ok": true,
+      "detail": "opened 10399850-4f85-47df-9733-a019a4bcdebe"
+    },
+    {
+      "name": "Q1a. the new session appears when detached are included",
+      "ok": false,
+      "detail": "not found among 912 rows"
+    },
+    {
+      "name": "Q1b. the CLI recorded it as detached",
+      "ok": false,
+      "detail": "isDetached=undefined"
+    },
+    {
+      "name": "Q2. sessions.list hides it by default (includeDetached omitted)",
+      "ok": true,
+      "detail": "excluded, as the schema implies"
+    },
+    {
+      "name": "Q3c. the detached session resumes through the normal path",
+      "ok": false,
+      "detail": "Request session.resume failed with message: Session not found: 10399850-4f85-47df-9733-a019a4bcdebe"
+    },
+    {
+      "name": "Q3d. it exists on disk like any other session",
+      "ok": true,
+      "detail": "/home/smolen/.copilot/session-state/10399850-4f85-47df-9733-a019a4bcdebe"
+    }
+  ]
+}

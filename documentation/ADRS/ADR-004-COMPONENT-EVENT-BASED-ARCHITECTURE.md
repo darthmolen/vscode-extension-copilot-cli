@@ -109,4 +109,4 @@ Webview (Client)
 - The EventBus was introduced in commit `df21968` as the first step toward decoupled component communication
 - The 3.0 code review (`planning/completed/3.0/code_review/`) identified the architecture problems and produced the recommendations that drove this refactor
 - The webview ES module caveat (must update `esbuild.js` for new directories) is documented in project memory to prevent silent failures
-- This ADR's consequence — "event wiring in extension.ts grows" — is the direct motivation for the v4.0 typed event bus + RxJS planning (see `planning/4.0/event-architecture-transition.md`)
+- This ADR's consequence — "event wiring in extension.ts grows" — is the direct motivation for the v4.0 typed event bus + RxJS planning (see `planning/5.0/event-architecture-transition.md`)

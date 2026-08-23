@@ -1,4 +1,4 @@
-# v4.0 Event Architecture Transition: Typed Event Bus + RxJS
+# v5.0 Event Architecture Transition: Typed Event Bus + RxJS
 
 **Date:** 2026-02-14
 **Status:** Planning
@@ -463,7 +463,7 @@ wc -l src/extension.ts     # Should be < 600 lines (down from 752)
 | `src/utilities/bufferedEmitter.ts` | Can be deleted (replaced by RxJS operators) |
 
 **Replaced concepts**:
-| v3.0 Concept | v4.0 Replacement |
+| v3.0 Concept | v5.0 Replacement |
 |-------------|------------------|
 | `BufferedEmitter<T>` | `ReplaySubject<T>(1)` or `shareReplay(1)` |
 | `EventRelay` (built, unused) | `switchMap` over session observable |
