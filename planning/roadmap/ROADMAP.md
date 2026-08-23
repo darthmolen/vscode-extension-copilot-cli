@@ -35,8 +35,8 @@ Feature roadmap for the VS Code Copilot CLI Extension. Items are roughly ordered
 | :white_check_mark: | esbuild watch for webview assets | — | — | — | [ESBUILD-WATCH-WEBVIEW-ASSETS.md](../backlog/ESBUILD-WATCH-WEBVIEW-ASSETS.md) |
 | :white_check_mark: | Upgrade to @github/copilot-sdk 0.1.26 (breaking: required permission handler) | 3.3 | 2026-02-24 | 3.3.0 | [RELEASE-0.1.23.md](../../documentation/copilot-sdk/RELEASE-0.1.23.md) |
 | :construction: | VS Code API opportunities audit | 3.3 | — | — | [02-vscode-api-opportunities.md](../backlog/vscode-apis/02-vscode-api-opportunities.md) |
-| :construction: | **v4.0 — AHP/ACP split** (Phase 0 complete) | 4.0 | — | — | [v4.0-ahp-acp-split.md](v5.0-ahp-acp-split.md) |
-| :construction: | Event architecture transition — absorbed into the v4.0 split | 4.0 | — | — | [event-architecture-transition.md](../5.0/event-architecture-transition.md) |
+| :construction: | **v5.0 — AHP/ACP split** (Phase 0 complete; blocked on OUT-1) | 5.0 | — | — | [v5.0-ahp-acp-split.md](v5.0-ahp-acp-split.md) |
+| :construction: | Event architecture transition — absorbed into the v5.0 split | 5.0 | — | — | [event-architecture-transition.md](../5.0/event-architecture-transition.md) |
 
 ## Legend
 
