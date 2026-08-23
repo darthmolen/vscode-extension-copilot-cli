@@ -29,7 +29,7 @@
  * every replayed tool render as "Tool execution".
  */
 export type { Message } from './shared/models';
-import type { Message } from './shared/models';
+import type { Message, ToolState } from './shared/models';
 
 export interface PlanModeStatus {
     enabled: boolean;
@@ -98,6 +98,44 @@ export class SessionState {
 
     public setMessages(messages: Message[]): void {
         this.messages = [...messages];
+    }
+
+    /**
+     * Record a tool call, replacing the earlier entry for the same call.
+     *
+     * Upsert rather than append, because a tool is one event in the conversation
+     * that changes state three times — start, progress, complete. Appending would
+     * put the same `bash` in the transcript three times, which is what the reader
+     * would see on the next re-render.
+     *
+     * The shape deliberately matches what `sessionTranscriptBuilder` produces for
+     * `tool.execution_start`, so a live transcript and one replayed from
+     * `events.jsonl` are the same thing. They drifted once already: the old
+     * `addToolExecution` stored `content: 'Tool execution'` and read `toolState.name`,
+     * a field the live payload has never had — the grey bubble P2 set out to kill.
+     * `role` is deliberately not set, matching the builder; the webview derives it.
+     */
+    public recordTool(tool: ToolState, agentId?: string): void {
+        const existing = this.messages.find(
+            message => message.kind === 'tool' && message.tool?.toolCallId === tool.toolCallId
+        );
+        // Copied, not aliased: the manager keeps its own mutable state for this
+        // call, and a transcript that changes under the reader is not a transcript.
+        const snapshot = { ...tool };
+        if (existing) {
+            existing.tool = snapshot;
+            return;
+        }
+        const message: Message = {
+            kind: 'tool',
+            content: tool.toolName ?? 'tool',
+            timestamp: tool.startTime ?? Date.now(),
+            tool: snapshot
+        };
+        if (agentId) {
+            message.agentId = agentId;
+        }
+        this.messages.push(message);
     }
 
     public getMessageCount(): number {

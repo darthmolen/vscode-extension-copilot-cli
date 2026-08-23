@@ -28,7 +28,14 @@ import { Message, ToolState } from '../../shared/models';
  * to. Fetching full output on demand is designed and deferred:
  * `planning/backlog/lazy-tool-results-on-rehydration.md`.
  */
-const DEFAULT_MAX_RESULT_CHARS = 2000;
+/**
+ * How much of a tool's output the transcript keeps.
+ *
+ * Exported because the *live* path records the same tool messages and has to cap
+ * them the same way — one real `bash` returned 181.7 KB. Two caps kept in step by
+ * memory is how the live and replayed transcripts drifted the first time.
+ */
+export const DEFAULT_MAX_RESULT_CHARS = 2000;
 
 export interface BuildTranscriptOptions {
     /** Characters of tool output carried per tool. Default 2000. */
@@ -131,7 +138,14 @@ export async function buildSessionTranscript(
 }
 
 /** Tool output, capped. `result` arrives as `{ content }` or occasionally a string. */
-function applyResult(tool: ToolState, result: any, maxResultChars: number): void {
+/**
+ * Put a tool's output on its state, truncating it and saying so.
+ *
+ * Shared with `ChatSessionHost`, which records live tool events into the same
+ * transcript shape. Accepts a bare string or the SDK's `{ content }` envelope,
+ * because the two paths hand it different things.
+ */
+export function applyResult(tool: ToolState, result: any, maxResultChars: number = DEFAULT_MAX_RESULT_CHARS): void {
     const content = typeof result === 'string' ? result : result?.content;
     if (typeof content !== 'string' || !content) {
         return;

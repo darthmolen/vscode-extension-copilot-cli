@@ -23,6 +23,7 @@ import type { CodeReviewSlashHandlers } from '../services/slashCommands/CodeRevi
 import type { NotSupportedSlashHandlers } from '../services/slashCommands/NotSupportedSlashHandlers';
 import type { MCPConfigurationService } from '../services/mcpConfigurationService';
 import type { CLIPassthroughService } from '../services/CLIPassthroughService';
+import { applyResult } from '../services/sessionTranscriptBuilder';
 
 /** What a subscription hands back. Structural, so `vscode.Disposable` satisfies it. */
 export interface Unsubscribe {
@@ -598,6 +599,15 @@ export class ChatSessionHost {
         }));
 
         this.subscribe(manager.onDidStartTool((toolState) => {
+            // Recorded *and* rendered. Rendering alone put the narration in the
+            // transcript and left the doing on screen only, so the next `sendInit()`
+            // — a hidden sidebar re-resolving, a reattach, a refresh — replayed the
+            // conversation with every tool chip missing.
+            //
+            // On the host rather than on the surface, unlike the message writers in
+            // `WebviewChatSurface`: a host with no surface is still a conversation,
+            // and there would be nothing to write through.
+            this.recordTool(toolState);
             // Attribution, at the one point where a tool chip can go missing without
             // anything failing: the host routed it, but to nothing. With N surfaces
             // "did it render" and "was there something to render into" are different
@@ -612,11 +622,15 @@ export class ChatSessionHost {
 
         // Update and complete are the same thing to a surface: the tool's state
         // changed. Only the terminal status differs, and it is inside the payload.
+        // Same for the transcript — `recordTool` replaces the entry for this call
+        // rather than appending, so one tool stays one line however often it moves.
         this.subscribe(manager.onDidUpdateTool((toolState) => {
+            this.recordTool(toolState);
             this.surface?.updateToolExecution(toolState);
         }));
 
         this.subscribe(manager.onDidCompleteTool((toolState) => {
+            this.recordTool(toolState);
             this.surface?.updateToolExecution(toolState);
         }));
 
@@ -647,6 +661,27 @@ export class ChatSessionHost {
         this.subscribe(manager.onDidUpdateUsage((usageData) => {
             this.surface?.postMessage({ type: 'usage_info', data: usageData });
         }));
+    }
+
+    /**
+     * Put a tool call in this conversation's transcript.
+     *
+     * Guarded on `toolCallId` because it is the identity the upsert turns on: a
+     * payload without one would append a new line on every progress update, which
+     * is worse than not recording it at all.
+     */
+    private recordTool(toolState: any): void {
+        if (!toolState?.toolCallId) {
+            this.logger.warn(`[ChatSessionHost ${this.handle}] tool event with no toolCallId — not recorded`);
+            return;
+        }
+        // Capped through the *same* function the replay uses, not a second copy of
+        // the rule. One real `bash` returned 181.7 KB, and the surface gets the
+        // whole thing — it is the transcript we keep that has to stay small, and it
+        // has to be cut at the same point the event log's replay cuts it.
+        const recorded = { ...toolState };
+        applyResult(recorded, toolState.result);
+        this.state.recordTool(recorded, toolState.agentId);
     }
 
     /**
