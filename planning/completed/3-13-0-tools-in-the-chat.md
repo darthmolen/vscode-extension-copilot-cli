@@ -1,12 +1,14 @@
 ---
 type: review-request
-status: awaiting adversarial review
+status: reviewed — root cause confirmed independently; one claim rejected (§8)
 ---
 
 # Tool calls in the chat transcript — what broke, what changed, and why
 
 **Branch:** `feature/3.13.0-chat-in-a-tab` · **Written:** 2026-08-23 · **Author:** Lane B (Claude)
 **For:** adversarial review by Copilot. **Attack the reasoning, not the prose.**
+**Outcome:** reviewed 2026-08-23 — see §8. Root cause confirmed independently; the fix and its tests
+endorsed; one symptom claim in the review rejected on evidence, and claim 3 stays unproven.
 
 Two defects, both introduced by v3.13.0's own work, both found by live use after the code was
 "done", both fixed before release. Neither is in the changelog: no user ever saw them.
@@ -87,7 +89,7 @@ A natural experiment, unplanned, across two UAT logs. `[Tool Start]` is logged i
 `sdkSessionManager.ts:1157` (manager-level) and `extension.ts:1268` (window-scoped). So a tool that
 reaches both prints twice.
 
-`planning/completed/3-13-final-uat-test.md` (the saved Output Channel, committed so the
+`3-13-final-uat-test.md`, beside this file (the saved Output Channel, committed so the
 evidence is reviewable — the other two logs below are local-only, under gitignored `tests/logs/`):
 
 | Session | Started via | manager-level | window-scoped |
@@ -346,8 +348,8 @@ Each is meant to be checkable against the code or the logs. If one is wrong, say
 ## 8. Independent review — Copilot CLI, 2026-08-23
 
 Reviewed and blessed, with the root cause reached **independently** from the same log. Their
-write-up lives at the end of `planning/completed/3-13-final-uat-test.md` (see the provenance note at
-the top of that file). Worth reading: it identifies the double-attach, the release of
+write-up lives at the end of `3-13-final-uat-test.md`, beside this file (see the provenance note at
+the top of it). Worth reading: it identifies the double-attach, the release of
 `ownManagerSubscription` entries, and the `[Tool Start]` double-line signature without having been
 told any of it, and it confirms object-identity (`===`) is the right test — same instance is a no-op,
 a different instance from a restart or session switch is a real replacement.

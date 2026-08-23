@@ -1,7 +1,7 @@
 > **What this file is.** The saved *Copilot CLI* Output Channel from the v3.13.0 UAT run
 > (2026-08-22, 14:04–14:09 CDT), with a **post-mortem review appended at the end** — search for
 > `## Post-Mortem Review`. It is kept in `planning/` rather than the gitignored `tests/logs/` so the
-> evidence cited by `planning/3-13-0-tools-in-the-chat.md` is checkable from the repo.
+> evidence cited by `planning/completed/3-13-0-tools-in-the-chat.md` is checkable from the repo.
 >
 > **It is an annotated log, not a pristine one.** Review prose was appended by a tool that took this
 > file as its target, and in two places it landed mid-line inside a log entry (around lines 2199 and
