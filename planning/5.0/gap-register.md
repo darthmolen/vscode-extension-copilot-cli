@@ -1,4 +1,4 @@
-# v4.0 Gap Register — AHP/ACP split
+# v5.0 Gap Register — AHP/ACP split
 
 **Compiled:** 2026-08-15 against VS Code 1.133, AHP `main`, ACP `main`
 **Companion docs:** [agent-host-ahp-watchlist.md](../backlog/vscode-apis/agent-host-ahp-watchlist.md) · [spike FINDINGS](../spikes/acp-agent/FINDINGS.md)

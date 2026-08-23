@@ -89,7 +89,7 @@ exactly where it did before.
 > The split is worth doing when — and only when — the fallback goes with it.
 
 This is also the clause that will contradict IN-3's stated premise
-([IN-3:21](../4.0/issues/IN-3-acp-server-wrapper.md#L21)):
+([IN-3:21](../5.0/issues/IN-3-acp-server-wrapper.md#L21)):
 
 > The manager runs with `vscode` absent and takes a `HostBridge` (IN-1).
 

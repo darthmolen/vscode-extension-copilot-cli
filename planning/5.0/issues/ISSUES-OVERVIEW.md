@@ -1,4 +1,4 @@
-# v4.0 Issues — Index
+# v5.0 Issues — Index
 
 Every ticket the AHP/ACP split needs, across all venues. One document per
 ticket in this directory; this table is the follow-up surface.
@@ -6,7 +6,7 @@ ticket in this directory; this table is the follow-up surface.
 > **Updated 2026-08-22.** IN-3 and IN-8 are done; IN-6 is drafted and re-sized. The register with
 > what changed underneath the split — including that `copilot --acp` is already in the ACP Registry,
 > and that the two halves have different risk owners — is
-> [`planning/completed/v4.0-in3-acp-agent.md`](../../completed/v4.0-in3-acp-agent.md).
+> [`planning/completed/v5.0-in3-acp-agent.md`](../../completed/v5.0-in3-acp-agent.md).
 
 **Compiled:** 2026-08-15 · **Gap analysis:** [gap-register.md](../gap-register.md) · **Spike:** [FINDINGS.md](../../spikes/acp-agent/FINDINGS.md)
 

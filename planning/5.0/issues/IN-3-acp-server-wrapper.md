@@ -57,7 +57,7 @@ an ACP server. Opposite direction, different blockers.
    **Done 2026-08-21.** All of these plus `session/set_mode` and `session/close`. `session/load`
    replays the stored conversation as `session/update` notifications during the request;
    `session/close` cancels, releases and forgets, which the schema says an agent **must** do. See
-   [continuance §4c](../../in-progress/v4.0-in3-acp-agent.md).
+   [continuance §4c](../../completed/v5.0-in3-acp-agent.md).
 3. **Event mapping.** The 16 emitters → `session/update` variants
    (`agent_message_chunk`, `tool_call`, `tool_call_update`, `plan_update`).
    Sub-agent traffic keeps `agentId == toolCallId`; carry dock extras in `_meta`
@@ -68,7 +68,7 @@ an ACP server. Opposite direction, different blockers.
    `plan` entries (from `session.todos_changed`, which is signal-only: the manager fetches the state
    the event does not carry). `onDidReceiveError` and `onDidUpdateUsage` have ACP homes and remain
    open; the rest have no obvious variant and that is recorded rather than left implicit. See
-   [continuance §4c](../../in-progress/v4.0-in3-acp-agent.md).
+   [continuance §4c](../../completed/v5.0-in3-acp-agent.md).
 4. **Permissions.** ~~Today the manager hard-codes `onPermissionRequest: approveAll`.~~
    **Done 2026-08-19.** The manager takes an injected handler; an ACP agent forwards to
    `session/request_permission`; the extension's path is unchanged. Two spike findings shaped it:
@@ -77,7 +77,7 @@ an ACP server. Opposite direction, different blockers.
    made the CLI emit **no permission event whatsoever** — the feature was dead on arrival until the
    hook stopped pre-deciding. When the host cannot be reached the answer is
    `{ kind: 'user-not-available' }`, never an approval; `yolo` flips that fallback and nothing else.
-   See [IN-3 continuance §4](../../in-progress/v4.0-in3-acp-agent.md) and
+   See [IN-3 continuance §4](../../completed/v5.0-in3-acp-agent.md) and
    [FINDINGS](../../spikes/acp-agent/FINDINGS.md).
 5. **Headless host bridge** (IN-8, folds in here): a settings snapshot passed at
    startup, and `askSessionRecovery` resolving without a UI.

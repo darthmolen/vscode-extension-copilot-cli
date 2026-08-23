@@ -22,7 +22,7 @@ URIs. A host on the far end of a pipe cannot read our temp directory.
 
 IN-3 solved that by reading both files in `SdkSessionBackend` and sending **text** — ACP's `diff`
 content type carries `path`, `oldText`, `newText`. Verified against a real host: Zed rendered the
-diff. See `planning/in-progress/v4.0-in3-acp-agent.md` §4c.4.
+diff. See `planning/in-progress/v5.0-in3-acp-agent.md` §4c.4.
 
 **What remains is one bounded leak.**
 

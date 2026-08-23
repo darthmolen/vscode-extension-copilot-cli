@@ -4,11 +4,11 @@
 truth for what happens in what order and who may touch which file. Both plans link here; neither
 copies the diagram.
 
-**Written:** 2026-08-15 · **Lane A:** v4.0 AHP/ACP split · **Lane B:** chat-in-a-tab
+**Written:** 2026-08-15 · **Lane A:** v5.0 AHP/ACP split · **Lane B:** chat-in-a-tab (shipped v4.0.0)
 
 | Lane | Plan | Current state |
 | --- | --- | --- |
-| **A** | [v4.0-ahp-acp-split.md](roadmap/v4.0-ahp-acp-split.md) | Phase 0 complete, unmerged on `feature/4.0-phase0-decouple` |
+| **A** | [v5.0-ahp-acp-split.md](roadmap/v5.0-ahp-acp-split.md) | Phase 0 complete, unmerged on `feature/4.0-phase0-decouple` |
 | **B** | [chat-in-a-tab](needs-review/reviewed/2026-08-15-chat-in-a-tab-sdk-fork-forked-session-in-an-editor-tab.md) | Reviewed — "implementable with fixes" (4 critical) |
 
 ---
@@ -30,13 +30,13 @@ flowchart TD
     S0 -.->|fire and forget| OUT1
     S4 --> A1
     S4 --> B1
-    subgraph LANEA["LANE A — v4.0 protocol"]
+    subgraph LANEA["LANE A — v5.0 protocol"]
         direction TB
         A1["IN-3 · ACP server wrapper"] --> A2["OUT-2 · localhost issue<br/>OUT-3 · comment on 325827"]
     end
     subgraph LANEB["LANE B — chat-in-a-tab"]
         direction TB
-        B1["v3.13.0 · Slices 2b–2f"] --> B2["v3.14.0 · Slice 3"]
+        B1["v4.0.0 · Slices 2b–2f"] --> B2["v4.1.0 · Slice 3"]
     end
     OUT1 -.->|answer adjusts<br/>Slice 2 investment| B1
 ```
@@ -147,23 +147,40 @@ the file whose entire purpose is to have none, and it is Lane B's only reason to
 
 ## Versioning
 
-Review item I3 caught a collision: **`v4.0.0` and "Phase 0" are already claimed** by the AHP/ACP split,
-whose Phase 0 is complete as of `a0595f5`. Corrected assignment:
+Review item I3 caught a collision — **`v4.0.0` and "Phase 0" are already claimed by the AHP/ACP
+split** — and the assignment below is the *second* correction, taken 2026-08-22.
 
-| Work | Version |
-| --- | --- |
-| Slice 1 — SDK-native fork | **v3.12.0** |
-| Slices 2b–2f — chat surface decoupling + tab | **v3.13.0** |
-| Slice 3 — per-message fork | **v3.14.0** |
-| AHP client half (IN-4, IN-6, IN-9) | **v4.0.0** |
-| **ACP agent (Lane A, IN-3 / IN-8)** | **no version — merges to `main` unreleased** |
+**Chat-in-a-tab shipped as v4.0.0, not v3.13.0**, and the split moved up to v5.0.0.
 
-Per CLAUDE.md, a new editor-tab chat surface is a new capability with no breaking change — minor, not
-major.
+| Work | Version | |
+| --- | --- | --- |
+| Slice 1 — SDK-native fork | **v3.12.0** | shipped |
+| Slices 2b–2f — chat surface decoupling + tab | **v4.0.0** | **shipped** — was to be v3.13.0 |
+| Slice 3 — per-message fork | **v4.1.0** | was v3.14.0 |
+| AHP client half (IN-4, IN-6, IN-9) | **v5.0.0** | was v4.0.0 |
+| **ACP agent (Lane A, IN-3 / IN-8)** | **no version — merges to `main` unreleased** | unchanged |
+
+### Why chat-in-a-tab became major
+
+It was planned as a minor on the reading that a new editor-tab surface is a new capability with no
+breaking change. That reading was right about the *feature* and wrong about the *release*: the
+feature is the smaller half, and what shipped with it was the largest backend restructuring since
+1.x → 2.x — module-level session state replaced by per-conversation hosts, a registry, an observable
+window state, a slot seam, and 75 call sites rerouted. `chatViewProvider.ts` went from 1,011 lines to
+38. CLAUDE.md's own rule is that a **major** covers architectural rewrites, and this was one.
+
+**And v4.0.0 was only reserved for the split by a schedule that no longer exists.** OUT-1 — the
+question that decides the AHP client half — was posted 2026-08-15 and is still unanswered. Holding a
+major for work blocked on someone else's reply, while shipping a rewrite underneath it as a point
+release, has the numbering backwards.
+
+So the split becomes **v5.0.0** and is looked at when Microsoft answers. Everything under
+`planning/5.0/` was `planning/4.0/` before this decision; the directory was renamed with it so the
+path and the version cannot drift apart.
 
 ### The ACP agent gets a merge, not a version — decided 2026-08-22
 
-**This row was briefly v3.14.0 and is now back where it started, and the reversal is worth recording
+**This row was briefly given a version of its own and is now back where it started, and the reversal is worth recording
 because the argument that moved it was retracted by the lane that made it.**
 
 Lane A proposed shipping the ACP agent as its own release so that Zed users could install us. They
@@ -177,14 +194,14 @@ entry today would be a **near-duplicate that lags on version and advertises less
 with `git show`, do not link across branches).
 
 **So there is nothing to release, and a version number is a promise to users.** CLAUDE.md's own rule
-is that a minor means a new capability; *"the extension is portable and the v4.0 boundary is proven"*
+is that a minor means a new capability; *"the extension is portable and the v5.0 boundary is proven"*
 is not a capability anyone has. Numbering it would spend a version on an artefact no user can reach.
 
 **But the work should merge, and soon, and those are different questions.** Lane A is 46+ commits and
 75 files ahead of `main` with a four-file overlap against this branch. That divergence is a real cost
 and it grows weekly; merging pays it down. The ACP agent is inert in a VSIX — `out/**` is
 `.vscodeignore`d, esbuild never builds `src/acp/main.ts`, there is no `bin` — so it rides along in
-v3.14.0's package at **zero bytes** and changes nothing a user sees.
+v4.1.0's package at **zero bytes** and changes nothing a user sees.
 
 What merges with it is not inert at all: **two defects a second consumer found that the sidebar could
 not.** `ModelCapabilitiesService` was never initialised whenever the client provider was injected —

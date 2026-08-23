@@ -1,4 +1,4 @@
-# v4.0 References — acronyms, technologies, and live sources
+# v5.0 References — acronyms, technologies, and live sources
 
 **Checked against upstream: 2026-08-16.** Everything below with a date was verified that day against
 the linked source or the GitHub API, not recalled. The protocol landscape is moving monthly, so
@@ -139,7 +139,7 @@ Electron, spent a decade watching Atom lose to VS Code on performance, and then 
 the next one without the web stack. Reported figures (from reviews rather than primary
 benchmarks — treat as directional): ~120fps rendering, ~0.12s cold start, ~2ms input latency.
 
-**Why it matters to v4.0**, in descending order of importance:
+**Why it matters to v5.0**, in descending order of importance:
 
 1. **Zed created ACP**, so their editor is the protocol's reference client. It is the only
    independent implementation we can test IN-3 against — see the verification note below.
@@ -158,7 +158,7 @@ benchmarks — treat as directional): ~120fps rendering, ~0.12s cold start, ~2ms
 ### Cursor
 
 VS Code fork with AI features. Named here only to keep the contrast straight: **Cursor is Electron,
-Zed is not.** Not otherwise relevant to v4.0 — it is not an ACP host and not an AHP client.
+Zed is not.** Not otherwise relevant to v5.0 — it is not an ACP host and not an AHP client.
 
 ---
 

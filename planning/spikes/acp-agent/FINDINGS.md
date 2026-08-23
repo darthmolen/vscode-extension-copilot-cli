@@ -7,7 +7,7 @@
 
 ## Question
 
-The v4.0 re-plan turns `SDKSessionManager` into an ACP-speaking agent in its own
+The v5.0 re-plan turns `SDKSessionManager` into an ACP-speaking agent in its own
 process. Plan mode's entire security model is six host-side `defineTool()`
 closures plus a 13-name `availableTools` whitelist. **If those closures stop
 firing once the manager leaves the extension host, the direction loses plan mode**

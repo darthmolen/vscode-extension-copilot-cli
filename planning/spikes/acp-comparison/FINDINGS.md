@@ -114,7 +114,7 @@ session's context.** Ours can survey a repository across dozens of turns and han
 and auto-bumps hourly; we bundle 1.0.68 and would bump by hand. We would be shipping fewer prompt
 capabilities, fewer modes, no auth block, and two extra methods nobody asked for.
 
-**What the ACP work actually bought** is unchanged and still substantial: the v4.0 process boundary
+**What the ACP work actually bought** is unchanged and still substantial: the v5.0 process boundary
 is proven, and the agent is a second independent consumer of `SDKSessionManager` that has already
 found two real defects the sidebar could not (`ModelCapabilitiesService` never initialised when the
 provider is injected; `session/list` offering plan halves as conversations).
