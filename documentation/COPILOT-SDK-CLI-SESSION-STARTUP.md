@@ -11,7 +11,7 @@ The startup is broken down into 6 phases:
 
 activation → CLI bundle resolution (background) → session start decision → `startCLISession()` → SDK session resume/create → post-start UI activation
 
-> **v3.13.0 architectural context:** `chatViewProvider.ts` shrank from 1,011 lines to 38 — it is now the sidebar's registration only. All session state moved from module-level globals into `ChatSessionHost`, one per conversation. Every surface has its own host. Two sessions can run simultaneously (sidebar + tab) without interleaving. See `documentation/3.13-README.md` for the full story.
+> **v3.13.0 architectural context:** `chatViewProvider.ts` shrank from 1,011 lines to 38 — it is now the sidebar's registration only. All session state moved from module-level globals into `ChatSessionHost`, one per conversation. Every surface has its own host. Two sessions can run simultaneously (sidebar + tab) without interleaving. See `documentation/4.0-README.md` for the full story.
 
 ---
 

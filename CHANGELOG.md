@@ -8,7 +8,7 @@ All notable changes to the Copilot CLI Chat extension.
 
 The largest refactor since 1.x → 2.x, and the first release where the visible feature is the smaller
 half. The narrative — what the codebase gained and why — is
-[`documentation/3.13-README.md`](documentation/3.13-README.md).
+[`documentation/4.0-README.md`](documentation/4.0-README.md).
 
 **Why this is a major, when nothing you rely on breaks.** No setting was removed, no command was
 removed, and no configuration you have written stops working — upgrading should cost you nothing.
