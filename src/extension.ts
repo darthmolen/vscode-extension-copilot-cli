@@ -1628,6 +1628,17 @@ async function loadSessionHistory(sessionId: string, target: ChatSessionHost = s
 	const messages = await buildSessionTranscript(eventsPath);
 
 	loadTranscriptInto(target, messages);
+	// Render it now, rather than trusting whoever loaded it to init afterwards.
+	//
+	// Reading `events.jsonl` is async, and the webview can post `ready` the moment `attach()` sets
+	// its HTML — so a restored tab could init against an empty transcript and then have the real one
+	// arrive with nothing left to draw it. The `onDidBecomeReady` handler does send a second init,
+	// but only *after* `ensureStarted()` resolves, so a session that fails to start leaves a blank
+	// surface holding a perfectly good transcript.
+	//
+	// Harmless before `ready`: the webview has nothing to receive it and the ready handler sends the
+	// current state again.
+	target.getSurface()?.sendInit();
 	const toolCount = messages.filter(m => m.kind === 'tool').length;
 	logger.info(
 		`Loaded ${messages.length} messages (${toolCount} tool calls) from ${sessionId} into ${target.handle}`

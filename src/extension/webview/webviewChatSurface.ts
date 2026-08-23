@@ -54,6 +54,16 @@ declare const __EXTENSION_VERSION__: string | undefined;
  */
 export class WebviewChatSurface implements vscode.Disposable {
 	private readonly _disposables = new DisposableStore();
+	/**
+	 * Everything bound to the *current* slot — its visibility and dispose handlers, its RPC router
+	 * and that router's ~34 handlers.
+	 *
+	 * Separate from `_disposables`, which lives as long as the surface does. The sidebar re-attaches
+	 * every time VS Code hides and re-resolves its view — 11 times in one measured session — so
+	 * anything slot-shaped in the lifetime store accumulates a full set per attach and is never
+	 * released until the surface itself dies.
+	 */
+	private slotScope?: DisposableStore;
 	private slot: ChatWebviewSlot | undefined;
 	private readonly logger: Logger;
 	private readonly extensionUri: vscode.Uri;
@@ -455,6 +465,12 @@ export class WebviewChatSurface implements vscode.Disposable {
 	 * `dist/webview` assets.
 	 */
 	public attach(slot: ChatWebviewSlot): void {
+		// Whatever was bound to the previous slot goes now. Its webview is gone, its router writes
+		// into nothing, and — the part that actually bit — its dispose handler is still armed.
+		this.slotScope?.dispose();
+		const scope = new DisposableStore();
+		this.slotScope = scope;
+
 		this.slot = slot;
 
 		const webview = slot.webview;
@@ -463,20 +479,30 @@ export class WebviewChatSurface implements vscode.Disposable {
 			localResourceRoots: chatWebviewResourceRoots(this.extensionUri)
 		};
 
-		this._reg(slot.onDidChangeVisibility(() => {
+		scope.add(slot.onDidChangeVisibility(() => {
 			this.logger.debug(`[Visibility] ${this.label} ${slot.isVisible ? 'shown' : 'hidden'}`);
 		}));
 
-		this._reg(slot.onDidDispose(() => {
+		scope.add(slot.onDidDispose(() => {
 			// A closed panel is gone; a hidden sidebar view comes back through
 			// another `attach`. Either way this router is dead — it is bound to a
 			// webview that no longer exists.
+			//
+			// Guarded on identity, for the same reason `detachSurface` is: a slot that has already
+			// been replaced must not be able to null its successor on the way out. Without this a
+			// stale dispose decapitated the live surface — the host kept recording and routing,
+			// `addAssistantMessage` still ran and still logged, and every `postMessage` landed on
+			// `undefined`.
+			if (this.slot !== slot) {
+				this.logger.debug(`[${this.label}] stale slot disposed — the live one is untouched`);
+				return;
+			}
 			this.logger.info(`[${this.label}] Slot disposed${slot.closingEndsSurface ? '' : ' — VS Code will re-resolve it'}`);
 			this.slot = undefined;
 			this.rpcRouter = undefined;
 		}));
 
-		this._setupRpcHandlers(webview);
+		this._setupRpcHandlers(webview, scope);
 
 		// Set HTML — webview loads and sends 'ready' which RPC handlers catch
 		webview.html = this._getHtmlForWebview(webview);
@@ -504,11 +530,16 @@ export class WebviewChatSurface implements vscode.Disposable {
 	 * Extract RPC handler setup into its own method.
 	 * Called once when the view is first resolved.
 	 */
-	private _setupRpcHandlers(webview: vscode.Webview): void {
-		this.rpcRouter = new ExtensionRpcRouter(webview);
-		registerChatHandlers(this._handlerContext(this.rpcRouter));
-		// Start listening for messages from webview
-		this.rpcRouter.listen();
+	private _setupRpcHandlers(webview: vscode.Webview, scope: DisposableStore): void {
+		const router = new ExtensionRpcRouter(webview);
+		this.rpcRouter = router;
+		// Registered into the slot's scope, not the surface's: `registerChatHandlers` wires ~34
+		// handlers, and a re-attach used to add another full set that nothing ever released.
+		registerChatHandlers(this._handlerContext(router, scope));
+		// The router itself has no `dispose`; what has to be released is its subscription to the
+		// webview's messages, which `listen()` hands back. Dropped when the slot is replaced, so a
+		// dead webview's queue cannot still be routed.
+		scope.add(router.listen());
 	}
 
 	/**
@@ -520,11 +551,13 @@ export class WebviewChatSurface implements vscode.Disposable {
 	 * copying values here would freeze whatever happened to be set at resolve
 	 * time.
 	 */
-	private _handlerContext(rpcRouter: ExtensionRpcRouter): ChatHandlerContext {
+	private _handlerContext(rpcRouter: ExtensionRpcRouter, scope: DisposableStore): ChatHandlerContext {
 		const self = this;
 		return {
 			rpcRouter,
-			reg: <T extends vscode.Disposable>(d: T) => self._reg(d),
+			// The slot's scope, not the surface's. These handlers belong to one webview and must go
+			// when it does; `_reg` would keep every re-attach's set alive for the surface's life.
+			reg: <T extends vscode.Disposable>(d: T) => scope.add(d),
 			sendDedup: this.sendDedup,
 			get logger() { return self.logger; },
 			get currentWorkspacePath() { return self.currentWorkspacePath; },

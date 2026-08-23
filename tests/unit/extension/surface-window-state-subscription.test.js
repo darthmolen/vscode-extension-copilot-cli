@@ -40,8 +40,15 @@ function makeSlot() {
             cspSource: 'vscode-webview:',
             onDidReceiveMessage: (listener) => { messageListener = listener; return { dispose() {} }; }
         },
-        onDidChangeVisibility: (l) => { visibilityListeners.push(l); return { dispose() {} }; },
-        onDidDispose: (l) => { disposeListeners.push(l); return { dispose() {} }; }
+        visibilityListenerCount: () => visibilityListeners.length,
+        onDidChangeVisibility: (l) => {
+            visibilityListeners.push(l);
+            return { dispose: () => { const i = visibilityListeners.indexOf(l); if (i >= 0) { visibilityListeners.splice(i, 1); } } };
+        },
+        onDidDispose: (l) => {
+            disposeListeners.push(l);
+            return { dispose: () => { const i = disposeListeners.indexOf(l); if (i >= 0) { disposeListeners.splice(i, 1); } } };
+        }
     };
 }
 
@@ -191,6 +198,75 @@ describe('A surface subscribes to its window\'s state', () => {
             workspace.setActiveFilePath('src/somewhere-else.ts');
 
             expect(activeFilesSeen(tabSlot)).to.deep.equal(['src/somewhere-else.ts']);
+        });
+    });
+
+    /**
+     * PR #49 review — the sidebar is re-attached constantly, and re-attaching used to poison itself.
+     *
+     * VS Code disposes a sidebar *view* whenever its container is hidden and resolves a fresh one
+     * when it comes back; one measured session did that **11 times**. Every `attach()` registered a
+     * new visibility handler, a new dispose handler and a whole new `ExtensionRpcRouter` with ~34
+     * handlers — all into the surface's *lifetime* store, which is only emptied when the surface
+     * itself dies.
+     *
+     * The leak is the smaller half. The dispose callback nulls `this.slot` and `this.rpcRouter`
+     * **unconditionally**, so a stale slot disposing at any later moment silently decapitates the
+     * live one: the host goes on recording and routing, `addAssistantMessage` still runs and still
+     * logs, and every `postMessage` lands on `undefined`.
+     */
+    describe('re-attaching a slot', () => {
+        it('keeps working when the slot it replaced is disposed afterwards', () => {
+            const replacement = makeSlot();
+            tab.attach(replacement);
+            replacement.posted.length = 0;
+
+            tabSlot.fireDispose();          // the stale slot, disposing late
+
+            workspace.setActiveFilePath('src/extension.ts');
+            expect(activeFilesSeen(replacement), 'a stale slot killed the live one')
+                .to.deep.equal(['src/extension.ts']);
+        });
+
+        it('still goes quiet when the CURRENT slot is disposed', () => {
+            const replacement = makeSlot();
+            tab.attach(replacement);
+            replacement.posted.length = 0;
+
+            replacement.fireDispose();
+
+            workspace.setActiveFilePath('src/extension.ts');
+            expect(activeFilesSeen(replacement)).to.have.lengthOf(0);
+        });
+
+        it('stops writing to the slot it replaced', () => {
+            const replacement = makeSlot();
+            tab.attach(replacement);
+            tabSlot.posted.length = 0;
+
+            workspace.setActiveFilePath('src/extension.ts');
+
+            expect(activeFilesSeen(tabSlot), 'the old webview is dead; writing to it is a leak')
+                .to.have.lengthOf(0);
+        });
+
+        it('unsubscribes from the slot it replaced, rather than merely not stacking', () => {
+            // Each re-attach used to add another set that nothing released, so a surface
+            // re-resolved 11 times held 11 visibility handlers, 11 routers and 11 handler sets.
+            const replacement = makeSlot();
+            tab.attach(replacement);
+            expect(replacement.visibilityListenerCount()).to.equal(1);
+
+            tab.attach(makeSlot());
+
+            expect(replacement.visibilityListenerCount(), 'the replaced slot was left subscribed')
+                .to.equal(0);
+        });
+
+        it('leaves the current slot subscribed', () => {
+            const current = makeSlot();
+            tab.attach(current);
+            expect(current.visibilityListenerCount()).to.equal(1);
         });
     });
 
