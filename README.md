@@ -217,6 +217,14 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
 
 **Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
 
+### 4.0.0 - Chat in a Tab
+
+- Chat in a tab or in the side bar, or at the same time
+- Planning sessions and Work seesions now paired in drop down
+- new /btw command pops new tab
+- Handles multiple streams to correct surfaces including rehydration
+- Prepare code for for AHP => ACP
+
 ### v3.9.0 - MCP Server Management 🧩
 
 - **See every MCP server, from every source** — The `/mcp` panel now lists servers from all four sources, each with a badge: `user` (your `copilotCLI.mcpServers` setting), `managed` (bundled by the extension), `imported` (VS Code's native config), and `copilot` (the Copilot CLI's own config). Read-only sources are marked with a 🔒.
