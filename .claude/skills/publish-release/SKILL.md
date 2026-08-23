@@ -55,17 +55,66 @@ BRANCH=$(git branch --show-current)
 
 ### 2. Determine the version from the LAST PUBLISHED version
 The marketplace is authoritative — do not trust local tags/package.json (they lag or lead).
-Parse the labeled `Version:` line, not the first number in the output.
+Parse the labeled `Version:` line, not the first number in the output — `vsce show` prints a version
+*table* near the top as well, and the first semver in it is the same value only by luck of ordering.
 ```bash
 PUBLISHED=$(npx vsce show darthmolen.copilot-cli-extension 2>/dev/null \
   | grep -iE '^\s*Version:' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+
+# STOP if empty, whatever the cause. An unparsed $PUBLISHED makes the duplicate
+# guard below pass vacuously — every comparison against "" succeeds — so the first
+# thing you would learn is a rejected publish.
+[ -n "$PUBLISHED" ] || { echo "Could not read the published version; re-run, then check 'npx vsce show' by hand"; exit 1; }
+
 CURRENT=$(node -p "require('./package.json').version")
 echo "published=$PUBLISHED  package.json=$CURRENT"
 ```
+
+> **A cold `npx vsce` can return empty** — observed once in a freshly created worktree during the
+> 3.12.1 release, where the same command succeeded on the next invocation. The parser was fine; the cold
+> first run was not. So: **re-run before concluding anything about the format**, and never proceed on an
+> empty value. That is what the guard above is for.
+
 Pick the next version relative to `$PUBLISHED` (table below). Then **make `package.json` `version`
-equal that value** (edit it if needed). Guard: if the chosen version is **≤ `$PUBLISHED`**, STOP —
-you are not ahead of the marketplace and the publish would be rejected as a duplicate.
+equal that value**. Edit it **surgically** — `sed -i '0,/"version": "X"/s//"version": "Y"/'` or an
+equivalent one-line change. Do **not** rewrite the file with `JSON.parse` + `JSON.stringify`: that
+reformats all ~440 lines and buries a one-line bump in an unreviewable diff.
+
+Guard: if the chosen version is **≤ `$PUBLISHED`**, STOP — you are not ahead of the marketplace and
+the publish would be rejected as a duplicate.
 See CLAUDE.md "Versioning" — when in doubt, bump minor.
+
+#### Then sync `package-lock.json`, and gate on it
+
+**The surgical edit above touches `package.json` only, and that is exactly how the lock file gets
+left behind.** `package-lock.json` carries the version **twice** — at the root and again under
+`packages[""]` — and nothing downstream complains when they are stale: the extension builds, the
+suite passes, the VSIX packages, and the publish succeeds. Missed three releases running, and found
+sitting at **3.10.0 while shipping 3.13.0**.
+
+`npm install --package-lock-only` rewrites both entries from `package.json` and touches nothing else:
+
+```bash
+npm install --package-lock-only
+```
+
+**Gate — all three must agree before you commit:**
+
+```bash
+PKG=$(node -p "require('./package.json').version")
+LOCK_ROOT=$(node -p "require('./package-lock.json').version")
+LOCK_SELF=$(node -p "require('./package-lock.json').packages[''].version")
+echo "package.json=$PKG  lock.root=$LOCK_ROOT  lock.self=$LOCK_SELF"
+[ "$PKG" = "$LOCK_ROOT" ] && [ "$PKG" = "$LOCK_SELF" ] \
+  || { echo "VERSION MISMATCH — run: npm install --package-lock-only"; exit 1; }
+```
+
+Check the diff is only the version, not a dependency churn — a lock file that resolved new
+transitive versions is a different change and does not belong in a release commit:
+
+```bash
+git diff --stat package-lock.json     # expect a handful of lines, not hundreds
+```
 
 | Change kind | Bump | From 3.10.0 → |
 |---|---|---|
@@ -76,12 +125,42 @@ See CLAUDE.md "Versioning" — when in doubt, bump minor.
 The bump decision also feeds the step-7 gate: if this is a **breaking/architectural** change,
 it is a major release regardless of the number you typed — treat it as major at step 7.
 
+### 2b. Merge `main` in first — a stale branch silently reverts released work
+
+A branch cut before the last release does not carry that release's changelog entry, version bump, or
+fixes. Notice it at PR time and it is already too late to see clearly: the diff shows them as
+**deletions**, which reads like intent rather than staleness.
+
+```bash
+git fetch origin
+git rev-list --left-right --count origin/main...HEAD   # left = commits you are MISSING
+git merge origin/main
+```
+
+Expect conflicts in `CHANGELOG.md` and `package.json`, and resolve them the same way every time:
+**keep both changelog entries, newest first**, and **keep your version**, not main's. Then re-run the
+version gate above — the merge can drag `package.json` backwards.
+
+Found at 3.13.0, on a branch that predated 3.12.1 and would have reverted its changelog entry.
+
 ### 3. Pre-flight gate — must be green before committing
 **This LOCAL run is the ONLY place tests execute — CI does not run the suite yet** (known flake
 tail), so do not skip it.
 ```bash
 npm run compile && npm test && ./test-extension.sh
 ```
+
+Run `npm test` **twice**. A single green run is not evidence — see CLAUDE.md; the suite's flake
+rotates its victim, so one clean pass proves as little as one red one.
+
+**If another worktree is in use** (see the `worktree-init` skill), `./test-extension.sh` is the step
+to think about: it runs `code --install-extension … --force`, which is **global to VS Code**, and
+whichever tree ran it last wins silently. Either coordinate before running it, or skip the install
+and say so in the PR — do not report the gate as fully green when part of it was skipped. Note that
+`npx vsce package` is **not** a substitute from a symlinked worktree: it fails with `EISDIR`
+(details in `worktree-init`). CI packages from a clean checkout, so the published artifact is
+unaffected either way.
+
 Only `main.js size constraint` is an accepted baseline failure. Any other failure must be
 **re-run in isolation** (`npx mocha <file> --timeout <n>`) and pass there before you proceed —
 do not wave a failure through as "probably flaky."
@@ -163,7 +242,8 @@ VER=$(node -p "require('./package.json').version"); git tag "v$VER" && git push 
 | Step | Command / action |
 |---|---|
 | 1 branch | `git branch --show-current` ≠ `main` |
-| 2 version | `npx vsce show …` → next per table → set package.json |
+| 2 version | `npx vsce show …` → next per table → set package.json → `npm install --package-lock-only` → gate all three agree |
+| 2b sync | `git merge origin/main`; keep both changelog entries, keep your version |
 | 3 gate | `npm run compile && npm test && ./test-extension.sh` |
 | 4 push | `git commit -m "vX.Y.Z: …"` → `git push -u origin $BRANCH` |
 | 5 PR | `gh pr create --base main --title "vX.Y.Z: …"` |
@@ -180,6 +260,10 @@ VER=$(node -p "require('./package.json').version"); git tag "v$VER" && git push 
   Bump (step 2), merge to main (step 7), pull (step 8), *then* tag.
 - **Bumping from `package.json` instead of the marketplace.** Local version/tags can be ahead or
   stale; `vsce show` is the source of truth for "last published".
+- **Editing `package.json` and leaving `package-lock.json` behind.** Missed three releases running.
+  Nothing downstream fails, so only the step-2 gate catches it.
+- **PRing a branch that predates the last release.** Its changelog entry and version bump show up as
+  deletions in your own diff. Merge `main` first (step 2b).
 - **Merging a major without asking.** `x.0.0` always stops for the user.
 - **Continuing past review comments** because they "seem minor" — evaluate every one first.
 - **Leaking the PAT** by echoing `.env` or passing it on a logged command line in plain view.

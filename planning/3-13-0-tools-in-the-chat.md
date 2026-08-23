@@ -87,7 +87,8 @@ A natural experiment, unplanned, across two UAT logs. `[Tool Start]` is logged i
 `sdkSessionManager.ts:1157` (manager-level) and `extension.ts:1268` (window-scoped). So a tool that
 reaches both prints twice.
 
-`tests/logs/server/3-13-final-uat-test.log`:
+`planning/completed/3-13-final-uat-test.md` (the saved Output Channel, committed so the
+evidence is reviewable — the other two logs below are local-only, under gitignored `tests/logs/`):
 
 | Session | Started via | manager-level | window-scoped |
 | --- | --- | --- | --- |

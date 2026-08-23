@@ -4,7 +4,7 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
-## [3.13.0] - 2026-08-22
+## [3.13.0] - 2026-08-23
 
 The largest refactor since 1.x → 2.x, and the first release where the visible feature is the smaller
 half. The narrative — what the codebase gained and why — is
@@ -95,6 +95,18 @@ half. The narrative — what the codebase gained and why — is
 - **`ChatSessionHost`, `ChatSessionRegistry`, `sessionStartPlan`, `sessionBootstrap`,
   `sessionTranscriptBuilder`, `sessionPairing` and the four decision modules import neither `vscode`
   nor the SDK**, so they are testable from plain mocha and portable to v4.0.
+
+## [3.12.1] - 2026-08-17
+
+### Fixed
+
+- **Plan mode no longer strands the work session on teardown.** Plan mode deliberately runs two
+  sessions — a plan session and a work session — kept apart so planning never pollutes the work
+  context. Teardown only swept one side: in plan mode the active session *is* the plan session, and
+  `stop()` disconnected that and nothing else, leaving the work session's connection open with
+  nothing referencing it. Switching sessions, starting a new one, stopping the chat, or closing VS
+  Code while in plan mode leaked one every time. All three session references are now released,
+  de-duplicated by identity, and one failed disconnect no longer prevents the others.
 
 ## [3.12.0] - 2026-08-15
 
