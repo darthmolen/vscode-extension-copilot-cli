@@ -2,6 +2,7 @@
 import { WebviewRpcClient } from './app/rpc/WebviewRpcClient.js';
 // Import EventBus and components
 import { EventBus } from './app/state/EventBus.js';
+import { rememberSessionId } from './app/state/surfaceSessionState.js';
 import { MessageDisplay } from './app/components/MessageDisplay/MessageDisplay.js';
 
 import { InputArea } from './app/components/InputArea/InputArea.js';
@@ -125,6 +126,9 @@ eventBus.on('agents:panelClosed', ({ mutated }) => {
 	if (mutated) { rpc.agentsPanelClosed(); }
 });
 eventBus.on('selectAgent', (args) => rpc.selectAgent(args && args[0] ? args[0] : ''));
+// `/btw <question>` — New Tab plus one send. No history travels with it; fork is
+// the verb for that.
+eventBus.on('askInNewTab', (args) => rpc.askInNewTab(Array.isArray(args) ? args.join(' ') : ''));
 
 // AcceptanceControls events
 acceptanceControls.on('accept', (value) => {
@@ -174,8 +178,10 @@ eventBus.on('rejectPlan', () => {
 
 eventBus.on('exitPlanMode', () => {
 	console.log('[Plan Mode] Exit plan mode (silent)');
-	// Silent exit - just toggle plan mode off, no message sent
-	rpc.togglePlanMode();
+	// Silent exit - just toggle plan mode off, no message sent.
+	// Said explicitly rather than relying on `undefined` being falsy; the RPC client
+	// coerces either way, but the call should read as what it means.
+	rpc.togglePlanMode(false);
 });
 
 // Listen for new slash command events
@@ -602,15 +608,26 @@ export function handleInitMessage(payload) {
 	// Clear messages via MessageDisplay
 	messageDisplay.clear();
 
-	// Add messages from init
+	// Add messages from init.
+	//
+	// This used to do `const role = msg.type || msg.role`, smuggling the message
+	// kind through the role field because the wire type could not express a tool
+	// call — which dropped the tool state entirely and rendered every tool as a
+	// bubble reading "Tool execution". `kind` is now the discriminant and the tool
+	// state travels with it; `role` is still sent so ToolExecution's group-closing
+	// check keeps working through the deprecation window.
 	if (payload.messages && payload.messages.length > 0) {
 		// MessageDisplay handles hiding empty state via EventBus
 		for (const msg of payload.messages) {
-			const role = msg.type || msg.role;
+			const kind = msg.kind || msg.type || msg.role;
 			eventBus.emit('message:add', {
-				role: role,
+				kind: kind,
+				role: kind === 'tool' ? 'assistant' : kind,
 				content: msg.content,
-				timestamp: Date.now()
+				tool: msg.tool,
+				agentId: msg.agentId,
+				// The message's own time, not the moment it was replayed.
+				timestamp: msg.timestamp
 			});
 		}
 	}
@@ -624,6 +641,11 @@ export function handleInitMessage(payload) {
 		sessionToolbar.setPlanFileExists(null);
 	}
 	
+	// A chat tab is restored by session id, and only the webview can write the
+	// state channel VS Code reads back. Recorded here because init is the one
+	// message that always carries this surface's session.
+	rememberSessionId(rpc.vscode, payload.sessionId);
+
 	setSessionActive(payload.sessionActive);
 
 	// Set current model if provided

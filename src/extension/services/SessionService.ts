@@ -60,7 +60,6 @@ function getSessionCwd(sessionDir: string, sessionId: string): string | undefine
  * SessionService consolidates all session lifecycle logic:
  * - Session discovery (getAllSessions, filterSessionsByFolder, getMostRecentSession)
  * - Session labeling (formatSessionLabel)
- * - Session history loading (loadSessionHistory)
  * - Session resume determination (determineSessionToResume)
  *
  * All methods accept explicit paths/config — no global state dependency.
@@ -110,26 +109,44 @@ export const SessionService = {
     /**
      * Returns the most recent session ID, optionally filtered by workspace folder.
      * Falls back to global most recent if no folder-specific sessions exist.
+     *
+     * `alreadyOpen` is the set of sessions this window already has a surface for.
+     * They are not candidates: they are already resumed. Without this, restoring a
+     * chat tab on window reload and then asking for "the last session" returns the
+     * tab's own session — it was, after all, the last one written to — and two
+     * hosts claim it on an ordinary reload.
+     *
+     * The global fallback still means *"this folder has no sessions"*. It is not
+     * reached when the folder's sessions merely happen to be open, because
+     * borrowing another workspace's conversation is worse than starting a new one.
      */
-    getMostRecentSession(sessionStateDir: string, workspaceFolder: string, filterByFolder: boolean): string | null {
+    getMostRecentSession(
+        sessionStateDir: string,
+        workspaceFolder: string,
+        filterByFolder: boolean,
+        alreadyOpen: string[] = []
+    ): string | null {
         const allSessions = SessionService.getAllSessions(sessionStateDir);
         if (allSessions.length === 0) {
             return null;
         }
 
+        const open = new Set(alreadyOpen);
         const sorted = allSessions.sort((a, b) => b.mtime - a.mtime);
+        const mostRecentAvailable = (sessions: SessionInfo[]): string | null =>
+            sessions.find(session => !open.has(session.id))?.id ?? null;
 
         if (!filterByFolder) {
-            return sorted[0].id;
+            return mostRecentAvailable(sorted);
         }
 
         const folderSessions = SessionService.filterSessionsByFolder(sorted, workspaceFolder);
         if (folderSessions.length > 0) {
-            return folderSessions[0].id;
+            return mostRecentAvailable(folderSessions);
         }
 
         // Fallback to global most recent
-        return sorted[0].id;
+        return mostRecentAvailable(sorted);
     },
 
     /**
@@ -140,6 +157,64 @@ export const SessionService = {
     writeSessionName(sessionPath: string, name: string): void {
         const namePath = path.join(sessionPath, 'session-name.txt');
         fs.writeFileSync(namePath, name, 'utf-8');
+    },
+
+    /**
+     * Records the model this session is on, in `session-model.txt`.
+     *
+     * Beside `session-name.txt` and shaped like it: plain text, one value, single
+     * purpose, no read-modify-write to race. Never throws — the model switch has
+     * already succeeded by the time this runs, and failing to write the note down
+     * must not be reported to the user as a failed switch.
+     *
+     * Deliberately not merged into P4's `session-pairing.json`: that is written
+     * once at plan-session creation and never edited, this is rewritten on every
+     * switch, and coupling two lifetimes into one file buys only a lost-update
+     * window.
+     */
+    writeSessionModel(sessionPath: string, model: string): void {
+        try {
+            fs.writeFileSync(path.join(sessionPath, 'session-model.txt'), model, 'utf-8');
+        } catch { /* never throw */ }
+    },
+
+    /**
+     * Records that this session is the plan half of another one.
+     *
+     * Written **on the plan session**, pointing at its work session: child→parent,
+     * one writer, written once. A second plan pass later is a new child record,
+     * never an edit to the parent — which is what makes it safe with no locking.
+     *
+     * The `-plan` suffix is *not* how the caller learns the plan session's id.
+     * `plan_mode_enabled` carries `planSessionId`, so writing this record does not
+     * make `extension.ts` a second place that knows the convention — see
+     * `sessionPairing.ts`, which is meant to be the only one.
+     *
+     * Never throws: plan mode has already succeeded by the time this runs, and
+     * failing to write the note down must not surface as a failed plan mode.
+     */
+    writeSessionPairing(planSessionPath: string, workSessionId: string): void {
+        try {
+            fs.writeFileSync(
+                path.join(planSessionPath, 'session-pairing.json'),
+                JSON.stringify({ workSessionId }, null, 2),
+                'utf-8'
+            );
+        } catch { /* never throw */ }
+    },
+
+    /** The model this session last recorded, or `null` if it never did. */
+    readSessionModel(sessionPath: string): string | null {
+        try {
+            const modelPath = path.join(sessionPath, 'session-model.txt');
+            if (!fs.existsSync(modelPath)) {
+                return null;
+            }
+            const model = fs.readFileSync(modelPath, 'utf-8').trim();
+            return model.length > 0 ? model : null;
+        } catch {
+            return null;
+        }
     },
 
     /**
@@ -247,58 +322,6 @@ export const SessionService = {
         }
 
         return sessionId.substring(0, 8);
-    },
-
-    /**
-     * Loads user and assistant messages from an events.jsonl file.
-     * Returns a fresh array each call (no accumulation).
-     */
-    loadSessionHistory(eventsPath: string): Promise<SessionMessage[]> {
-        return new Promise((resolve) => {
-            if (!fs.existsSync(eventsPath)) {
-                resolve([]);
-                return;
-            }
-
-            const messages: SessionMessage[] = [];
-            const fileStream = fs.createReadStream(eventsPath);
-            const rl = readline.createInterface({
-                input: fileStream,
-                crlfDelay: Infinity
-            });
-
-            rl.on('line', (line: string) => {
-                try {
-                    const event = JSON.parse(line);
-                    if (event.type === 'user.message' && event.data?.content) {
-                        messages.push({
-                            role: 'user',
-                            content: event.data.content,
-                            timestamp: event.timestamp
-                        });
-                    } else if (event.type === 'assistant.message' && event.data?.content) {
-                        const content = event.data.content;
-                        if (content && typeof content === 'string') {
-                            messages.push({
-                                role: 'assistant',
-                                content,
-                                timestamp: event.timestamp
-                            });
-                        }
-                    }
-                } catch {
-                    // Skip malformed lines
-                }
-            });
-
-            rl.on('close', () => {
-                resolve(messages);
-            });
-
-            rl.on('error', () => {
-                resolve(messages);
-            });
-        });
     },
 
     /**

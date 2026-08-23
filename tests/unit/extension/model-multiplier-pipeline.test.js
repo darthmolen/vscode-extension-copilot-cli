@@ -96,23 +96,11 @@ describe('Multiplier Pipeline', function () {
 		});
 	});
 
-	describe('AvailableModelsPayload type contract', function () {
-		it('should include multiplier in the message type definition', function () {
-			const messagesSource = fs.readFileSync(
-				path.join(__dirname, '../../../src/shared/messages.ts'),
-				'utf-8'
-			);
-
-			const payloadMatch = messagesSource.match(/interface AvailableModelsPayload[\s\S]*?}/);
-			assert.ok(payloadMatch, 'AvailableModelsPayload interface should exist');
-
-			const payloadDef = payloadMatch[0];
-			assert.ok(
-				payloadDef.includes('multiplier'),
-				`AvailableModelsPayload should include 'multiplier' field. Got:\n${payloadDef}`
-			);
-		});
-	});
+	// The 'AvailableModelsPayload includes multiplier' scan that lived here was
+	// deleted 2026-08-22. It read `src/shared/messages.ts` and matched the interface
+	// body for the word 'multiplier' — a check `tsc --noEmit` already makes on every
+	// build, and one that would have passed against a comment. The field's actual
+	// behaviour is asserted below, by posting it through the router.
 
 	describe('ExtensionRpcRouter.sendAvailableModels()', function () {
 		let ExtensionRpcRouter;

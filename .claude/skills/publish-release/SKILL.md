@@ -84,6 +84,38 @@ Guard: if the chosen version is **≤ `$PUBLISHED`**, STOP — you are not ahead
 the publish would be rejected as a duplicate.
 See CLAUDE.md "Versioning" — when in doubt, bump minor.
 
+#### Then sync `package-lock.json`, and gate on it
+
+**The surgical edit above touches `package.json` only, and that is exactly how the lock file gets
+left behind.** `package-lock.json` carries the version **twice** — at the root and again under
+`packages[""]` — and nothing downstream complains when they are stale: the extension builds, the
+suite passes, the VSIX packages, and the publish succeeds. Missed three releases running, and found
+sitting at **3.10.0 while shipping 3.13.0**.
+
+`npm install --package-lock-only` rewrites both entries from `package.json` and touches nothing else:
+
+```bash
+npm install --package-lock-only
+```
+
+**Gate — all three must agree before you commit:**
+
+```bash
+PKG=$(node -p "require('./package.json').version")
+LOCK_ROOT=$(node -p "require('./package-lock.json').version")
+LOCK_SELF=$(node -p "require('./package-lock.json').packages[''].version")
+echo "package.json=$PKG  lock.root=$LOCK_ROOT  lock.self=$LOCK_SELF"
+[ "$PKG" = "$LOCK_ROOT" ] && [ "$PKG" = "$LOCK_SELF" ] \
+  || { echo "VERSION MISMATCH — run: npm install --package-lock-only"; exit 1; }
+```
+
+Check the diff is only the version, not a dependency churn — a lock file that resolved new
+transitive versions is a different change and does not belong in a release commit:
+
+```bash
+git diff --stat package-lock.json     # expect a handful of lines, not hundreds
+```
+
 | Change kind | Bump | From 3.10.0 → |
 |---|---|---|
 | New feature / UI / capability, or a batch of fixes | **minor** (reset patch) | `3.11.0` |
@@ -92,6 +124,24 @@ See CLAUDE.md "Versioning" — when in doubt, bump minor.
 
 The bump decision also feeds the step-7 gate: if this is a **breaking/architectural** change,
 it is a major release regardless of the number you typed — treat it as major at step 7.
+
+### 2b. Merge `main` in first — a stale branch silently reverts released work
+
+A branch cut before the last release does not carry that release's changelog entry, version bump, or
+fixes. Notice it at PR time and it is already too late to see clearly: the diff shows them as
+**deletions**, which reads like intent rather than staleness.
+
+```bash
+git fetch origin
+git rev-list --left-right --count origin/main...HEAD   # left = commits you are MISSING
+git merge origin/main
+```
+
+Expect conflicts in `CHANGELOG.md` and `package.json`, and resolve them the same way every time:
+**keep both changelog entries, newest first**, and **keep your version**, not main's. Then re-run the
+version gate above — the merge can drag `package.json` backwards.
+
+Found at 3.13.0, on a branch that predated 3.12.1 and would have reverted its changelog entry.
 
 ### 3. Pre-flight gate — must be green before committing
 **This LOCAL run is the ONLY place tests execute — CI does not run the suite yet** (known flake
@@ -192,7 +242,8 @@ VER=$(node -p "require('./package.json').version"); git tag "v$VER" && git push 
 | Step | Command / action |
 |---|---|
 | 1 branch | `git branch --show-current` ≠ `main` |
-| 2 version | `npx vsce show …` → next per table → set package.json |
+| 2 version | `npx vsce show …` → next per table → set package.json → `npm install --package-lock-only` → gate all three agree |
+| 2b sync | `git merge origin/main`; keep both changelog entries, keep your version |
 | 3 gate | `npm run compile && npm test && ./test-extension.sh` |
 | 4 push | `git commit -m "vX.Y.Z: …"` → `git push -u origin $BRANCH` |
 | 5 PR | `gh pr create --base main --title "vX.Y.Z: …"` |
@@ -209,6 +260,10 @@ VER=$(node -p "require('./package.json').version"); git tag "v$VER" && git push 
   Bump (step 2), merge to main (step 7), pull (step 8), *then* tag.
 - **Bumping from `package.json` instead of the marketplace.** Local version/tags can be ahead or
   stale; `vsce show` is the source of truth for "last published".
+- **Editing `package.json` and leaving `package-lock.json` behind.** Missed three releases running.
+  Nothing downstream fails, so only the step-2 gate catches it.
+- **PRing a branch that predates the last release.** Its changelog entry and version bump show up as
+  deletions in your own diff. Merge `main` first (step 2b).
 - **Merging a major without asking.** `x.0.0` always stops for the user.
 - **Continuing past review comments** because they "seem minor" — evaluate every one first.
 - **Leaking the PAT** by echoing `.env` or passing it on a logged command line in plain view.

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { SUBAGENT_PALETTE } from '../../shared/subagentPalette';
+import { previewToolArguments } from '../../shared/toolArgPreview';
 import type {
 	SubagentStartData,
 	SubagentMessageData,
@@ -58,7 +59,7 @@ export class SubagentPanelService implements vscode.Disposable {
 		const buf = this.buffers.get(id);
 		if (!buf) return;
 		if (buf.items.some((it) => it.kind === 'tool' && it.toolCallId === toolState.toolCallId)) return;
-		const item: Item = { kind: 'tool', toolCallId: toolState.toolCallId, toolName: toolState.toolName, preview: this.preview(toolState.arguments) };
+		const item: Item = { kind: 'tool', toolCallId: toolState.toolCallId, toolName: toolState.toolName, preview: previewToolArguments(toolState.arguments) };
 		buf.items.push(item);
 		this.post(id, { type: 'item', item });
 	}
@@ -125,15 +126,6 @@ export class SubagentPanelService implements vscode.Disposable {
 	private post(agentId: string, msg: unknown): void {
 		const panel = this.panels.get(agentId);
 		if (panel) { void panel.webview.postMessage(msg); }
-	}
-
-	private preview(args: unknown): string {
-		const a = args as Record<string, unknown> | undefined;
-		if (!a || typeof a !== 'object') return '';
-		if (typeof a.pattern === 'string') return `"${a.pattern}"`;
-		if (typeof a.path === 'string') return a.path;
-		if (typeof a.command === 'string') return a.command;
-		return '';
 	}
 
 	private dur(ms: number): string {

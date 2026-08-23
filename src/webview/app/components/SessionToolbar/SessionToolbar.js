@@ -82,7 +82,22 @@ class SessionToolbar {
 	updateSessions(sessions, currentSessionId) {
 		const dropdown = this.container.querySelector('#sessionDropdown');
 		dropdown.innerHTML = '';
-		
+
+		// A surface that has no session of its own, or whose session is not in this
+		// list, needs somewhere to point. Without this row nothing carries
+		// `selected`, and a native <select> falls back to displaying its first
+		// option — which, sorted newest-first, is whichever session was touched most
+		// recently. On a window reload that made the sidebar show the *tab's*
+		// conversation for the three seconds before it adopted its own.
+		const hasOwnSession = sessions.some(session => session.id === currentSessionId);
+		if (!hasOwnSession) {
+			const placeholder = document.createElement('option');
+			placeholder.value = '';
+			placeholder.textContent = 'No session';
+			placeholder.selected = true;
+			dropdown.appendChild(placeholder);
+		}
+
 		sessions.forEach(session => {
 			const option = document.createElement('option');
 			option.value = session.id;

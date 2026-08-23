@@ -17,73 +17,26 @@ const fs = require('fs');
 
 describe('Sidebar View Migration', () => {
 
-	describe('ChatViewProvider export', () => {
-		it('should export ChatViewProvider, not ChatPanelProvider', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
+	// Three source-scans lived here and were deleted in v3.13.0 Task 7:
+	// `show()` uses `.focus`, the field is `_view: vscode.WebviewView`, and the
+	// listener is `.onDidChangeVisibility(`. All three read the provider's *text*.
+	//
+	// The chat surface moved to `src/extension/webview/webviewChatSurface.ts` so one
+	// class can serve the sidebar and an editor tab, and the container differences
+	// moved behind `ChatWebviewSlot`. Those three facts are now properties of
+	// `SidebarSlot`, and `chat-webview-slot.test.js` asserts each by running it:
+	// revealing focuses the view id, visibility changes are forwarded, and closing a
+	// sidebar slot does not end its surface — the last of which no string could
+	// have expressed.
 
-			assert.ok(content.includes('export class ChatViewProvider'),
-				'Should export ChatViewProvider class');
-			assert.ok(!content.includes('export class ChatPanelProvider'),
-				'Should NOT export ChatPanelProvider class');
-		});
-
-		it('should implement WebviewViewProvider interface', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('vscode.WebviewViewProvider'),
-				'Should implement vscode.WebviewViewProvider');
-			assert.ok(content.includes('resolveWebviewView'),
-				'Should have resolveWebviewView method');
-		});
-
-		it('should NOT have createOrShow method', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			// Should not define createOrShow as a method
-			assert.ok(!content.match(/^\s*(public\s+)?createOrShow\s*\(/m),
-				'Should NOT have createOrShow method');
-		});
-
-		it('should have show() that uses executeCommand to focus sidebar', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('.focus'),
-				'show() should use .focus command');
-		});
-
-		it('should have static viewType matching package.json', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes("viewType = 'copilot-cli.chatView'"),
-				'viewType should be copilot-cli.chatView');
-		});
-
-		it('should use _view (WebviewView) not panel (WebviewPanel)', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('_view: vscode.WebviewView'),
-				'Should use _view: WebviewView');
-			assert.ok(!content.includes('panel: vscode.WebviewPanel'),
-				'Should NOT use panel: WebviewPanel');
-		});
-
-		it('should listen for onDidChangeVisibility, not onDidChangeViewState', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'chatViewProvider.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('.onDidChangeVisibility('),
-				'Should call onDidChangeVisibility');
-			// Allow mentions in comments, but should not call the method
-			assert.ok(!content.includes('.onDidChangeViewState('),
-				'Should NOT call onDidChangeViewState');
-		});
-	});
+	// The 'ChatViewProvider export' block — four scans of `src/chatViewProvider.ts`
+	// for `export class ChatViewProvider`, `vscode.WebviewViewProvider`, the absence
+	// of `createOrShow`, and the viewType literal — was deleted 2026-08-22.
+	//
+	// The provider is 38 lines now and does one thing: hand its view to a
+	// `WebviewChatSurface` as a `SidebarSlot`. Its registration contract with VS Code
+	// is asserted below, against `package.json`, which is where that contract
+	// actually lives; its behaviour is asserted by `chat-webview-slot.test.js`.
 
 	describe('Package.json sidebar contributions', () => {
 		let pkg;
@@ -112,21 +65,46 @@ describe('Sidebar View Migration', () => {
 			assert.strictEqual(chatView.type, 'webview', 'View type should be webview');
 		});
 
-		it('should have view/title menu entries for New Session and Refresh', () => {
+		/**
+		 * v3.13.0 Task 8 — one control per idea in the sidebar's title bar.
+		 *
+		 * This used to require *New Session* and *Refresh* there. Both went:
+		 *
+		 *  - `newSession` ($(add)) duplicated the webview's own `+` inches away, so
+		 *    the slot is repurposed for *New Tab* rather than a third add-button.
+		 *  - `refreshPanel`'s stated reason for existing — that it triggered the
+		 *    replay corruption — was fixed by P2, and it was re-argued rather than
+		 *    actioned as written: it survives in the palette as the debug affordance
+		 *    it always was, and gives up the toolbar slot.
+		 */
+		it('offers New Tab in the view title, and nothing that duplicates the webview', () => {
 			const viewTitle = pkg.contributes.menus['view/title'];
 			assert.ok(Array.isArray(viewTitle), 'Should have view/title menus');
 
-			const newSession = viewTitle.find(m =>
-				m.command === 'copilot-cli-extension.newSession' &&
+			const newTab = viewTitle.find(m =>
+				m.command === 'copilot-cli-extension.openChatInTab' &&
 				m.when === 'view == copilot-cli.chatView'
 			);
-			assert.ok(newSession, 'Should have New Session menu entry');
+			assert.ok(newTab, 'Should have New Tab menu entry');
 
-			const refresh = viewTitle.find(m =>
-				m.command === 'copilot-cli-extension.refreshPanel' &&
-				m.when === 'view == copilot-cli.chatView'
+			assert.ok(
+				!viewTitle.some(m => m.command === 'copilot-cli-extension.newSession'),
+				'New Session duplicates the webview\'s own + button'
 			);
-			assert.ok(refresh, 'Should have Refresh menu entry');
+			assert.ok(
+				!viewTitle.some(m => m.command === 'copilot-cli-extension.refreshPanel'),
+				'Refresh is a palette-only debug affordance'
+			);
+		});
+
+		it('shows the New Tab icon whether or not the editor has focus', () => {
+			// `when: editorFocus` hid it whenever focus sat in the chat — which is
+			// most of the time you would reach for it. It read as the icon randomly
+			// not existing.
+			const editorTitle = pkg.contributes.menus['editor/title'];
+			const entry = editorTitle.find(m => m.command === 'copilot-cli-extension.openChatInTab');
+			assert.ok(entry, 'Should offer New Tab from the editor title bar');
+			assert.notStrictEqual(entry.when, 'editorFocus', 'editorFocus hides it exactly when it is wanted');
 		});
 
 		it('should reference existing sidebar icon SVG', () => {
@@ -139,35 +117,17 @@ describe('Sidebar View Migration', () => {
 	});
 
 	describe('Extension registration', () => {
-		it('should import ChatViewProvider (not ChatPanelProvider)', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
+		// Two scans of `src/extension.ts` were deleted here on 2026-08-22: that it
+		// imports `ChatViewProvider`, and that it mentions `registerWebviewViewProvider`
+		// and `retainContextWhenHidden`. An import that is missing is a compile error,
+		// which `npm run check-types` gates; the registration itself is exercised every
+		// time the extension loads, and is in the live-verification list.
 
-			assert.ok(content.includes("import { ChatViewProvider }"),
-				'Should import ChatViewProvider');
-			assert.ok(!content.includes("import { ChatPanelProvider }"),
-				'Should NOT import ChatPanelProvider');
-		});
-
-		it('should register with registerWebviewViewProvider', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(content.includes('registerWebviewViewProvider'),
-				'Should use registerWebviewViewProvider');
-			assert.ok(content.includes('retainContextWhenHidden'),
-				'Should set retainContextWhenHidden option');
-		});
-
-		it('should use chatProvider.show() not createOrShow()', () => {
-			const srcPath = path.join(__dirname, '..', '..', '..', 'src', 'extension.ts');
-			const content = fs.readFileSync(srcPath, 'utf8');
-
-			assert.ok(!content.includes('createOrShow()'),
-				'Should NOT call createOrShow()');
-			assert.ok(content.includes('chatProvider.show()'),
-				'Should call chatProvider.show()');
-		});
+		// The `chatProvider.show()` scan that lived here was deleted in v3.13.0
+		// Task 7. The variable is `sidebarSurface` now — the provider is only the
+		// registration — so the assertion was matching a name, not a behaviour, and
+		// renaming a local broke it. `chat-webview-slot.test.js` asserts what show()
+		// actually has to do.
 	});
 
 	describe('Responsive CSS', () => {

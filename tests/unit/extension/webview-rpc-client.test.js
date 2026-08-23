@@ -139,6 +139,39 @@ describe('WebviewRpcClient Unit Tests', function () {
 		assert.equal(sent[0].sessionId, 'new-session-123');
 	});
 
+	/**
+	 * `TogglePlanModePayload.enabled` is declared `boolean`, and the exit path calls
+	 * `togglePlanMode()` with no argument — so the wire carried `undefined` against a
+	 * type that says it cannot. It *worked*, because `undefined` is falsy and the
+	 * extension side branches on truthiness, and the only visible trace was a log
+	 * line reading `Plan mode toggle requested: undefined` in a UAT run.
+	 *
+	 * That is the shape this whole release spent itself removing: a value that is
+	 * correct by coincidence rather than by contract. The next reader of
+	 * `togglePlanMode()` could reasonably think it *toggles*.
+	 */
+	it('sends a boolean even when called with nothing', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.togglePlanMode();
+
+		const sent = mockVsCodeApi._getSentMessages();
+		assert.equal(sent[0].type, 'togglePlanMode');
+		assert.strictEqual(sent[0].enabled, false,
+			'the payload type declares a boolean; undefined is a lie the receiver happens to survive');
+	});
+
+	it('never sends a truthy non-boolean as enabled', function () {
+		mockVsCodeApi = createMockVsCodeApi();
+		const client = new WebviewRpcClient();
+
+		client.togglePlanMode('yes');
+
+		const sent = mockVsCodeApi._getSentMessages();
+		assert.strictEqual(sent[0].enabled, true);
+	});
+
 	it('should send togglePlanMode with enabled flag', function () {
 		mockVsCodeApi = createMockVsCodeApi();
 		const client = new WebviewRpcClient();
