@@ -272,6 +272,19 @@ export class MessageDisplay {
     addMessage(message) {
         const { role, content, attachments, timestamp, messageId, reasoningId } = message;
 
+        // A replayed tool call is not a bubble. Rendered through the ToolExecution
+        // child that already belongs to this component (per the component
+        // hierarchy), using only its pure renderer — the live lifecycle is not
+        // involved, so replay cannot disturb grouping.
+        if (message.kind === 'tool' && message.tool) {
+            if (this.emptyState) {
+                this.emptyState.style.display = 'none';
+            }
+            this.messagesContainer.appendChild(this.toolExecution.renderReplayedTool(message.tool));
+            this.autoScroll();
+            return;
+        }
+
         // --- Streaming finalization path ---
         // If we already have a streaming bubble for this messageId, finalize it.
         if (role === 'assistant' && messageId && this.streamingBubbles.has(messageId)) {

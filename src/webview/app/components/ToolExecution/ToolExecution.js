@@ -55,6 +55,38 @@ export class ToolExecution {
         });
     }
 
+    /**
+     * Forget every tool this component is tracking.
+     *
+     * `MessageDisplay.clear()` has always called this behind a
+     * `typeof === 'function'` guard — but the method did not exist, so the guard was
+     * dead and tool state outlived the DOM it pointed at. With
+     * `retainContextWhenHidden`, hiding and showing the sidebar re-inits a webview
+     * whose groups still reference elements `clear()` just removed.
+     */
+    clear() {
+        this.tools.clear();
+        this.currentToolGroup = null;
+        this.collapsedCards.clear();
+    }
+
+    /**
+     * Render a tool that has already finished, for a replayed transcript.
+     *
+     * Deliberately only `buildToolHtml` — a pure function of tool state — and none
+     * of the live lifecycle. Replay therefore shares the live chip's markup without
+     * being able to disturb grouping or tracked state, and history renders flat,
+     * which is honest: it is history, not a session in progress.
+     */
+    renderReplayedTool(toolState) {
+        const element = document.createElement('div');
+        element.className = 'tool-execution tool-execution--replayed';
+        element.setAttribute('data-tool-id', toolState.toolCallId);
+        element.innerHTML = this.buildToolHtml(toolState);
+        this.attachHeaderCollapseListener(element, toolState.toolCallId);
+        return element;
+    }
+
     handleToolStart(toolState) {
         // Sub-agent tools (tagged with agentId) are rendered by the SubagentDock, not the
         // flat transcript path. Ignore them here.

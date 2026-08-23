@@ -1,0 +1,58 @@
+{
+  "startedAt": "2026-08-22T18:01:20.609Z",
+  "steps": [
+    {
+      "name": "0. resolved the bundled CLI",
+      "ok": true,
+      "detail": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot (package 1.0.68)"
+    },
+    {
+      "name": "1a. both consumers got the SAME client object",
+      "ok": true,
+      "detail": "one provider, one client"
+    },
+    {
+      "name": "2. two distinct sessions over one client",
+      "ok": true,
+      "detail": "A=3c6cc525-ff55-49b1-8906-a67e14449dee B=8e6ea0b4-f7f4-493e-bc1f-34d76ede7d33"
+    },
+    {
+      "name": "1b. session A answered",
+      "ok": true,
+      "detail": "{\"type\":\"assistant.message\",\"data\":{\"messageId\":\"f7cd87fc-b448-43d3-ae89-fdc70971b8dc\",\"model\":\"claude-sonnet-5\",\"content\":\"AAA\",\"toolRequests\":[],\"interactionId\":\"a50ade3e-8bfe-49d2-be6b-f3d4f1408e72"
+    },
+    {
+      "name": "1c. session B answered",
+      "ok": true,
+      "detail": "{\"type\":\"assistant.message\",\"data\":{\"messageId\":\"8c5e98e0-9572-4b3f-8b49-83e9e3a2db50\",\"model\":\"claude-sonnet-5\",\"content\":\"BBB\",\"toolRequests\":[],\"interactionId\":\"58621abe-8173-4da6-8454-7ac6e11032c7"
+    },
+    {
+      "name": "4. exactly one CLI process while both are live",
+      "ok": true,
+      "detail": "before=2 during=3 (delta 1)"
+    },
+    {
+      "name": "3. disconnecting one session left the other working",
+      "ok": true,
+      "detail": "{\"type\":\"assistant.message\",\"data\":{\"messageId\":\"4322ea39-6909-4427-83a9-e1036d58b3aa\",\"model\":\"claude-sonnet-5\",\"content\":\"STILL HERE\",\"toolRequests\":[],\"interactionId\":\"e2b53171-f425-467c-9419-77b38"
+    },
+    {
+      "name": "4b. stopping the provider stopped the CLI",
+      "ok": true,
+      "detail": "before=2 after=2"
+    }
+  ],
+  "cliPath": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot",
+  "sessions": {
+    "idA": "3c6cc525-ff55-49b1-8906-a67e14449dee",
+    "idB": "8e6ea0b4-f7f4-493e-bc1f-34d76ede7d33"
+  },
+  "processes": {
+    "before": 2,
+    "during": 3,
+    "after": 2
+  },
+  "afterDisconnect": "{\"type\":\"assistant.message\",\"data\":{\"messageId\":\"4322ea39-6909-4427-83a9-e1036d58b3aa\",\"model\":\"claude-sonnet-5\",\"content\":\"STILL HERE\",\"toolRequests\":[],\"interactionId\":\"e2b53171-f425-467c-9419-77b38",
+  "finishedAt": "2026-08-22T18:01:25.933Z",
+  "exitCode": 0
+}

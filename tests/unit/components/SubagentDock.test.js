@@ -254,3 +254,78 @@ describe('SubagentDock Component (v2)', () => {
 		});
 	});
 });
+
+/**
+ * Every tool row should say what it did.
+ *
+ * `_argPreview` shipped in v3.10.0 reading exactly three keys — `pattern`, `path`,
+ * `command` — so `bash`, `rg` and `view` rows carried their arguments while
+ * `skill`, `sql` and `task` rows showed a bare tool name and nothing else. `sql`
+ * and `task` carry a human-written `description` the dock simply never looked at.
+ *
+ * Surfaced by a sub-agent-heavy run, where those three are most of the traffic.
+ */
+describe('SubagentDock — tool rows say what the tool did', () => {
+	let dom, container, eventBus, dock;
+
+	beforeEach(() => {
+		dom = new JSDOM(`<!DOCTYPE html><div id="container"></div>`);
+		global.document = dom.window.document;
+		global.window = dom.window;
+		container = document.getElementById('container');
+		eventBus = new EventBus();
+		dock = new SubagentDock(container, eventBus);
+		eventBus.emit('subagent:start', A1);
+	});
+	afterEach(() => { delete global.document; delete global.window; });
+
+	/** The bar's action line is what a collapsed dock shows for the latest tool. */
+	const actionLine = () => bar(container, 'a1').querySelector('.subagent-dock__action').textContent;
+
+	it('shows the description a sql call carries', () => {
+		eventBus.emit('tool:start', tool('a1', 't1', 'sql', {
+			description: 'Load plan tasks into todos', query: 'INSERT INTO todos …'
+		}));
+
+		expect(actionLine()).to.contain('Load plan tasks into todos');
+	});
+
+	it('shows the description a task call carries, not its prompt', () => {
+		eventBus.emit('tool:start', tool('a1', 't2', 'task', {
+			name: 'plan-reviewer', agent_type: 'rubber-duck',
+			description: 'Review plan: Shared spine S1–S3', prompt: 'You are reviewing…'
+		}));
+
+		const line = actionLine();
+		expect(line).to.contain('Review plan: Shared spine S1–S3');
+		expect(line).to.not.contain('You are reviewing');
+	});
+
+	it('names the skill a skill call invoked', () => {
+		eventBus.emit('tool:start', tool('a1', 't3', 'skill', { skill: 'plan-intake-review' }));
+
+		expect(actionLine()).to.contain('plan-intake-review');
+	});
+
+	it('still prefers the command for a shell call', () => {
+		eventBus.emit('tool:start', tool('a1', 't4', 'bash', {
+			command: 'ls -la', description: 'List files'
+		}));
+
+		// `command` is the more specific answer to "what did it do" — a description
+		// would hide the actual command behind a paraphrase.
+		expect(actionLine()).to.contain('ls -la');
+	});
+
+	it('falls back to a single distinctive argument rather than showing nothing', () => {
+		eventBus.emit('tool:start', tool('a1', 't5', 'mystery_tool', { target: 'the-thing' }));
+
+		expect(actionLine()).to.contain('the-thing');
+	});
+
+	it('says nothing extra when a tool genuinely has no arguments', () => {
+		eventBus.emit('tool:start', tool('a1', 't6', 'reload_agents', {}));
+
+		expect(actionLine().trim()).to.equal('reload_agents');
+	});
+});

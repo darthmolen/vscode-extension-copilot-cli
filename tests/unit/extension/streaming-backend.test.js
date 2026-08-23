@@ -1,227 +1,207 @@
 /**
- * TDD tests for Phase 6b — Streaming Backend
+ * Message-delta streaming, driven rather than grepped.
  *
- * RED phase: Tests FAIL before implementation.
- * Pattern: source-code scan (like sdk-upgrade-0132.test.js).
+ * This file previously held nineteen assertions over the *text* of
+ * `sdkSessionManager.ts`, `shared/messages.ts` and `ExtensionRpcRouter.ts` —
+ * "declares `_onDidMessageDelta` as a BufferedEmitter", "`MessageDeltaPayload`
+ * should have messageId and deltaContent fields", and so on. They could not fail
+ * for a real reason and would have passed against a comment, and the type ones
+ * duplicated what `tsc --noEmit` already gates on every build.
  *
- * Covers:
- * 1. streaming:true in createSessionWithModelFallback central config
- * 2. _onDidMessageDelta BufferedEmitter declared
- * 3. onDidMessageDelta public event exposed
- * 4. case 'assistant.message_delta' fires _onDidMessageDelta with messageId + deltaContent
- * 5. _onDidReceiveOutput fires { content, messageId } (not bare string)
- * 6. AssistantMessagePayload has messageId field in shared/messages.ts
- * 7. sendMessageDelta(messageId, deltaContent) exists in ExtensionRpcRouter.ts
- * 8. chatViewProvider.ts has public sendMessageDelta proxy
+ * Deleting them would have left a genuine hole: `assistant.message_delta` was
+ * covered by *nothing else*. So the behaviour is tested here instead, through the
+ * dispatcher, the way `subagent-events.test.js` does it.
+ *
+ * The old scans also missed the branches most worth having: a sub-agent's delta must
+ * not reach the main bubble, and an empty reasoning delta must not cross the RPC
+ * boundary at all. Both are real early returns in the handler and now have tests.
+ *
+ * `integration/webview/reasoning-delta-streaming.test.js` was folded in here and
+ * deleted. It scanned the same three files plus `main.js`, `WebviewRpcClient.js` and
+ * `MessageDisplay.js` for the reasoning half; its webview claims — that a delta
+ * creates a bubble, and that `showReasoning=false` suppresses it — are covered by
+ * running them in `unit/components/MessageDisplay-reasoning-streaming.test.js`.
+ *
+ * Requires `npm run compile-tests` (out/).
  */
 
-const assert = require('assert');
-const fs = require('fs');
+const { describe, it, before, after } = require('mocha');
+const { expect } = require('chai');
 const path = require('path');
+const { installVscodeMock } = require('../../helpers/with-vscode-mock');
 
-const SDK_SOURCE = path.join(__dirname, '../../../src/sdkSessionManager.ts');
-const MESSAGES_SOURCE = path.join(__dirname, '../../../src/shared/messages.ts');
-const RPC_ROUTER_SOURCE = path.join(__dirname, '../../../src/extension/rpc/ExtensionRpcRouter.ts');
-const CHAT_VIEW_SOURCE = path.join(__dirname, '../../../src/chatViewProvider.ts');
+const mock = installVscodeMock();
+let SDKSessionManager, ExtensionRpcRouter;
 
-describe('Phase 6b — Streaming Backend', function () {
-    this.timeout(10000);
+before(function () {
+    mock.install();
+    try {
+        ({ SDKSessionManager } = require(path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js')));
+        ({ ExtensionRpcRouter } = require(path.join(__dirname, '../../..', 'out', 'extension', 'rpc', 'ExtensionRpcRouter.js')));
+    } catch (e) {
+        console.log('Module not yet compiled, skipping:', e.message);
+        this.skip();
+    }
+});
+after(() => mock.restore());
 
-    let sdkSource, messagesSource, rpcSource, chatViewSource;
+/** Just enough of a manager for the event dispatcher to run against. */
+function managerContext() {
+    const deltas = [];
+    const reasoningDeltas = [];
+    const output = [];
+    const subagentMessages = [];
+    return {
+        logger: { info() {}, warn() {}, error() {}, debug() {} },
+        _onDidMessageDelta: { fire: (d) => deltas.push(d) },
+        _onDidReceiveOutput: { fire: (o) => output.push(o) },
+        _onDidSubagentMessage: { fire: (m) => subagentMessages.push(m) },
+        _onDidReceiveReasoning: { fire() {} },
+        _onDidReceiveReasoningDelta: { fire: (d) => reasoningDeltas.push(d) },
+        _onDidStartTool: { fire() {} },
+        _onDidUpdateTool: { fire() {} },
+        _onDidCompleteTool: { fire() {} },
+        fileSnapshotService: { captureByPath() {}, getSnapshot: () => undefined, correlateToToolCallId() {} },
+        toolExecutions: new Map(),
+        lastMessageIntent: undefined,
+        deltas,
+        reasoningDeltas,
+        output,
+        subagentMessages
+    };
+}
 
-    before(function () {
-        sdkSource = fs.readFileSync(SDK_SOURCE, 'utf8');
-        messagesSource = fs.readFileSync(MESSAGES_SOURCE, 'utf8');
-        rpcSource = fs.readFileSync(RPC_ROUTER_SOURCE, 'utf8');
-        chatViewSource = fs.readFileSync(CHAT_VIEW_SOURCE, 'utf8');
+const fire = (ctx, event) => SDKSessionManager.prototype._handleSDKEvent.call(ctx, event);
+
+describe('SDKSessionManager — assistant.message_delta', () => {
+    it('streams the delta with its message id', () => {
+        const ctx = managerContext();
+
+        fire(ctx, { type: 'assistant.message_delta', data: { messageId: 'm1', deltaContent: 'hel' } });
+        fire(ctx, { type: 'assistant.message_delta', data: { messageId: 'm1', deltaContent: 'lo' } });
+
+        expect(ctx.deltas).to.deep.equal([
+            { messageId: 'm1', deltaContent: 'hel' },
+            { messageId: 'm1', deltaContent: 'lo' }
+        ]);
     });
 
-    // -------------------------------------------------------------------------
-    // 1. streaming: true in central config
-    // -------------------------------------------------------------------------
+    it('keeps a sub-agent\'s delta out of the main bubble', () => {
+        // Sub-agent text streams to the dock via onDidSubagentMessage. Letting it
+        // through here would interleave a sub-agent's tokens into the transcript —
+        // the separation the sub-agent dock exists to maintain.
+        const ctx = managerContext();
 
-    describe('SDKSessionManager — streaming config', function () {
-        it('should have streaming config in createSessionWithModelFallback central config injection', function () {
-            // streaming is now configurable via this.config.streaming ?? true
-            const hasCentralStreaming = sdkSource.includes('this.config.streaming');
-            assert.ok(hasCentralStreaming, 'streaming must be configurable via this.config.streaming in sdkSessionManager.ts');
+        fire(ctx, {
+            type: 'assistant.message_delta',
+            agentId: 'agent-xyz',
+            data: { messageId: 'm1', deltaContent: 'from a sub-agent' }
         });
 
-        it('streaming config must be near the onPermissionRequest central injection (not a one-off)', function () {
-            // Find the createSessionWithModelFallback function and verify streaming is in the config spread
-            const fnIdx = sdkSource.indexOf('private async createSessionWithModelFallback');
-            assert.ok(fnIdx >= 0, 'createSessionWithModelFallback must exist as private async method');
-            // The function body should have both onPermissionRequest and streaming config near each other
-            const fnBody = sdkSource.slice(fnIdx, fnIdx + 800);
-            assert.ok(fnBody.includes('onPermissionRequest'), 'central config must have onPermissionRequest');
-            assert.ok(fnBody.includes('streaming'), 'central config must have streaming alongside onPermissionRequest');
-        });
+        expect(ctx.deltas).to.have.lengthOf(0);
+    });
+});
+
+describe('SDKSessionManager — assistant.message carries a message id', () => {
+    it('emits content and its id together, not a bare string', () => {
+        // The emitter's payload became an object so a completed message can be
+        // matched to the bubble its deltas were streaming into.
+        const ctx = managerContext();
+
+        fire(ctx, { type: 'assistant.message', data: { content: 'all done', messageId: 'm1' } });
+
+        expect(ctx.output).to.deep.equal([{ content: 'all done', messageId: 'm1' }]);
     });
 
-    // -------------------------------------------------------------------------
-    // 2. _onDidMessageDelta emitter + public event
-    // -------------------------------------------------------------------------
+    it('sends an empty signal to close a streaming bubble that ended in tool calls', () => {
+        const ctx = managerContext();
 
-    describe('SDKSessionManager — _onDidMessageDelta emitter', function () {
-        it('should declare _onDidMessageDelta as a BufferedEmitter', function () {
-            assert.ok(
-                sdkSource.includes('_onDidMessageDelta') && sdkSource.includes('BufferedEmitter'),
-                '_onDidMessageDelta BufferedEmitter must be declared in sdkSessionManager.ts'
-            );
+        fire(ctx, {
+            type: 'assistant.message',
+            data: { messageId: 'm1', content: 'thinking out loud', toolRequests: [{ name: 'grep', arguments: {} }] }
         });
 
-        it('should expose onDidMessageDelta as a public event', function () {
-            assert.ok(
-                sdkSource.includes('readonly onDidMessageDelta'),
-                'onDidMessageDelta public event must be declared in sdkSessionManager.ts'
-            );
-        });
+        expect(ctx.output).to.deep.equal([{ content: '', messageId: 'm1' }]);
     });
 
-    // -------------------------------------------------------------------------
-    // 3. assistant.message_delta case fires the emitter
-    // -------------------------------------------------------------------------
+    it('tolerates a message with no id', () => {
+        const ctx = managerContext();
 
-    describe('SDKSessionManager — assistant.message_delta handler', function () {
-        it('should fire _onDidMessageDelta in the assistant.message_delta case', function () {
-            // The case must fire the emitter, not just break
-            const deltaIdx = sdkSource.indexOf("case 'assistant.message_delta'");
-            assert.ok(deltaIdx >= 0, "case 'assistant.message_delta' must exist");
-            // Check what happens right after the case (within ~300 chars)
-            const caseBody = sdkSource.slice(deltaIdx, deltaIdx + 300);
-            assert.ok(
-                caseBody.includes('_onDidMessageDelta.fire'),
-                'assistant.message_delta case must call _onDidMessageDelta.fire()'
-            );
-        });
+        fire(ctx, { type: 'assistant.message', data: { content: 'no id here' } });
 
-        it('should pass messageId from event.data in the delta fire call', function () {
-            const deltaIdx = sdkSource.indexOf("case 'assistant.message_delta'");
-            const caseBody = sdkSource.slice(deltaIdx, deltaIdx + 300);
-            assert.ok(
-                caseBody.includes('messageId') && caseBody.includes('event.data'),
-                'delta fire must include messageId from event.data'
-            );
-        });
-
-        it('should pass deltaContent from event.data in the delta fire call', function () {
-            const deltaIdx = sdkSource.indexOf("case 'assistant.message_delta'");
-            const caseBody = sdkSource.slice(deltaIdx, deltaIdx + 300);
-            assert.ok(
-                caseBody.includes('deltaContent'),
-                'delta fire must include deltaContent'
-            );
-        });
+        expect(ctx.output).to.deep.equal([{ content: 'no id here', messageId: '' }]);
     });
 
-    // -------------------------------------------------------------------------
-    // 4. _onDidReceiveOutput fires { content, messageId } object (not bare string)
-    // -------------------------------------------------------------------------
+    it('routes a sub-agent message to the dock, never the transcript', () => {
+        const ctx = managerContext();
 
-    describe('SDKSessionManager — _onDidReceiveOutput shape change', function () {
-        it('_onDidReceiveOutput BufferedEmitter should be typed with object not string', function () {
-            // Look for the emitter declaration — should include 'content' and 'messageId' in the type
-            const emitterDecl = sdkSource.match(/private readonly _onDidReceiveOutput[^;]+;/)?.[0] ?? '';
-            assert.ok(
-                emitterDecl.includes('content') || emitterDecl.includes('messageId'),
-                `_onDidReceiveOutput must be typed as { content, messageId } object, got: ${emitterDecl}`
-            );
-        });
+        fire(ctx, { type: 'assistant.message', agentId: 'agent-xyz', data: { content: 'sub-agent speaking' } });
 
-        it('_onDidReceiveOutput.fire() in assistant.message handler should pass messageId', function () {
-            // Find the assistant.message case and verify the fire call includes messageId
-            const msgIdx = sdkSource.indexOf("case 'assistant.message':");
-            assert.ok(msgIdx >= 0, "case 'assistant.message': must exist");
-            // Look for the fire call in that case's body (window covers the sub-agent agentId branch too)
-            const caseBody = sdkSource.slice(msgIdx, msgIdx + 3200);
-            assert.ok(
-                caseBody.includes('_onDidReceiveOutput.fire') && caseBody.includes('messageId'),
-                '_onDidReceiveOutput.fire() must include messageId field'
-            );
-        });
+        expect(ctx.output).to.have.lengthOf(0);
+        expect(ctx.subagentMessages).to.have.lengthOf(1);
+    });
+});
+
+describe('SDKSessionManager — assistant.reasoning_delta', () => {
+    it('streams the reasoning delta with its id', () => {
+        const ctx = managerContext();
+
+        fire(ctx, { type: 'assistant.reasoning_delta', data: { reasoningId: 'r1', deltaContent: 'because' } });
+
+        expect(ctx.reasoningDeltas).to.deep.equal([{ reasoningId: 'r1', deltaContent: 'because' }]);
     });
 
-    // -------------------------------------------------------------------------
-    // 5. shared/messages.ts — AssistantMessagePayload.messageId + MessageDeltaPayload
-    // -------------------------------------------------------------------------
+    it('drops an empty delta rather than crossing the RPC boundary with nothing', () => {
+        // Some models emit reasoning with empty content and an opaque id. Forwarding
+        // it renders a blank "Assistant Reasoning" box.
+        const ctx = managerContext();
 
-    describe('shared/messages.ts — streaming types', function () {
-        it('AssistantMessagePayload should have a messageId field', function () {
-            const payloadIdx = messagesSource.indexOf('AssistantMessagePayload');
-            assert.ok(payloadIdx >= 0, 'AssistantMessagePayload must exist');
-            const payloadBody = messagesSource.slice(payloadIdx, payloadIdx + 200);
-            assert.ok(
-                payloadBody.includes('messageId'),
-                'AssistantMessagePayload must have messageId field'
-            );
-        });
+        fire(ctx, { type: 'assistant.reasoning_delta', data: { reasoningId: 'r1', deltaContent: '' } });
 
-        it('should have MessageDeltaPayload interface', function () {
-            assert.ok(
-                messagesSource.includes('MessageDeltaPayload'),
-                'MessageDeltaPayload interface must exist in shared/messages.ts'
-            );
-        });
-
-        it('MessageDeltaPayload should have messageId and deltaContent fields', function () {
-            const idx = messagesSource.indexOf('MessageDeltaPayload');
-            assert.ok(idx >= 0, 'MessageDeltaPayload must exist');
-            const body = messagesSource.slice(idx, idx + 200);
-            assert.ok(body.includes('messageId'), 'MessageDeltaPayload must have messageId');
-            assert.ok(body.includes('deltaContent'), 'MessageDeltaPayload must have deltaContent');
-        });
-
-        it("should have 'messageDelta' in ExtensionMessageType union", function () {
-            assert.ok(
-                messagesSource.includes("'messageDelta'"),
-                "'messageDelta' must be in ExtensionMessageType union"
-            );
-        });
+        expect(ctx.reasoningDeltas).to.have.lengthOf(0);
     });
 
-    // -------------------------------------------------------------------------
-    // 6. ExtensionRpcRouter — sendMessageDelta
-    // -------------------------------------------------------------------------
+    it('keeps a sub-agent\'s reasoning out of the main transcript', () => {
+        const ctx = managerContext();
 
-    describe('ExtensionRpcRouter — sendMessageDelta', function () {
-        it('should have sendMessageDelta method', function () {
-            assert.ok(
-                rpcSource.includes('sendMessageDelta'),
-                'sendMessageDelta method must exist in ExtensionRpcRouter.ts'
-            );
+        fire(ctx, {
+            type: 'assistant.reasoning_delta',
+            agentId: 'agent-xyz',
+            data: { reasoningId: 'r1', deltaContent: 'sub-agent thinking' }
         });
 
-        it('sendMessageDelta should accept messageId and deltaContent parameters', function () {
-            const methodIdx = rpcSource.indexOf('sendMessageDelta');
-            assert.ok(methodIdx >= 0, 'sendMessageDelta must exist');
-            const methodSig = rpcSource.slice(methodIdx, methodIdx + 100);
-            assert.ok(
-                methodSig.includes('messageId') && methodSig.includes('deltaContent'),
-                'sendMessageDelta must have messageId and deltaContent params'
-            );
-        });
+        expect(ctx.reasoningDeltas).to.have.lengthOf(0);
+    });
+});
 
-        it('addAssistantMessage should accept optional messageId parameter', function () {
-            const methodIdx = rpcSource.indexOf('addAssistantMessage');
-            assert.ok(methodIdx >= 0, 'addAssistantMessage must exist');
-            const methodSig = rpcSource.slice(methodIdx, methodIdx + 150);
-            assert.ok(
-                methodSig.includes('messageId'),
-                'addAssistantMessage must accept messageId parameter'
-            );
-        });
+describe('ExtensionRpcRouter.sendMessageDelta', () => {
+    /** A webview that records what was posted to it. */
+    function fakeWebview() {
+        const posted = [];
+        return {
+            posted,
+            postMessage: (m) => { posted.push(m); return Promise.resolve(true); },
+            onDidReceiveMessage: () => ({ dispose() {} })
+        };
+    }
+
+    it('puts the delta on the wire with both fields', () => {
+        const webview = fakeWebview();
+
+        new ExtensionRpcRouter(webview).sendMessageDelta('m1', 'hello');
+
+        expect(webview.posted).to.deep.equal([
+            { type: 'messageDelta', messageId: 'm1', deltaContent: 'hello' }
+        ]);
     });
 
-    // -------------------------------------------------------------------------
-    // 7. chatViewProvider.ts — sendMessageDelta public proxy
-    // -------------------------------------------------------------------------
+    it('puts a reasoning delta on the wire under its own type', () => {
+        const webview = fakeWebview();
 
-    describe('chatViewProvider.ts — sendMessageDelta proxy', function () {
-        it('should have public sendMessageDelta method', function () {
-            assert.ok(
-                chatViewSource.includes('sendMessageDelta'),
-                'chatViewProvider.ts must have sendMessageDelta proxy method'
-            );
-        });
+        new ExtensionRpcRouter(webview).sendReasoningDelta('r1', 'because');
+
+        expect(webview.posted).to.deep.equal([
+            { type: 'reasoningDelta', reasoningId: 'r1', deltaContent: 'because' }
+        ]);
     });
 });

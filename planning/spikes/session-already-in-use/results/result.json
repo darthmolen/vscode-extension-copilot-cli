@@ -1,0 +1,91 @@
+{
+  "startedAt": "2026-08-22T18:02:03.036Z",
+  "steps": [
+    {
+      "name": "0. resolved the bundled CLI",
+      "ok": true,
+      "detail": "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot"
+    },
+    {
+      "name": "1a. a session exists and is held by client one",
+      "ok": true,
+      "detail": "74b94087-9c1b-4e88-ab3a-0457249ef512"
+    },
+    {
+      "name": "1b. sessions.checkInUse is exposed by this CLI",
+      "ok": true,
+      "detail": "typeof = function"
+    },
+    {
+      "name": "2. checkInUse answer, verbatim",
+      "ok": true,
+      "observation": "{\"inUse\":[\"74b94087-9c1b-4e88-ab3a-0457249ef512\"]}"
+    },
+    {
+      "name": "2a. it names the held session",
+      "ok": true,
+      "detail": "held=74b94087-9c1b-4e88-ab3a-0457249ef512"
+    },
+    {
+      "name": "2b. it does not name a session nobody holds",
+      "ok": true,
+      "detail": "unheld=ffffffff-0000-0000-0000-000000000000"
+    },
+    {
+      "name": "3a. resumeSession from a second client",
+      "ok": true,
+      "observation": "succeeded — the runtime did NOT refuse"
+    },
+    {
+      "name": "3b. alreadyInUse as reported to the intruder",
+      "ok": true,
+      "observation": "null"
+    },
+    {
+      "name": "4a. both clients completed a turn on one session",
+      "ok": true,
+      "observation": "no error raised"
+    },
+    {
+      "name": "4b. events.jsonl still parses line by line",
+      "ok": true,
+      "detail": "16 lines, 0 unparseable (was 5 lines before the second client)"
+    }
+  ],
+  "sessionId": "74b94087-9c1b-4e88-ab3a-0457249ef512",
+  "checkInUse": {
+    "inUse": [
+      "74b94087-9c1b-4e88-ab3a-0457249ef512"
+    ]
+  },
+  "eventsBefore": {
+    "lines": 5,
+    "parseErrors": 0,
+    "types": {
+      "session.start": 1,
+      "session.model_change": 1,
+      "system.message": 1,
+      "user.message": 1,
+      "assistant.turn_start": 1
+    }
+  },
+  "resumeSucceeded": true,
+  "alreadyInUseReported": null,
+  "concurrentTurns": "both completed",
+  "eventsAfter": {
+    "lines": 16,
+    "parseErrors": 0,
+    "types": {
+      "session.start": 1,
+      "session.model_change": 1,
+      "system.message": 3,
+      "user.message": 3,
+      "assistant.turn_start": 3,
+      "assistant.message": 2,
+      "assistant.turn_end": 2,
+      "session.resume": 1
+    }
+  },
+  "finishedAt": "2026-08-22T18:02:08.878Z",
+  "exitCode": 0
+}

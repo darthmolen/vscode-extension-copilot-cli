@@ -46,7 +46,11 @@ function createVSCodeMock() {
             }
         },
         Uri: {
-            file: (path) => ({ fsPath: path })
+            file: (path) => ({ fsPath: path, scheme: 'file', toString: () => `file://${path}` }),
+            joinPath: (base, ...segments) => {
+                const joined = [base.fsPath, ...segments].join('/');
+                return { fsPath: joined, scheme: 'file', toString: () => `file://${joined}` };
+            }
         },
         window: {
             showInformationMessage: () => {},

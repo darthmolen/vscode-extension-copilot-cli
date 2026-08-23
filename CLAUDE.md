@@ -22,8 +22,6 @@ npm run lint             # ESLint on src/ (TypeScript only)
 
 Run single test file: `npx mocha tests/unit/components/some-test.test.js --timeout 10000`
 
-Known baseline failure: `main.js size constraint` in integration tests is expected and not a regression.
-
 ### The suite is flaky — a single red run proves nothing
 
 `npm test` fails on **most** full runs (measured: 6/6 consecutive runs, 1–2 failures each, no code
@@ -75,14 +73,31 @@ To save a new log: open the Output Channel (`Ctrl+Shift+U` → "Copilot CLI"), c
 
 This is a VS Code sidebar extension that wraps `@github/copilot-sdk` (backend-only, no UI) to provide a chat interface for GitHub Copilot CLI.
 
+> **v3.13.0 restructured this layer substantially.** The narrative — what the extension gained and
+> why — is [`documentation/3.13-README.md`](documentation/3.13-README.md). Read it before making
+> structural changes here.
+
 ### Extension Host (TypeScript, `src/`)
 
-- **extension.ts** — Orchestrator. Registers commands, creates ChatViewProvider, wires SDK events to webview.
-- **sdkSessionManager.ts** — SDK session lifecycle. Creates/resumes CopilotClient sessions, streams messages, emits 10 granular events (onDidReceiveOutput, onDidStartTool, onDidProduceDiff, etc.).
-- **chatViewProvider.ts** — Implements `WebviewViewProvider`. Manages ExtensionRpcRouter, slash command handlers, builds webview HTML. CSP config is at line ~494.
-- **backendState.ts** — Singleton state store. Persists session data across webview recreations (sidebar hide/show).
-- **src/extension/rpc/ExtensionRpcRouter.ts** — Type-safe RPC (18 send + 11 receive methods). Extension side of the message bridge.
-- **src/extension/services/** — 7 extracted services: SessionService, InlineDiffService, FileSnapshotService, MCPConfigurationService, ModelCapabilitiesService, PlanModeToolsService, MessageEnhancementService.
+- **extension.ts** — Composition root. Registers commands, builds the registry, the sidebar surface and the panel service, wires SDK events to the owning host.
+- **sdkSessionManager.ts** — SDK session lifecycle. Creates/resumes CopilotClient sessions, streams messages, emits 15 granular events (onDidReceiveOutput, onDidStartTool, onDidProduceDiff, etc.).
+- **chatViewProvider.ts** — The sidebar's registration with VS Code, and nothing else (38 lines). `resolveWebviewView` hands its view to a `WebviewChatSurface` as a `SidebarSlot`.
+- **backendState.ts** — `SessionState` (one per conversation) and `WorkspaceRuntimeState` (one per window, observable). The `BackendState` facade over both is legacy and has no callers left in `extension.ts`.
+
+**The session layer** — free of `vscode` and SDK imports, so it is requirable from plain mocha and portable to v4.0. Hold that:
+
+- **src/extension/session/ChatSessionHost.ts** — one conversation, owned end to end. Its manager is a true `#private` field; the public surface follows ACP's verbs.
+- **src/extension/session/ChatSessionRegistry.ts** — which sessions are live in this window. `get()` probes without creating; `getOrCreate()` may bring one into being.
+- **sessionStartPlan / startManager / sessionBootstrap** — what a start request means, who it is for, and where its results land.
+
+**The surface layer:**
+
+- **src/extension/webview/webviewChatSurface.ts** — one chat surface: a webview, its RPC router, and the session it shows. N instances.
+- **src/extension/webview/chatWebviewSlot.ts** — the four members by which a sidebar view and an editor panel differ. `SidebarSlot` and `PanelSlot`.
+- **src/extension/webview/chatPanelService.ts** — opens, restores and closes chat tabs.
+- **src/extension/rpc/ExtensionRpcRouter.ts** — type-safe RPC, **one router per surface**. Extension side of the message bridge.
+- **src/extension/rpc/registerChatHandlers.ts** — wires one surface's handlers. Call once per router.
+- **src/extension/services/** — extracted services: SessionService, InlineDiffService, FileSnapshotService, MCPConfigurationService, ModelCapabilitiesService, PlanModeToolsService, MessageEnhancementService, sessionTranscriptBuilder, CopilotClientProvider, and others.
 
 ### Webview (JavaScript ES modules, `src/webview/`)
 
@@ -133,6 +148,31 @@ This extension's identity is "thoughtful" — we prioritize presenting meaningfu
 - **Show decision-relevant data.** Multiplier badges tell users the cost implication of switching models. Don't hide information that affects their choices.
 - **Don't become the Swiss Army knife.** Every feature we add should have a clear reason to exist and present its information thoughtfully. We are not a generic wrapper — we are a focused, opinionated tool.
 - **Useful > Fast.** When choosing between shipping quickly and shipping something genuinely helpful, always choose helpful. A half-baked feature with missing context damages trust.
+- **Intentional actions are treated intentionally.** A setting is a standing default; a gesture is a stated intent. The gesture wins, and it gets **recorded** — otherwise the default silently reasserts itself at the next resume, reload or session switch.
+
+### Applying "intentional actions are treated intentionally"
+
+Run this at any call site where a user-initiated action reads a `getConfiguration(...)` value or a
+"most recent" heuristic:
+
+1. **Is this a default or an intent?** A default answers *"what usually happens"*; a gesture answers
+   *"what should happen now."* Clicking a button on a specific file, choosing a model from the
+   dropdown, or picking a session are all intents.
+2. **Does it survive the next boundary?** If the answer dies on resume/reload/restart, it was
+   honoured but not recorded, and the setting will quietly win next time. Persist it beside the thing
+   it belongs to — session choices next to the session, not in global config.
+3. **Scope it to what was actually expressed.** An intent binds only the thing the gesture was about.
+   "New Tab on `foo.ts`" means *this file, this tab*; it does **not** mean "start including active
+   files everywhere." A gesture is never a licence to overwrite the user's settings.
+
+Known instances, kept here because each was found separately and only afterwards recognised as the
+same bug:
+
+| Gesture | Default that overrides it | Status |
+| --- | --- | --- |
+| Switch model mid-session | `copilotCLI.model` reasserts on resume | `planning/backlog/session-model-persistence.md` |
+| *New Tab* on a specific file | `copilotCLI.includeActiveFile` | decided in v3.13.0: the click seeds that file regardless |
+| Switch to a specific session | `getMostRecentSession` picks by mtime, so a deliberate switch with no message sent is forgotten | unfiled |
 
 ## Critical: Webview Build System
 
@@ -145,7 +185,16 @@ Without this, the webview silently fails (blank sidebar, no 'ready' message, no 
 
 ## Component Hierarchy (Do Not Violate)
 
-MessageDisplay is a parent component that internally creates ToolExecution children. Never instantiate ToolExecution directly from main.js. The hierarchy:
+MessageDisplay is a parent component that internally creates ToolExecution children. Never instantiate ToolExecution directly from main.js.
+
+**The guard is `tests/unit/components/MessageDisplay-tool-ownership.test.js`**, which mounts the
+components and asserts the tool chip lands inside MessageDisplay's container. It replaced
+`main-full-integration.test.js`, whose eleven tests grepped `main.js` for `new MessageDisplay(` and
+for the *absence* of `getElementById('messages')` — string matches that would have passed against a
+comment, from a migration that finished long ago. Every component it named has behavioural coverage
+under `tests/unit/components/`.
+
+The hierarchy:
 
 ```
 main.js → SessionToolbar, MessageDisplay, AcceptanceControls, InputArea

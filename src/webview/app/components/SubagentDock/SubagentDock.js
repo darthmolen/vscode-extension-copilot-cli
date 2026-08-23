@@ -281,12 +281,31 @@ export class SubagentDock {
 	// ---- helpers ----
 	_countLabel(n) { return `${n} tool call${n === 1 ? '' : 's'}`; }
 	_actionLine(ts) { return [ts.toolName, this._argPreview(ts)].filter(Boolean).join(' '); }
+	/**
+	 * One line saying what a tool actually did.
+	 *
+	 * Ordered most-specific first: a shell `command` or a search `pattern` answers
+	 * the question better than the paraphrase sitting next to it. `description` is
+	 * the fallback because `sql` and `task` carry a human-written one and nothing
+	 * else legible — before it was consulted those rows, plus `skill`, rendered as
+	 * a bare tool name.
+	 *
+	 * The final case keeps a new tool from showing nothing at all: a single
+	 * distinctive argument is printed rather than dropped.
+	 */
 	_argPreview(ts) {
 		const a = ts.arguments;
 		if (!a || typeof a !== 'object') return '';
 		if (a.pattern) return `"${a.pattern}"`;
 		if (a.path) return a.path;
 		if (a.command) return a.command;
+		if (a.description) return a.description;
+		if (a.skill) return a.skill;
+		if (a.url) return a.url;
+
+		// Unknown tool: show its one argument if it has exactly one worth showing.
+		const entries = Object.entries(a).filter(([, v]) => typeof v === 'string' || typeof v === 'number');
+		if (entries.length === 1) return String(entries[0][1]);
 		return '';
 	}
 	_receipt(d, tile) {

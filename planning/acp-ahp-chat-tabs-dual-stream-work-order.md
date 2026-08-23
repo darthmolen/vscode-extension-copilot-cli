@@ -155,10 +155,46 @@ whose Phase 0 is complete as of `a0595f5`. Corrected assignment:
 | Slice 1 — SDK-native fork | **v3.12.0** |
 | Slices 2b–2f — chat surface decoupling + tab | **v3.13.0** |
 | Slice 3 — per-message fork | **v3.14.0** |
-| AHP/ACP split | **v4.0.0** |
+| AHP client half (IN-4, IN-6, IN-9) | **v4.0.0** |
+| **ACP agent (Lane A, IN-3 / IN-8)** | **no version — merges to `main` unreleased** |
 
 Per CLAUDE.md, a new editor-tab chat surface is a new capability with no breaking change — minor, not
 major.
+
+### The ACP agent gets a merge, not a version — decided 2026-08-22
+
+**This row was briefly v3.14.0 and is now back where it started, and the reversal is worth recording
+because the argument that moved it was retracted by the lane that made it.**
+
+Lane A proposed shipping the ACP agent as its own release so that Zed users could install us. They
+then measured, found the premise false, and said so: **`copilot --acp` is already in the ACP Registry**
+as `@github/copilot@1.0.80 --acp`, auto-bumping hourly off npm while we bundle 1.0.68 by hand.
+Probed side by side with the same battery, upstream advertises `authMethods` (registry CI requires
+them; we advertise none), `image` and `embeddedContext` prompt capabilities, MCP capabilities and
+three session modes. We are ahead on `session/fork`, `session/close` and `usage_update`. A registry
+entry today would be a **near-duplicate that lags on version and advertises less**. Evidence:
+`planning/spikes/acp-comparison/FINDINGS.md` on `feature/4.0-in3-acp-server` (named as text — read it
+with `git show`, do not link across branches).
+
+**So there is nothing to release, and a version number is a promise to users.** CLAUDE.md's own rule
+is that a minor means a new capability; *"the extension is portable and the v4.0 boundary is proven"*
+is not a capability anyone has. Numbering it would spend a version on an artefact no user can reach.
+
+**But the work should merge, and soon, and those are different questions.** Lane A is 46+ commits and
+75 files ahead of `main` with a four-file overlap against this branch. That divergence is a real cost
+and it grows weekly; merging pays it down. The ACP agent is inert in a VSIX — `out/**` is
+`.vscodeignore`d, esbuild never builds `src/acp/main.ts`, there is no `bin` — so it rides along in
+v3.14.0's package at **zero bytes** and changes nothing a user sees.
+
+What merges with it is not inert at all: **two defects a second consumer found that the sidebar could
+not.** `ModelCapabilitiesService` was never initialised whenever the client provider was injected —
+which is the single reason §4.7 did not ship in v3.13.0 — and `session/list` was offering plan halves
+as conversations. That was always the better argument for this work than distribution.
+
+**The row becomes a version when it has a door**, and only then: the separate npm package with a
+`bin`, or IN-4 unblocking. Bundling into the VSIX is not that door and would be worse than waiting —
+VS Code installs to `publisher.name-<version>/`, so any config a user writes breaks on *our* next
+release, silently, as "agent exited".
 
 ---
 

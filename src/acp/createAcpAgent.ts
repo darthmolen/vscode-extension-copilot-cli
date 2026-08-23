@@ -17,6 +17,12 @@ import type { LoggerLike } from '../logger';
 import { CopilotAcpAgent, AcpSessionBackend } from './CopilotAcpAgent';
 import { SdkSessionBackend, AcpManagerSlice, PermissionPolicy, HistoryReader, FileTextReader } from './SdkSessionBackend';
 import { SessionService } from '../extension/services/SessionService';
+// v4.0.0 replaced `SessionService.loadSessionHistory` with one projection shared by
+// every reader of a session's history. Using it rather than reviving the old one is
+// the same argument Lane A made to Lane B: a second parser is a second opinion about
+// which events count as "what was said", and the two diverge on the first new event
+// type the CLI adds.
+import { buildSessionTranscript } from '../extension/services/sessionTranscriptBuilder';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -69,8 +75,16 @@ export interface AcpAgentCompositionDeps {
 export function createHistoryReader(sessionStateDir: string): HistoryReader {
     return async sessionId => {
         const eventsPath = path.join(sessionStateDir, sessionId, 'events.jsonl');
-        const messages = await SessionService.loadSessionHistory(eventsPath);
-        return messages.map(m => ({ role: m.role, content: m.content }));
+        const transcript = await buildSessionTranscript(eventsPath);
+
+        // Only what was SAID. The projection also carries reasoning, tool calls and
+        // sub-agent entries; ACP replays a conversation, and `user_message_chunk` /
+        // `agent_message_chunk` are the only variants that can carry them faithfully.
+        // Tool history over ACP would need `tool_call` replay, which is its own
+        // question — see IN-6's neighbours.
+        return transcript
+            .filter(m => (m.kind === 'user' || m.kind === 'assistant') && !m.agentId && m.content)
+            .map(m => ({ role: m.kind as 'user' | 'assistant', content: m.content }));
     };
 }
 

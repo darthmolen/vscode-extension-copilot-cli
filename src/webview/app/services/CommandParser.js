@@ -102,6 +102,15 @@ export class CommandParser {
 				category: 'session',
 				description: 'Set active agent (or clear with no args)'
 			}],
+			// New Tab plus one send. Deliberately does NOT inherit history — that is
+			// what /fork is for, and the point of "by the way" is that it is not part
+			// of the conversation you are in.
+			['btw', {
+				type: 'extension',
+				event: 'askInNewTab',
+				category: 'session',
+				description: 'Ask a side question in a new tab'
+			}],
 
 			// CLI Passthrough commands (6)
 			['delegate', {

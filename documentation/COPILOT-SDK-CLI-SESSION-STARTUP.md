@@ -1,162 +1,250 @@
 # Session Startup
 
+**Version**: 3.14.0
+**Last Updated**: 2026-08-22
+
 ## Overview
 
-This document describes the full startup flow from VS Code activating the extension through to the session emitting a `ready` status. It covers CLI path resolution, `CopilotClient` creation, session resumption with retry logic, error recovery via client recreation, and the final UI activation steps.
+This document describes the full startup flow from VS Code activating the extension through to a session emitting a `ready` status. It covers CLI bundle resolution, `ChatSessionHost` and `ChatSessionRegistry` construction, `SDKSessionManager` creation, session resumption with retry logic, error recovery, and final UI activation.
 
 The startup is broken down into 6 phases:
 
-activation → session discovery → CLI path resolution → client creation → session resume with retry → error recovery with client recreation → ready emission.
+activation → CLI bundle resolution (background) → session start decision → `startCLISession()` → SDK session resume/create → post-start UI activation
+
+> **v3.13.0 architectural context:** `chatViewProvider.ts` shrank from 1,011 lines to 38 — it is now the sidebar's registration only. All session state moved from module-level globals into `ChatSessionHost`, one per conversation. Every surface has its own host. Two sessions can run simultaneously (sidebar + tab) without interleaving. See `documentation/3.13-README.md` for the full story.
 
 ---
 
-## Phase 1: Extension Activation (`extension.ts`)
+## Phase 1: Extension Activation (`extension.ts → activate()`)
 
 **Entry point:** `activate(context: vscode.ExtensionContext)`
 
-1. Initialize `Logger` and `BackendState`
-2. Create `ChatViewProvider` (sidebar UI)
-3. Register chat provider event handlers via `registerChatProviderHandlers()`:
-   - `onDidBecomeReady` → calls `resumeAndStartSession()`
-   - `onDidReceiveUserMessage` → routes to `cliManager.sendMessage()`
-   - `onDidRequestAbort` → calls `cliManager.abortMessage()`
-4. Register VS Code commands (`start`, `newSession`, `switchSession`, etc.)
-5. Status bar created showing `$(comment-discussion) Copilot CLI`
+1. **Create `WebviewChatSurface`** (`sidebarSurface`) — N-instancable, surface = webview + RPC router + host slot
+2. **Create `ChatViewProvider`** (38 lines) — just registers the sidebar with VS Code
+3. **Create `ChatSessionRegistry`** (`sessionRegistry`) — tracks every live host in this window
+   - Given a `createStartManager` factory that calls `resumeAndStartSession()` when a host asks
+4. **Create `sidebarHost`** — `sessionRegistry.create(null)` (no session ID yet)
+   - `sidebarHost.attachSurface(sidebarSurface)` — wires host ↔ surface
+   - `sidebarSurface.setSessionHost(sidebarHost)`
+5. **Create `ChatPanelService`** (`chatPanels`) — opens/restores editor-tab chat panels
+6. **Create `SubagentPanelService`** (`subagentPanels`) — pop-out sub-agent activity panels
+7. **Register `WebviewPanelSerializer`** — VS Code calls `chatPanels.restore()` to revive closed tab sessions during activation
+8. **`registerSurfaceHandlers(context, sidebarSurface)`** — wires RPC for the sidebar
+9. **`registerCommands(context)`** — registers all VS Code commands
+10. **Status bar** created: `$(comment-discussion) Copilot CLI`
+11. **`cliBundleReady = initCliBundle(context)`** — starts CLI bundle resolution in the background (async, non-blocking)
 
 ---
 
-## Phase 2: Session Resume/Start
+## Phase 2: CLI Bundle Resolution (background — `initCliBundle()`)
 
-**Triggered by:** webview ready → `resumeAndStartSession()`
+**Triggered by:** activation (fire-and-forget, runs in parallel with webview boot)
 
-1. Check if session already running via `cliManager.isRunning()`
-2. Determine session to resume via `determineSessionToResume()`:
-   - Calls `SessionService.getMostRecentSession()`
-   - Scans `~/.copilot/session-state/` directory
-   - Filters by workspace folder (configurable)
-   - Returns most recent session ID, or `null`
-3. Load session history via `loadSessionHistory(sessionId)` — reads `events.jsonl`
-4. Update UI session list via `updateSessionsList()`
-5. Call `startCLISession(context, resumeLastSession, sessionIdToResume)`
+`CliBundleService.ensureBundled()` resolves the Copilot CLI binary in priority order:
+
+| Priority | Source | Path |
+|----------|--------|------|
+| 1 | **local** | `<extensionPath>/node_modules/@github/copilot` — dev / F5 |
+| 2 | **managed** | `<globalStorageUri>/cli/<peer-range>/node_modules/@github/copilot` |
+| 3 | **system** | `which copilot` (if satisfies SDK peer dep range) |
+| 4 | **lazy install** | `npm install @github/copilot@<peer-range>` into managed dir, then return managed |
+| 5 | **system (fallback)** | accepts system binary even if it doesn't satisfy peer dep, with a warning |
+| ❌ | **failure** | throws if no binary found at all |
+
+After resolution:
+- **`bootstrapCliBundle()`** returns `{ resolved: ResolvedCli, capability: CliCapabilityService }`
+- Stores `resolvedCli` and `resolvedCapability` as module-level values
+- **`applySharedProviders(context, sidebarSurface)`** — wires MCP list provider + CLI capability onto the surface (and any subsequently created tab surfaces)
+- If the resolved version does not satisfy the SDK peer dep range, a VS Code warning toast is shown
+
+`startCLISession()` **awaits `cliBundleReady`** before spawning the SDK process, so the extension never races against an in-progress `npm install`.
 
 ---
 
-## Phase 3: CLI Path Resolution & `CopilotClient` Creation
+## Phase 3: Session Start Decision (`resumeAndStartSession()`)
 
-**In:** `startCLISession()` → `SDKSessionManager.start()`
+**Triggered by:** webview signals ready → `ChatSessionHost` asks its `StartManager` → `resumeAndStartSession(context, request)`
 
-### CLI Path Resolution — `resolveCliPath()`
+### Step 3a: `planSessionStart()` — decide what to do
 
-Resolution order (first match wins):
+```typescript
+const plan = planSessionStart(
+    { sessionId, fresh, onBehalfOfHost },
+    { isRunning: () => target.isLive, getSessionId: () => target.sessionId }
+);
+```
 
-| Priority | Source | Method |
-|----------|--------|--------|
-| 1 | User-configured path | `vscode.workspace.getConfiguration('copilotCLI').get('cliPath')` |
-| 2 | SDK-bundled binary | `require.resolve('@github/copilot-{os}-{arch}')` |
-| 3 | System PATH | `which`/`where copilot` (OS-dependent) |
-| 4 | Failure | Throws error with installation link |
+`planSessionStart` is a pure function (no `vscode` / SDK imports). It returns a `SessionStartPlan`:
 
-After resolution: `logCliVersion(cliPath)` executes `copilot --version --no-auto-update`.
+| Input | `reuseRunning` | `consultAmbient` | `fresh` |
+|-------|---------------|-----------------|---------|
+| No session named, this host already live | ✅ true | — | false |
+| No session named, host not live | false | ✅ true | false |
+| Session named, host already has it | ✅ true | — | false |
+| Session named, host doesn't have it | false | false | false |
+| `fresh: true` | false | false | ✅ true |
+| `onBehalfOfHost: true` | false | ✅ true | false |
 
-### `CopilotClient` Creation
+If `plan.reuseRunning` → return early (nothing to do).
+
+### Step 3b: `determineSessionToResume()` (when `consultAmbient` is true)
+
+```typescript
+const sessionId = chooseSessionToResume({
+    recorded: context.workspaceState.get(SIDEBAR_SESSION_KEY),  // the user's last explicit choice
+    mostRecent: SessionService.getMostRecentSession(sessionStateDir, workspaceFolder, filterByFolder, liveSessionIds),
+    isAvailable: (id) => !liveSessionIds.includes(id) && fs.existsSync(path.join(sessionStateDir, id))
+});
+```
+
+`chooseSessionToResume` is a pure function (no `vscode` imports). Priority:
+1. **`recorded`** — the last session the user explicitly chose for the sidebar (wins if it exists and is available)
+2. **`mostRecent`** — mtime-most-recent session on disk (fallback)
+
+Sessions already showing in another surface (`liveSessionIds`) are excluded from both candidates.
+
+### Step 3c: Load transcript (if resuming)
+
+If a `sessionIdToResume` was determined:
+```typescript
+await loadSessionHistory(sessionId, target);
+// → buildSessionTranscript(eventsPath)  // reads events.jsonl, returns Message[]
+// → loadTranscriptInto(target, messages)  // host.state.setMessages(messages)
+```
+
+Transcript loading is host-targeted — it writes to `target.state`, not to a singleton.
+
+---
+
+## Phase 4: `startCLISession()` — Build & Start the Manager
+
+**In:** `startCLISession(context, resumeLastSession, specificSessionId, target)`
+
+1. **Await `cliBundleReady`** — blocks until the CLI bundle is resolved (safe to call multiple times)
+
+2. **Model selection** (for resume only):
+   ```typescript
+   config.model = chooseStartupModel({
+       persisted: SessionService.readSessionModel(sessionStatePath(specificSessionId)),
+       configured: vscode.workspace.getConfiguration('copilotCLI').get('model'),
+       fallback: DEFAULT_MODEL
+   });
+   ```
+   `chooseStartupModel` is a pure function. Persisted model wins over configured default, so a model switched mid-session survives a reload.
+
+3. **Create `SDKSessionManager`** (local variable, not a module global):
+   ```typescript
+   const manager = new SDKSessionManager(
+       context, config, resumeLastSession, specificSessionId,
+       resolvedCli?.cliPath,          // from CliBundleService
+       createVSCodeHostBridge(context, { getActiveAgent: () => target.state.getActiveAgent() })
+   );
+   ```
+
+4. **`wireManagerEvents(manager, target)`** — subscribes all manager events, **registered against `target` (the host)**, not against `context.subscriptions`
+   - Session-conversation events (output, reasoning, tools, diffs) route through `target.attachManager(manager)` to that host's surface
+   - Window-scoped events (status bar, toasts, sub-agent panels, MCP state) are handled inline
+
+5. **`await manager.start()`** — spawns CLI process and resumes/creates SDK session (Phase 5)
+
+6. **`onSessionStarted(manager, target, config.model)`** — post-start UI wiring (Phase 6)
+
+---
+
+## Phase 5: `SDKSessionManager.start()` — CLI Process & SDK Session
+
+**In:** `SDKSessionManager.start()`
+
+### CLI Process — `CopilotClient` creation
 
 ```typescript
 this.client = new CopilotClient({
     logLevel: 'info',
-    cliPath,
+    cliPath,          // from resolvedCli?.cliPath (passed in from startCLISession)
     cliArgs: ['--no-auto-update', ...(yolo ? ['--yolo'] : [])],
     cwd: this.workingDirectory,
-    autoStart: true,   // spawns CLI process immediately
+    autoStart: true,  // spawns CLI process immediately
 });
 ```
 
 Then: `await this.modelCapabilitiesService.initialize(this.client)`
 
----
-
-## Phase 4: Session Creation / Resumption
-
 ### If `sessionId` exists — resume path
 
-1. Call `attemptSessionResumeWithUserRecovery(sessionId, resumeOptions)`
-   - Wraps SDK's `this.client.resumeSession(sessionId)` with a 30s timeout
+1. `attemptSessionResumeWithUserRecovery(sessionId, resumeOptions)`:
+   - Wraps `this.client.resumeSession(sessionId)` with a 30 s timeout
    - **Retry logic** (up to 3×, exponential backoff) for retriable errors (connection, timeout)
    - Skips retries for `session_expired` and `authentication` errors
 
-2. **If resume succeeds** → proceed to Phase 5
+2. **If resume fails with `connection_closed`:**
+   - Invoke `recreateClient()` — stops old CLI, re-resolves `cliPath`, spawns fresh `CopilotClient`, re-initializes model capabilities
+   - Retry `resumeSession()` with new client
+   - If re-resume fails → emit `session_expired`, fall through to new session
 
-3. **If resume fails with `connection_closed`:**
-   - Invoke `recreateClient()` (see [Error Recovery](#error-recovery-recreateclient) below)
-   - Retry `resumeSession()` with the new client
-   - If re-resume succeeds → proceed to Phase 5
-   - If re-resume fails → emit `session_expired`, fall through to new session creation
-
-4. **If resume fails with auth/expired error:**
+3. **If resume fails with auth/expired error:**
    - Emit `session_resume_failed` status
    - Fall through to new session creation
 
 ### If no `sessionId` — create new session
 
-Call `createSessionWithModelFallback()`:
+`createSessionWithModelFallback()`:
 1. Try requested model via `this.client.createSession(config)`
-2. If model unsupported:
-   - Query available models via `ModelCapabilitiesService.getAllModels()`
-   - Walk `MODEL_PREFERENCE_ORDER` list (`claude-sonnet-4.6` → `gpt-5`, etc.)
-   - Retry with first available model (up to 3 fallback attempts)
-   - On success: notify user via toast + chat message
-   - On all failures: throw error, show settings message
+2. If model unsupported: walk `MODEL_PREFERENCE_ORDER` (e.g. `claude-sonnet-4.6` → `gpt-5` → etc.) and retry with the first available model
+3. On fallback success: notify user via toast + chat message
+4. On all failures: throw error
 
-### Session options passed to `createSession()`
-
+Session config passed to `createSession()`:
 ```typescript
 {
     model: this.config.model || undefined,
     tools: this.getCustomTools(),    // [] in work mode; plan mode tools in plan mode
     hooks: this.getSessionHooks(),   // onPreToolUse: captures file snapshots
-    mcpServers: { ... }              // MCP server configs (if any enabled)
+    mcpServers: { ... }              // enabled MCP server configs
 }
 ```
 
----
+### Session activation
 
-## Phase 5: Session Activation & Event Wiring
-
-**In:** `SDKSessionManager.start()` (after session obtained)
-
-1. Store session references: `this.workSession`, `this.workSessionId`, `this.currentMode = 'work'`
+1. Store `this.workSession`, `this.workSessionId`, `this.currentMode = 'work'`
 2. For new sessions: emit `reset_metrics` status
-3. Call `setActiveSession(session)`:
+3. `setActiveSession(session)`:
    - `setupSessionEventHandlers()` — subscribes to `session.on()` for all SDK events
    - `attachClientLifecycleListeners()` — wires stderr, exit, connection lifecycle
 4. `await this.updateModelCapabilities()`
-5. **🟢 Emit `ready` status:**
+5. **🟢 Emit `ready`:**
    ```typescript
    this._onDidChangeStatus.fire({ status: 'ready', sessionId: this.sessionId });
    ```
 
 ---
 
-## Phase 6: UI Activation (`extension.ts`)
+## Phase 6: Post-Start UI Activation (`onSessionStarted()`)
 
-**Handled by:** `wireManagerEvents()` + `onSessionStarted()`
+**In:** `onSessionStarted(manager, target, startedOnModel)`
+
+All writes go to `target` (the host), not to the `BackendState` singleton:
 
 ```typescript
-backendState.setSessionId(sessionId);
-backendState.setSessionActive(true);
+recordSessionStart(target, {
+    sessionId: manager.getSessionId(),   // target.adoptSessionId() → indexes host in registry
+    workspacePath: manager.getWorkspacePath() || null,
+    model: startedOnModel ?? getCLIConfig().model ?? null
+});
+
+const surface = target.getSurface();
 statusBarItem.text = "$(debug-start) CLI Running";
-chatProvider.setSessionActive(true);
-chatProvider.addAssistantMessage('Copilot CLI session started! How can I help you?');
+surface?.setSessionActive(true);
+surface?.setWorkspacePath(vsWorkspacePath);
+surface?.setValidateAttachmentsCallback(/* this host's session */);
+surface?.addAssistantMessage('Copilot CLI session started! How can I help you?');
 updateSessionsList();
 logger.show();
+
+// Fire-and-forget: fetch models, send to webview
+target.availableModels().then(models => surface?.sendAvailableModels(models));
 ```
 
-SDK event → chatProvider routing:
-
-| SDK event | chatProvider method |
-|-----------|---------------------|
-| `onDidReceiveOutput` | `addAssistantMessage()` |
-| `onDidReceiveReasoning` | `addReasoningMessage()` |
-| `onDidChangeStatus('thinking')` | `setThinking(true)` |
+Key difference from pre-v3.13: these writes target `target.state` (per-host `SessionState`), so starting a tab session does not mark the sidebar's conversation active or adopt the tab's id onto `sidebarHost`.
 
 ---
 
@@ -166,27 +254,44 @@ SDK event → chatProvider routing:
 
 Steps:
 1. `await this.client.stop()` — gracefully stops the old CLI process
-2. `resolveCliPath()` — re-resolves CLI binary (handles updates/reinstalls)
+2. Re-resolve `cliPath` (the passed-in path, same resolution order — handles reinstalls)
 3. `new CopilotClient({ cliPath, autoStart: true })` — spawns fresh CLI process
 4. Clear model capabilities cache
 5. `modelCapabilitiesService.initialize(newClient)` — re-queries available models
 
-After recreation, the caller retries the original operation (session resume or message send) with the new client.
+The caller retries the original operation (session resume or message send) with the new client.
+
+---
+
+## Session Switch Flow (`handleSwitchSession()`)
+
+Session switching uses `planSessionSwitch()` — a pure function returning one of four outcomes:
+
+| Outcome | Action |
+|---------|--------|
+| `already-here` | No-op — session is already on this surface |
+| `reveal` | Show the other surface that owns this session; refuse to steal it |
+| `reattach` | Tab was closed; `plan.host.attachSurface(surface)` — no new manager needed, cancels wind-down countdown |
+| `resume` | Start a new manager against the session id on this surface's host |
 
 ---
 
 ## Key Sequences Summary
 
-| Step | Method | Notes |
-|------|--------|-------|
-| 1 | `activate()` | Initializes UI, registers handlers |
-| 2 | `resumeAndStartSession()` | Determines `sessionId` to resume |
-| 3 | `startCLISession()` | Creates `SDKSessionManager`, calls `start()` |
-| 4 | `resolveCliPath()` | User config → SDK bundle → PATH → fail |
-| 5 | `new CopilotClient()` | CLI process spawned (`autoStart: true`) |
-| 6 | Resume or create | With retry / model fallback logic |
-| 7 | `setActiveSession()` | Event handlers wired to session |
-| 8 | `fire('ready')` | ✅ Extension ready to receive messages |
+| Step | Location | What happens |
+|------|----------|-------------|
+| 1 | `activate()` | Creates sidebarSurface, sidebarHost, registry, chatPanels |
+| 2 | `activate()` | `cliBundleReady = initCliBundle()` (background) |
+| 3 | webview ready | `ChatSessionHost` → `StartManager` → `resumeAndStartSession()` |
+| 4 | `planSessionStart()` | Decides whether / what / how to start (pure function) |
+| 5 | `determineSessionToResume()` | `recorded` choice beats mtime heuristic; excludes live sessions |
+| 6 | `loadSessionHistory()` | Projects `events.jsonl` → `Message[]` → `target.state` |
+| 7 | `startCLISession()` | Awaits bundle, reads persisted model, creates `SDKSessionManager` |
+| 8 | `wireManagerEvents()` | Events owned by host, not by `context.subscriptions` |
+| 9 | `manager.start()` | `CopilotClient` spawned, session resumed or created |
+| 10 | `fire('ready')` | 🟢 Manager signals ready |
+| 11 | `onSessionStarted()` | `recordSessionStart(target, …)` — per-host, not singleton |
+| 12 | surface activation | `setSessionActive`, `addAssistantMessage`, `sendAvailableModels` |
 
 ---
 
@@ -198,31 +303,64 @@ After recreation, the caller retries the original operation (session resume or m
 sequenceDiagram
     participant VSCode as VS Code
     participant Ext as extension.ts
+    participant CBS as CliBundleService
+    participant Registry as ChatSessionRegistry
+    participant Host as ChatSessionHost (sidebarHost)
     participant SM as SDKSessionManager
     participant SS as SessionService
     participant CC as CopilotClient
     participant SDK as Copilot SDK
 
     VSCode->>Ext: activate(context)
-    Ext->>Ext: initLogger() + initBackendState()
-    Ext->>Ext: new ChatViewProvider()
-    Ext->>Ext: registerChatProviderHandlers()
-    note over Ext: onDidBecomeReady → resumeAndStartSession()
-
-    VSCode->>Ext: webview ready
-    Ext->>Ext: resumeAndStartSession()
-    Ext->>SS: getMostRecentSession()
-    SS-->>Ext: sessionId (or null)
-    Ext->>Ext: loadSessionHistory(sessionId)
-
-    Ext->>SM: start(config, sessionId)
+    Ext->>Ext: new WebviewChatSurface() → sidebarSurface
+    Ext->>Ext: new ChatViewProvider(sidebarSurface) [38 lines]
+    Ext->>Registry: new ChatSessionRegistry(...)
+    Registry-->>Ext: sessionRegistry
+    Ext->>Registry: create(null)
+    Registry-->>Host: sidebarHost
+    Ext->>Host: attachSurface(sidebarSurface)
+    Ext->>Ext: registerSurfaceHandlers(sidebarSurface)
+    Ext->>Ext: registerCommands()
+    Ext->>Ext: statusBar = "$(comment-discussion) Copilot CLI"
 
     rect rgb(240, 248, 255)
-        note over SM: CLI Path Resolution
-        SM->>SM: resolveCliPath()
-        note over SM: 1. User config → 2. SDK bundle → 3. PATH → 4. Fail
-        SM->>SM: logCliVersion(cliPath)
+        note over Ext,CBS: CLI Bundle Resolution (background — non-blocking)
+        Ext->>CBS: cliBundleReady = initCliBundle(context)
+        CBS->>CBS: ensureBundled()
+        note over CBS: local → managed → system → lazy-npm-install → system (fallback)
+        CBS-->>Ext: { resolved: ResolvedCli, capability }
+        Ext->>Ext: applySharedProviders(sidebarSurface)
     end
+
+    VSCode->>Ext: webview signals ready
+    Host->>Ext: StartManager → resumeAndStartSession(context, request)
+
+    rect rgb(248, 255, 248)
+        note over Ext: Session Start Decision (planSessionStart)
+        Ext->>Ext: planSessionStart({ sessionId, fresh, onBehalfOfHost }, host)
+        note over Ext: pure fn: reuseRunning? consultAmbient? fresh?
+    end
+
+    opt consultAmbient is true
+        Ext->>SS: getMostRecentSession(dir, workspace, filter, liveIds)
+        SS-->>Ext: mostRecent (or null)
+        Ext->>Ext: chooseSessionToResume({ recorded, mostRecent, isAvailable })
+        note over Ext: recorded choice beats mtime heuristic
+    end
+
+    opt sessionIdToResume known
+        Ext->>Ext: loadSessionHistory(sessionId, host)
+        note over Ext: buildSessionTranscript(events.jsonl) → loadTranscriptInto(host)
+    end
+
+    Ext->>Ext: startCLISession(context, resumeLastSession, sessionId, sidebarHost)
+    Ext->>Ext: await cliBundleReady
+    Ext->>Ext: chooseStartupModel({ persisted, configured, fallback })
+    Ext->>SM: new SDKSessionManager(context, config, ..., resolvedCli.cliPath)
+    Ext->>Ext: wireManagerEvents(manager, sidebarHost)
+    note over Ext: event subscriptions owned by host, not context.subscriptions
+
+    Ext->>SM: manager.start()
 
     SM->>CC: new CopilotClient({ cliPath, autoStart: true })
     CC->>SDK: spawn CLI process
@@ -238,32 +376,30 @@ sequenceDiagram
 
         alt resume succeeds
             SDK-->>SM: session object
-        else resume fails — connection_closed
-            SDK-->>SM: connection_closed error
+        else connection_closed
+            SDK-->>SM: connection_closed
             rect rgb(255, 235, 235)
-                note over SM: Error Recovery: recreateClient()
+                note over SM: recreateClient()
                 SM->>CC: client.stop()
-                SM->>SM: resolveCliPath()
                 SM->>CC: new CopilotClient({ cliPath, autoStart: true })
-                SM->>SM: clear model capabilities cache
                 SM->>SM: modelCapabilitiesService.initialize(newClient)
             end
-            SM->>SDK: resumeSession(sessionId) [with new client]
+            SM->>SDK: resumeSession(sessionId) [new client]
             alt re-resume succeeds
                 SDK-->>SM: session object
-            else re-resume fails
-                SM->>SM: emit status: session_expired
-                SM->>SDK: createSession() [new session]
+            else fails
+                SM->>SM: emit session_expired
+                SM->>SDK: createSessionWithModelFallback()
                 SDK-->>SM: new session object
             end
-        else resume fails — auth/expired
-            SM->>SM: emit status: session_resume_failed
-            SM->>SDK: createSession() [fallback to new]
+        else auth/expired
+            SM->>SM: emit session_resume_failed
+            SM->>SDK: createSessionWithModelFallback()
             SDK-->>SM: new session object
         end
-    else no sessionId → create new session
+    else no sessionId → new session
         SM->>SDK: createSessionWithModelFallback()
-        note over SM,SDK: tries requested model → fallback chain if unsupported
+        note over SM,SDK: requested model → MODEL_PREFERENCE_ORDER fallback chain
         SDK-->>SM: new session object
     end
 
@@ -271,10 +407,13 @@ sequenceDiagram
     SM->>SM: setupSessionEventHandlers()
     SM->>SM: attachClientLifecycleListeners()
     SM->>SM: updateModelCapabilities()
-    SM->>Ext: fire status: "ready" ✅
+    SM->>Ext: fire status: "ready" 🟢
 
-    Ext->>Ext: onSessionStarted()
-    Ext->>Ext: backendState.setSessionActive(true)
+    Ext->>Host: recordSessionStart(host, { sessionId, workspacePath, model })
+    Host->>Registry: adoptSessionId(sessionId)
     Ext->>Ext: statusBar → "$(debug-start) CLI Running"
-    Ext->>VSCode: chatProvider.addAssistantMessage("Session started!")
+    Ext->>Host: surface.setSessionActive(true)
+    Ext->>Host: surface.addAssistantMessage("Session started!")
+    Ext->>Ext: updateSessionsList()
+    Ext->>Host: target.availableModels() → surface.sendAvailableModels()
 ```

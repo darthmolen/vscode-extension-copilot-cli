@@ -152,6 +152,10 @@ async function main() {
 		path.join(__dirname, 'src', 'webview', 'app', 'state', 'EventBus.js'),
 		path.join(stateDistDir, 'EventBus.js')
 	);
+	fs.copyFileSync(
+		path.join(__dirname, 'src', 'webview', 'app', 'state', 'surfaceSessionState.js'),
+		path.join(stateDistDir, 'surfaceSessionState.js')
+	);
 
 	// Copy service files (Phase 5.2)
 	fs.copyFileSync(

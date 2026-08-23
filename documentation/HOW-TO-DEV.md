@@ -1,17 +1,14 @@
 # Development Guide
 
-## 🚨 Important: F5 Debugging is Broken
+## F5 Debugging
 
-**VS Code 1.100+ with Node.js 20+ has a critical bug** that prevents extension debugging from working:
+**F5 works.** Press F5 to launch the Extension Development Host. The preLaunchTask runs `npm run compile` (type-check + lint + esbuild).
 
-- **Error**: `PendingMigrationError` in Remote-WSL extension
-- **Impact**: Cannot use F5 / Extension Development Host
-- **Cause**: Microsoft's Remote-WSL extension uses `navigator` as a variable name (now a reserved global)
-- **Status**: No ETA on fix from Microsoft
+For a faster dev loop, use `npm run watch` in a terminal and the VSIX workflow.
 
 ## Development Workflow: VSIX-Based Testing
 
-Since F5 debugging doesn't work, we use a VSIX-based workflow instead.
+For installed-extension validation, we also use a VSIX-based workflow.
 
 ### Prerequisites
 
@@ -38,10 +35,13 @@ npm install --save-dev @vscode/vsce
 #### 1. Make Code Changes
 
 Edit files in `src/`:
-- `src/extension.ts` - Main extension entry point
-- `src/chatViewProvider.ts` - Webview chat panel
-- `src/sdkSessionManager.ts` - SDK session management
-- `src/modelCapabilitiesService.ts` - Model capabilities and validation
+- `src/extension.ts` - Main orchestrator, command registration
+- `src/sdkSessionManager.ts` - SDK session lifecycle and plan mode  
+- `src/chatViewProvider.ts` - WebviewViewProvider, HTML/CSS/JS, ExtensionRpcRouter wiring
+- `src/backendState.ts` - Singleton state store
+- `src/extension/rpc/ExtensionRpcRouter.ts` - Type-safe RPC (18 send + 11 receive methods)
+- `src/extension/services/` - 7 extracted services: SessionService, InlineDiffService, FileSnapshotService, MCPConfigurationService, ModelCapabilitiesService, PlanModeToolsService, MessageEnhancementService
+- `src/shared/messages.ts` - RPC message type definitions
 - `src/logger.ts` - Logging to Output Channel
 
 #### 2. Build and Install
@@ -75,7 +75,7 @@ After installation:
 
 #### 5. Debug with Logging
 
-Since we can't use the debugger, use comprehensive logging:
+When you want persistent diagnostics or are testing the VSIX path, use comprehensive logging:
 
 ```typescript
 import { Logger } from './logger';
@@ -102,24 +102,24 @@ All logs appear in the "Copilot CLI" Output Channel.
 
 ```
 src/
-├── extension.ts                           # Main entry point (744 lines)
+├── extension.ts                           # Main entry point (1089 lines)
 ├── logger.ts                              # Structured logging
 ├── backendState.ts                        # Single source of truth for session state
 ├── sessionUtils.ts                        # Session file I/O utilities
 ├── authUtils.ts                           # Authentication helpers
 ├── chatViewProvider.ts                    # WebviewViewProvider for sidebar
-├── sdkSessionManager.ts                   # Copilot SDK session lifecycle
+├── sdkSessionManager.ts                   # Copilot SDK session lifecycle (2591 lines)
 ├── shared/
 │   ├── index.ts                           # Barrel exports
-│   ├── models.ts                          # Domain types (Session, Message, etc.)
-│   └── messages.ts                        # RPC message types (31 types, 433 lines)
+│   ├── models.ts                          # Domain types (Session, Message, etc.) (145 lines)
+│   └── messages.ts                        # RPC message types (33 webview + 33 extension, 848 lines)
 ├── utilities/
 │   ├── disposable.ts                      # Disposable pattern helpers
 │   └── bufferedEmitter.ts                 # Event buffering for race conditions
 └── extension/
     ├── rpc/
     │   ├── index.ts                       # Barrel export
-    │   └── ExtensionRpcRouter.ts          # Type-safe RPC (520 lines, 18 send + 11 receive)
+    │   └── ExtensionRpcRouter.ts          # Type-safe RPC (834 lines, 18 send + 11 receive)
     └── services/
         ├── SessionService.ts              # Session CRUD operations
         ├── fileSnapshotService.ts          # File snapshot for diffs
@@ -127,10 +127,10 @@ src/
         ├── modelCapabilitiesService.ts     # Model feature detection
         ├── planModeToolsService.ts         # Plan mode tool filtering
         ├── messageEnhancementService.ts    # Message enrichment pipeline
-        └── InlineDiffService.ts           # LCS-based inline diff (162 lines)
+        └── InlineDiffService.ts           # LCS-based inline diff (161 lines)
 
 src/webview/
-├── main.js                                # App bootstrap (526 lines)
+├── main.js                                # App bootstrap (765 lines)
 ├── styles.css                             # All webview styles
 └── app/
     ├── handlers/
@@ -144,19 +144,23 @@ src/webview/
     ├── state/
     │   └── EventBus.js                    # Pub/sub for component communication
     ├── rpc/
-    │   └── WebviewRpcClient.js            # Type-safe RPC client (390 lines)
+    │   └── WebviewRpcClient.js            # Type-safe RPC client (791 lines)
     ├── services/
     │   └── CommandParser.js               # Slash command parsing
     └── components/
         ├── AcceptanceControls/AcceptanceControls.js
         ├── ActiveFileDisplay/ActiveFileDisplay.js
-        ├── StatusBar/StatusBar.js
+        ├── CustomAgentsPanel/CustomAgentsPanel.js
         ├── InputArea/InputArea.js
-        ├── SessionToolbar/SessionToolbar.js
+        ├── MCPStatusPanel/MCPStatusPanel.js
+        ├── MessageDisplay/MessageDisplay.js
+        ├── ModelSelector/ModelSelector.js
         ├── PlanModeControls/PlanModeControls.js
-        ├── SlashCommandPanel/SlashCommandPanel.js  # Slash command discovery panel
-        ├── MessageDisplay/MessageDisplay.js   # Message rendering + auto-scroll (292 lines)
-        └── ToolExecution/ToolExecution.js     # Tool cards, inline diffs (344 lines)
+        ├── SessionToolbar/SessionToolbar.js
+        ├── SlashCommandPanel/SlashCommandPanel.js
+        ├── StatusBar/StatusBar.js
+        ├── SubagentDock/SubagentDock.js
+        └── ToolExecution/ToolExecution.js
 ```
 
 ### Build Commands
@@ -216,7 +220,7 @@ tests/
 
 #### Test Runners
 
-- `npm test` -- Runs unit + integration tests via Mocha (main CI target, ~710 tests)
+- `npm test` -- Runs unit + integration tests via Mocha (main CI target, ~1,956 passing tests, plus 3 pending and 1 known flaky failure in full-suite runs)
 - `npm run test:unit` -- Unit tests only (`tests/unit/**/*.test.js`)
 - `npm run test:integration` -- Integration tests only (`tests/integration/**/*.test.js`)
 - `npm run test:e2e:plan-mode` -- E2E plan mode tests (requires compiled output)

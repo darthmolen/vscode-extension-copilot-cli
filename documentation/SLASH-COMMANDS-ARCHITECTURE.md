@@ -1,15 +1,15 @@
 # Slash Commands Architecture
 
-**Version**: 3.0.0  
-**Last Updated**: 2026-02-14
+**Version**: 3.14.0  
+**Last Updated**: 2026-08-22
 
 ## Overview
 
-The vscode-copilot-cli-extension implements comprehensive slash command support, allowing users to execute 41 different commands directly in the chat interface. Commands are categorized into three types based on how they're executed:
+The vscode-copilot-cli-extension implements comprehensive slash command support, allowing users to execute 42 different commands directly in the chat interface. Commands are categorized into three types based on how they're executed:
 
-1. **Extension Commands** (10) - Execute within the VS Code extension/webview
-2. **CLI Passthrough** (6) - Open the integrated terminal with the Copilot CLI
-3. **Not Supported** (25) - Show friendly messages explaining why they're unavailable
+1. **Extension Commands** (15) - Execute within the VS Code extension/webview
+2. **CLI Passthrough** (5) - Open the integrated terminal with the Copilot CLI
+3. **Not Supported** (22) - Show friendly messages explaining why they're unavailable
 
 This architecture provides a seamless user experience while maintaining clear boundaries between what the extension handles natively and what requires the CLI terminal.
 
@@ -19,7 +19,7 @@ This architecture provides a seamless user experience while maintaining clear bo
 
 **Location**: `src/webview/app/services/CommandParser.js`
 
-The `CommandParser` class maintains a centralized registry of all 41 slash commands with metadata:
+The `CommandParser` class maintains a centralized registry of all 42 slash commands with metadata:
 
 ```javascript
 this.commands = new Map([
@@ -47,7 +47,7 @@ this.commands = new Map([
 - `event`: (extension only) RPC event name to trigger
 - `instruction`: (passthrough only) Message to show before opening terminal
 - `requiredContext`: (optional) Conditions required to execute command
-- `category`: (extension/passthrough only) Display category: `'plan'` | `'code'` | `'config'` | `'cli'`
+- `category`: (extension/passthrough only) Display category: `'plan'` | `'code'` | `'config'` | `'session'` | `'cli'`
 - `description`: (extension/passthrough only) Short human-readable description for discoverability UI
 
 **Key Methods**:
@@ -60,7 +60,7 @@ this.commands = new Map([
 - `isPassthroughCommand(commandName)` - Boolean check for passthrough commands
 - `isNotSupportedCommand(commandName)` - Boolean check for unsupported commands
 - `getInstruction(commandName)` - Returns instruction text for passthrough commands
-- `getVisibleCommands()` - Returns array of `{ name, description, category }` for extension + passthrough commands only (16 commands)
+- `getVisibleCommands()` - Returns array of `{ name, description, category }` for extension + passthrough commands only (20 commands)
 
 ### 2. Command Routing (Frontend)
 
@@ -117,6 +117,18 @@ Handles information retrieval:
 Manages terminal integration:
 - `openCLI(sessionId, command, instruction)` - Creates terminal, displays instruction, runs `copilot --resume <sessionId>`
 
+#### CompactSlashHandlers
+**Location**: `src/extension/services/slashCommands/CompactSlashHandlers.ts`
+
+Handles on-demand context compaction:
+- `handleCompact()` - Calls `sessionManager.compactSession()` and returns a summary of tokens/messages freed
+
+#### NotSupportedSlashHandlers
+**Location**: `src/extension/services/slashCommands/NotSupportedSlashHandlers.ts`
+
+Provides friendly explanations for not-supported commands:
+- `handleNotSupported(commandName)` - Returns a formatted message explaining the command isn't available in the extension context and directs the user to `/help`
+
 ### 4. RPC Communication
 
 **Location**: `src/extension/rpc/ExtensionRpcRouter.ts`
@@ -151,6 +163,14 @@ private registerSlashCommandHandlers() {
             args.command,
             args.instruction
         );
+    });
+    
+    this.router.register('compact', async () => {
+        return this.compactHandlers.handleCompact();
+    });
+    
+    this.router.register('showNotSupported', async (args) => {
+        return this.notSupportedHandlers.handleNotSupported(args.command);
     });
 }
 ```
@@ -187,14 +207,22 @@ A grouped command reference panel that appears above the textarea when the user 
 │   /diff     Compare two files       │
 │                                     │
 │ Configuration                       │
+│   /version  Extension, SDK & CLI    │
 │   /mcp      MCP server config       │
 │   /usage    Usage metrics           │
 │   /help     Command reference       │
+│                                     │
+│ Session                             │
 │   /model    Switch model            │
+│   /rename   Rename this session     │
+│   /agent    Set active agent        │
+│   /btw      Ask in new tab          │
+│   /compact  Free context window     │
 │                                     │
 │ CLI (opens terminal)                │
 │   /delegate GitHub Copilot agent    │
-│   /agent    Specialized agents      │
+│   /skills   Custom scripts          │
+│   /plugin   Install plugins         │
 │   ...                               │
 └─────────────────────────────────────┘
 ```
@@ -204,7 +232,7 @@ A grouped command reference panel that appears above the textarea when the user 
 - Shows when textarea value starts with `/` and contains no space (typing a partial command)
 - Clicking a command inserts the command text into the textarea (does not execute)
 - Dismissed on: Escape key, backspace removing `/`, selecting a command, or typing a space
-- Only shows the 16 actionable commands (extension + passthrough), not the 25 not-supported commands
+- Only shows the 20 actionable commands (extension + passthrough), not the 22 not-supported commands
 - Commands grouped by category: Plan Mode, Code & Review, Configuration, CLI (terminal)
 
 **API**:
@@ -229,7 +257,7 @@ controls-left layout:
 
 ## Command Reference
 
-### Extension Commands (10)
+### Extension Commands (15)
 
 These execute within the VS Code extension and provide rich UI experiences:
 
@@ -244,7 +272,12 @@ These execute within the VS Code extension and provide rich UI experiences:
 | `/mcp` | Show MCP configuration | `InfoSlashHandlers.handleMcp()` | Displays server config |
 | `/usage` | Show session metrics | `InfoSlashHandlers.handleUsage()` | Tokens, duration, quota |
 | `/help [command]` | Show command help | `InfoSlashHandlers.handleHelp()` | List or specific command |
-| `/model` | Change AI model | `showModelSelector` | **Future**: Dropdown UI |
+| `/version` | Show version info | `showVersionInfo` | Extension, SDK, and CLI versions |
+| `/model` | Change AI model | `showModelSelector` | Opens model picker |
+| `/rename` | Rename this session | `renameSession` | Updates session display name |
+| `/agent [name]` | Set active agent | `selectAgent` | Clears agent when no arg given |
+| `/btw <message>` | Ask in new tab | `askInNewTab` | Side question; does not inherit history |
+| `/compact` | Free context window | `CompactSlashHandlers.handleCompact()` | Calls SDK compaction RPC |
 
 **Implementation Status**:
 
@@ -252,17 +285,18 @@ These execute within the VS Code extension and provide rich UI experiences:
 - ✅ Command registry with description/category metadata - Implemented in v3.0
 - ✅ Backend handlers (CodeReview, Info, CLIPassthrough) - Implemented in v3.0
 - ✅ Discoverability UI (SlashCommandPanel + help icon) - Implemented in v3.0
-- 📋 `/model` dropdown - Backlog (future release)
-- 📋 Intellisense/autocomplete - Backlog (see ROADMAP.md)
+- ✅ `/model` model picker - Implemented in v3.x
+- ✅ `/version` - Implemented in v3.x
+- ✅ `/rename`, `/agent`, `/btw` - Implemented in v3.x
+- ✅ `/compact` - Implemented in v3.x (moved from not-supported)
 
-### CLI Passthrough Commands (6)
+### CLI Passthrough Commands (5)
 
 These open the VS Code integrated terminal with instructions and run the Copilot CLI:
 
 | Command | Description | Instruction |
 |---------|-------------|-------------|
 | `/delegate` | Open coding agent in new PR | "The /delegate command opens GitHub Copilot coding agent in a new PR. Opening terminal..." |
-| `/agent` | Select specialized agents | "The /agent command lets you select specialized agents (refactoring, code-review, etc.). Opening terminal..." |
 | `/skills` | Manage custom scripts | "The /skills command manages custom scripts and resources. Opening terminal..." |
 | `/plugin` | Install CLI extensions | "The /plugin command installs extensions from the marketplace. Opening terminal..." |
 | `/login` | Authenticate with GitHub | "Opening terminal to authenticate with GitHub Copilot..." |
@@ -278,26 +312,24 @@ copilot --resume <sessionId> /command [args]
 - If configured, appends enterprise URL parameter
 - Supports seamless enterprise authentication flow
 
-### Not Supported Commands (25)
+### Not Supported Commands (22)
 
-These commands are CLI-specific and don't apply to the extension context. When used, a friendly message explains why:
+These commands are CLI-specific and don't apply to the extension context. When used, a friendly message explains why (via `NotSupportedSlashHandlers`):
 
-#### Session Management (5)
+#### Session Management (4)
 - `/clear` - Extension has its own session UI
 - `/new` - Use "New Session" button
 - `/resume` - Use "Resume Session" dropdown
-- `/rename` - Use session management UI
 - `/session` - Use session management UI
 
 **Message**: "Session management commands are not supported in the extension. Use the session management UI in the sidebar."
 
-#### Context & Files (7)
+#### Context & Files (6)
 - `/add-dir` - VS Code workspace handles this
 - `/list-dirs` - VS Code file explorer
 - `/cwd` - VS Code shows current directory
 - `/cd` - Use VS Code file explorer
 - `/context` - Extension manages context automatically
-- `/compact` - Extension uses infinite sessions
 - `/lsp` - VS Code provides language servers
 
 **Message**: "File and context commands are not supported. VS Code manages your workspace, files, and language features automatically."
@@ -448,15 +480,18 @@ this.commands.set('review', { type: 'extension', event: 'showPlanContent' });
 
 **Unit Tests**:
 
-- `tests/unit/utils/command-parser-registry.test.js` (51 tests) — Command type detection, helpers, instruction templates, edge cases
-- `tests/unit/utils/command-parser.test.js` (7 tests) — `getVisibleCommands()`, description/category fields, exclusion of not-supported commands
+- `tests/unit/utils/command-parser-registry.test.js` — Command type detection, helpers, instruction templates, edge cases
+- `tests/unit/utils/command-parser.test.js` — `getVisibleCommands()`, description/category fields, exclusion of not-supported commands
 - `tests/unit/components/slash-command-panel.test.js` (8 tests) — Panel show/hide, grouped rendering, category headers, onSelect callback
 - `tests/unit/components/input-area-slash-panel.test.js` (8 tests) — `/` trigger detection, Escape dismiss, command insertion, placeholder text
 - `tests/unit/components/status-bar-help.test.js` (4 tests) — `?` icon rendering, showHelp event emission
+- `tests/unit/extension/services/slashCommands/code-review-slash-handlers.test.js` — CodeReviewSlashHandlers
+- `tests/unit/extension/services/slashCommands/info-slash-handlers.test.js` — InfoSlashHandlers
+- `tests/unit/extension/services/slashCommands/not-supported-slash-handlers.test.js` — NotSupportedSlashHandlers
 
 **Integration Tests**:
 
-- `tests/integration/webview/slash-command-routing.test.js` — InputArea routing, RPC message flow, UI feedback
+- `tests/unit/extension/compact-slash-handlers.test.js` — CompactSlashHandlers integration
 
 **E2E Tests** (planned):
 
@@ -465,20 +500,20 @@ this.commands.set('review', { type: 'extension', event: 'showPlanContent' });
 
 ### Test Results
 
-Current status: **896 passing, 3 pending** (full test suite including slash command tests)
+Current status: See `npm test` for latest counts. The suite is intentionally flaky (cross-file global pollution in mocha); run individual files to confirm failures before acting.
 
 ## Implementation Timeline
 
 **Phase 1: Research & Planning** (Complete)
 
-- ✅ Researched all 41 Copilot CLI slash commands
+- ✅ Researched all 42 Copilot CLI slash commands
 - ✅ Categorized into extension/passthrough/not-supported
 - ✅ Designed functional architecture
 - ✅ Created implementation plan
 
 **Phase 2: Frontend Foundation** (Complete)
 
-- ✅ Extended CommandParser with 41 commands
+- ✅ Extended CommandParser with 42 commands
 - ✅ Implemented type detection methods
 - ✅ Added instruction templates
 - ✅ 51 unit tests passing
@@ -509,23 +544,6 @@ Current status: **896 passing, 3 pending** (full test suite including slash comm
 - ✅ Committed: `575edd4`
 
 ## Future Enhancements
-
-### Model Selection Dropdown
-
-**Status**: Backlog (see `planning/backlog/model-selection-dropdown.md`)
-
-**Design**:
-- Dropdown UI above input area
-- List of available models (Sonnet, Opus, GPT-4, etc.)
-- Mid-session model switching
-- User preference persistence
-- Real-time model capability display
-
-**Why not passthrough?**:
-- Better UX (visual selection vs typing)
-- Shows model capabilities (context window, speed, cost)
-- Persists user preference
-- Validates model availability before switching
 
 ### Intellisense / Autocomplete
 
@@ -564,7 +582,7 @@ Full inline autocomplete as the user types partial commands (e.g., typing `/pl` 
 ## Performance Considerations
 
 **Command Registry Lookup**: O(1) HashMap lookup
-**Memory Footprint**: ~2KB for registry (41 commands × ~50 bytes metadata)
+**Memory Footprint**: ~2KB for registry (42 commands × ~50 bytes metadata)
 **Command Parsing**: Single regex match, no heavy computation
 **Terminal Creation**: Async, non-blocking
 **File Operations**: Async with proper error handling

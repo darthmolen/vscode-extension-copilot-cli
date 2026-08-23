@@ -2,7 +2,7 @@
   "name": "copilot-cli-extension",
   "displayName": "Copilot CLI Chat",
   "description": "Interactive chat panel for GitHub Copilot CLI with session management and markdown rendering",
-  "version": "3.12.1",
+  "version": "4.0.0",
   "publisher": "darthmolen",
   "author": {
     "name": "darthmolen"
@@ -65,6 +65,11 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "copilot-cli-extension.openChatInTab",
+        "title": "Copilot CLI: New Tab",
+        "icon": "$(split-horizontal)"
+      },
+      {
         "command": "copilot-cli-extension.startChat",
         "title": "Copilot CLI: Start Chat Session"
       },
@@ -96,15 +101,21 @@
       },
       {
         "command": "copilot-cli-extension.forkSession",
-        "title": "Copilot CLI: Fork Session"
+        "title": "Copilot CLI: Fork Session",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "copilot-cli-extension.moveChatToSidebar",
+        "title": "Copilot CLI: Move Chat Back to Sidebar",
+        "icon": "$(layout-sidebar-left)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "copilot-cli-extension.openChat",
+          "command": "copilot-cli-extension.openChatInTab",
           "group": "navigation",
-          "when": "editorFocus"
+          "when": "editorIsOpen"
         }
       ],
       "commandPalette": [
@@ -115,16 +126,15 @@
         {
           "command": "copilot-cli-extension.openAnimationTestDark",
           "when": "config.copilotCLI.devMode"
+        },
+        {
+          "command": "copilot-cli-extension.moveChatToSidebar",
+          "when": "activeWebviewPanelId == 'copilotChatPanel'"
         }
       ],
       "view/title": [
         {
-          "command": "copilot-cli-extension.newSession",
-          "when": "view == copilot-cli.chatView",
-          "group": "navigation"
-        },
-        {
-          "command": "copilot-cli-extension.refreshPanel",
+          "command": "copilot-cli-extension.openChatInTab",
           "when": "view == copilot-cli.chatView",
           "group": "navigation"
         }
