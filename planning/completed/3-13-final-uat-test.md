@@ -1,3 +1,19 @@
+> **What this file is.** The saved *Copilot CLI* Output Channel from the v3.13.0 UAT run
+> (2026-08-22, 14:04–14:09 CDT), with a **post-mortem review appended at the end** — search for
+> `## Post-Mortem Review`. It is kept in `planning/` rather than the gitignored `tests/logs/` so the
+> evidence cited by `planning/3-13-0-tools-in-the-chat.md` is checkable from the repo.
+>
+> **It is an annotated log, not a pristine one.** Review prose was appended by a tool that took this
+> file as its target, and in two places it landed mid-line inside a log entry (around lines 2199 and
+> 3221). No log lines were removed, and the counts the review doc cites still verify against it:
+>
+> ```
+> grep -cE '\[Tool Start\] tool=[a-z_]+ mode=[a-z]+ session=4dd65a29$'   # 5  sidebar, manager-level
+> grep -cE '\[Tool Start\] [a-z_]+$'                                      # 5  sidebar, window-scoped
+> grep -cE '\[Tool Start\] tool=[a-z_]+ mode=[a-z]+ session=474592bb$'   # 4  tab, manager-level
+> #                                                                        # 0  tab, window-scoped
+> ```
+
 [INFO ] 2026-08-22T19:04:27.213Z [ChatSessionRegistry] host created for (no session yet) (1 live)
 [INFO ] 2026-08-22T19:04:27.213Z Copilot CLI Extension activating...
 [INFO ] 2026-08-22T19:04:27.232Z Copilot CLI Extension activated successfully

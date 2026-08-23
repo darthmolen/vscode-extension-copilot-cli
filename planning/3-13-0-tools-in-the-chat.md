@@ -340,3 +340,45 @@ Each is meant to be checkable against the code or the logs. If one is wrong, say
 **Suite:** 2,159 passing over three consecutive runs. New coverage in
 `tests/unit/extension/host-records-tools.test.js` and the "attaching the same manager twice" block of
 `tests/unit/extension/chat-session-host-manager-lifetime.test.js`.
+
+---
+
+## 8. Independent review — Copilot CLI, 2026-08-23
+
+Reviewed and blessed, with the root cause reached **independently** from the same log. Their
+write-up lives at the end of `planning/completed/3-13-final-uat-test.md` (see the provenance note at
+the top of that file). Worth reading: it identifies the double-attach, the release of
+`ownManagerSubscription` entries, and the `[Tool Start]` double-line signature without having been
+told any of it, and it confirms object-identity (`===`) is the right test — same instance is a no-op,
+a different instance from a restart or session switch is a real replacement.
+
+They also verified the five new cases in `chat-session-host-manager-lifetime.test.js` cover the
+failure modes the guard introduces, and cited the fix commit (`6b3d65c`) correctly.
+
+### One claim in it does not hold, and it is claim 3 again
+
+> *"Tab tools not rendering — session `474592bb` ran 4 tool calls … that executed successfully on the
+> CLI side but produced no tool chips in the tab UI."*
+
+**Nobody observed that.** The run this log captures is the one reported as *"everything appeared to
+run beautifully"*; the missing chips were seen later, in a different run, on a different session
+(`568a63d0`). The claim is an **inference from the absent window-handler line** — and that inference
+is precisely the conflation §3 exists to reject:
+
+> the window-scoped handler and the chip-rendering path are different subscriptions. The host's own
+> routing was torn down and **re-added** by the second attach. The 28 `[ImageResolve]` lines during
+> the chip-less window prove it was alive.
+
+So two reviewers have now independently drawn the same wrong conclusion from the same absence, which
+is a decent sign that the absence *looks* like the explanation. It is not. If anything this
+strengthens the case for keeping claim 3 flagged as unproven rather than quietly retiring it: the
+missing chips remain **unexplained**, and a reboot is what cleared them.
+
+### Where that leaves things
+
+| | |
+| --- | --- |
+| Defect A — root cause | **confirmed twice, independently** |
+| Defect A — fix and its tests | **reviewed and endorsed** |
+| Defect A explains the missing chips | **no** — asserted by both reviewers, supported by neither |
+| The missing chips | **still unexplained.** Not seen since; the webview console (`main.js:458`) settles it if it recurs |
