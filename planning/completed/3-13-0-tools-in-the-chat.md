@@ -437,7 +437,7 @@ init payloads and two argument formatters in this codebase.
 
 **A is consistent by construction.** The transcript then agrees with the live render *and* with the
 disk replay, because all three exclude sub-agent tools. It also matches the standing product
-decision recorded in `documentation/3.13-README.md`: `agentId`-tagged content goes to the dock and
+decision recorded in `documentation/4.0-README.md`: `agentId`-tagged content goes to the dock and
 the pop-out, never the main transcript — deliberately, because that is what keeps a sub-agent's
 traffic from muddying the conversation.
 

@@ -486,67 +486,31 @@ Browse more servers at the [MCP Registry](https://registry.modelcontextprotocol.
 
 ## 🔧 Architecture
 
-### v3.0 Architecture
+The architecture was rewritten in **v4.0.0** so the extension can hold more than one chat at once —
+the change that made chat-in-a-tab possible, and the larger half of that release.
+
+**[Read the v4.0.0 architecture →](documentation/4.0-README.md)**
+
+In outline:
 
 ```text
-VS Code Activity Bar
-        ↓
-  WebviewViewProvider (sidebar integration)
-        ↓
-Extension Host (Node.js)
-  extension.ts orchestrator
-       ↓
-  Extracted Services (7)
-    SessionService, InlineDiffService, fileSnapshotService,
-    mcpConfigurationService, modelCapabilitiesService,
-    planModeToolsService, messageEnhancementService
-       ↓
-  ExtensionRpcRouter (typed send/receive)
-       ↓ postMessage
-Webview (Browser)
-  WebviewRpcClient (typed callbacks)
-       ↓
-  EventBus (decoupled pub/sub)
-       ↓
-  Components (9)
-    MessageDisplay, ToolExecution, InputArea, SessionToolbar,
-    AcceptanceControls, StatusBar, ActiveFileDisplay, PlanModeControls,
-    SlashCommandPanel
-       ↓
-  DOM
-
-Shared: TypeScript interfaces in src/shared/ defining the RPC contract
-  31 message types with TypeScript interfaces (shared/messages.ts)
+window   WorkspaceRuntimeState     active file, session list, MCP state — shared, observable
+         CopilotClientProvider     the CLI process
+  host   ChatSessionHost           one conversation: its id, its state, its manager, its wiring
+           └── ChatSurface         what renders it — at most one, never mirrored
+                 └── ChatWebviewSlot   sidebar view or editor panel; four members differ
 ```
 
-**Sidebar Integration** (v3.0.0):
+- **`ChatSessionHost`** owns a conversation end to end and exposes it as verbs — `prompt`, `cancel`,
+  `switchModel`, `compact`, `rename`. Two conversations run at once and never interleave.
+- **`ChatSessionRegistry`** answers *"is this session live in this window?"* without starting anything.
+- **`ChatWebviewSlot`** names the four members by which a sidebar view and an editor panel differ, so
+  one surface class serves both.
+- **Type-safe RPC** in both directions, one router per surface, over the contract in `src/shared/`.
+- **The Copilot SDK** provides the agent runtime, tool invocation and model access.
 
-- **WebviewViewProvider**: Extension now lives in Activity Bar sidebar (not floating panel)
-- **Activity Bar Icon**: Click to show/hide chat, drag between left/right sidebars
-- **Native Experience**: Proper VS Code sidebar integration with resource management
-- **MutableDisposable Pattern**: Fixes memory leak from accumulating event handlers
-
-**Extension Host** provides:
-
-- **Orchestration**: extension.ts coordinates services and routes messages
-- **Services**: 7 extracted services with clear boundaries and independent testability
-- **Type-Safe RPC**: ExtensionRpcRouter with typed send/receive methods replacing raw postMessage
-- **Session Persistence**: Auto-resume, history loading, workspace filtering
-- **Planning Mode**: Separate session for planning with limited tools and alternate model
-
-**Webview** provides:
-
-- **Component Architecture**: 9 independent components, each owning its DOM section and lifecycle
-- **EventBus**: Decoupled component communication via pub/sub
-- **Type-Safe RPC**: WebviewRpcClient with typed callback registration
-- **Inline Diffs**: Compact diff display directly in the chat stream
-- **Slash Commands**: 41 commands via CommandParser (type `/help` for list)
-
-**Copilot SDK** provides:
-
-- **Agent Runtime**: Production-tested orchestration engine
-- **Tool Invocation**: File edits, shell commands, web searches, MCP servers
-- **Model Access**: All Copilot CLI models via unified API
+Deeper references: **[README-ARCHITECTURE.md](documentation/README-ARCHITECTURE.md)** for the module
+map, and **[HOW-TO-DEV.md](documentation/HOW-TO-DEV.md)** for building and debugging.
 
 ## 🌍 Platform Support
 
@@ -561,6 +525,7 @@ Session state location:
 
 ## 📚 Documentation
 
+- **[v4.0.0 Architecture](documentation/4.0-README.md)** - What the extension gained in the rewrite, and why
 - **[Custom Agents Guide](documentation/CUSTOM-AGENTS.md)** - Create and use custom agents
 - **[Development Guide](documentation/HOW-TO-DEV.md)** - Build and test the extension
 - **[Changelog](CHANGELOG.md)** - Version history and release notes

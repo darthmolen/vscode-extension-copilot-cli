@@ -74,7 +74,7 @@ To save a new log: open the Output Channel (`Ctrl+Shift+U` → "Copilot CLI"), c
 This is a VS Code sidebar extension that wraps `@github/copilot-sdk` (backend-only, no UI) to provide a chat interface for GitHub Copilot CLI.
 
 > **v3.13.0 restructured this layer substantially.** The narrative — what the extension gained and
-> why — is [`documentation/3.13-README.md`](documentation/3.13-README.md). Read it before making
+> why — is [`documentation/4.0-README.md`](documentation/4.0-README.md). Read it before making
 > structural changes here.
 
 ### Extension Host (TypeScript, `src/`)
