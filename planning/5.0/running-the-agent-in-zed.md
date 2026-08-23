@@ -144,6 +144,53 @@ On the first run that was `session/new` ×2, `session/list` ×1, `session/load` 
 `close`, `fork` or `delete`.** Those three are implemented and spike-verified and have still never
 been exercised by a real host.
 
+### Keep a durable copy — Zed's log rotates
+
+`Zed.log` rotates, and it will rotate away the part you need. The first session worth diagnosing was
+captured as a **35-second window**: everything before it, including `[ACP] agent starting`, was
+already gone. The grep above tells you what Zed still has, not what happened.
+
+Point the config at the wrapper instead of `node`:
+
+```jsonc
+{
+  "agent_servers": {
+    "Copilot CLI Chat": {
+      "type": "custom",
+      "command": "/home/smolen/dev/vscode-copilot-cli-extension/scripts/acp-agent-logged.sh",
+      "args": ["--cli-path",
+               "/home/smolen/dev/vscode-copilot-cli-extension/node_modules/@github/copilot-linux-x64/copilot"],
+      "env": { "ACP_AGENT_NODE": "/home/smolen/.nvm/versions/node/v24.13.1/bin/node" }
+    }
+  }
+}
+```
+
+It **tees** stderr: Zed still sees every line it saw before, and a full copy lands in
+`~/.copilot/acp-agent-logs/agent-<timestamp>-<pid>.log`, one file per run, that nothing truncates.
+Each file opens with the node binary, entry point, args and cwd — the four things you want first
+when an agent dies without explaining itself.
+
+```bash
+ls -t ~/.copilot/acp-agent-logs/ | head          # runs, newest first
+tail -f ~/.copilot/acp-agent-logs/$(ls -t ~/.copilot/acp-agent-logs | head -1)
+```
+
+**stdout is never touched.** It carries the protocol, and one stray byte on it desynchronises the
+JSON-RPC framing — which is why the wrapper writes its own diagnostics to stderr and `exec`s rather
+than wrapping in a subshell. Verified: with the wrapper in place, every line of stdout still parses
+as JSON.
+
+The wrapper also fails **loudly** on the two conditions that otherwise present as a bare
+"agent exited": no usable `node` (say so, and name `ACP_AGENT_NODE`), and a missing
+`out/acp/main.js` (say so, and name `compile-tests`).
+
+Set `ACP_AGENT_LOG_DIR` to move the logs; `ACP_AGENT_ENTRY` to point at a different build.
+
+**Saving one for the repo:** `tests/logs/zed/<version>-<symptom>.log`, matching the convention
+`tests/logs/server/` already uses. That directory is gitignored, so those stay local to the machine
+that captured them.
+
 **Note the log level.** Zed labels *all* agent stderr as `WARN`, so every `[DEBUG]` line from us
 reads as a warning. Not broken; noisy. Recorded as a polish item.
 
@@ -172,6 +219,7 @@ native *Plan · 3 Tasks* widget and updated live; the Work/Plan mode switcher ap
 | It asks you to sign in to Zed Pro | You are in Zed's own agent. Ours never asks — it authenticates through `~/.copilot`. |
 | `out/acp/main.js` not found | `npm run compile-tests`, not `npm run compile`. |
 | `Cannot find module '@agentclientprotocol/sdk'` | `npm install`. It is a declared dependency that a fresh checkout has not fetched. |
+| Agent died and Zed showed nothing useful | Zed's log had already rotated. Use `scripts/acp-agent-logged.sh` — that is what it is for. |
 
 ## 9. What this configuration is not
 
