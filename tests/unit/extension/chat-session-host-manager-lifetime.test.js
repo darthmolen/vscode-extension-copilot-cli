@@ -60,6 +60,13 @@ describe('ChatSessionHost — manager lifetime', () => {
             workspace: new WorkspaceRuntimeState(),
             logger: silentLogger
         });
+        /** A host wired to a caller-supplied `startManager`, which the registry does not expose. */
+        registry.createWithStart = (startManager) => {
+            const built = registry.create(null);
+            // The registry builds hosts with its own deps; swap in the one this test drives.
+            Object.defineProperty(built, 'startManager', { value: startManager, writable: true });
+            return built;
+        };
     });
 
     it('disposes its manager when the host is disposed', () => {
@@ -238,6 +245,72 @@ describe('ChatSessionHost — manager lifetime', () => {
 
             expect(first.disposed).to.equal(true);
             expect(disposed, 'the old manager\'s window handlers must not outlive it').to.equal(1);
+        });
+    });
+
+    /**
+     * PR #49 review. `wireManagerEvents` attaches and wires the manager *before* awaiting
+     * `manager.start()`, so a rejected start leaves the host already `live` holding a manager that
+     * never came up. `ensureStarted()` then short-circuits on `live` forever and the host can never
+     * recover — the session is permanently, silently dead.
+     */
+    describe('a start that fails', () => {
+        /**
+         * A host whose `startManager` attaches a manager and *then* rejects — which is exactly what
+         * the composition root does: `wireManagerEvents` attaches and wires before awaiting
+         * `manager.start()`, so startup events are not missed.
+         */
+        function hostWhoseStartRejects() {
+            const manager = makeFakeManager('half-started');
+            const host = registry.create(null);
+            registry.disposeHost(host);   // discard the plain one; build a wired one below
+            const wired = registry.createWithStart(() => {
+                wired.attachManager(manager);
+                return Promise.reject(new Error('CLI refused to start'));
+            });
+            return { host: wired, manager };
+        }
+
+        it('surfaces the failure rather than swallowing it', async () => {
+            const { host } = hostWhoseStartRejects();
+            let thrown = null;
+            try { await host.ensureStarted(); } catch (error) { thrown = error; }
+            expect(thrown).to.be.an('error');
+            expect(thrown.message).to.match(/refused/);
+        });
+
+        it('leaves the host retryable rather than falsely live', async () => {
+            const { host } = hostWhoseStartRejects();
+
+            try { await host.ensureStarted(); } catch { /* expected */ }
+
+            expect(host.isLive, 'the host stayed live holding a manager that never started')
+                .to.equal(false);
+        });
+
+        it('disposes the half-attached manager, so its CLI is not leaked', async () => {
+            const { host, manager } = hostWhoseStartRejects();
+
+            try { await host.ensureStarted(); } catch { /* expected */ }
+
+            expect(manager.disposed, 'a manager that failed to start was left running').to.equal(true);
+        });
+
+        it('actually retries on the next call instead of returning success', async () => {
+            // The bug: `live` was left true, so `ensureStarted()` short-circuited forever and the
+            // session was permanently dead with no way to bring it back.
+            let attempts = 0;
+            const manager = makeFakeManager('half-started');
+            const host = registry.createWithStart(() => {
+                attempts++;
+                host.attachManager(manager);
+                return Promise.reject(new Error('CLI refused to start'));
+            });
+
+            try { await host.ensureStarted(); } catch { /* expected */ }
+            try { await host.ensureStarted(); } catch { /* expected */ }
+
+            expect(attempts, 'the second call short-circuited instead of retrying').to.equal(2);
         });
     });
 

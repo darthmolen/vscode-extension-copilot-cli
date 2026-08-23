@@ -460,6 +460,18 @@ export class ChatSessionHost {
                 this.attachManager(manager);
                 this.live = true;
             })
+            .catch((error) => {
+                // The composition root attaches and wires the manager *before* awaiting
+                // `manager.start()`, so a rejection here leaves this host already `live` with a
+                // manager that never started. `ensureStarted()` would then return immediately
+                // forever and the host could never recover. Undo the half-attachment and rethrow.
+                this.logger.warn(
+                    `[ChatSessionHost ${this.handle}] session failed to start — resetting so it can be retried`
+                );
+                this.disposeManager();
+                this.live = false;
+                throw error;
+            })
             .finally(() => {
                 // Cleared either way: a failed start must leave the host retryable.
                 this.starting = undefined;
@@ -673,6 +685,14 @@ export class ChatSessionHost {
     private recordTool(toolState: any): void {
         if (!toolState?.toolCallId) {
             this.logger.warn(`[ChatSessionHost ${this.handle}] tool event with no toolCallId — not recorded`);
+            return;
+        }
+        // A sub-agent's tools belong to the dock, never the transcript — the standing product
+        // decision, and what the live renderer already does (`ToolExecution.handleToolStart`
+        // returns early on `agentId`). Recording them would make a re-init draw them flat, which
+        // neither the live path nor a replay from disk does: `agentId` is a live envelope field
+        // and is never persisted. See the review doc §9.
+        if (toolState.agentId) {
             return;
         }
         // Capped through the *same* function the replay uses, not a second copy of
@@ -928,7 +948,10 @@ export class ChatSessionHost {
      * cycle (§8).
      */
     private requireLive(gesture: string): boolean {
-        if (this.#manager) {
+        // `live`, not just `#manager`. `stop()` leaves the manager attached on purpose — the host
+        // stays restartable — so testing for the object alone let plan-mode verbs drive a session
+        // that had already been stopped, instead of saying it was not running.
+        if (this.#manager && this.live) {
             return true;
         }
         this.logger.warn(`[ChatSessionHost ${this.handle}] cannot ${gesture} — no active session`);

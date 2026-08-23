@@ -15,6 +15,8 @@
  */
 
 /** Everything the document needs that a caller must resolve against its webview. */
+import { randomBytes } from 'crypto';
+
 export interface ChatHtmlAssets {
     /** `asWebviewUri` result for `dist/webview/styles.css`. */
     styleUri: string;
@@ -31,14 +33,16 @@ export interface ChatHtmlAssets {
  *
  * One per document render. Reusing a nonce across renders would defeat the
  * point of having one.
+ *
+ * From a CSPRNG, not `Math.random()`. The nonce is the credential that authorises every inline and
+ * module script in this document, and `Math.random()` is seeded state an attacker who can observe
+ * one output can continue — which makes a guessable nonce a way past the CSP rather than a formality.
  */
 export function createNonce(): string {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
+    // Hex, not base64url: `-` and `_` sit outside the CSP grammar's base64-value, and the nonce
+    // has to survive being pasted into a `script-src 'nonce-…'` directive unambiguously. 16 bytes
+    // is 128 bits of entropy in 32 alphanumeric characters.
+    return randomBytes(16).toString('hex');
 }
 
 /**

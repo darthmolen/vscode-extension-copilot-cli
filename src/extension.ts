@@ -25,7 +25,7 @@ import { ChatSessionRegistry } from './extension/session/ChatSessionRegistry';
 import { ChatSessionHost } from './extension/session/ChatSessionHost';
 import { createChatSessionServices } from './extension/session/chatSessionServices';
 import { planSessionStart } from './extension/session/sessionStartPlan';
-import { planSessionSwitch } from './extension/session/sessionSwitchPlan';
+import { planSessionSwitch, planSessionTransfer } from './extension/session/sessionSwitchPlan';
 import { resolveCommandSurface } from './extension/webview/commandSurface';
 import { chooseStartupModel } from './extension/session/sessionModel';
 import { chooseSessionToResume } from './extension/session/sessionToResume';
@@ -550,10 +550,15 @@ function activeFileToSeed(): string | null {
 	if (!uri || (uri.scheme !== 'file' && uri.scheme !== 'untitled')) {
 		return null;
 	}
+	// `startsWith` is not containment: workspace `/repo` and file `/repo2/a.ts` share a prefix, and
+	// slicing by length yielded `2/a.ts` — a path to nothing, seeded into a new tab.
 	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-	return workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
-		? uri.fsPath.substring(workspaceRoot.length + 1)
-		: uri.fsPath;
+	if (!workspaceRoot) {
+		return uri.fsPath;
+	}
+	const relative = path.relative(workspaceRoot, uri.fsPath);
+	const insideWorkspace = relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+	return insideWorkspace ? relative : uri.fsPath;
 }
 
 /**
@@ -701,8 +706,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
 				return;
 			}
 			sidebarSurface.show();
-			await handleSwitchSession(context, sessionId, sidebarSurface);
-			surface.dispose();
+			await transferSessionToSidebar(context, sessionId, surface);
 		}),
 		vscode.commands.registerCommand('copilot-cli-extension.forkSession', async () => {
 			const surface = commandSurfaceOrExplain();
@@ -907,6 +911,48 @@ function noteSidebarChoice(
 	if (surface === sidebarSurface) {
 		recordSidebarSession(context, sessionId);
 	}
+}
+
+/**
+ * Move a session onto the sidebar and close the tab it came from.
+ *
+ * Not `handleSwitchSession`: that runs the collision rule, which correctly answers *reveal* for a
+ * session another surface is showing — so the command revealed the tab it had been asked to close,
+ * then disposed it, and the sidebar kept its old session. See `planSessionTransfer`.
+ */
+async function transferSessionToSidebar(
+	context: vscode.ExtensionContext,
+	sessionId: string,
+	from: WebviewChatSurface
+): Promise<void> {
+	const plan = planSessionTransfer(sessionId, sidebarHost, (id) => sessionRegistry.get(id));
+
+	if (plan.action === 'already-here') {
+		from.dispose();
+		return;
+	}
+	if (plan.action === 'resume') {
+		// Nothing live to move — the tab's host is gone. Bring it back on the sidebar.
+		logger.warn(`[Move to Sidebar] no live host for ${sessionId}; resuming it instead`);
+		await handleSwitchSession(context, sessionId, sidebarSurface);
+		from.dispose();
+		return;
+	}
+
+	// Detach the moving host from the tab *before* the tab is disposed, so its dispose handler
+	// cannot wind down the session we are in the middle of rescuing.
+	plan.host.detachSurface(from);
+	// The sidebar's own conversation loses its surface here, so it winds down like any orphan.
+	releaseCurrentHost(sidebarSurface);
+	plan.host.attachSurface(sidebarSurface);
+	sidebarSurface.setSessionHost(plan.host);
+	sidebarHost = plan.host;
+	recordSidebarSession(context, sessionId);
+	sidebarSurface.resetPlanMode();
+	sidebarSurface.sendInit();
+	updateSessionsList();
+	from.dispose();
+	logger.info(`[Move to Sidebar] ${sessionId} moved onto the sidebar from ${plan.host.handle}`);
 }
 
 /**
@@ -1160,7 +1206,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 		}
 		return manager;
 	} catch (error) {
-		await handleStartupError(error, context, resumeLastSession, specificSessionId);
+		await handleStartupError(error, context, resumeLastSession, specificSessionId, target);
 		throw error;
 	}
 }
@@ -1197,11 +1243,20 @@ function wireManagerEvents(manager: SDKSessionManager, owner: ChatSessionHost): 
 				}
 				break;
 			case 'exited':
-			case 'stopped':
+			case 'stopped': {
+				// The status bar is the *window's*, so it must reflect the window — not whichever
+				// session happened to stop. With two conversations open, ending a background tab
+				// used to report that the CLI had exited while the other one was still streaming.
+				const stillLive = sessionRegistry.liveHosts().filter(h => h !== owner && h.isLive).length;
+				if (stillLive > 0) {
+					logger.info(`[CLI Status] ${owner.handle} ended; ${stillLive} session(s) still live`);
+					break;
+				}
 				statusBarItem.text = "$(comment-discussion) CLI Exited";
 				statusBarItem.tooltip = "Copilot CLI ended";
 				vscode.window.showWarningMessage('Copilot CLI session ended');
 				break;
+			}
 			case 'session_expired':
 				logger.info(`Session expired, new session created: ${statusData.newSessionId}`);
 				vscode.window.showInformationMessage(`Session expired. New session started: ${statusData.newSessionId}`);
@@ -1367,8 +1422,13 @@ async function handleStartupError(
 	error: unknown,
 	context: vscode.ExtensionContext,
 	resumeLastSession: boolean,
-	specificSessionId?: string
+	specificSessionId?: string,
+	target: ChatSessionHost = sidebarHost
 ): Promise<void> {
+	// Report on the surface that actually failed. Every message below used to go to
+	// `sidebarSurface`, so a tab that could not authenticate left its own chat blank and put the
+	// error — and the retry button — in an unrelated conversation.
+	const surface = (target.getSurface() as WebviewChatSurface | undefined) ?? sidebarSurface;
 	const errorMessage = error instanceof Error ? error.message : String(error);
 	logger.error(`Failed to start CLI: ${errorMessage}`, error instanceof Error ? error : undefined);
 
@@ -1385,15 +1445,20 @@ async function handleStartupError(
 	statusBarItem.tooltip = "Copilot CLI authentication required";
 
 	if (enhancedError.hasEnvVar) {
-		await handleExpiredTokenError(context, enhancedError.envVarSource);
+		await handleExpiredTokenError(context, enhancedError.envVarSource, surface, target);
 	} else {
-		await handleNoAuthError(context, resumeLastSession, specificSessionId);
+		await handleNoAuthError(context, resumeLastSession, specificSessionId, surface, target);
 	}
 }
 
 /** Auth Scenario 2: Environment variable set but invalid/expired. */
-async function handleExpiredTokenError(context: vscode.ExtensionContext, envVarSource: string): Promise<void> {
-	sidebarSurface.addAssistantMessage(
+async function handleExpiredTokenError(
+	context: vscode.ExtensionContext,
+	envVarSource: string,
+	surface: WebviewChatSurface = sidebarSurface,
+	target: ChatSessionHost = sidebarHost
+): Promise<void> {
+	surface.addAssistantMessage(
 		`🔐 **Authentication Failed**\n\n` +
 		`Your \`${envVarSource}\` environment variable appears to be invalid or expired.\n\n` +
 		`**To fix this:**\n` +
@@ -1416,9 +1481,9 @@ async function handleExpiredTokenError(context: vscode.ExtensionContext, envVarS
 	} else if (action === 'Open Terminal') {
 		const terminal = vscode.window.createTerminal('Copilot Auth');
 		terminal.show();
-		sidebarSurface.addAssistantMessage(`Terminal opened. Update your \`${envVarSource}\` or unset it, then restart VS Code.`);
+		surface.addAssistantMessage(`Terminal opened. Update your \`${envVarSource}\` or unset it, then restart VS Code.`);
 	} else if (action === 'Start New Session') {
-		await startCLISession(context, false, undefined);
+		await startCLISession(context, false, undefined, target);
 	}
 }
 
@@ -1426,7 +1491,9 @@ async function handleExpiredTokenError(context: vscode.ExtensionContext, envVarS
 async function handleNoAuthError(
 	context: vscode.ExtensionContext,
 	resumeLastSession: boolean,
-	specificSessionId?: string
+	specificSessionId?: string,
+	surface: WebviewChatSurface = sidebarSurface,
+	target: ChatSessionHost = sidebarHost
 ): Promise<void> {
 	const ssoSlug = vscode.workspace.getConfiguration('copilotCLI').get<string>('ghSsoEnterpriseSlug', '');
 
@@ -1446,7 +1513,7 @@ async function handleNoAuthError(
 		}
 		terminal.show();
 
-		sidebarSurface.addAssistantMessage(
+		surface.addAssistantMessage(
 			'🔐 **Authentication Required**\n\n' +
 			'A terminal has been opened with the `copilot login` command. Please:\n\n' +
 			'1. Complete the device code flow in your browser\n' +
@@ -1460,10 +1527,10 @@ async function handleNoAuthError(
 			'Start New Session'
 		);
 		if (retryAction === 'Start New Session') {
-			await startCLISession(context, false, undefined);
+			await startCLISession(context, false, undefined, target);
 		}
 	} else if (action === 'Retry') {
-		await startCLISession(context, resumeLastSession, specificSessionId);
+		await startCLISession(context, resumeLastSession, specificSessionId, target);
 	}
 }
 

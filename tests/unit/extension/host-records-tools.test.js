@@ -140,12 +140,43 @@ describe('a host records its session\'s tool calls', () => {
             .to.deep.equal(['assistant', 'tool', 'assistant']);
     });
 
-    it('carries the sub-agent tag, so replay and live agree about what belongs in the dock', () => {
+    /**
+     * Reversed by the PR #49 review and the decision in §9 of the review doc.
+     *
+     * This used to assert the `agentId` was *carried*, on the theory that replay and live should
+     * agree about it. They do agree — by excluding it. A sub-agent's tools belong to the dock, which
+     * is the standing product decision and what the live renderer already does
+     * (`ToolExecution.handleToolStart` returns early on `agentId`).
+     *
+     * Recording them made a re-init draw them flat in the main transcript, which **neither** other
+     * path does: `agentId` is an SDK envelope field and is never written to `events.jsonl`, so a
+     * replay from disk cannot produce one either.
+     */
+    it('does not record a sub-agent\'s tools — those belong to the dock', () => {
         const { host, manager } = live('session-a');
 
         manager.emit('onDidStartTool', { ...aStart('call-1'), agentId: 'agent-7' });
 
-        expect(toolsIn(host)[0].agentId).to.equal('agent-7');
+        expect(toolsIn(host), 'a sub-agent tool leaked into the main transcript').to.have.lengthOf(0);
+    });
+
+    it('still records the parent session\'s own tools alongside a sub-agent\'s', () => {
+        const { host, manager } = live('session-a');
+
+        manager.emit('onDidStartTool', { ...aStart('call-1', 'bash') });
+        manager.emit('onDidStartTool', { ...aStart('call-2', 'task'), agentId: 'agent-7' });
+
+        expect(toolsIn(host).map(m => m.tool.toolCallId)).to.deep.equal(['call-1']);
+    });
+
+    it('ignores a sub-agent tool\'s completion too, rather than resurrecting it', () => {
+        const { host, manager } = live('session-a');
+        const subTool = { ...aStart('call-1'), agentId: 'agent-7' };
+
+        manager.emit('onDidStartTool', subTool);
+        manager.emit('onDidCompleteTool', { ...subTool, status: 'complete' });
+
+        expect(toolsIn(host)).to.have.lengthOf(0);
     });
 
     it('records into its own session and no other', () => {

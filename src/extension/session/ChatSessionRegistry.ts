@@ -44,7 +44,7 @@ export class ChatSessionRegistry {
      * to `disposeAll()`, stranding their subscriptions on the one path where
      * something already went wrong.
      */
-    private readonly liveHosts = new Set<ChatSessionHost>();
+    private readonly liveHostSet = new Set<ChatSessionHost>();
     /** Secondary index. Only hosts that have adopted an id appear here. */
     private readonly hostsBySessionId = new Map<string, ChatSessionHost>();
     /** Monotonic, never reused — a disposed host's handle must not reappear in logs. */
@@ -104,12 +104,12 @@ export class ChatSessionRegistry {
             }
         });
 
-        this.liveHosts.add(host);
+        this.liveHostSet.add(host);
         if (sessionId) {
             this.hostsBySessionId.set(sessionId, host);
         }
         this.logger.info(
-            `[ChatSessionRegistry] host created for ${sessionId ?? '(no session yet)'} (${this.liveHosts.size} live)`
+            `[ChatSessionRegistry] host created for ${sessionId ?? '(no session yet)'} (${this.liveHostSet.size} live)`
         );
         return host;
     }
@@ -121,7 +121,7 @@ export class ChatSessionRegistry {
 
     /** How many hosts are live, pending ones included. */
     public get size(): number {
-        return this.liveHosts.size;
+        return this.liveHostSet.size;
     }
 
     /**
@@ -136,7 +136,7 @@ export class ChatSessionRegistry {
      * you can switch to.
      */
     public liveSessionIds(): string[] {
-        return [...this.liveHosts].map(host => host.sessionId).filter((id): id is string => id !== null);
+        return [...this.liveHostSet].map(host => host.sessionId).filter((id): id is string => id !== null);
     }
 
     /**
@@ -147,8 +147,13 @@ export class ChatSessionRegistry {
      * tab's host is alive and winding down, and it is not a chat you can be
      * looking at.
      */
+    /** Every host this window holds, surfaced or not. */
+    public liveHosts(): ChatSessionHost[] {
+        return [...this.liveHostSet];
+    }
+
     public hostsWithSurfaces(): ChatSessionHost[] {
-        return [...this.liveHosts].filter(host => host.getSurface() !== undefined);
+        return [...this.liveHostSet].filter(host => host.getSurface() !== undefined);
     }
 
     public dispose(sessionId: string): void {
@@ -161,24 +166,29 @@ export class ChatSessionRegistry {
 
     /** Dispose by identity — the only way to reach a host that has no session id. */
     public disposeHost(host: ChatSessionHost): void {
-        if (!this.liveHosts.delete(host)) {
+        if (!this.liveHostSet.delete(host)) {
             return;
         }
-        if (host.sessionId) {
+        // By identity, not by key. `reindex` deliberately lets a newcomer take a session id while
+        // the incumbent stays live under its own handle — so deleting the key here would strip the
+        // *newcomer's* mapping when the incumbent is later disposed, and every later lookup would
+        // miss a session that is still running and create a second host for it.
+        if (host.sessionId && this.hostsBySessionId.get(host.sessionId) === host) {
             this.hostsBySessionId.delete(host.sessionId);
         }
         host.dispose();
     }
 
     public disposeAll(): void {
-        for (const host of [...this.liveHosts]) {
+        for (const host of [...this.liveHostSet]) {
             this.disposeHost(host);
         }
     }
 
     /** Keep the id index honest when a host takes on (or changes) its session id. */
     private reindex(host: ChatSessionHost, previousSessionId: string | null): void {
-        if (previousSessionId) {
+        // Same rule as `disposeHost`: only drop the old key if it still points at *this* host.
+        if (previousSessionId && this.hostsBySessionId.get(previousSessionId) === host) {
             this.hostsBySessionId.delete(previousSessionId);
         }
         if (!host.sessionId) {

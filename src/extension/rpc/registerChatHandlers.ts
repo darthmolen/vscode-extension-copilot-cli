@@ -290,7 +290,11 @@ export function registerChatHandlers(ctx: ChatHandlerContext): void {
 			
 			// This surface's session, not the window's most recent one.
 			const sessionId = ctx.sessionHost?.sessionId ?? null;
-			const workspacePath = ctx.sessionHost?.workspace.getWorkspacePath() || ctx.currentWorkspacePath || null;
+			// The *VS Code* workspace, first. `workspace.getWorkspacePath()` is filled from
+			// `manager.getWorkspacePath()`, which is the SDK's session-state directory — see
+			// `sessionBootstrap.ts`, which says so in its own comment. Preferring it opened the
+			// terminal in `~/.copilot/session-state/<id>` instead of the repository.
+			const workspacePath = ctx.currentWorkspacePath || null;
 
 			if (!sessionId) {
 				ctx.rpcRouter!.addAssistantMessage('No active session. Please start a session first.');
