@@ -16,7 +16,7 @@ And you don't have to choose. Sessions created in this extension appear in the o
 
 ## ✨ Features
 
-### 🗂 Chat in a Tab (v3.13.0)
+### 🗂 Chat in a Tab (v4.0.0)
 
 Open a full chat as an **editor tab** — same UI, same slash commands, same sub-agent dock — and run
 two conversations at once. Each streams only its own output; nothing bleeds between them.

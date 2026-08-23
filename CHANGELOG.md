@@ -4,11 +4,18 @@ All notable changes to the Copilot CLI Chat extension.
 
 ## [Unreleased]
 
-## [3.13.0] - 2026-08-23
+## [4.0.0] - 2026-08-23
 
 The largest refactor since 1.x → 2.x, and the first release where the visible feature is the smaller
 half. The narrative — what the codebase gained and why — is
 [`documentation/3.13-README.md`](documentation/3.13-README.md).
+
+**Why this is a major, when nothing you rely on breaks.** No setting was removed, no command was
+removed, and no configuration you have written stops working — upgrading should cost you nothing.
+The number reflects the rewrite underneath: `chatViewProvider.ts` went from 1,011 lines to 38, the
+module-level session handle is gone, and 75 call sites were rerouted through a private field so the
+session layer can move behind a process boundary. Calling that a minor would have left this project
+with no word for what it actually was. It was planned as v3.13.0 and renumbered before release.
 
 ### Added
 
