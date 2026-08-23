@@ -384,3 +384,67 @@ missing chips remain **unexplained**, and a reboot is what cleared them.
 | Defect A — fix and its tests | **reviewed and endorsed** |
 | Defect A explains the missing chips | **no** — asserted by both reviewers, supported by neither |
 | The missing chips | **still unexplained.** Not seen since; the webview console (`main.js:458`) settles it if it recurs |
+
+---
+
+## 9. The sub-agent replay decision — settled 2026-08-23
+
+Three suppressed review comments converged on this, and it is claim 10. **The review's diagnosis is
+right about the inconsistency and wrong about where it comes from**, which shrinks the fix from a
+design problem to one line.
+
+### What the event log actually contains
+
+Measured against a real `events.jsonl` with sub-agents in it:
+
+| | |
+| --- | --- |
+| Events carrying `agentId` | **none — zero** |
+| `subagent.started` / `subagent.completed` | present, keyed by `toolCallId` |
+| The sub-agent's **own** tools and messages | **not in the parent log at all** (41 tool starts, all the parent's) |
+
+`agentId` is an SDK **envelope** field on the live wire. It is never persisted. A sub-agent runs in
+its own subprocess with its own session, and the parent's log records only that one started and
+finished.
+
+Two things follow immediately:
+
+- **Disk replay was never the problem.** It cannot render sub-agent tools into the flat transcript,
+  because they are not in the log and nothing on disk carries `agentId`.
+  `sessionTranscriptBuilder.ts:106` (`if (event.agentId)`) is **dead on the replay path** — harmless,
+  and defensive if the CLI ever persists it, but it has never fired.
+- **The inconsistency is one I introduced today.** `ChatSessionHost.recordTool` records the *live*
+  tool payload, `agentId` included, into `host.state`. So a live re-init — a sidebar hide/show — now
+  renders sub-agent tools into the flat transcript, which the live path
+  (`ToolExecution.handleToolStart`, `if (toolState.agentId) return`) deliberately does not.
+
+### The options, and why the third is impossible
+
+| | Approach | Verdict |
+| --- | --- | --- |
+| **A** | Do not record `agentId` tools in the transcript at all | **chosen** |
+| B | Record them, add a matching `agentId` filter to `MessageDisplay`'s replay path | rejected |
+| C | Record them and give the dock a replay path | **not possible** |
+
+**C is not available.** A dock replay would work after a sidebar re-resolve (the live tools are in
+`host.state`) and be empty after a window reload (nothing on disk). A dock that repopulates on one
+path and not the other is worse than one that consistently does not — the user cannot tell which
+kind of restore they just had.
+
+**B is rejected on this cycle's own lesson.** It creates a second filter that has to stay in step
+with `ToolExecution.handleToolStart` by memory, which is the exact failure mode that produced three
+init payloads and two argument formatters in this codebase.
+
+**A is consistent by construction.** The transcript then agrees with the live render *and* with the
+disk replay, because all three exclude sub-agent tools. It also matches the standing product
+decision recorded in `documentation/3.13-README.md`: `agentId`-tagged content goes to the dock and
+the pop-out, never the main transcript — deliberately, because that is what keeps a sub-agent's
+traffic from muddying the conversation.
+
+**What it costs:** nothing that exists today. The dock already loses its history on any webview
+re-render, on every path, and always has — because the data to rebuild it has never been persisted.
+Option A does not make that worse; it stops the transcript from *pretending* otherwise.
+
+**If the dock's history is wanted later**, the prerequisite is persistence, not rendering: either the
+CLI writes sub-agent interior traffic to the parent log, or we record it ourselves off the live
+stream into something durable. That is a feature, and it is filed rather than smuggled into a fix.
