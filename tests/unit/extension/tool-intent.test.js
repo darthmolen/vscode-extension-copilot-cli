@@ -20,25 +20,26 @@
  * `toolCallId` removes the guess.
  */
 
-const Module = require('module');
-const originalRequire = Module.prototype.require;
-
-Module.prototype.require = function (id) {
-    if (id === 'vscode') {
-        return require('../../helpers/vscode-mock');
-    }
-    return originalRequire.apply(this, arguments);
-};
-
 const assert = require('assert');
 const path = require('path');
+const { installVscodeMock } = require('../../helpers/with-vscode-mock');
 
 describe('collectToolIntents', function () {
+    // Scoped, not module-scope: patching `Module.prototype.require` and leaving it
+    // is one of the documented globals that leak across files in this suite, and
+    // the reason a green run proves so little. The helper puts back exactly what it
+    // found and evicts what loaded under the mock.
+    const mock = installVscodeMock();
     let collectToolIntents;
 
     before(function () {
+        mock.install();
         const mod = require(path.join(__dirname, '../../..', 'out', 'sdkSessionManager.js'));
         collectToolIntents = mod.collectToolIntents;
+    });
+
+    after(function () {
+        mock.restore();
     });
 
     it('keys each intention summary by its tool call id', function () {

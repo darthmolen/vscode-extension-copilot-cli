@@ -208,7 +208,7 @@ describe('ModelSelector Component', () => {
 		it('should render dynamic models in dropdown', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
-				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6' },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
 				{ id: 'gpt-5', name: 'GPT-5' },
 				{ id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview' },
 			]);
@@ -228,7 +228,7 @@ describe('ModelSelector Component', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
 				{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', multiplier: 0.5 },
-				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6', multiplier: 1.0 },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5', multiplier: 1.0 },
 				{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', multiplier: 3.0 },
 			]);
 			selector.setModel('claude-sonnet-5');
@@ -259,7 +259,7 @@ describe('ModelSelector Component', () => {
 		it('should emit modelSelected for dynamic model selection', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
-				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6' },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
 				{ id: 'gpt-5', name: 'GPT-5' },
 			]);
 			selector.setModel('claude-sonnet-5');
