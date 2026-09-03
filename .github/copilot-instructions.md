@@ -557,7 +557,8 @@ npx @vscode/vsce ls copilot-cli-extension-3.0.0.vsix | grep MyComponent
 | `sdkSessionManager.ts` | **Backend** SDK session lifecycle | Manages work/plan sessions, event handlers, custom tools for plan mode |
 | `chatViewProvider.ts` | **Frontend** Webview UI | Contains HTML/CSS/JS as strings, renders chat messages, tool calls, message passing |
 | `backendState.ts` | Centralized state management | In-memory state that persists across webview recreations |
-| `sessionUtils.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/`, filters by workspace |
+| `extension/services/SessionService.ts` | Session discovery/filtering | Reads `~/.copilot/session-state/`, filters by workspace folder. Replaced `sessionUtils.ts`, deleted in v4.1.0 as a dead duplicate that carried its own copy of the same bug |
+| `extension/session/sessionPairing.ts` | Work↔plan pairing | The **only** place allowed to know what the `-plan` suffix means. Do not match it anywhere else |
 | `logger.ts` | Logging to Output Channel | Use `Logger.getInstance()` everywhere |
 | `modelCapabilitiesService.ts` | Model capabilities and validation | Manages model info caching, attachment validation |
 
@@ -649,11 +650,21 @@ session = planSession;  // <session-id>-plan
 ```
 
 **Key Implementation:**
-- `enablePlanMode()`: Creates plan session with restricted tools
-- `disablePlanMode()`: Resumes work session
+- `enablePlanMode()`: **resumes** the plan session when it already has a transcript, creates one only
+  on first entry. Re-creating an existing id does *not* continue it — the SDK appends a second
+  `session.start` and hands the model an empty context, which is how re-entering plan mode used to
+  lose the planning conversation. `resumeSession` restores it, and still enforces `availableTools`.
+- `disablePlanMode()`: resumes the work session — or **creates** it, under the derived id, when there
+  is none. Starting cold into plan mode never makes a work session; this is the one moment it is
+  needed.
+- Startup does not resurrect the work session to restore plan mode. It resumes the plan session
+  directly. A work session abandoned for plan mode before any message has a directory but no
+  transcript, and `session.resume` answers `Session not found`.
 - Plan session writes to work session's `plan.md` file
 - No 2x cost: only one session active at a time
 - ACE-FCA aligned: isolated planning context
+- Evidence for all of the above: `planning/spikes/plan-session-reuse/FINDINGS.md`, and the v4.1.0
+  amendment in `documentation/ADRS/ADR-003-SEPARATE-PLANNING-SESSION.md`
 
 **Plan Mode Tools:**
 

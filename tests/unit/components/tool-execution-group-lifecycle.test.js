@@ -60,6 +60,54 @@ describe('ToolExecution - Tool Group Lifecycle', () => {
         return container.querySelector(`[data-tool-id="${id}"]`);
     }
 
+    describe('Turn end closes the current tool group', () => {
+        // The boundary that does not depend on how the model writes.
+        //
+        // Closing was driven entirely by an assistant message carrying visible
+        // content. That held only while the model narrated in separate messages --
+        // a habit it had while `report_intent` existed, because it discharged its
+        // narration into that tool call. Without it the model inlines narration
+        // alongside toolRequests, which sdkSessionManager suppresses as a
+        // mid-thought fragment (ADR-006 Decision 3). Nothing then carries content,
+        // nothing closes, and every tool in the session piles into one accordion.
+        //
+        // Measured on a real run: 41 turn ends against 2 content-bearing messages.
+        // A tool group belongs to a turn, so that is what ends it.
+
+        it('starts a new group on the next turn', () => {
+            emitToolStart('t1');
+            const first = container.querySelector('.tool-group');
+
+            eventBus.emit('turn:end', { turnId: 'turn-1' });
+            emitToolStart('t2');
+
+            const groups = container.querySelectorAll('.tool-group');
+            expect(groups).to.have.length(2);
+            expect(groups[0]).to.equal(first);
+        });
+
+        it('closes even when no message ever carried content', () => {
+            // The exact shape that broke: tools and suppressed narration only.
+            emitToolStart('t1');
+            eventBus.emit('message:add', { role: 'assistant', content: '' });
+            emitToolStart('t2');
+            expect(container.querySelectorAll('.tool-group')).to.have.length(1);
+
+            eventBus.emit('turn:end', { turnId: 'turn-1' });
+            emitToolStart('t3');
+
+            expect(container.querySelectorAll('.tool-group')).to.have.length(2);
+        });
+
+        it('does not fragment a turn that is still running', () => {
+            emitToolStart('t1');
+            emitToolStart('t2');
+            emitToolStart('t3');
+
+            expect(container.querySelectorAll('.tool-group')).to.have.length(1);
+        });
+    });
+
     describe('Assistant message closes current tool group', () => {
         it('should create a new tool group after assistant message', () => {
             // First round of tools

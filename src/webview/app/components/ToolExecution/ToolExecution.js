@@ -42,6 +42,16 @@ export class ToolExecution {
             }
         });
 
+        // The boundary that does not depend on how the model writes. Closing on a
+        // content-bearing message alone held only while the model narrated in
+        // separate messages -- a habit it had while `report_intent` existed. Without
+        // it, narration arrives inline with toolRequests and is suppressed as a
+        // mid-thought fragment, so nothing carries content and every tool in the
+        // session piles into one accordion. A tool group belongs to a turn.
+        this.eventBus.on('turn:end', () => {
+            this.closeCurrentToolGroup();
+        });
+
         this.eventBus.on('tool:start', (data) => {
             this.handleToolStart(data);
         });

@@ -105,7 +105,6 @@ src/
 ├── extension.ts                           # Main entry point (1089 lines)
 ├── logger.ts                              # Structured logging
 ├── backendState.ts                        # Single source of truth for session state
-├── sessionUtils.ts                        # Session file I/O utilities
 ├── authUtils.ts                           # Authentication helpers
 ├── chatViewProvider.ts                    # WebviewViewProvider for sidebar
 ├── sdkSessionManager.ts                   # Copilot SDK session lifecycle (2591 lines)

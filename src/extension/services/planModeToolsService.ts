@@ -36,8 +36,12 @@ export const PLAN_MODE_AVAILABLE_TOOLS: readonly string[] = [
     'grep',                        // search content
     'glob',                        // find files
     'web_fetch',                   // fetch URLs
-    'fetch_copilot_cli_documentation', // get CLI docs
-    'report_intent',               // report intent to UI
+    // Removed on CLI 1.0.80: both earn `Unknown tool name in the tool allowlist`
+    // from the CLI, which validates this list. They were never our custom tools --
+    // they were assumed to be CLI built-ins, and are not. Re-add here AND in the
+    // system prompt together if a future CLI brings them back.
+    //   'fetch_copilot_cli_documentation'
+    //   'report_intent'
 ];
 
 // Dynamic import for SDK
@@ -561,8 +565,6 @@ This is your dedicated workspace for planning.
 *Documentation & Skills Tools:*
 - \`skill\` - Invoke a skill by name (e.g. skill("test-driven-development"))
 - \`web_fetch\` - Fetch web pages and documentation
-- \`fetch_copilot_cli_documentation\` - Get Copilot CLI documentation
-- \`report_intent\` - Report your current intent to the UI
 
 **CRITICAL: HOW TO CREATE YOUR PLAN**
 You MUST use ONLY these tools to create/update your plan:

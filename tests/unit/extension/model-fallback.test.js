@@ -21,6 +21,7 @@ const assert = require('assert');
 const path = require('path');
 
 describe('Smart Model Fallback', function () {
+    let resolveActiveModel;
     this.timeout(10000);
 
     let selectFallbackModel, MODEL_PREFERENCE_ORDER, FALLBACK_MODEL;
@@ -53,6 +54,7 @@ describe('Smart Model Fallback', function () {
     before(function () {
         try {
             const sdkModule = require('../../../out/sdkSessionManager.js');
+            resolveActiveModel = sdkModule.resolveActiveModel;
             selectFallbackModel = sdkModule.selectFallbackModel;
             MODEL_PREFERENCE_ORDER = sdkModule.MODEL_PREFERENCE_ORDER;
             FALLBACK_MODEL = sdkModule.FALLBACK_MODEL;
@@ -160,6 +162,42 @@ describe('Smart Model Fallback', function () {
             const result = await selectFallbackModel(service, new Set(), mockLogger);
 
             assert.strictEqual(result, 'auto');
+        });
+    });
+
+    describe('resolveActiveModel', function () {
+        // The UI used to report `copilotCLI.model` -- the *setting* -- while the
+        // session ran on something else. When the requested model does not exist,
+        // the fallback quietly switches to `auto` and the CLI says so in
+        // `session.start.selectedModel`, but nothing adopted it. So the dropdown
+        // kept showing a dead model, and vision/attachment limits were computed
+        // against a model that is not in the catalogue at all.
+        //
+        // The CLI's reported model is the authority. This decides when to adopt it.
+
+        it('adopts the reported model when it differs from what is tracked', function () {
+            assert.strictEqual(resolveActiveModel('auto', 'claude-sonnet-4.6'), 'auto');
+        });
+
+        it('returns null when the reported model already matches', function () {
+            assert.strictEqual(resolveActiveModel('auto', 'auto'), null);
+        });
+
+        it('adopts the reported model when nothing is tracked yet', function () {
+            assert.strictEqual(resolveActiveModel('claude-sonnet-5', null), 'claude-sonnet-5');
+        });
+
+        it('ignores a missing reported model rather than clearing what is tracked', function () {
+            // Older CLIs, and some events, carry no selectedModel. Losing the
+            // tracked model there would blank the dropdown for no reason.
+            assert.strictEqual(resolveActiveModel(undefined, 'claude-sonnet-5'), null);
+            assert.strictEqual(resolveActiveModel(null, 'claude-sonnet-5'), null);
+            assert.strictEqual(resolveActiveModel('', 'claude-sonnet-5'), null);
+        });
+
+        it('ignores a non-string reported model', function () {
+            assert.strictEqual(resolveActiveModel(42, 'claude-sonnet-5'), null);
+            assert.strictEqual(resolveActiveModel({ id: 'x' }, 'claude-sonnet-5'), null);
         });
     });
 

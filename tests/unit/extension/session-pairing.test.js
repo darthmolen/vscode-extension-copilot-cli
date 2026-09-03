@@ -31,7 +31,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { resolvePairings } = require(
+const { resolvePairings, resolveStartupPairing } = require(
     path.join(__dirname, '../../..', 'out', 'extension', 'session', 'sessionPairing.js')
 );
 
@@ -96,6 +96,74 @@ describe('session-pairing.json', () => {
         SessionService.writeSessionPairing(planDir, 'work');
 
         expect(fs.readFileSync(path.join(planDir, 'session-name.txt'), 'utf-8')).to.equal('A plan');
+    });
+});
+
+describe('resolveStartupPairing', () => {
+    // Startup asks about exactly one session, exactly once: the id it is about to
+    // resume. That is not the loop the batch-only rule exists to prevent, and the
+    // alternative -- stripping `-plan` at the call site -- is precisely the fourth
+    // raw reader of the convention this module was written to stop.
+    let dir;
+
+    beforeEach(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'startup-pairing-'));
+    });
+
+    afterEach(() => {
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    function makeSession(id, pairing) {
+        fs.mkdirSync(path.join(dir, id), { recursive: true });
+        if (pairing !== undefined) {
+            fs.writeFileSync(
+                path.join(dir, id, 'session-pairing.json'),
+                JSON.stringify({ workSessionId: pairing })
+            );
+        }
+    }
+
+    it('calls a bare session work, and its own work id', () => {
+        makeSession('abc');
+        expect(resolveStartupPairing(dir, 'abc')).to.deep.equal({ role: 'work', workId: 'abc' });
+    });
+
+    it('resolves a plan half to its work id even when the parent has no transcript', () => {
+        // The case that broke: the work session was created, never messaged, and
+        // so cannot be resumed -- but it is still the correct parent id.
+        makeSession('abc');
+        makeSession('abc-plan', 'abc');
+        expect(resolveStartupPairing(dir, 'abc-plan')).to.deep.equal({ role: 'plan', workId: 'abc' });
+    });
+
+    it('resolves a plan half whose parent directory does not exist at all', () => {
+        // Unlike the dropdown, startup is not bucketing for display: it needs the
+        // parent id so it can mint that work session later, so an absent parent
+        // must still resolve rather than collapsing to the plan id.
+        makeSession('abc-plan', 'abc');
+        expect(resolveStartupPairing(dir, 'abc-plan')).to.deep.equal({ role: 'plan', workId: 'abc' });
+    });
+
+    it('falls back to the suffix when there is no record', () => {
+        makeSession('abc-plan');
+        expect(resolveStartupPairing(dir, 'abc-plan')).to.deep.equal({ role: 'plan', workId: 'abc' });
+    });
+
+    it('lets a record correct a misleading suffix', () => {
+        // A work session the user happened to name `...-plan`, whose record names
+        // itself, is a work session.
+        makeSession('weird-plan', 'weird-plan');
+        expect(resolveStartupPairing(dir, 'weird-plan')).to.deep.equal({
+            role: 'work', workId: 'weird-plan'
+        });
+    });
+
+    it('never throws on a directory that does not exist', () => {
+        expect(() => resolveStartupPairing(path.join(dir, 'nope'), 'abc-plan')).to.not.throw();
+        expect(resolveStartupPairing(path.join(dir, 'nope'), 'abc-plan')).to.deep.equal({
+            role: 'plan', workId: 'abc'
+        });
     });
 });
 
@@ -201,14 +269,23 @@ describe('resolvePairings', () => {
     });
 
     describe('the shape of the API', () => {
-        it('exposes no per-id resolver beside the batch one', () => {
-            // A per-id API that is only ever called in a loop is the shape that
-            // grows a cache later, and the cache is where the staleness bugs live.
+        it('exposes only the batch resolver and the single-shot startup one', () => {
+            // The rule this guards, stated as the module states it: a per-id API
+            // *only ever called in a loop* is the shape that grows a cache later,
+            // and the cache is where the staleness bugs live.
+            //
+            // `resolveStartupPairing` is exempt because it is not that: startup
+            // calls it once, for the one id it is about to resume. Refusing it
+            // would not remove the per-id question, only move it -- into a raw
+            // `endsWith('-plan')` in `sdkSessionManager`, which is the fourth
+            // uncoordinated reader of the convention this module exists to stop.
+            //
+            // Still an exact list, so a third export has to argue for itself here.
             const module = require(
                 path.join(__dirname, '../../..', 'out', 'extension', 'session', 'sessionPairing.js')
             );
-            expect(Object.keys(module).filter(k => typeof module[k] === 'function'))
-                .to.deep.equal(['resolvePairings']);
+            expect(Object.keys(module).filter(k => typeof module[k] === 'function').sort())
+                .to.deep.equal(['resolvePairings', 'resolveStartupPairing']);
         });
 
         it('does not offer planIdsFor — nothing needs parent→children', () => {

@@ -52,7 +52,8 @@ describe('SDKSessionManager — sub-agent events', function () {
 				correlateToToolCallId: () => {},
 			},
 			toolExecutions: new Map(),
-			lastMessageIntent: undefined,
+			// toolCallId -> intentionSummary, consumed as each tool starts.
+			toolIntents: new Map(),
 			// The dispatcher delegates to these instance methods via `this.*`.
 			handleToolStart: SDKSessionManager.prototype.handleToolStart,
 			_started: started,

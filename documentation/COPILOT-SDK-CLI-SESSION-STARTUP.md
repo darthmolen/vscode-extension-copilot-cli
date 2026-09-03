@@ -93,7 +93,7 @@ If `plan.reuseRunning` → return early (nothing to do).
 const sessionId = chooseSessionToResume({
     recorded: context.workspaceState.get(SIDEBAR_SESSION_KEY),  // the user's last explicit choice
     mostRecent: SessionService.getMostRecentSession(sessionStateDir, workspaceFolder, filterByFolder, liveSessionIds),
-    isAvailable: (id) => !liveSessionIds.includes(id) && fs.existsSync(path.join(sessionStateDir, id))
+    isAvailable: (id) => !liveSessionIds.includes(id) && SessionService.isRestorable(sessionStateDir, id)
 });
 ```
 
@@ -102,6 +102,27 @@ const sessionId = chooseSessionToResume({
 2. **`mostRecent`** — mtime-most-recent session on disk (fallback)
 
 Sessions already showing in another surface (`liveSessionIds`) are excluded from both candidates.
+
+> **A directory is not a session — but "resumable" is not the test either.** `isAvailable` first
+> tested `fs.existsSync(<dir>)`, which is weaker than the `events.jsonl` test `getMostRecentSession`
+> applies: a work session abandoned for plan mode before any message has a directory and no
+> transcript, and `session.resume` answers `Session not found` — the "Previous session not found"
+> dialog.
+>
+> Tightening both paths to `hasSessionHistory()` then broke the other direction. Bringing back a
+> **work** session means `session.resume`, which needs a transcript. Restoring a **plan** session means
+> `enablePlanMode()`, which *creates* the plan session when there is none — so it needs only the work
+> id the pairing gives it. Enter plan mode, close VS Code before typing anything, and the paired plan
+> session has no transcript; requiring one discarded a real "I was planning" intent and fell back to a
+> stale work session.
+>
+> `SessionService.isRestorable()` holds both rules: transcript required for work, pairing sufficient
+> for plan. (v4.1.0)
+
+**What gets recorded.** `recordSidebarSession` fires when a session starts, when the user switches,
+and — since v4.1.0 — on `plan_mode_enabled` / `plan_mode_disabled`, so the record names the half that
+is actually active. Without that last one the record kept naming the work half and plan mode silently
+never came back after a restart.
 
 ### Step 3c: Load transcript (if resuming)
 
@@ -169,6 +190,35 @@ this.client = new CopilotClient({
 
 Then: `await this.modelCapabilitiesService.initialize(this.client)`
 
+### If the session is a plan half — restore plan mode
+
+Checked first, before any resume. The role comes from `resolveStartupPairing(stateDir, sessionId)` —
+never from an `endsWith('-plan')` here; `sessionPairing.ts` is the only module allowed to know that
+convention, and this file was the reader that taught the others by example.
+
+```typescript
+const startupPairing = this.sessionId ? resolveStartupPairing(startupStateDir, this.sessionId) : null;
+const restoringPlanMode = startupPairing?.role === 'plan';
+if (restoringPlanMode) {
+    this.sessionId = startupPairing.workId;   // enablePlanMode() derives from this
+}
+```
+
+When restoring:
+
+1. **No work session is resumed or created.** `this.session` stays `null`;
+   `setupSessionEventHandlers()` already no-ops on that.
+2. `enablePlanMode()` runs **before** the `ready` event — it resumes the plan session (conversation
+   and tool restrictions intact) and calls `setActiveSession(planSession)`.
+3. `ready` then fires carrying the **plan** session id, so the surface never sees a work id that is
+   not live.
+4. The work session is minted later, by `disablePlanMode()`, under the *derived* id — keeping the
+   `<work>-plan` pairing and `plan.md` attached rather than orphaning them behind a fresh UUID.
+
+Why not resume the work session first, as v4.0.0 did? Because it may not be resumable: entering plan
+mode before sending anything leaves a work directory with no transcript. That path produced the
+"Previous session not found" dialog. Evidence: `planning/spikes/plan-session-reuse/`.
+
 ### If `sessionId` exists — resume path
 
 1. `attemptSessionResumeWithUserRecovery(sessionId, resumeOptions)`:
@@ -211,7 +261,9 @@ Session config passed to `createSession()`:
    - `setupSessionEventHandlers()` — subscribes to `session.on()` for all SDK events
    - `attachClientLifecycleListeners()` — wires stderr, exit, connection lifecycle
 4. `await this.updateModelCapabilities()`
-5. **🟢 Emit `ready`:**
+5. If restoring plan mode: `await this.enablePlanMode()` — **before** `ready`, so the id announced is
+   the plan session's
+6. **🟢 Emit `ready`:**
    ```typescript
    this._onDidChangeStatus.fire({ status: 'ready', sessionId: this.sessionId });
    ```

@@ -16,6 +16,7 @@ import { Logger, LoggerLike } from './logger';
 import type { HostBridge, MessageEnhancerLike } from './extension/hostBridge';
 import { NoopMessageEnhancer } from './extension/hostBridge';
 import { SessionService } from './extension/services/SessionService';
+import { resolveStartupPairing } from './extension/session/sessionPairing';
 import { SignalEmitter } from './utilities/signalEmitter';
 import * as os from 'os';
 import { ModelCapabilitiesService } from './extension/services/modelCapabilitiesService';
@@ -79,6 +80,54 @@ export const MODEL_PREFERENCE_ORDER = [
     'gpt-5-mini',
     'claude-opus-4.8',
 ];
+
+/**
+ * Per-tool-call intent, keyed by the id `tool.execution_start` will report.
+ *
+ * Replaces the `report_intent` tool, which CLI 1.0.80 does not have. Every entry
+ * in `assistant.message.toolRequests` now carries `intentionSummary` — *"resolved
+ * intention summary describing what this specific call does"* — so the label
+ * belongs to a specific call rather than to whatever ran next.
+ *
+ * That was a real defect, not just a rename. One `lastMessageIntent` held the most
+ * recent intent for the next tool to start, so a message requesting three tools
+ * labelled the first and left the rest bare — and mismatches mislabelled silently.
+ */
+export function collectToolIntents(toolRequests: unknown): Map<string, string> {
+    const intents = new Map<string, string>();
+    if (!Array.isArray(toolRequests)) {
+        return intents;
+    }
+    for (const request of toolRequests) {
+        const toolCallId = request?.toolCallId;
+        const summary = request?.intentionSummary;
+        if (typeof toolCallId === 'string' && typeof summary === 'string' && summary.trim()) {
+            intents.set(toolCallId, summary);
+        }
+    }
+    return intents;
+}
+
+/**
+ * Which model a session is actually on, given what the CLI reports.
+ *
+ * The CLI is the authority here, not `copilotCLI.model`. When the configured
+ * model does not exist the fallback switches to `auto` and the CLI says so in
+ * `session.start.selectedModel` — but nothing adopted it, so the dropdown kept
+ * showing the dead model from the setting, and `supportsVision()` /
+ * `getMaxImages()` asked the capabilities service about a model absent from the
+ * catalogue.
+ *
+ * @returns the model to adopt, or `null` to keep what is already tracked
+ */
+export function resolveActiveModel(reported: unknown, tracked: string | null): string | null {
+    if (typeof reported !== 'string' || !reported) {
+        // No reported model — older CLIs, and events that simply do not carry one.
+        // Keep what we have rather than blanking the display.
+        return null;
+    }
+    return reported === tracked ? null : reported;
+}
 
 /**
  * Select the best fallback model from the user's available models.
@@ -464,7 +513,12 @@ export class SDKSessionManager implements vscode.Disposable {
     private resumeSession: boolean;
     private toolExecutions: Map<string, ToolExecutionState> = new Map();
     private sdkLoaded: boolean = false;
-    private lastMessageIntent: string | undefined;  // Store intent from report_intent tool calls
+    /**
+     * toolCallId -> what the CLI said that call is for, from `intentionSummary`.
+     * Entries are removed as their tool starts; `setActiveSession` clears the rest,
+     * so requests that never execute cannot accumulate across a session swap.
+     */
+    private toolIntents = new Map<string, string>();
     private _isInTurn: boolean = false;  // Track if AI is currently processing a turn
     
     // Plan mode: dual session support
@@ -759,17 +813,33 @@ export class SDKSessionManager implements vscode.Disposable {
             // Track whether we created a new session (vs resumed)
             let sessionWasCreatedNew = false;
 
-            // Detect if the last active session was a plan session (e.g. user closed VS Code
-            // while in plan mode). Strip the suffix so we resume the parent work session first,
-            // then re-enter plan mode via enablePlanMode() after startup completes.
-            const wasPlanSession = this.sessionId?.endsWith('-plan') ?? false;
-            if (wasPlanSession) {
-                const workSessionId = this.sessionId!.slice(0, -'-plan'.length);
-                this.logger.info(`[Startup] Detected plan session — resuming work session and restoring plan mode (work: ${workSessionId})`);
-                this.sessionId = workSessionId;
+            // Was the last active session the plan half of a conversation? Asked of
+            // sessionPairing rather than matched here: that module is the one place
+            // allowed to know what `-plan` means, and this was the reader that
+            // learned the convention by copying it.
+            const startupStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+            const startupPairing = this.sessionId
+                ? resolveStartupPairing(startupStateDir, this.sessionId)
+                : null;
+            const restoringPlanMode = startupPairing?.role === 'plan';
+            if (restoringPlanMode) {
+                // Deliberately NOT resuming the work session first. It may never have
+                // had a transcript — entering plan mode straight away leaves it
+                // created but unresumable, and `session.resume` answers "Session not
+                // found", which is the "Previous session not found" dialog. It is not
+                // needed until plan mode is left, and `disablePlanMode` already mints
+                // one at exactly that moment. enablePlanMode() below resumes the plan
+                // session, conversation and tool restrictions intact
+                // (planning/spikes/plan-session-reuse/).
+                this.sessionId = startupPairing!.workId;
             }
 
-            if (this.sessionId) {
+            if (restoringPlanMode) {
+                // No work session yet, by design. `this.session` stays null;
+                // setupSessionEventHandlers() already no-ops on that, and
+                // enablePlanMode() installs the plan session as the active one.
+                this.logger.info(`[Startup] Restoring plan mode — deferring the work session (work: ${this.sessionId})`);
+            } else if (this.sessionId) {
                 this.logger.info(`Attempting to resume session: ${this.sessionId}`);
                 try {
                     // Use retry logic with user recovery dialog
@@ -835,13 +905,17 @@ export class SDKSessionManager implements vscode.Disposable {
 
             this.logger.info(`Session active: ${this.sessionId}`);
 
-            // Restore sticky agent if one was active before session (re)creation
-            await this._restoreStickyAgentIfNeeded();
+            if (!restoringPlanMode) {
+                // Restore sticky agent if one was active before session (re)creation
+                await this._restoreStickyAgentIfNeeded();
 
-            // Ensure the dropdown always shows a readable name — never a raw UUID.
-            SessionService.ensureSessionName(path.join(os.homedir(), '.copilot', 'session-state', this.sessionId!));
+                // Ensure the dropdown always shows a readable name — never a raw UUID.
+                SessionService.ensureSessionName(path.join(os.homedir(), '.copilot', 'session-state', this.sessionId!));
+            }
             
-            // Initialize work session tracking (always starts in work mode)
+            // Initialize work session tracking. Restoring plan mode leaves
+            // `workSession` null on purpose — there is no work session yet, and
+            // disablePlanMode() mints one at the moment it is needed.
             this.workSession = this.session;
             this.workSessionId = this.sessionId;
             this.currentMode = 'work';
@@ -858,16 +932,20 @@ export class SDKSessionManager implements vscode.Disposable {
             // Fetch model capabilities for vision support
             await this.updateModelCapabilities();
 
+            // Plan mode is restored BEFORE `ready`, not after. `ready` carries the
+            // session id the surface then treats as current, and announcing the work
+            // id first would publish a session that is not live and, when restoring,
+            // does not yet exist.
+            if (restoringPlanMode) {
+                this.logger.info('[Startup] Restoring plan mode...');
+                await this.enablePlanMode();
+            }
+
             this._onDidChangeStatus.fire({ 
                 status: 'ready', 
                 sessionId: this.sessionId || undefined
             });
 
-            // Restore plan mode if the session was a plan session at startup
-            if (wasPlanSession) {
-                this.logger.info('[Startup] Restoring plan mode after ready...');
-                await this.enablePlanMode();
-            }
 
         } catch (error) {
             this.logger.error('Failed to start SDK session', error instanceof Error ? error : undefined);
@@ -905,6 +983,8 @@ export class SDKSessionManager implements vscode.Disposable {
      * Consolidates session assignment + event wiring to prevent leaks.
      */
     private setActiveSession(session: any): void {
+        // Intents name calls in the session being left; nothing here can consume them.
+        this.toolIntents.clear();
         this.session = session;
         this.setupSessionEventHandlers();
         // The CLI process is guaranteed to be spawned by this point, so a client
@@ -925,11 +1005,11 @@ export class SDKSessionManager implements vscode.Disposable {
 
         switch (event.type) {
             case 'assistant.message':
-                // Extract intent from report_intent tool if present
                 if (event.data.toolRequests && Array.isArray(event.data.toolRequests)) {
-                    const reportIntentTool = event.data.toolRequests.find((t: any) => t.name === 'report_intent');
-                    if (reportIntentTool && reportIntentTool.arguments?.intent) {
-                        this.lastMessageIntent = reportIntentTool.arguments.intent;
+                    // The CLI names what each call is for. Held by toolCallId until
+                    // that call starts, then consumed.
+                    for (const [toolCallId, intent] of collectToolIntents(event.data.toolRequests)) {
+                        this.toolIntents.set(toolCallId, intent);
                     }
 
                     // Pre-capture snapshots for edit/create tools BEFORE execution starts.
@@ -1021,9 +1101,19 @@ export class SDKSessionManager implements vscode.Disposable {
                 break;
 
             case 'session.start':
-            case 'session.resume':
+            case 'session.resume': {
                 this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
+                // The CLI names the model it actually chose. Adopt it — a fallback
+                // to `auto` happens below the extension, and without this the UI
+                // goes on reporting the setting instead of the session.
+                const adopted = resolveActiveModel(event.data?.selectedModel, this.currentModelId);
+                if (adopted) {
+                    this.logger.info(`[Model] CLI reports "${adopted}" (was "${this.currentModelId ?? 'unset'}")`);
+                    this.currentModelId = adopted;
+                    this._onDidChangeStatus.fire({ status: 'model_switched', model: adopted });
+                }
                 break;
+            }
 
             case 'session.idle':
                 this.logger.info(`Session ${event.type}: ${JSON.stringify(event.data)}`);
@@ -1269,13 +1359,13 @@ export class SDKSessionManager implements vscode.Disposable {
                 arguments: data.arguments,
                 status: 'running',
                 startTime: eventTime,
-                intent: this.lastMessageIntent,  // Attach the intent from report_intent
+                intent: this.toolIntents.get(data.toolCallId),
                 agentId: event.agentId,                  // envelope: set when this tool runs inside a sub-agent
                 parentToolCallId: data.parentToolCallId, // redundant fallback
             };
 
-            // Clear intent after first use to prevent it sticking to all subsequent tools
-            this.lastMessageIntent = undefined;
+            // Consumed: this label belonged to this call and no other.
+            this.toolIntents.delete(data.toolCallId);
 
             this.toolExecutions.set(data.toolCallId, state);
 
@@ -1499,6 +1589,14 @@ export class SDKSessionManager implements vscode.Disposable {
         }
         const additionalDirs = this.host.getConfig<string[]>('additionalSkillDirectories', []) ?? [];
         this.skillDirectoriesCache = resolveSkillDirectories(additionalDirs);
+
+        // Skill resolution used to be entirely silent, which is why a wrong
+        // directory list went unnoticed. Memoized, so this logs once per session.
+        this.logger.info(`[Skills] Resolved ${this.skillDirectoriesCache.length} skill director${this.skillDirectoriesCache.length === 1 ? 'y' : 'ies'}`);
+        for (const dir of this.skillDirectoriesCache) {
+            this.logger.debug(`[Skills]   ${dir}`);
+        }
+
         return this.skillDirectoriesCache;
     }
     
@@ -2226,7 +2324,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.logger.info(`[Plan Mode]     ✓ ${tool.name} (restricted)`);
             });
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
-            this.logger.info(`[Plan Mode]   SDK TOOLS: view, grep, glob, web_fetch, fetch_copilot_cli_documentation`);
+            this.logger.info(`[Plan Mode]   SDK TOOLS: view, grep, glob, web_fetch`);
             this.logger.info(`[Plan Mode]   Note: Only whitelisted tools are available via availableTools`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
             this.logger.info(`[Plan Mode]   Model: ${this.config.model || 'default'}`);
@@ -2242,21 +2340,41 @@ export class SDKSessionManager implements vscode.Disposable {
             this.logger.info(`[Plan Mode]     systemMessage: mode=append (plan mode instructions)`);
             this.logger.info(`[Plan Mode]   ─────────────────────────────────────────────`);
             
-            this.planSession = await this.createSessionWithModelFallback({
-                sessionId: planSessionId,
+            const planSessionConfig = {
                 model: this.config.planModel || this.config.model || undefined,
                 tools: customTools,
                 hooks: this.getSessionHooks(),
                 availableTools: this.planModeToolsService.getAvailableToolNames(),
                 systemMessage: {
-                    mode: 'append',
+                    mode: 'append' as const,
                     content: this.planModeToolsService.getSystemPrompt(this.workSessionId!)
                 },
                 ...(hasMcpServers ? { mcpServers } : {}),
                 customAgents: this.customAgentsService.toSDKAgents(),
-            });
-            
-            this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
+            };
+
+            // Resume when this plan session already has a conversation. Passing an
+            // existing id to createSession does NOT continue it — the runtime
+            // appends a second session.start and the model comes back with no
+            // memory of the planning discussion. resumeSession restores it, and
+            // still enforces availableTools, so the plan-mode tool restriction
+            // holds either way. Both verified: planning/spikes/plan-session-reuse/.
+            const planStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+            if (SessionService.hasSessionHistory(planStateDir, planSessionId)) {
+                this.logger.info(`[Plan Mode]   Existing plan session found — resuming to keep its history`);
+                this.planSession = await this.attemptSessionResumeWithUserRecovery(
+                    planSessionId,
+                    planSessionConfig
+                );
+                this.logger.info(`[Plan Mode]   ✅ Plan session resumed successfully`);
+            } else {
+                this.logger.info(`[Plan Mode]   No existing plan session — creating a new one`);
+                this.planSession = await this.createSessionWithModelFallback({
+                    sessionId: planSessionId,
+                    ...planSessionConfig,
+                });
+                this.logger.info(`[Plan Mode]   ✅ Plan session created successfully`);
+            }
 
             // Mirror the work session's readable name to the plan session so the dropdown
             // never shows a raw GUID when switching into plan mode.
@@ -2384,6 +2502,31 @@ export class SDKSessionManager implements vscode.Disposable {
             const mcpServers = this.getEnabledMCPServers();
             const hasMcpServers = Object.keys(mcpServers).length > 0;
 
+            if (!this.workSession) {
+                // Started cold straight into plan mode, so no work session was ever
+                // resumed — startup deferred it here on purpose. This is the moment
+                // it is actually needed.
+                //
+                // Created under the derived id rather than a fresh UUID: that keeps
+                // the `<work>-plan` pairing, so the next entry into plan mode finds
+                // this same plan session instead of orphaning it, and it keeps
+                // plan.md — which already lives in that directory — attached to its
+                // session. Safe because the id has no transcript to overwrite, which
+                // is the whole reason there was nothing to resume.
+                this.logger.info(`[Plan Mode] No work session in memory — creating one as ${this.workSessionId}`);
+                verifiedSession = await this.createSessionWithModelFallback({
+                    sessionId: this.workSessionId ?? undefined,
+                    model: this.config.model || undefined,
+                    tools: this.getCustomTools(),
+                    hooks: this.getSessionHooks(),
+                    ...(hasMcpServers ? { mcpServers } : {}),
+                    customAgents: this.customAgentsService.toSDKAgents(),
+                });
+                this.sessionId = verifiedSession.sessionId;
+                this.workSessionId = verifiedSession.sessionId;
+                this.workSession = verifiedSession;
+                this.logger.info(`[Plan Mode] Work session created: ${this.sessionId}`);
+            } else {
             const result = await ensureSessionAlive(
                 this.workSession,
                 () => this.createSessionWithModelFallback({
@@ -2401,6 +2544,7 @@ export class SDKSessionManager implements vscode.Disposable {
                 this.sessionId = result.sessionId;
                 this.workSessionId = result.sessionId;
                 this.logger.info(`[Plan Mode] Work session recreated: ${this.sessionId}`);
+            }
             }
         } catch (error) {
             const msg = error instanceof Error ? error.message : String(error);
@@ -2721,8 +2865,11 @@ export class SDKSessionManager implements vscode.Disposable {
      */
     private async updateModelCapabilities(): Promise<void> {
         try {
-            // Get model ID from config or session
-            this.currentModelId = this.config.model || DEFAULT_MODEL; // Default model
+            // The configured model is only a *request*. Once the CLI has told us
+            // what it actually selected (see `session.start` above), that wins —
+            // otherwise this would overwrite a fallback with the dead model that
+            // caused it.
+            this.currentModelId = this.currentModelId || this.config.model || DEFAULT_MODEL;
             
             // Log capabilities using the service
             await this.modelCapabilitiesService.logCapabilities(this.currentModelId);
