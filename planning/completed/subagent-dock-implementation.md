@@ -202,6 +202,16 @@ concerns beyond the functional tasks — **minimize/auto-show**, **per-card clea
 ### Task 11 — Per-card clear (×) on completed/failed
 - **RED:** a `running` card shows **no** `×`. After `subagent:complete`/`failed`, an `×` appears;
   clicking it removes that card from the dock and the `Map`. Clearing the last card hides the
+
+## Status
+
+**Final Status:** Completed — shipped v3.10.0 (2026-06-15).
+
+Reconciled 2026-09-03: this document was never moved to `completed/` after the feature shipped.
+`src/webview/app/components/SubagentDock/SubagentDock.js` and
+`tests/unit/components/SubagentDock.test.js` exist, and CHANGELOG.md's `[3.10.0] - 2026-06-15`
+entry documents "Sub-Agent Dock — a pinned, persistent ledger of sub-agent (and fleet) activity."
+No deviations identified; filing this doc as completed and moving it to `planning/completed/`.
   dock (and other cards are unaffected).
 - **GREEN:** render the `×` only in the completed/failed header; wire its click to
   `removeTile(agentId)` (delete from `Map`, remove DOM, re-evaluate empty-dock hide).

@@ -28,7 +28,9 @@ class FakeSnapshotService {
 
 describe('PlanModeToolsService - DI and update_work_plan diff', () => {
   let testRoot; let sessionId; let snapshotTmp; let emitCalls;
+  let realHomedir;
   beforeEach(() => {
+    realHomedir = os.homedir;
     testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-tools-di-'));
     sessionId = 'session-' + Date.now();
     snapshotTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-snapshots-'));
@@ -37,6 +39,10 @@ describe('PlanModeToolsService - DI and update_work_plan diff', () => {
     os.homedir = () => testRoot;
   });
   afterEach(() => {
+    // Restore the real homedir. Leaving the stub in place leaks into every
+    // later test file in the same mocha process, pointing them at a temp
+    // directory this hook has just deleted.
+    if (realHomedir) { os.homedir = realHomedir; }
     if (testRoot && fs.existsSync(testRoot)) fs.rmSync(testRoot, { recursive: true, force: true });
     if (snapshotTmp && fs.existsSync(snapshotTmp)) fs.rmSync(snapshotTmp, { recursive: true, force: true });
   });

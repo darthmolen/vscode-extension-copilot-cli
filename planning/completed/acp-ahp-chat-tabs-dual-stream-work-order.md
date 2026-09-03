@@ -210,6 +210,17 @@ as conversations. That was always the better argument for this work than distrib
 
 **The row becomes a version when it has a door**, and only then: the separate npm package with a
 `bin`, or IN-4 unblocking. Bundling into the VSIX is not that door and would be worse than waiting —
+
+## Status
+
+**Final Status:** Completed — both lanes this document coordinates have concluded (v4.0.0 / v4.1.0).
+
+Reconciled 2026-09-03: Lane B (chat-in-a-tab) shipped as v4.0.0 (CHANGELOG "chat-in-a-tab" /
+v4.0.0, 2026-08-23). Lane A's ACP agent (`src/acp/CopilotAcpAgent.ts`,
+`src/acp/SdkSessionBackend.ts`) is implemented and referenced throughout CLAUDE.md as shipped,
+merged rather than versioned per the "gets a merge, not a version" decision recorded above
+(2026-08-22). No further coordination is needed between these lanes; filing this doc as completed
+and moving it to `planning/completed/`.
 VS Code installs to `publisher.name-<version>/`, so any config a user writes breaks on *our* next
 release, silently, as "agent exited".
 
