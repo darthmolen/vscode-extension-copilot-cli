@@ -46,7 +46,7 @@ describe('Plan Mode Duplicate Tool Detection', function () {
 	// SDK built-in tools that are always available when availableTools is not specified
 	const sdkBuiltinTools = [
 		'bash', 'view', 'edit', 'create', 'grep', 'glob', 'task',
-		'report_intent', 'web_fetch', 'fetch_copilot_cli_documentation',
+		'web_fetch',
 		'skill', 'stop_bash', 'read_bash', 'write_bash', 'list_bash',
 		'store_memory', 'update_todo'
 	];

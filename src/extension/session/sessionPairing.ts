@@ -67,6 +67,46 @@ export interface PairingIndex {
     workIdFor(sessionId: string): string;
 }
 
+/** What startup needs to know about the one session it is about to resume. */
+export interface StartupPairing {
+    role: SessionRole;
+    /** The work half's id — the session itself, when it is already the work half. */
+    workId: string;
+}
+
+/**
+ * Resolve the single session startup is about to bring back.
+ *
+ * **Why this is not the per-id API the batch rule forbids.** That rule is about a
+ * function *only ever called in a loop* — `session/list` walking 909 entries. This
+ * is called once, for one id, on the resume path. The alternative is stripping
+ * `-plan` at the call site in `sdkSessionManager`, which is exactly the fourth raw
+ * reader of the convention this module exists to prevent; the third is the one it
+ * replaces.
+ *
+ * **It differs from `workIdFor` on purpose.** That answers *"which group does this
+ * belong to"* for the dropdown, so an orphan collapses to itself rather than
+ * bucketing under an id nobody has. Startup is not bucketing: it needs the parent
+ * id even when that parent has no directory, because the work session may be one
+ * it has yet to mint. A plan half therefore always reports its parent here.
+ */
+export function resolveStartupPairing(sessionStateDir: string, sessionId: string): StartupPairing {
+    const recorded = readRecordedParent(sessionStateDir, sessionId);
+    if (recorded !== undefined) {
+        // A record naming itself means "this is a work session", which is how a
+        // work session the user happened to name `...-plan` corrects the guess.
+        return recorded === sessionId
+            ? { role: 'work', workId: sessionId }
+            : { role: 'plan', workId: recorded };
+    }
+
+    if (sessionId.endsWith(PLAN_SUFFIX) && sessionId.length > PLAN_SUFFIX.length) {
+        return { role: 'plan', workId: sessionId.slice(0, -PLAN_SUFFIX.length) };
+    }
+
+    return { role: 'work', workId: sessionId };
+}
+
 /**
  * Resolve a whole set of session ids in one directory pass.
  *

@@ -83,14 +83,14 @@ describe('ModelSelector Component', () => {
 
 		it('should mark current model with checkmark', () => {
 			const selector = new ModelSelector(container, eventBus);
-			selector.setModel('claude-sonnet-4.6');
+			selector.setModel('claude-sonnet-5');
 
 			const bar = container.querySelector('.model-selector-bar');
 			bar.click();
 
 			const items = container.querySelectorAll('.model-option');
 			const currentItem = Array.from(items).find(
-				item => item.dataset.model === 'claude-sonnet-4.6'
+				item => item.dataset.model === 'claude-sonnet-5'
 			);
 			expect(currentItem).to.not.be.undefined;
 			expect(currentItem.classList.contains('current')).to.be.true;
@@ -151,7 +151,7 @@ describe('ModelSelector Component', () => {
 
 		it('should not emit if same model is clicked', () => {
 			const selector = new ModelSelector(container, eventBus);
-			selector.setModel('claude-sonnet-4.6');
+			selector.setModel('claude-sonnet-5');
 
 			let emitCount = 0;
 			eventBus.on('modelSelected', () => { emitCount++; });
@@ -161,7 +161,7 @@ describe('ModelSelector Component', () => {
 
 			const items = container.querySelectorAll('.model-option');
 			const currentItem = Array.from(items).find(
-				item => item.dataset.model === 'claude-sonnet-4.6'
+				item => item.dataset.model === 'claude-sonnet-5'
 			);
 			currentItem.click();
 
@@ -208,18 +208,18 @@ describe('ModelSelector Component', () => {
 		it('should render dynamic models in dropdown', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
-				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6' },
 				{ id: 'gpt-5', name: 'GPT-5' },
 				{ id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro Preview' },
 			]);
-			selector.setModel('claude-sonnet-4.6');
+			selector.setModel('claude-sonnet-5');
 
 			const bar = container.querySelector('.model-selector-bar');
 			bar.click(); // open dropdown
 
 			const options = container.querySelectorAll('.model-option');
 			const modelIds = Array.from(options).map(o => o.dataset.model);
-			expect(modelIds).to.include('claude-sonnet-4.6');
+			expect(modelIds).to.include('claude-sonnet-5');
 			expect(modelIds).to.include('gpt-5');
 			expect(modelIds).to.include('gemini-3-pro-preview');
 		});
@@ -228,10 +228,10 @@ describe('ModelSelector Component', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
 				{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', multiplier: 0.5 },
-				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', multiplier: 1.0 },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6', multiplier: 1.0 },
 				{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', multiplier: 3.0 },
 			]);
-			selector.setModel('claude-sonnet-4.6');
+			selector.setModel('claude-sonnet-5');
 
 			const bar = container.querySelector('.model-selector-bar');
 			bar.click();
@@ -259,10 +259,10 @@ describe('ModelSelector Component', () => {
 		it('should emit modelSelected for dynamic model selection', () => {
 			const selector = new ModelSelector(container, eventBus);
 			selector.setAvailableModels([
-				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6' },
+				{ id: 'claude-sonnet-5', name: 'Claude Sonnet 4.6' },
 				{ id: 'gpt-5', name: 'GPT-5' },
 			]);
-			selector.setModel('claude-sonnet-4.6');
+			selector.setModel('claude-sonnet-5');
 
 			let emittedModel = null;
 			eventBus.on('modelSelected', (model) => { emittedModel = model; });

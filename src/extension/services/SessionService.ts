@@ -2,14 +2,22 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
 import { randomUUID } from 'crypto';
+import { resolveStartupPairing } from '../session/sessionPairing';
 
-/** Normalize a path and strip trailing separators for reliable comparison. */
+/**
+ * Normalize a path and strip trailing separators for reliable comparison.
+ *
+ * Case-folded on Windows, where the same directory is spelled inconsistently:
+ * a single workspace.yaml can carry `cwd: c:\dev\x` next to
+ * `git_root: C:\dev\x`, and VS Code's `uri.fsPath` casing varies. POSIX
+ * comparison stays case-sensitive, because there the case is meaningful.
+ */
 function normalizePath(p: string): string {
     let n = path.normalize(p);
     while (n.length > 1 && n.endsWith(path.sep)) {
         n = n.slice(0, -1);
     }
-    return n;
+    return process.platform === 'win32' ? n.toLowerCase() : n;
 }
 
 export interface SessionInfo {
@@ -25,10 +33,35 @@ export interface SessionMessage {
 }
 
 /**
- * Gets the working directory from a session's events.jsonl.
- * Reads only the first ~2KB for performance.
+ * Gets the working directory a session was started in.
+ *
+ * Prefers workspace.yaml: it is small, always present, and holds the cwd
+ * verbatim. Falls back to events.jsonl, whose reader only sees the first 2KB —
+ * a longer first line truncates, JSON.parse throws, and the session would
+ * otherwise be treated as having no cwd and silently dropped from the folder
+ * filter.
  */
 function getSessionCwd(sessionDir: string, sessionId: string): string | undefined {
+    return getSessionCwdFromWorkspaceYaml(sessionDir, sessionId)
+        ?? getSessionCwdFromEvents(sessionDir, sessionId);
+}
+
+/** Reads `cwd:` out of a session's workspace.yaml. */
+function getSessionCwdFromWorkspaceYaml(sessionDir: string, sessionId: string): string | undefined {
+    try {
+        const yamlPath = path.join(sessionDir, sessionId, 'workspace.yaml');
+        if (!fs.existsSync(yamlPath)) {
+            return undefined;
+        }
+        const match = fs.readFileSync(yamlPath, 'utf-8').match(/^cwd:\s*(.+)$/m);
+        return match?.[1].trim() || undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Reads the cwd from the session.start event at the head of events.jsonl. */
+function getSessionCwdFromEvents(sessionDir: string, sessionId: string): string | undefined {
     try {
         const eventsPath = path.join(sessionDir, sessionId, 'events.jsonl');
         if (!fs.existsSync(eventsPath)) {
@@ -93,6 +126,30 @@ export const SessionService = {
     },
 
     /**
+     * Whether a recorded session id can still be brought back here.
+     *
+     * **Resumable and restorable are different questions.** Bringing a work
+     * session back means `session.resume`, which needs a transcript — a directory
+     * alone answers "Session not found". Restoring a *plan* session means
+     * `enablePlanMode()`, which CREATES the plan session when there is none, so it
+     * needs only the work id the pairing gives us.
+     *
+     * Requiring a transcript for both is what silently dropped plan mode: enter
+     * plan mode, close VS Code before typing anything, and the paired plan session
+     * has no transcript — but "I was planning" is still a real intent, and the
+     * recorded choice was being discarded for a stale work session instead.
+     */
+    isRestorable(sessionStateDir: string, sessionId: string): boolean {
+        if (SessionService.hasSessionHistory(sessionStateDir, sessionId)) {
+            return true;
+        }
+        if (!fs.existsSync(path.join(sessionStateDir, sessionId))) {
+            return false;
+        }
+        return resolveStartupPairing(sessionStateDir, sessionId).role === 'plan';
+    },
+
+    /**
      * Filters sessions to those matching a workspace folder path.
      * Sessions without cwd are excluded.
      */
@@ -108,7 +165,11 @@ export const SessionService = {
 
     /**
      * Returns the most recent session ID, optionally filtered by workspace folder.
-     * Falls back to global most recent if no folder-specific sessions exist.
+     *
+     * When filtering and no session belongs to this folder, returns null so the
+     * caller starts a fresh session. It deliberately does NOT fall back to the
+     * globally most-recent session: that loaded another project's conversation
+     * into the chat, contradicting the `filterSessionsByFolder` setting.
      *
      * `alreadyOpen` is the set of sessions this window already has a surface for.
      * They are not candidates: they are already resumed. Without this, restoring a
@@ -116,9 +177,9 @@ export const SessionService = {
      * tab's own session — it was, after all, the last one written to — and two
      * hosts claim it on an ordinary reload.
      *
-     * The global fallback still means *"this folder has no sessions"*. It is not
-     * reached when the folder's sessions merely happen to be open, because
-     * borrowing another workspace's conversation is worse than starting a new one.
+     * Sessions being open is therefore indistinguishable from this folder having
+     * none: both yield null and a new session, which is the safe outcome either
+     * way.
      */
     getMostRecentSession(
         sessionStateDir: string,
@@ -141,12 +202,24 @@ export const SessionService = {
         }
 
         const folderSessions = SessionService.filterSessionsByFolder(sorted, workspaceFolder);
-        if (folderSessions.length > 0) {
-            return mostRecentAvailable(folderSessions);
-        }
+        return mostRecentAvailable(folderSessions);
+    },
 
-        // Fallback to global most recent
-        return mostRecentAvailable(sorted);
+    /**
+     * True when a session id has a conversation on disk.
+     *
+     * Used to decide whether a session can be resumed or must be created.
+     * Resuming restores the model's context; re-creating an existing id does
+     * not — it appends a fresh `session.start` and starts over — so this is the
+     * difference between plan mode remembering the plan discussion and losing
+     * it on every re-entry.
+     */
+    hasSessionHistory(sessionStateDir: string, sessionId: string): boolean {
+        try {
+            return fs.existsSync(path.join(sessionStateDir, sessionId, 'events.jsonl'));
+        } catch {
+            return false;
+        }
     },
 
     /**

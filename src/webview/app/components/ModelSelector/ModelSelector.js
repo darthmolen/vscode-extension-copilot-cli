@@ -28,7 +28,6 @@ const MODEL_CATALOG = [
 	{ group: 'Standard', models: [
 		{ id: 'claude-sonnet-5', label: 'sonnet-5', outputPrice: 1000 },
 		{ id: 'gpt-5.4', label: 'gpt-5.4', outputPrice: 1500 },
-		{ id: 'claude-sonnet-4.6', label: 'sonnet-4.6', outputPrice: 1500 },
 	]},
 	{ group: 'Premium', models: [
 		{ id: 'claude-opus-4.8', label: 'opus-4.8', outputPrice: 2500 },

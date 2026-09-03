@@ -711,7 +711,7 @@ export class ChatSessionHost {
      * stays in `extension.ts`. A background tab must not rewrite the window's
      * status bar because its own CLI exited.
      */
-    private applyStatus(statusData: { status: string; model?: string; newSessionId?: string }): void {
+    private applyStatus(statusData: { status: string; model?: string; newSessionId?: string; turnId?: string }): void {
         switch (statusData.status) {
             case 'thinking':
                 this.quiet = false;
@@ -726,6 +726,13 @@ export class ChatSessionHost {
                     this.quiet = true;
                 }
                 this.surface?.setThinking(false);
+                // Forwarded so the transcript can close the current tool group. Only
+                // the turn-scoped `ready` is a boundary; the one fired once at
+                // session start carries a sessionId instead and must not close a
+                // group that has yet to open.
+                if (statusData.turnId) {
+                    this.surface?.postMessage({ type: 'status', data: statusData });
+                }
                 this.releaseIfPending();
                 break;
             case 'exited':

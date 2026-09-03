@@ -1117,9 +1117,16 @@ async function determineSessionToResume(context: vscode.ExtensionContext): Promi
 	const sessionId = chooseSessionToResume({
 		recorded: context.workspaceState.get<string>(SIDEBAR_SESSION_KEY) ?? null,
 		mostRecent,
+		// A directory is not a resumable session — but "resumable" is not the test.
+		// A work session needs a transcript, or `session.resume` answers "Session
+		// not found" (the "Previous session not found" dialog). A plan session does
+		// not: restoring it means enablePlanMode(), which creates the plan session
+		// when there is none. `isRestorable` knows the difference; requiring a
+		// transcript for both is what dropped plan mode when the user entered it
+		// and closed VS Code before typing anything.
 		isAvailable: (id) =>
 			!liveSessionIds.includes(id) &&
-			require('fs').existsSync(path.join(sessionStateDir, id))
+			SessionService.isRestorable(sessionStateDir, id)
 	});
 
 	if (sessionId) {
@@ -1196,7 +1203,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
 				getActiveAgent: () => target.state.getActiveAgent()
 			})
 		);
-		wireManagerEvents(manager, target);
+		wireManagerEvents(context, manager, target);
 
 		logger.info('Starting CLI process...');
 		await manager.start();
@@ -1225,7 +1232,7 @@ async function startCLISession(context: vscode.ExtensionContext, resumeLastSessi
  * added one. `context` is no longer a parameter, which is the guard: there is
  * nothing to accidentally push into.
  */
-function wireManagerEvents(manager: SDKSessionManager, owner: ChatSessionHost): void {
+function wireManagerEvents(context: vscode.ExtensionContext, manager: SDKSessionManager, owner: ChatSessionHost): void {
 	// Message and streaming events are routed by the owning host, to *its* surface
 	// — see `ChatSessionHost.attachManager`. What stays here is window-scoped:
 	// the status bar, toasts, the session list, the sub-agent panels.
@@ -1288,10 +1295,23 @@ function wireManagerEvents(manager: SDKSessionManager, owner: ChatSessionHost): 
 					SessionService.writeSessionPairing(sessionStatePath(planSessionId), owner.sessionId);
 					logger.info(`[Plan Mode] paired ${planSessionId} → ${owner.sessionId}`);
 				}
+				// Entering plan mode is a gesture, and an unrecorded gesture loses to
+				// the standing choice at the next reload — CLAUDE.md's "intentional
+				// actions are treated intentionally". Without this the record keeps
+				// naming the work half, startup never sees a plan id, and plan mode
+				// silently fails to come back.
+				if (planSessionId && owner === sidebarHost) {
+					recordSidebarSession(context, planSessionId);
+				}
 				updateSessionsList();
 				break;
 			}
 			case 'plan_mode_disabled':
+				// Symmetric: leaving plan mode puts the work half back on record, so a
+				// reload does not drop the user into planning they had finished with.
+				if (owner === sidebarHost) {
+					recordSidebarSession(context, owner.sessionId);
+				}
 				updateSessionsList();
 				break;
 			case 'plan_ready':

@@ -3,7 +3,6 @@
  * TDD RED phase: Tests written BEFORE the implementation exists.
  *
  * SessionService consolidates session logic from:
- *   - src/sessionUtils.ts (getAllSessions, filterSessionsByFolder, getMostRecentSession, getSessionCwd)
  *   - src/extension.ts (determineSessionToResume, updateSessionsList, formatSessionLabel)
  *
  * The import of the compiled module is expected to FAIL until the implementation is written.
@@ -29,7 +28,10 @@ const os = require('os');
  * Create a temporary session directory tree for testing.
  *
  * @param {string} baseDir  Root of the temp tree (e.g. os.tmpdir() + '/sessions-test-xxx')
- * @param {Array<{id: string, events?: object[], planContent?: string, cwd?: string}>} sessions
+ * @param {Array<{id: string, events?: object[], planContent?: string, cwd?: string,
+ *                rawEvents?: string, workspaceCwd?: string}>} sessions
+ *   - rawEvents     raw events.jsonl content, for malformed-line cases
+ *   - workspaceCwd  writes a workspace.yaml carrying this cwd
  * @returns {string} The session-state directory path
  */
 function createTempSessionDir(baseDir, sessions) {
@@ -44,6 +46,33 @@ function createTempSessionDir(baseDir, sessions) {
         if (session.events) {
             const lines = session.events.map(e => JSON.stringify(e));
             fs.writeFileSync(path.join(sessionDir, 'events.jsonl'), lines.join('\n') + '\n');
+        }
+
+        // Raw events.jsonl content, for malformed / oversized first-line cases
+        if (session.rawEvents !== undefined) {
+            fs.writeFileSync(path.join(sessionDir, 'events.jsonl'), session.rawEvents);
+        }
+
+        // Write session-pairing.json, the contract behind the `-plan` suffix.
+        if (session.pairedWith !== undefined) {
+            fs.writeFileSync(
+                path.join(sessionDir, 'session-pairing.json'),
+                JSON.stringify({ workSessionId: session.pairedWith })
+            );
+        }
+
+        // Write workspace.yaml if a cwd is provided. Mirrors the real file's shape.
+        if (session.workspaceCwd !== undefined) {
+            fs.writeFileSync(
+                path.join(sessionDir, 'workspace.yaml'),
+                [
+                    `id: ${session.id}`,
+                    `cwd: ${session.workspaceCwd}`,
+                    `git_root: ${session.workspaceCwd}`,
+                    'user_named: false',
+                    ''
+                ].join('\n')
+            );
         }
 
         // Write plan.md if planContent is provided
@@ -289,7 +318,9 @@ describe('SessionService', function () {
             assert.strictEqual(result, 'folder-a-new');
         });
 
-        it('falls back to global most recent when no folder sessions exist', function () {
+        it('returns null when no folder sessions exist', function () {
+            // Regression: this used to fall back to the globally most-recent
+            // session, loading another project's conversation into the chat.
             const sessionStateDir = createTempSessionDir(tmpDir, [
                 {
                     id: 'some-other-folder',
@@ -300,8 +331,93 @@ describe('SessionService', function () {
             const result = SessionService.getMostRecentSession(
                 sessionStateDir, '/home/user/nonexistent-folder', true
             );
-            // Should fall back to the only available session
+            assert.strictEqual(result, null, 'must not leak a session from another folder');
+        });
+
+        it('still returns the global most recent when filterByFolder is false', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'some-other-folder',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/other' } } }]
+                }
+            ]);
+
+            const result = SessionService.getMostRecentSession(
+                sessionStateDir, '/home/user/nonexistent-folder', false
+            );
             assert.strictEqual(result, 'some-other-folder');
+        });
+
+        it('matches despite Windows drive-letter case mismatch', function () {
+            if (process.platform !== 'win32') {
+                this.skip(); // comparison is deliberately case-sensitive on POSIX
+            }
+            // Real data carries a lowercase-drive cwd next to an uppercase-drive
+            // git_root in one workspace.yaml, and VS Code's fsPath casing varies.
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'lower-drive',
+                    events: [{ type: 'session.start', data: { context: { cwd: 'c:\\dev\\proj' } } }]
+                },
+                {
+                    // Newer and from another folder: what a fallback would return
+                    // if case-folding failed. Keeps the assert load-bearing.
+                    id: 'decoy-newer',
+                    events: [{ type: 'session.start', data: { context: { cwd: 'c:\\dev\\other' } } }]
+                }
+            ]);
+            const later = Date.now() + 10000;
+            fs.utimesSync(path.join(sessionStateDir, 'decoy-newer'), new Date(later), new Date(later));
+
+            const result = SessionService.getMostRecentSession(
+                sessionStateDir, 'C:\\dev\\proj', true
+            );
+            assert.strictEqual(result, 'lower-drive');
+        });
+
+        it('selects a session whose cwd is only readable from workspace.yaml', function () {
+            // events.jsonl first line is unparseable (truncated / oversized), so
+            // the old events-only reader yielded no cwd and the session was
+            // silently excluded from the folder filter.
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'yaml-only',
+                    rawEvents: '{"type":"session.start","data":{"context":{"cwd":"/home/user/pro',
+                    workspaceCwd: '/home/user/project'
+                },
+                {
+                    id: 'decoy-newer',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/other' } } }]
+                }
+            ]);
+            const later = Date.now() + 10000;
+            fs.utimesSync(path.join(sessionStateDir, 'decoy-newer'), new Date(later), new Date(later));
+
+            const result = SessionService.getMostRecentSession(
+                sessionStateDir, '/home/user/project', true
+            );
+            assert.strictEqual(result, 'yaml-only');
+        });
+
+        it('returns null when the only folder session is already open', function () {
+            // With the global fallback gone, an open session is indistinguishable
+            // from the folder having none -- both must yield a fresh session
+            // rather than another workspace's conversation.
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'mine-open',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/project' } } }]
+                },
+                {
+                    id: 'other-folder',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/home/user/other' } } }]
+                }
+            ]);
+
+            const result = SessionService.getMostRecentSession(
+                sessionStateDir, '/home/user/project', true, ['mine-open']
+            );
+            assert.strictEqual(result, null);
         });
 
         it('returns null when no sessions exist', function () {
@@ -310,6 +426,94 @@ describe('SessionService', function () {
 
             const result = SessionService.getMostRecentSession(emptyDir, '/home/user/project', false);
             assert.strictEqual(result, null);
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // hasSessionHistory()
+    // ---------------------------------------------------------------------------
+    describe('hasSessionHistory()', function () {
+        it('returns true when the session has an events.jsonl', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'work-1-plan',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+            assert.strictEqual(SessionService.hasSessionHistory(sessionStateDir, 'work-1-plan'), true);
+        });
+
+        it('returns false when the directory exists but has no events.jsonl', function () {
+            // First entry into plan mode must take the create path.
+            const sessionStateDir = createTempSessionDir(tmpDir, [
+                { id: 'work-2-plan', workspaceCwd: '/tmp' }
+            ]);
+            assert.strictEqual(SessionService.hasSessionHistory(sessionStateDir, 'work-2-plan'), false);
+        });
+
+        it('returns false when the session directory does not exist', function () {
+            const sessionStateDir = createTempSessionDir(tmpDir, []);
+            assert.strictEqual(SessionService.hasSessionHistory(sessionStateDir, 'never-created'), false);
+        });
+    });
+
+    // ---------------------------------------------------------------------------
+    // isRestorable()
+    // ---------------------------------------------------------------------------
+    describe('isRestorable()', function () {
+        // "Resumable" and "restorable" are not the same question, and conflating
+        // them broke plan-mode restore. A work session needs a transcript to come
+        // back, because bringing it back means `session.resume`. A plan session
+        // does not: restoring plan mode means enablePlanMode(), which CREATES the
+        // plan session when there is none. Entering plan mode and closing VS Code
+        // before typing anything leaves exactly that -- a paired plan session with
+        // no transcript -- and it is still a real intent to be in plan mode.
+
+        it('accepts a work session that has a transcript', function () {
+            const dir = createTempSessionDir(tmpDir, [
+                {
+                    id: 'work-with-history',
+                    events: [{ type: 'session.start', data: { context: { cwd: '/tmp' } } }]
+                }
+            ]);
+            assert.strictEqual(SessionService.isRestorable(dir, 'work-with-history'), true);
+        });
+
+        it('rejects a work session with a directory but no transcript', function () {
+            // The "Previous session not found" dialog: created, never messaged, so
+            // `session.resume` answers "Session not found".
+            const dir = createTempSessionDir(tmpDir, [
+                { id: 'work-no-history', workspaceCwd: '/tmp' }
+            ]);
+            assert.strictEqual(SessionService.isRestorable(dir, 'work-no-history'), false);
+        });
+
+        it('accepts a plan session with no transcript, via its pairing record', function () {
+            const dir = createTempSessionDir(tmpDir, [
+                { id: 'w1', workspaceCwd: '/tmp' },
+                { id: 'w1-plan', workspaceCwd: '/tmp', pairedWith: 'w1' }
+            ]);
+            assert.strictEqual(SessionService.isRestorable(dir, 'w1-plan'), true);
+        });
+
+        it('accepts a plan session with no transcript and no record, via the suffix', function () {
+            const dir = createTempSessionDir(tmpDir, [
+                { id: 'w2-plan', workspaceCwd: '/tmp' }
+            ]);
+            assert.strictEqual(SessionService.isRestorable(dir, 'w2-plan'), true);
+        });
+
+        it('rejects a session that does not exist at all', function () {
+            const dir = createTempSessionDir(tmpDir, []);
+            assert.strictEqual(SessionService.isRestorable(dir, 'never-existed'), false);
+        });
+
+        it('treats a record naming itself as a work session', function () {
+            // A work session the user happened to name `...-plan`, with no transcript.
+            const dir = createTempSessionDir(tmpDir, [
+                { id: 'odd-plan', workspaceCwd: '/tmp', pairedWith: 'odd-plan' }
+            ]);
+            assert.strictEqual(SessionService.isRestorable(dir, 'odd-plan'), false);
         });
     });
 

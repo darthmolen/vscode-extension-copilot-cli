@@ -582,6 +582,11 @@ export function handleStatusMessage(payload) {
 		isReasoning = true;
 	} else if (status === 'ready') {
 		isReasoning = false;
+		// `ready` is fired both when a turn ends and once at session start. Only the
+		// turn-scoped one is a boundary, and it carries a turnId.
+		if (payload.data && payload.data.turnId) {
+			eventBus.emit('turn:end', { turnId: payload.data.turnId });
+		}
 	} else if (status === 'plan_ready') {
 		// Plan is ready for user review - show acceptance controls
 		console.log('[Plan Ready] Showing acceptance controls');

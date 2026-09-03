@@ -68,6 +68,57 @@ function toolComplete(over = {}, seconds = 3) {
 }
 
 describe('buildSessionTranscript', () => {
+    describe('re-created session ids', () => {
+        it('returns only the run after the last session.start', async () => {
+            // A session id can be re-created -- plan sessions do it on every
+            // plan-mode entry -- which appends another session.start while
+            // keeping the earlier lines. Replaying both would show the user a
+            // conversation the agent has no memory of.
+            const file = writeLog([
+                { type: 'session.start', data: {}, timestamp: at(0) },
+                userMessage('first run question', 1),
+                assistantMessage('first run answer', 2),
+                { type: 'session.start', data: {}, timestamp: at(3) },
+                userMessage('second run question', 4),
+                assistantMessage('second run answer', 5)
+            ]);
+
+            const messages = await buildSessionTranscript(file);
+
+            expect(messages.map(m => m.content)).to.deep.equal([
+                'second run question',
+                'second run answer'
+            ]);
+        });
+
+        it('drops tool calls from an earlier run too', async () => {
+            const file = writeLog([
+                { type: 'session.start', data: {}, timestamp: at(0) },
+                toolStart({ toolCallId: 'old-1', toolName: 'bash' }, 1),
+                toolComplete({ toolCallId: 'old-1' }, 2),
+                { type: 'session.start', data: {}, timestamp: at(3) },
+                userMessage('only this run', 4)
+            ]);
+
+            const messages = await buildSessionTranscript(file);
+
+            expect(messages.filter(m => m.kind === 'tool')).to.have.lengthOf(0);
+            expect(messages.map(m => m.content)).to.deep.equal(['only this run']);
+        });
+
+        it('leaves a single-run transcript untouched', async () => {
+            const file = writeLog([
+                { type: 'session.start', data: {}, timestamp: at(0) },
+                userMessage('hello', 1),
+                assistantMessage('hi', 2)
+            ]);
+
+            const messages = await buildSessionTranscript(file);
+
+            expect(messages.map(m => m.content)).to.deep.equal(['hello', 'hi']);
+        });
+    });
+
     it('keeps user and assistant messages, in order', async () => {
         const messages = await buildSessionTranscript(writeLog([
             userMessage('hello'), assistantMessage('hi')

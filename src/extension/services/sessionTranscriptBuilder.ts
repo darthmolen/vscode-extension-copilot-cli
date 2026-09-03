@@ -71,6 +71,17 @@ export async function buildSessionTranscript(
         }
 
         switch (event.type) {
+            case 'session.start': {
+                // A session id can be re-created — plan sessions do it on every
+                // plan-mode entry — which appends another `session.start` while
+                // keeping the earlier lines. Those earlier turns are not context
+                // the agent has, so replaying them would show a conversation it
+                // cannot remember. Only the last run is the transcript.
+                messages.length = 0;
+                toolMessages.clear();
+                break;
+            }
+
             case 'user.message':
             case 'assistant.message': {
                 const content = event.data?.content;

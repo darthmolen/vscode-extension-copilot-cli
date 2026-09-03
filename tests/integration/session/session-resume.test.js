@@ -93,6 +93,10 @@ class MockSDKSessionManager {
 let TEST_HOME = null;
 const realHomedir = os.homedir;
 
+// Folder these fixture sessions claim to belong to. Selection is folder-scoped,
+// so the fixtures must actually live in the folder the assertions ask about.
+const TEST_WORKSPACE = path.join(os.tmpdir(), 'session-resume-integration-workspace');
+
 // Test helper: create a session directory with events.jsonl
 function createTestSession(sessionId, messageCount = 3) {
 	const sessionDir = path.join(os.homedir(), '.copilot', 'session-state', sessionId);
@@ -101,6 +105,14 @@ function createTestSession(sessionId, messageCount = 3) {
 	}
 
 	const events = [];
+	// A real session.start carrying the cwd. Folder-scoped selection reads this
+	// (or workspace.yaml below); without it a session has no discoverable folder
+	// and is excluded from the filter entirely.
+	events.push(JSON.stringify({
+		type: 'session.start',
+		data: { context: { cwd: TEST_WORKSPACE } },
+		timestamp: Date.now() - (messageCount + 1) * 1000
+	}));
 	for (let i = 0; i < messageCount; i++) {
 		events.push(JSON.stringify({
 			event: 'user_message',
@@ -122,8 +134,8 @@ function createTestSession(sessionId, messageCount = 3) {
 
 	// Write workspace marker
 	fs.writeFileSync(
-		path.join(sessionDir, 'workspace.txt'),
-		'/test/workspace',
+		path.join(sessionDir, 'workspace.yaml'),
+		`id: ${sessionId}\ncwd: ${TEST_WORKSPACE}\ngit_root: ${TEST_WORKSPACE}\n`,
 		'utf-8'
 	);
 
@@ -139,8 +151,8 @@ function createCorruptSession(sessionId) {
 
 	// Only workspace marker, no events.jsonl
 	fs.writeFileSync(
-		path.join(sessionDir, 'workspace.txt'),
-		'/test/workspace',
+		path.join(sessionDir, 'workspace.yaml'),
+		`id: ${sessionId}\ncwd: ${TEST_WORKSPACE}\ngit_root: ${TEST_WORKSPACE}\n`,
 		'utf-8'
 	);
 
@@ -178,10 +190,14 @@ describe('Session Resume Integration Test', function () {
 		createTestSession(testSessionId2, 3);
 		createCorruptSession(corruptSessionId);
 
-		// Load extension modules (these require vscode mock)
-		const sessionUtils = require('../../../out/sessionUtils');
-		getMostRecentSession = sessionUtils.getMostRecentSession;
-		getAllSessions = sessionUtils.getAllSessions;
+		// Load extension modules (these require vscode mock).
+		// os.homedir() is stubbed to TEST_HOME by now, so resolve the state dir
+		// here rather than at module scope.
+		const { SessionService } = require('../../../out/extension/services/SessionService');
+		const sessionStateDir = path.join(os.homedir(), '.copilot', 'session-state');
+		getMostRecentSession = (folder, filterByFolder) =>
+			SessionService.getMostRecentSession(sessionStateDir, folder, filterByFolder);
+		getAllSessions = () => SessionService.getAllSessions(sessionStateDir);
 
 		const backendStateModule = require('../../../out/backendState');
 		getBackendState = backendStateModule.getBackendState;
@@ -202,7 +218,7 @@ describe('Session Resume Integration Test', function () {
 	});
 
 	it('should find the most recent session via getMostRecentSession', function () {
-		const mostRecent = getMostRecentSession('/test/workspace', true);
+		const mostRecent = getMostRecentSession(TEST_WORKSPACE, true);
 		assert.strictEqual(mostRecent, testSessionId2, 'Should find most recent session');
 	});
 
@@ -221,7 +237,7 @@ describe('Session Resume Integration Test', function () {
 	});
 
 	it('should identify correct session for resume (session determination logic)', function () {
-		const sessionToResume = getMostRecentSession('/test/workspace', true);
+		const sessionToResume = getMostRecentSession(TEST_WORKSPACE, true);
 		assert.strictEqual(sessionToResume, testSessionId2, 'Should identify correct session');
 	});
 

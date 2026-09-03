@@ -217,6 +217,16 @@ If your GitHub Enterprise organization requires SSO and uses the `/enterprises/{
 
 **Regular GitHub Enterprise** (without SSO): Just use the standard `copilot login` command - no configuration needed.
 
+### 4.1.0 - Sessions That Come Back 🔁
+
+- **Your chat no longer opens someone else's project** — Opening VS Code in a folder with no prior session fell back to the globally most-recent session and loaded it, so project A could show you project B's conversation. Selection now starts a fresh session instead. `copilotCLI.filterSessionsByFolder: false` still opts into the old global behaviour.
+- **Plan mode survives a restart** — Close VS Code while planning and you come back in plan mode, with the planning conversation intact. Entering plan mode is now recorded as your choice, and startup resumes the plan session directly rather than resurrecting a work session that may never have existed.
+- **Plan mode remembers what you planned** — Re-entering plan mode used to start the discussion over: the plan session was re-created rather than resumed, which hands the model an empty context. It is resumed now, tool restrictions intact.
+- **Tool groups close again** — Tools stopped piling into one endless accordion; each turn gets its own group.
+- **Tool rows are labelled again** — Sourced from the CLI's per-call intent, so every tool in a turn gets a label, not just the first.
+- **The model dropdown tells the truth** — When your configured model is unavailable the extension falls back, and now says which model it actually used instead of showing the dead one.
+- **Windows path fixes** — Sessions are no longer excluded from their own folder by drive-letter casing, and a session with a large first event is no longer dropped.
+
 ### 4.0.0 - Chat in a Tab
 
 - Chat in a tab or in the side bar, or at the same time
